@@ -772,5 +772,7 @@ extern int game_round(game *g);
 extern void declare_winner(game *g);
 
 extern void ai_debug(game *g, double role[MAX_PLAYER][MAX_ACTION],
-                              double win_prob[MAX_PLAYER][MAX_PLAYER]);
+                              double win_prob[MAX_PLAYER][MAX_PLAYER],
+                              double action_score[MAX_PLAYER][MAX_ACTION],
+                              double threshold);
 

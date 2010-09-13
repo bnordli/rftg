@@ -102,11 +102,19 @@ static void ai_initialize(game *g, int who, double factor)
 	/* Attempt to load network weights from disk */
 	if (load_net(&eval, fname))
 	{
-		/* Print warning */
-		printf("Warning: Couldn't open %s\n", fname);
+		/* Try looking under current directory */
+		sprintf(fname, "network/rftg.eval.%d.%d%s.net", g->expanded,
+			g->num_players, g->advanced ? "a" : "");
 
-		/* Perform initial training on new network */
-		initial_training(g);
+		/* Attempt to load again */
+		if (load_net(&eval, fname))
+		{
+			/* Print warning */
+			printf("Warning: Couldn't open %s\n", fname);
+
+			/* Perform initial training on new network */
+			initial_training(g);
+		}
 	}
 
 	/* Compute number of inputs */
@@ -128,8 +136,16 @@ static void ai_initialize(game *g, int who, double factor)
 	/* Attempt to load network weights from disk */
 	if (load_net(&role, fname))
 	{
-		/* Print warning */
-		printf("Warning: Couldn't open %s\n", fname);
+		/* Try looking under current directory */
+		sprintf(fname, "network/rftg.role.%d.%d%s.net", g->expanded,
+			g->num_players, g->advanced ? "a" : "");
+
+		/* Attempt to load again */
+		if (load_net(&role, fname))
+		{
+			/* Print warning */
+			printf("Warning: Couldn't open %s\n", fname);
+		}
 	}
 
 	/* Mark network as loaded */
@@ -3812,9 +3828,14 @@ interface ai_func =
  * Provide debugging information.
  */
 void ai_debug(game *g, double role[MAX_PLAYER][MAX_ACTION],
-                       double win_prob[MAX_PLAYER][MAX_PLAYER])
+                       double win_prob[MAX_PLAYER][MAX_PLAYER],
+                       double action_score[MAX_PLAYER][MAX_ACTION],
+                       double t)
 {
-	int i, j, n;
+	game sim;
+	int i, j, n, who;
+	double prob_used = 0;
+	double most_prob, threshold;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -3841,6 +3862,75 @@ void ai_debug(game *g, double role[MAX_PLAYER][MAX_ACTION],
 			/* Advance marker to next player */
 			n = (n + 1) % g->num_players;
 		}
+	}
+
+	/* Don't handle advanced game */
+	if (g->advanced) return;
+
+	/* Loop over players */
+	for (who = 0; who < g->num_players; who++)
+	{
+		/* Simulate game */
+		simulate_game(&sim, g, who);
+
+		/* Check for no user-set threshold */
+		if (t == -1)
+		{
+			/* Start with high threshold */
+			threshold = 1;
+
+			/* Loop over players */
+			for (i = 0; i < g->num_players; i++)
+			{
+				/* Skip ourself */
+				if (i == who) continue;
+
+				/* Clear biggest probability */
+				most_prob = 0;
+
+				/* Loop over actions */
+				for (j = 0; j < MAX_ACTION; j++)
+				{
+					/* Skip advanced actions */
+					if (j == ACT_DEVELOP2 || j == ACT_SETTLE2) continue;
+
+					/* Check for bigger */
+					if (role[i][j] > most_prob)
+					{
+						/* Track biggest */
+						most_prob = role[i][j];
+					}
+				}
+
+				/* Lower threshold */
+				threshold *= most_prob;
+			}
+
+			/* Reduce threshold to check similar events */
+			threshold /= 8;
+
+			/* Always check everything with two players */
+			if (g->num_players == 2) threshold = 0;
+
+			/* Increase threshold with large numbers of players */
+			if (g->num_players == 4) threshold *= 3;
+			if (g->num_players >= 5) threshold *= 6;
+		}
+		else
+		{
+			/* Use user threshold */
+			threshold = t;
+		}
+
+		/* Clear scores */
+		for (i = 0; i < MAX_ACTION; i++) action_score[who][i] = 0.0;
+
+		/* Clear active actions */
+		for (i = 0; i < MAX_ACTION; i++) sim.action_selected[i] = 0;
+
+		/* Evaluate action tree */
+		ai_choose_action_aux(&sim, who, 0, 1.0, &prob_used,
+		                     action_score[who], role, threshold);
 	}
 }
 

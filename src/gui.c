@@ -806,14 +806,14 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
  * Create an event box containing the given card's image.
  */
 static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
-                                int border)
+                                int border, int back)
 {
 	GdkPixbuf *buf, *border_buf, *blank_buf;
 	GtkWidget *image, *box;
 	int bw;
 
 	/* Check for no image */
-	if (!d_ptr)
+	if (back)
 	{
 		/* Scale card back image */
 		buf = gdk_pixbuf_scale_simple(card_back, w, h,
@@ -1032,7 +1032,7 @@ static void redraw_hand(void)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    i_ptr->special && i_ptr->selected);
+		                    i_ptr->special && i_ptr->selected, 0);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(hand_area), box, count * width,
@@ -1156,7 +1156,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    i_ptr->special && i_ptr->selected);
+		                    i_ptr->special && i_ptr->selected, 0);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
@@ -1168,10 +1168,10 @@ static void redraw_table_area(int who, GtkWidget *area)
 		if (i_ptr->covered || (i_ptr->selected && !i_ptr->special))
 		{
 			/* Get event box with no image */
-			good_box = new_image_box(NULL, 3 * card_w / 4,
-			                               3 * card_h / 4,
+			good_box = new_image_box(i_ptr->d_ptr, 3 * card_w / 4,
+			                                       3 * card_h / 4,
 			                               i_ptr->eligible ||
-			                                 i_ptr->color, 0);
+			                                 i_ptr->color, 0, 1);
 
 			/* Place box on card */
 			gtk_fixed_put(GTK_FIXED(area), good_box,
@@ -3973,7 +3973,7 @@ static void read_prefs(void)
 static void save_prefs(void)
 {
 	FILE *fff;
-	char *path;
+	char *path, *data;
 
 	/* Build user preference filename */
 	path = g_build_filename(g_get_user_config_dir(), "rftg", NULL);
@@ -3994,8 +3994,22 @@ static void save_prefs(void)
 	/* Open file for writing */
 	fff = fopen(path, "w");
 
+	/* Check for failure */
+	if (!fff)
+	{
+		/* Error */
+		printf("Can't save preferences to %s!\n", path);
+		return;
+	}
+
+	/* Get contents of keyfile */
+	data = g_key_file_to_data(pref_file, NULL, NULL);
+
 	/* Write keyfile contents */
-	fputs(g_key_file_to_data(pref_file, NULL, NULL), fff);
+	fputs(data, fff);
+
+	/* Free string */
+	g_free(data);
 
 	/* Close file */
 	fclose(fff);
@@ -4849,6 +4863,8 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *label, *table;
 	double role[MAX_PLAYER][MAX_ACTION];
 	double win_prob[MAX_PLAYER][MAX_PLAYER];
+	double action_score[MAX_PLAYER][MAX_ACTION];
+	double threshold = -1;
 	char buf[1024];
 	int i, j;
 
@@ -4862,7 +4878,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	                     "Race for the Galaxy " VERSION);
 
 	/* Get debug information from AI */
-	ai_debug(&real_game, role, win_prob);
+	ai_debug(&real_game, role, win_prob, action_score, threshold);
 
 	/* Create label */
 	label = gtk_label_new("Role choice probabilities:");
@@ -4961,6 +4977,57 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 			/* Add label to table */
 			gtk_table_attach_defaults(GTK_TABLE(table), label,
 			                          j + 1, j + 2, i + 1, i + 2);
+		}
+	}
+
+	/* Add table to dialog */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+
+	/* Create label */
+	label = gtk_label_new("Action scores:");
+
+	/* Pack label */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), label);
+
+	/* Create table for role probabilities */
+	table = gtk_table_new(real_game.num_players + 1, MAX_ACTION + 1, FALSE);
+
+	/* Set spacings between columns */
+	gtk_table_set_col_spacings(GTK_TABLE(table), 5);
+
+	/* Loop over action names */
+	for (i = 0; i < MAX_ACTION; i++)
+	{
+		/* Create label */
+		label = gtk_label_new(action_name[i]);
+
+		/* Add label to table */
+		gtk_table_attach_defaults(GTK_TABLE(table), label,
+		                          i + 1, i + 2, 0, 1);
+	}
+
+	/* Loop over players */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Create label with player name */
+		label = gtk_label_new(real_game.p[i].name);
+
+		/* Add label to table */
+		gtk_table_attach_defaults(GTK_TABLE(table), label,
+		                          0, 1, i + 1, i + 2);
+
+		/* Loop over actions */
+		for (j = 0; j < MAX_ACTION; j++)
+		{
+			/* Create label text */
+			sprintf(buf, "%.2f", action_score[i][j]);
+
+			/* Create label */
+			label = gtk_label_new(buf);
+
+			/* Add label to table */
+			gtk_table_attach_defaults(GTK_TABLE(table), label,
+						  j + 1, j + 2, i + 1, i + 2);
 		}
 	}
 
