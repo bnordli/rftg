@@ -44,6 +44,16 @@ typedef struct options
 	/* Password */
 	char *password;
 
+	/* Game description when creating */
+	char *game_desc;
+
+	/* Game password when creating */
+	char *game_pass;
+
+	/* Number of players in multiplayer */
+	int multi_min;
+	int multi_max;
+
 } options;
 
 extern options opt;
@@ -52,7 +62,7 @@ extern GtkTreeStore *game_list;
 extern GtkWidget *entry_label, *chat_view, *password_entry;
 extern GtkWidget *games_view;
 extern GtkWidget *create_button, *join_button, *leave_button;
-extern GtkWidget *kick_button, *start_button;
+extern GtkWidget *kick_button, *addai_button, *start_button;
 extern GtkWidget *action_prompt, *action_button;
 extern GtkWidget *message_view;
 extern GtkTextMark *message_end;
@@ -86,3 +96,4 @@ extern void join_game(GtkButton *button, gpointer data);
 extern void leave_game(GtkButton *button, gpointer data);
 extern void start_game(GtkButton *button, gpointer data);
 extern void kick_player(GtkButton *button, gpointer data);
+extern void add_ai_player(GtkButton *button, gpointer data);

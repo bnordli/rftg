@@ -602,13 +602,10 @@ void init_game(game *g)
 			c_ptr = &g->deck[g->deck_size++];
 
 			/* No owner */
-			c_ptr->owner = -1;
+			c_ptr->start_owner = c_ptr->owner = -1;
 
 			/* Put location in draw deck */
-			c_ptr->where = WHERE_DECK;
-
-			/* Card is not just drawn */
-			c_ptr->temp = 0;
+			c_ptr->start_where = c_ptr->where = WHERE_DECK;
 
 			/* Card is not unpaid */
 			c_ptr->unpaid = 0;

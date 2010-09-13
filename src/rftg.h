@@ -584,9 +584,6 @@ typedef struct card
 	/* Card's location at start of phase */
 	int start_where;
 
-	/* Card is one just drawn or placed */
-	int temp;
-
 	/* Card is being placed and is not yet paid for */
 	int unpaid;
 
@@ -893,8 +890,9 @@ extern void consume_chosen(game *g, int who, int c_idx, int o_idx);
 extern int consume_action(game *g, int who);
 extern void consume_player(game *g, int who);
 extern void phase_consume(game *g);
-extern void produce_world(game *g, int who, int which);
-extern void discard_produce_chosen(game *g, int who, int world, int discard);
+extern void produce_world(game *g, int who, int which, int c_idx, int o_idx);
+extern void discard_produce_chosen(game *g, int who, int world, int discard,
+                                   int c_idx, int o_idx);
 extern void produce_chosen(game *g, int who, int c_idx, int o_idx);
 extern int produce_action(game *g, int who);
 extern void phase_produce_end(game *g);

@@ -115,6 +115,13 @@ static char *player_colors[MAX_PLAYER] =
 #define GOALM_HEIGHT 447
 
 /*
+ * Colors to highlight with.
+ */
+#define HIGH_NONE   0
+#define HIGH_YELLOW 1
+#define HIGH_RED    2
+
+/*
  * Information about a displayed card.
  */
 typedef struct displayed
@@ -137,8 +144,17 @@ typedef struct displayed
 	/* Card is selected */
 	int selected;
 
-	/* Card should be highlighted when selected */
+	/* Card should deselect all others when selected */
+	int greedy;
+
+	/* Card should be highlighted in this color when selected */
 	int highlight;
+
+	/* Card should be highlighted in this color when not selected */
+	int highlight_else;
+
+	/* Card should be "pushed up" when selected */
+	int push;
 
 	/* Card is not eligible for selection, but should be colored anyway */
 	int color;
@@ -240,7 +256,7 @@ static int action_cidx, action_oidx;
 /*
  * Number of icon images.
  */
-#define MAX_ICON 18
+#define MAX_ICON 19
 
 /*
  * Special icon numbers.
@@ -253,6 +269,13 @@ static int action_cidx, action_oidx;
 #define ICON_WAITING   15
 #define ICON_READY     16
 #define ICON_OPTION    17
+#define ICON_DISCARD   18
+
+/*
+ * Number of action card images.
+ */
+#define MAX_ACT_CARD   11
+
 
 /*
  * Card images.
@@ -272,7 +295,7 @@ static GdkPixbuf *icon_cache[MAX_ICON];
 /*
  * Action card images.
  */
-static GdkPixbuf *action_cache[MAX_ACTION];
+static GdkPixbuf *action_cache[MAX_ACT_CARD];
 
 /*
  * Card back image.
@@ -307,7 +330,7 @@ GtkTreeStore *game_list;
 GtkWidget *entry_label, *chat_view;
 GtkWidget *games_view, *password_entry;
 GtkWidget *create_button, *join_button, *leave_button, *kick_button;
-GtkWidget *start_button;
+GtkWidget *addai_button, *start_button;
 GtkWidget *action_prompt, *action_button;
 
 /*
@@ -551,7 +574,7 @@ static void load_image_bundle(void)
 		else if (buf[0] == 5)
 		{
 			/* Read card number */
-			count = g_input_stream_read(fs, buf, 2, NULL, NULL);
+			count = g_input_stream_read(fs, buf, 3, NULL, NULL);
 
 			/* Convert to integer */
 			x = strtol(buf, NULL, 10);
@@ -687,13 +710,13 @@ static void load_images(void)
 	}
 
 	/* Loop over actions */
-	for (i = 0; i < MAX_ACTION; i++)
+	for (i = 0; i < MAX_ACT_CARD; i++)
 	{
 		/* Skip second develop/settle action */
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, "image/action%01d.jpg", i);
+		sprintf(fn, "image/action%02d.jpg", i);
 
 		/* Load image */
 		action_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
@@ -1228,7 +1251,7 @@ static gboolean redraw_action(GtkWidget *widget, GdkEventCrossing *event,
  * Create an event box containing the given card's image.
  */
 static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
-                                int border, int back)
+                                int highlight, int back)
 {
 	GdkPixbuf *buf, *border_buf, *blank_buf;
 	GtkWidget *image, *box;
@@ -1256,7 +1279,7 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 	}
 
 	/* Check for border placed around image */
-	if (border)
+	if (highlight == HIGH_YELLOW)
 	{
 		/* Compute border width */
 		bw = w / 20;
@@ -1267,7 +1290,7 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 		/* Create a border pixbuf */
 		border_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, w, h);
 
-		/* Fill pixbuf with opaque yellow */
+		/* Fill pixbuf with highlight color */
 		gdk_pixbuf_fill(border_buf, 0xffff00ff);
 
 		/* Create a blank pixbuf */
@@ -1286,6 +1309,21 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 
 		/* Release our copies of pixbufs */
 		g_object_unref(G_OBJECT(blank_buf));
+		g_object_unref(G_OBJECT(border_buf));
+	}
+
+	/* Check for red discard highlight */
+	else if (highlight == HIGH_RED)
+	{
+		/* Scale discard icon */
+		border_buf = gdk_pixbuf_scale_simple(icon_cache[ICON_DISCARD],
+		                                     w, h, GDK_INTERP_BILINEAR);
+
+		/* Composite discard symbol onto card image buffer */
+		gdk_pixbuf_composite(border_buf, buf, 0, 0, w, h,
+		                     0, 0, 1, 1, GDK_INTERP_BILINEAR, 255);
+
+		/* Release our copy of scaled discard icon */
 		g_object_unref(G_OBJECT(border_buf));
 	}
 
@@ -1316,9 +1354,51 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
                               gpointer data)
 {
 	displayed *i_ptr = (displayed *)data;
+	displayed *j_ptr;
+	int i, j;
 
 	/* Change selection status */
 	i_ptr->selected = !i_ptr->selected;
+
+	/* Check for greedy card */
+	if (i_ptr->greedy && i_ptr->selected)
+	{
+		/* Check for hand */
+		if (i_ptr->hand)
+		{
+			/* Loop over other cards in hand */
+			for (i = 0; i < hand_size; i++)
+			{
+				/* Get displayed card pointer */
+				j_ptr = &hand[i];
+
+				/* Skip current card */
+				if (i_ptr == j_ptr) continue;
+
+				/* Clear selected */
+				j_ptr->selected = 0;		
+			}
+		}
+		else
+		{
+			/* Loop over all table areas */
+			for (i = 0; i < MAX_PLAYER; i++)
+			{
+				/* Loop over cards in table area */
+				for (j = 0; j < table_size[i]; j++)
+				{
+					/* Get displayed card pointer */
+					j_ptr = &table[i][j];
+
+					/* Skip current card */
+					if (i_ptr == j_ptr) continue;
+
+					/* Clear selected */
+					j_ptr->selected = 0;
+				}
+			}
+		}
+	}
 
 	/* Check for "number" restriction on action button */
 	if (action_restrict == RESTRICT_NUM)
@@ -1418,6 +1498,41 @@ static void destroy_widget(GtkWidget *widget, gpointer data)
 }
 
 /*
+ * Function to compare two cards in the hand for sorting.
+ */
+static int cmp_hand(const void *h1, const void *h2)
+{
+	displayed *i_ptr1 = (displayed *)h1, *i_ptr2 = (displayed *)h2;
+	card *c_ptr1, *c_ptr2;
+
+	/* Get card pointers */
+	c_ptr1 = &real_game.deck[i_ptr1->index];
+	c_ptr2 = &real_game.deck[i_ptr2->index];
+
+	/* Gapped cards always go after non-gapped */
+	if (i_ptr1->gapped && !i_ptr2->gapped) return 1;
+	if (!i_ptr1->gapped && i_ptr2->gapped) return -1;
+
+	/* Worlds come before developments */
+	if (c_ptr1->d_ptr->type != c_ptr2->d_ptr->type)
+	{
+		/* Check for development */
+		if (c_ptr1->d_ptr->type == TYPE_DEVELOPMENT) return 1;
+		if (c_ptr2->d_ptr->type == TYPE_DEVELOPMENT) return -1;
+	}
+
+	/* Sort by cost */
+	if (c_ptr1->d_ptr->cost != c_ptr2->d_ptr->cost)
+	{
+		/* Return cost difference */
+		return c_ptr1->d_ptr->cost - c_ptr2->d_ptr->cost;
+	}
+
+	/* Otherwise sort by index */
+	return i_ptr1->index - i_ptr2->index;
+}
+
+/*
  * Redraw hand area.
  */
 void redraw_hand(void)
@@ -1426,9 +1541,12 @@ void redraw_hand(void)
 	displayed *i_ptr;
 	int count = 0, gap = 1, n, num_gap = 0;
 	int key_count = 1, key_code;
-	int width, height;
+	int width, height, highlight;
 	int card_w, card_h;
-	int i;
+	int i, j;
+
+	/* Sort hand */
+	qsort(hand, hand_size, sizeof(displayed), cmp_hand);
 
 	/* First destroy all pre-existing card widgets */
 	gtk_container_foreach(GTK_CONTAINER(hand_area), destroy_widget, NULL);
@@ -1494,14 +1612,40 @@ void redraw_hand(void)
 			gap = 0;
 		}
 
+		/* Assume no highlighting */
+		highlight = HIGH_NONE;
+
+		/* Check for selected */
+		if (i_ptr->selected)
+		{
+			/* Use given highlight color */
+			highlight = i_ptr->highlight;
+		}
+		else
+		{
+			/* Check for other card selected */
+			for (j = 0; j < hand_size; j++)
+			{
+				/* Skip current card */
+				if (i == j) continue;
+
+				/* Check for selected */
+				if (hand[j].selected)
+				{
+					/* Use alternate highlight color */
+					highlight = i_ptr->highlight_else;
+				}
+			}
+		}
+
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    i_ptr->highlight && i_ptr->selected, 0);
+		                    highlight, 0);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(hand_area), box, count * width,
-		              i_ptr->selected && !i_ptr->highlight ? 0 :
+		              i_ptr->selected && i_ptr->push ? 0 :
 		                                             height - card_h);
 
 		/* Check for eligible card */
@@ -1571,9 +1715,9 @@ static void redraw_table_area(int who, GtkWidget *area)
 	displayed *i_ptr;
 	int x = 0, y = 0;
 	int col, row;
-	int width, height;
+	int width, height, highlight;
 	int card_w, card_h;
-	int i, n;
+	int i, j, n;
 
 	/* First destroy all pre-existing card widgets */
 	gtk_container_foreach(GTK_CONTAINER(area), destroy_widget, NULL);
@@ -1629,10 +1773,36 @@ static void redraw_table_area(int who, GtkWidget *area)
 		/* Get displayed card pointer */
 		i_ptr = &table[who][i];
 
+		/* Assume no highlighting */
+		highlight = HIGH_NONE;
+
+		/* Check for selected */
+		if (i_ptr->selected)
+		{
+			/* Use given highlight color */
+			highlight = i_ptr->highlight;
+		}
+		else
+		{
+			/* Check for other card selected */
+			for (j = 0; j < table_size[who]; j++)
+			{
+				/* Skip current card */
+				if (i == j) continue;
+
+				/* Check for selected */
+				if (table[who][j].selected)
+				{
+					/* Use alternate highlight color */
+					highlight = i_ptr->highlight_else;
+				}
+			}
+		}
+
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    i_ptr->highlight && i_ptr->selected, 0);
+		                    highlight, 0);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
@@ -1652,7 +1822,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 		}
 
 		/* Check for good */
-		if (i_ptr->covered || (i_ptr->selected && !i_ptr->highlight))
+		if (i_ptr->covered || (i_ptr->selected && i_ptr->push))
 		{
 			/* Get event box with no image */
 			good_box = new_image_box(i_ptr->d_ptr, 3 * card_w / 4,
@@ -1663,7 +1833,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 			/* Place box on card */
 			gtk_fixed_put(GTK_FIXED(area), good_box,
 			              x * width + card_w / 4,
-			              i_ptr->selected && !i_ptr->highlight ?
+			              i_ptr->selected && i_ptr->push ?
 			                  y * height :
 				          y * height + card_h / 4);
 
@@ -1962,10 +2132,7 @@ static char *get_military_tooltip(game *g, int who)
 		if (c_ptr->owner != who) continue;
 
 		/* Skip inactive cards */
-		if (c_ptr->where != WHERE_ACTIVE) continue;
-
-		/* Skip just-played cards */
-		if (c_ptr->temp) continue;
+		if (c_ptr->start_where != WHERE_ACTIVE) continue;
 
 		/* Loop over card's powers */
 		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
@@ -2657,31 +2824,12 @@ static void goal_allocated(GtkWidget *widget, GtkAllocation *allocation,
 }
 
 /*
- * Function to compare two cards in the hand for sorting.
+ * Reset a displayed card structure.
  */
-static int cmp_hand(const void *h1, const void *h2)
+static void reset_display(displayed *i_ptr)
 {
-	displayed *i_ptr1 = (displayed *)h1, *i_ptr2 = (displayed *)h2;
-	card *c_ptr1, *c_ptr2;
-
-	/* Get card pointers */
-	c_ptr1 = &real_game.deck[i_ptr1->index];
-	c_ptr2 = &real_game.deck[i_ptr2->index];
-
-	/* "Temp" cards always go after non-temp cards */
-	if (c_ptr1->temp && !c_ptr2->temp) return 1;
-	if (!c_ptr1->temp && c_ptr2->temp) return -1;
-
-	/* Worlds come before developments */
-	if (c_ptr1->d_ptr->type != c_ptr2->d_ptr->type)
-	{
-		/* Check for development */
-		if (c_ptr1->d_ptr->type == TYPE_DEVELOPMENT) return 1;
-		if (c_ptr2->d_ptr->type == TYPE_DEVELOPMENT) return -1;
-	}
-
-	/* Sort by cost */
-	return c_ptr1->d_ptr->cost - c_ptr2->d_ptr->cost;
+	/* Clear all fields */
+	memset(i_ptr, 0, sizeof(displayed));
 }
 
 /*
@@ -2722,6 +2870,9 @@ static void reset_hand(game *g, int color)
 		/* Get next entry in hand list */
 		i_ptr = &hand[hand_size++];
 
+		/* Reset structure */
+		reset_display(i_ptr);
+
 		/* Add card information */
 		i_ptr->index = i;
 		i_ptr->d_ptr = c_ptr->d_ptr;
@@ -2729,18 +2880,9 @@ static void reset_hand(game *g, int color)
 		/* Card is in hand */
 		i_ptr->hand = 1;
 
-		/* Card is not eligible or selected */
-		i_ptr->eligible = i_ptr->selected = 0;
-
-		/* Card is not highlighted or gapped */
-		i_ptr->highlight = i_ptr->gapped = 0;
-
 		/* Set color flag */
 		i_ptr->color = color;
 	}
-
-	/* Sort hand */
-	qsort(hand, hand_size, sizeof(displayed), cmp_hand);
 }
 
 /*
@@ -2770,24 +2912,18 @@ static void reset_table(game *g, int who, int color)
 		/* Get next entry in table list */
 		i_ptr = &table[who][table_size[who]++];
 
+		/* Reset structure */
+		reset_display(i_ptr);
+
 		/* Add card information */
 		i_ptr->index = i;
 		i_ptr->d_ptr = c_ptr->d_ptr;
-
-		/* Card is not in hand */
-		i_ptr->hand = 0;
-
-		/* Card is not eligible or selected */
-		i_ptr->eligible = i_ptr->selected = 0;
 
 		/* Set color flag */
 		i_ptr->color = color;
 
 		/* Check for good */
 		i_ptr->covered = (c_ptr->covered != -1);
-
-		/* Card is not highlighted or gapped */
-		i_ptr->highlight = i_ptr->gapped = 0;
 
 		/* Copy order played */
 		i_ptr->order = c_ptr->order;
@@ -3259,7 +3395,8 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",
-		                 G_CALLBACK(redraw_action), GINT_TO_POINTER(0));
+		                 G_CALLBACK(redraw_action),
+		                 GINT_TO_POINTER(10));
 
 		/* Connect "pressed" signal */
 		g_signal_connect(G_OBJECT(prestige), "pressed",
@@ -3451,7 +3588,8 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",
-		                 G_CALLBACK(redraw_action), GINT_TO_POINTER(0));
+		                 G_CALLBACK(redraw_action),
+		                 GINT_TO_POINTER(10));
 
 		/* Show everything */
 		gtk_widget_show_all(prestige);
@@ -3548,24 +3686,20 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 		/* Get next entry in table list */
 		i_ptr = &table[player_us][table_size[player_us]++];
 
+		/* Clear displayed card */
+		reset_display(i_ptr);
+
 		/* Add card information */
 		i_ptr->index = special[i];
 		i_ptr->d_ptr = c_ptr->d_ptr;
 
-		/* Card is not in hand */
-		i_ptr->hand = 0;
-
 		/* Card is eligible */
 		i_ptr->eligible = 1;
+		i_ptr->greedy = 1;
 
 		/* Card should be highlighted when selected */
-		i_ptr->highlight = 1;
-		
-		/* Card is not selected */
-		i_ptr->selected = 0;
-
-		/* Card is not covered */
-		i_ptr->covered = 0;
+		i_ptr->highlight = HIGH_YELLOW;
+		i_ptr->highlight_else = HIGH_RED;
 	}
 
 	/* Loop over cards in list */
@@ -3582,6 +3716,12 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be red when selected */
+				i_ptr->highlight = HIGH_RED;
+
+				/* Push card when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -3632,10 +3772,12 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 {
 	char buf[1024];
 	displayed *i_ptr;
+	card *c_ptr;
 	int i, j, n = 0;
 
 	/* Create prompt */
-	sprintf(buf, "Choose %d cards to discard", discard);
+	sprintf(buf, "Choose %d card%s to discard", discard,
+	              discard == 1 ? "" : "s");
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
@@ -3653,6 +3795,9 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 	/* Loop over cards in list */
 	for (i = 0; i < *num; i++)
 	{
+		/* Get card pointer */
+		c_ptr = &g->deck[list[i]];
+
 		/* Loop over cards in hand */
 		for (j = 0; j < hand_size; j++)
 		{
@@ -3664,6 +3809,19 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be red when selected */
+				i_ptr->highlight = HIGH_RED;
+
+				/* Push card when selected */
+				i_ptr->push = 1;
+
+				/* Check for new card */
+				if (c_ptr->start_where != WHERE_HAND)
+				{
+					/* Put gap before card */
+					i_ptr->gapped = 1;
+				}
 			}
 		}
 	}
@@ -3732,8 +3890,13 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 			{
 				/* Mark card as eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
+
+				/* Display card with gap */
 				i_ptr->gapped = 1;
-				i_ptr->highlight = 1;
+
+				/* Card should be highlighted when selected */
+				i_ptr->highlight = HIGH_YELLOW;
 				break;
 			}
 		}
@@ -3747,6 +3910,9 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 		/* Get next entry in hand list */
 		i_ptr = &hand[hand_size++];
 
+		/* Reset structure */
+		reset_display(i_ptr);
+
 		/* Add card information */
 		i_ptr->index = list[i];
 		i_ptr->d_ptr = c_ptr->d_ptr;
@@ -3756,11 +3922,14 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 
 		/* Card is eligible for selection */
 		i_ptr->eligible = 1;
-		i_ptr->gapped = 1;
-		i_ptr->highlight = 1;
+		i_ptr->greedy = 1;
 
-		/* Card is not selected */
-		i_ptr->selected = 0;
+		/* Display card with gap */
+		i_ptr->gapped = 1;
+
+		/* Card should be highlighted when selected */
+		i_ptr->highlight = HIGH_YELLOW;
+		i_ptr->highlight_else = HIGH_RED;
 	}
 
 	/* Redraw everything */
@@ -3797,7 +3966,7 @@ void gui_choose_discard_prestige(game *g, int who, int list[], int *num)
 	int i, j, n = 0;
 
 	/* Create prompt */
-	sprintf(buf, "Choose cards to discard for prestige");
+	sprintf(buf, "Choose card to discard for prestige");
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
@@ -3827,6 +3996,12 @@ void gui_choose_discard_prestige(game *g, int who, int list[], int *num)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Highlight in red when selected */
+				i_ptr->highlight = HIGH_RED;
+
+				/* Card should be pushed up when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -3905,9 +4080,10 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be highlighted when selected */
-				i_ptr->highlight = 1;
+				i_ptr->highlight = HIGH_YELLOW;
 			}
 		}
 	}
@@ -3947,8 +4123,9 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 {
 	card *c_ptr;
 	displayed *i_ptr;
+	power *o_ptr;
 	char buf[1024];
-	int i, j, n = 0, ns = 0;
+	int i, j, n = 0, ns = 0, high_color;
 
 	/* Get card we are paying for */
 	c_ptr = &real_game.deck[which];
@@ -3984,6 +4161,12 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be red when selected */
+				i_ptr->highlight = HIGH_RED;
+
+				/* Card should be pushed up when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -3991,6 +4174,30 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	/* Loop over special cards */
 	for (i = 0; i < *num_special; i++)
 	{
+		/* Assume highlight color will be yellow */
+		high_color = HIGH_YELLOW;
+
+		/* Loop over powers on card */
+		for (j = 0; j < g->deck[special[i]].d_ptr->num_power; j++)
+		{
+			/* Get power pointer */
+			o_ptr = &g->deck[special[i]].d_ptr->powers[j];
+
+			/* Skip non-develop or settle powers */
+			if (o_ptr->phase != PHASE_DEVELOP &&
+			    o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for discard in develop phase */
+			if (o_ptr->phase == PHASE_DEVELOP &&
+			    (o_ptr->code & P2_DISCARD_REDUCE))
+				high_color = HIGH_RED;
+
+			/* Check for discard in settle phase */
+			if (o_ptr->phase == PHASE_SETTLE &&
+			    (o_ptr->code & P3_DISCARD))
+				high_color = HIGH_RED;
+		}
+
 		/* Loop over cards on table */
 		for (j = 0; j < table_size[player_us]; j++)
 		{
@@ -4004,7 +4211,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 				i_ptr->eligible = 1;
 
 				/* Card should be highlighted when selected */
-				i_ptr->highlight = 1;
+				i_ptr->highlight = high_color;
 			}
 		}
 	}
@@ -4059,8 +4266,9 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
                         int special[], int *num_special)
 {
 	displayed *i_ptr;
+	power *o_ptr;
 	char buf[1024];
-	int i, j, k, target = -1;
+	int i, j, k, target = -1, high_color;
 
 	/* Create prompt */
 	sprintf(buf, "Choose world to takeover and power to use");
@@ -4097,7 +4305,7 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 				{
 					/* Card is eligible */
 					i_ptr->eligible = 1;
-					i_ptr->highlight = 1;
+					i_ptr->highlight = HIGH_YELLOW;
 				}
 			}
 		}
@@ -4106,6 +4314,28 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 	/* Loop over special cards */
 	for (i = 0; i < *num_special; i++)
 	{
+		/* Assume highlight color will be yellow */
+		high_color = HIGH_YELLOW;
+
+		/* Loop over powers on card */
+		for (j = 0; j < g->deck[special[i]].d_ptr->num_power; j++)
+		{
+			/* Get power pointer */
+			o_ptr = &g->deck[special[i]].d_ptr->powers[j];
+
+			/* Skip non-settle powers */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Skip non-takeover powers */
+			if (!(o_ptr->code & (P3_TAKEOVER_REBEL |
+			                     P3_TAKEOVER_IMPERIUM |
+			                     P3_TAKEOVER_MILITARY |
+			                     P3_TAKEOVER_PRESTIGE))) continue;
+
+			/* Check for discard to use power */
+			if (o_ptr->code & P3_DISCARD) high_color = HIGH_RED;
+		}
+
 		/* Loop over cards on table */
 		for (j = 0; j < table_size[player_us]; j++)
 		{
@@ -4119,7 +4349,7 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 				i_ptr->eligible = 1;
 
 				/* Card should be highlighted when selected */
-				i_ptr->highlight = 1;
+				i_ptr->highlight = high_color;
 			}
 		}
 	}
@@ -4180,8 +4410,9 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 {
 	card *c_ptr;
 	displayed *i_ptr;
+	power *o_ptr;
 	char buf[1024];
-	int i, j, n = 0, ns = 0;
+	int i, j, n = 0, ns = 0, high_color;
 
 	/* Get card we are defending */
 	c_ptr = &real_game.deck[which];
@@ -4216,6 +4447,12 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				
+				/* Highlight card in red when selected */
+				i_ptr->highlight = HIGH_RED;
+
+				/* Card should be pushed up when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -4223,6 +4460,22 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 	/* Loop over special cards */
 	for (i = 0; i < *num_special; i++)
 	{
+		/* Assume highlight color will be yellow */
+		high_color = HIGH_YELLOW;
+
+		/* Loop over powers on card */
+		for (j = 0; j < g->deck[special[i]].d_ptr->num_power; j++)
+		{
+			/* Get power pointer */
+			o_ptr = &g->deck[special[i]].d_ptr->powers[j];
+
+			/* Skip non-settle powers */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for discard to use power */
+			if (o_ptr->code & P3_DISCARD) high_color = HIGH_RED;
+		}
+
 		/* Loop over cards on table */
 		for (j = 0; j < table_size[player_us]; j++)
 		{
@@ -4236,7 +4489,7 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 				i_ptr->eligible = 1;
 
 				/* Card should be highlighted when selected */
-				i_ptr->highlight = 1;
+				i_ptr->highlight = high_color;
 			}
 		}
 	}
@@ -4405,6 +4658,9 @@ void gui_choose_upgrade(game *g, int who, int list[], int *num, int special[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be highlighted when selected */
+				i_ptr->highlight = HIGH_YELLOW;
 			}
 		}
 	}
@@ -4425,7 +4681,7 @@ void gui_choose_upgrade(game *g, int who, int list[], int *num, int special[],
 				i_ptr->eligible = 1;
 
 				/* Card should be highlighted when selected */
-				i_ptr->highlight = 1;
+				i_ptr->highlight = HIGH_RED;
 			}
 		}
 	}
@@ -4510,6 +4766,9 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Push good upwards when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -4557,7 +4816,7 @@ typedef struct pow_loc
  */
 static int score_consume(power *o_ptr)
 {
-	int vp = 0, card = 0, goods = 1;
+	int vp = 0, card = 0, prestige = 0, goods = 1;
 	int score;
 
 	/* Always discard from hand last */
@@ -4578,6 +4837,9 @@ static int score_consume(power *o_ptr)
 	/* Check for cards awarded */
 	if (o_ptr->code & P4_GET_2_CARD) card += o_ptr->value * 2;
 
+	/* Check for prestige awarded */
+	if (o_ptr->code & P4_GET_PRESTIGE) prestige += o_ptr->value;
+
 	/* Assume trade will earn 4 cards */
 	if (o_ptr->code & P4_TRADE_ACTION) card += 4;
 
@@ -4597,7 +4859,7 @@ static int score_consume(power *o_ptr)
 	if (player_chose(&real_game, player_us, ACT_CONSUME_X2)) vp *= 2;
 
 	/* Compute score */
-	score = (vp * 100 + card * 50) / goods;
+	score = (prestige * 150 + vp * 100 + card * 50) / goods;
 
 	/* Use specific consume powers first */
 	if (!(o_ptr->code & P4_CONSUME_ANY)) score++;
@@ -4989,6 +5251,12 @@ void gui_choose_consume_hand(game *g, int who, int c_idx, int o_idx, int list[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be red when selected */
+				i_ptr->highlight = HIGH_RED;
+
+				/* Card should be pushed up when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -5064,6 +5332,9 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Push good upwards when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -5174,6 +5445,9 @@ int gui_choose_ante(game *g, int who, int list[], int num)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be pushed up when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -5240,6 +5514,9 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 		/* Get next entry in hand list */
 		i_ptr = &hand[hand_size++];
 
+		/* Reset structure */
+		reset_display(i_ptr);
+
 		/* Add card information */
 		i_ptr->index = list[i];
 		i_ptr->d_ptr = c_ptr->d_ptr;
@@ -5250,10 +5527,9 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 		/* Card is eligible */
 		i_ptr->eligible = 1;
 		i_ptr->gapped = 1;
-		i_ptr->highlight = 1;
-		
-		/* Card is not selected */
-		i_ptr->selected = 0;
+
+		/* Highlight card when selected */
+		i_ptr->highlight = HIGH_YELLOW;
 	}
 
 	/* Redraw everything */
@@ -5319,6 +5595,12 @@ void gui_choose_windfall(game *g, int who, int list[], int *num)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Only one card can be selected */
+				i_ptr->greedy = 1;
+
+				/* Push good upwards when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -5531,6 +5813,12 @@ void gui_choose_discard_produce(game *g, int who, int list[], int *num,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be red when selected */
+				i_ptr->highlight = HIGH_RED;
+
+				/* Card should be pushed up when selected */
+				i_ptr->push = 1;
 			}
 		}
 	}
@@ -5551,7 +5839,7 @@ void gui_choose_discard_produce(game *g, int who, int list[], int *num,
 				i_ptr->eligible = 1;
 
 				/* Card should be highlighted when selected */
-				i_ptr->highlight = 1;
+				i_ptr->highlight = HIGH_YELLOW;
 
 				/* Check for only choice */
 				if (*num_special == 1)
@@ -5702,6 +5990,9 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Get next entry in hand list */
 	i_ptr = &hand[hand_size++];
 
+	/* Reset structure */
+	reset_display(i_ptr);
+
 	/* Add card information */
 	i_ptr->index = arg1;
 	i_ptr->d_ptr = c_ptr->d_ptr;
@@ -5709,13 +6000,9 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Card is in hand */
 	i_ptr->hand = 1;
 
-	/* Card is ineligible */
-	i_ptr->eligible = 0;
+	/* Card should be separated from hand */
 	i_ptr->gapped = 1;
 	i_ptr->color = 1;
-
-	/* Card is not selected */
-	i_ptr->selected = 0;
 
 	/* Create simple combo box */
 	combo = gtk_combo_box_new_text();
@@ -6170,6 +6457,9 @@ void reset_gui(void)
 		/* Call initialization function */
 		real_game.p[i].control->init(&real_game, i, 0.0);
 	}
+
+	/* Clear message log */
+	clear_log();
 }
 
 /*
@@ -6268,9 +6558,6 @@ static void run_game(void)
 				real_game.p[i].choice_pos = 0;
 			}
 
-			/* Clear text log */
-			clear_log();
-
 			/* Clear undos */
 			num_undo = 0;
 
@@ -6307,9 +6594,6 @@ static void run_game(void)
 
 			/* Reset our position and GUI elements */
 			reset_gui();
-
-			/* Clear message log */
-			clear_log();
 
 			/* Loop over players */
 			for (i = 0; i < real_game.num_players; i++)
@@ -6435,6 +6719,16 @@ static void read_prefs(void)
 	opt.password = g_key_file_get_string(pref_file, "multiplayer",
 	                                     "password", NULL);
 
+	/* Read multiplayer game creation options */
+	opt.game_desc = g_key_file_get_string(pref_file, "multiplayer",
+	                                      "game_desc", NULL);
+	opt.game_pass = g_key_file_get_string(pref_file, "multiplayer",
+	                                      "game_pass", NULL);
+	opt.multi_min = g_key_file_get_integer(pref_file, "multiplayer",
+	                                         "min_player", NULL);
+	opt.multi_max = g_key_file_get_integer(pref_file, "multiplayer",
+	                                         "max_player", NULL);
+
 	/* Check range of values */
 	if (opt.num_players < 2) opt.num_players = 2;
 	if (opt.num_players > MAX_PLAYER) opt.num_players = MAX_PLAYER;
@@ -6483,6 +6777,16 @@ void save_prefs(void)
 	g_key_file_set_string(pref_file, "multiplayer", "password",
 	                      opt.password);
 
+	/* Set multiplayer game creation options */
+	g_key_file_set_string(pref_file, "multiplayer", "game_desc",
+	                      opt.game_desc);
+	g_key_file_set_string(pref_file, "multiplayer", "game_pass",
+	                      opt.game_pass);
+	g_key_file_set_integer(pref_file, "multiplayer", "min_player",
+	                      opt.multi_min);
+	g_key_file_set_integer(pref_file, "multiplayer", "max_player",
+	                      opt.multi_max);
+
 	/* Open file for writing */
 	fff = fopen(path, "w");
 
@@ -6512,13 +6816,6 @@ void save_prefs(void)
  */
 static void apply_options(void)
 {
-	/* Sanity check advanced mode */
-	if (opt.num_players > 2)
-	{
-		/* Clear advanced mode */
-		opt.advanced = 0;
-	}
-
 	/* Sanity check number of players in base game */
 	if (opt.expanded < 1 && opt.num_players > 4)
 	{
@@ -6547,6 +6844,13 @@ static void apply_options(void)
 
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
+
+	/* Sanity check advanced mode */
+	if (real_game.num_players > 2)
+	{
+		/* Clear advanced mode */
+		real_game.advanced = 0;
+	}
 }
 
 /*
@@ -8002,9 +8306,6 @@ int main(int argc, char *argv[])
 	/* Apply options */
 	apply_options();
 
-	/* Reset game's player structures */
-	reset_gui();
-
 	/* Create choice logs for each player */
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
@@ -8562,6 +8863,13 @@ int main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(kick_button), "clicked",
 	                 G_CALLBACK(kick_player), NULL);
 
+	/* Create add AI player button */
+	addai_button = gtk_button_new_with_label("Add AI Player");
+
+	/* Connect "clicked" signal of add AI button */
+	g_signal_connect(G_OBJECT(addai_button), "clicked",
+	                 G_CALLBACK(add_ai_player), NULL);
+
 	/* Create start button */
 	start_button = gtk_button_new_with_label("Start Game");
 
@@ -8578,6 +8886,7 @@ int main(int argc, char *argv[])
 	gtk_box_pack_start(GTK_BOX(join_hbox), join_button, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(join_hbox), leave_button, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(join_hbox), kick_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(join_hbox), addai_button, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(join_hbox), start_button, FALSE, TRUE, 0);
 
 	/* Create blank filler label */
@@ -8730,6 +9039,9 @@ int main(int argc, char *argv[])
 	gtk_widget_hide(menu_bar);
 	ige_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));	
 #endif
+
+	/* Reset GUI */
+	reset_gui();
 	
 	/* Modify GUI for current setup */
 	modify_gui();

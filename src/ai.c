@@ -2965,8 +2965,9 @@ static void claim_card(game *g, int who, int which)
 	c_ptr->owner = who;
 	c_ptr->where = WHERE_HAND;
 
-	/* Mark card as temporary */
-	c_ptr->temp = 1;
+	/* Assume old location was draw deck */
+	c_ptr->start_owner = -1;
+	c_ptr->start_where = WHERE_DECK;
 }
 
 /*
@@ -2998,7 +2999,7 @@ static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
 		if (c_ptr->where != WHERE_HAND) continue;
 
 		/* Skip old cards if they can't be discarded */
-		if (!c_ptr->temp && !discard_any) continue;
+		if (c_ptr->start_where == WHERE_HAND && !discard_any) continue;
 
 		/* Add card to list */
 		list[num++] = i;
@@ -5035,7 +5036,8 @@ static int ai_choose_keep(game *g, int who, int list[], int num)
 /*
  * Choose windfall world to produce on.
  */
-static void ai_choose_windfall(game *g, int who, int list[], int *num)
+static void ai_choose_windfall(game *g, int who, int list[], int *num,
+                               int c_idx, int o_idx)
 {
 	game sim;
 	int i, best = -1;
@@ -5058,7 +5060,7 @@ static void ai_choose_windfall(game *g, int who, int list[], int *num)
 		simulate_game(&sim, g, who);
 
 		/* Try producing on this world */
-		produce_world(&sim, who, list[i]);
+		produce_world(&sim, who, list[i], c_idx, o_idx);
 
 		/* Use remaining produce powers */
 		while (produce_action(&sim, who));
@@ -5196,7 +5198,8 @@ static void ai_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
  * given worlds.
  */
 static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
-                                      int special[], int *num_special)
+                                      int special[], int *num_special,
+                                      int c_idx, int o_idx)
 {
 	game sim;
 	player *p_ptr;
@@ -5245,7 +5248,7 @@ static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
 			sim.p[who].fake_discards++;
 
 			/* Produce */
-			produce_world(&sim, who, special[i]);
+			produce_world(&sim, who, special[i], c_idx, o_idx);
 
 			/* Simulate rest of turn */
 			complete_turn(&sim, 0);
@@ -5274,7 +5277,7 @@ static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
 		g->p[who].fake_discards++;
 
 		/* Produce on best world */
-		produce_world(g, who, special[b_i]);
+		produce_world(g, who, special[b_i], c_idx, o_idx);
 
 		/* Do not discard any specific card */
 		*num = 0;
@@ -5293,7 +5296,8 @@ static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
 			simulate_game(&sim, g, who);
 
 			/* Try discard */
-			discard_produce_chosen(&sim, who, special[i], list[j]);
+			discard_produce_chosen(&sim, who, special[i], list[j],
+			                       c_idx, o_idx);
 
 			/* Use remaining produce powers */
 			while (produce_action(&sim, who));
@@ -5640,7 +5644,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 		case CHOICE_WINDFALL:
 
 			/* Choose world */
-			ai_choose_windfall(g, who, list, nl);
+			ai_choose_windfall(g, who, list, nl, arg1, arg2);
 			rv = 0;
 			break;
 
@@ -5657,7 +5661,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose card */
 			ai_choose_discard_produce(g, who, list, nl,
-			                          special, ns);
+			                          special, ns, arg1, arg2);
 			rv = 0;
 			break;
 

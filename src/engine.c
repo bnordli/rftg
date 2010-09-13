@@ -397,9 +397,6 @@ void draw_card(game *g, int who)
 	/* Move card to hand */
 	c_ptr->where = WHERE_HAND;
 
-	/* Mark card as temporary */
-	if (g->cur_action <= ACT_EXPLORE_5_0) c_ptr->temp = 1;
-
 	/* Card's location is known to player */
 	c_ptr->known |= 1 << who;
 }
@@ -602,9 +599,6 @@ void clear_temp(game *g)
 		/* Copy current location */
 		c_ptr->start_owner = c_ptr->owner;
 		c_ptr->start_where = c_ptr->where;
-
-		/* Clear temp flag */
-		c_ptr->temp = 0;
 
 		/* Clear unpaid flag */
 		c_ptr->unpaid = 0;
@@ -847,9 +841,6 @@ void discard_callback(game *g, int who, int list[], int num)
 
 		/* Move card to discard */
 		c_ptr->where = WHERE_DISCARD;
-
-		/* Clear temp flag */
-		c_ptr->temp = 0;
 	}
 }
 
@@ -969,9 +960,6 @@ static int get_player_area(game *g, int who, int list[MAX_DECK], int where)
 
 		/* Skip cards in wrong area */
 		if (c_ptr->where != where) continue;
-
-		/* Skip cards that are newly-placed */
-		if (c_ptr->temp) continue;
 
 		/* Add card to list */
 		list[n++] = i;
@@ -1646,7 +1634,8 @@ void phase_explore(game *g)
 			if (c_ptr->where != WHERE_HAND) continue;
 
 			/* Skip cards already in hand unless discarding any */
-			if (!c_ptr->temp && !discard_any) continue;
+			if (c_ptr->start_where == WHERE_HAND && !discard_any)
+				continue;
 
 			/* Add card to list */
 			list[num++] = j;
@@ -1714,6 +1703,9 @@ void phase_explore(game *g)
 		}
 	}
 
+	/* Check intermediate goals */
+	check_goals(g);
+
 	/* Check prestige leader */
 	check_prestige(g);
 
@@ -1760,9 +1752,6 @@ void place_card(game *g, int who, int which)
 			gain_prestige(g, who, 1);
 		}
 	}
-
-	/* Set temp flag so that card's powers don't take effect immediately */
-	c_ptr->temp = 1;
 
 	/* Card is as-yet unpaid for */
 	c_ptr->unpaid = 1;
@@ -3843,6 +3832,9 @@ int settle_check_takeover(game *g, int who)
 			/* Skip inactive cards */
 			if (c_ptr->where != WHERE_ACTIVE) continue;
 
+			/* Skip just-played cards */
+			if (c_ptr->start_where != WHERE_ACTIVE) continue;
+
 			/* Skip developments */
 			if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
@@ -3853,9 +3845,6 @@ int settle_check_takeover(game *g, int who)
 			/* Skip non-Rebel worlds unless completely vulnerable */
 			if (!all_vuln && !(c_ptr->d_ptr->flags & FLAG_REBEL))
 				continue;
-
-			/* Skip newly-placed worlds */
-			if (c_ptr->temp) continue;
 
 			/* Check for sufficient military strength */
 			if (!settle_legal(g, who, j, bonus, 0)) continue;
@@ -4048,14 +4037,14 @@ static int upgrade_world(game *g, int who)
 			/* Skip inactive cards */
 			if (b_ptr->where != WHERE_ACTIVE) continue;
 
+			/* Skip newly-placed worlds */
+			if (b_ptr->start_where != WHERE_ACTIVE) continue;
+
 			/* Skip non-worlds */
 			if (b_ptr->d_ptr->type != TYPE_WORLD) continue;
 
 			/* Skip military worlds */
 			if (b_ptr->d_ptr->flags & FLAG_MILITARY) continue;
-
-			/* Skip newly-placed worlds */
-			if (b_ptr->temp) continue;
 
 			/* Check for legal upgrade */
 			if (upgrade_legal(g, i, j))
@@ -4964,9 +4953,6 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	/* Set new card order */
 	c_ptr->order = p_ptr->table_order++;
 
-	/* Card is newly placed */
-	c_ptr->temp = 1;
-
 	/* Message */
 	if (!g->simulation)
 	{
@@ -5038,7 +5024,7 @@ void resolve_takeovers(game *g)
 		if (!(o_ptr->code & P3_PREVENT_TAKEOVER)) continue;
 
 		/* Get player pointer of owner */
-		p_ptr = &g->p[c_ptr->owner];
+		p_ptr = &g->p[c_ptr->start_owner];
 
 		/* Skip power if player has no prestige */
 		if (!p_ptr->prestige) continue;
@@ -5047,7 +5033,7 @@ void resolve_takeovers(game *g)
 		c_ptr->used[w_list[i].o_idx] = 1;
 
 		/* Ask player which takeover (if any) to defeat */
-		ask_player(g, c_ptr->owner, CHOICE_TAKEOVER_PREVENT,
+		ask_player(g, c_ptr->start_owner, CHOICE_TAKEOVER_PREVENT,
 			   list, &num, special, &num, 0, 0, 0);
 
 		/* Check for aborted game */
@@ -5057,7 +5043,7 @@ void resolve_takeovers(game *g)
 		if (!num) continue;
 
 		/* Spend prestige */
-		spend_prestige(g, c_ptr->owner, 1);
+		spend_prestige(g, c_ptr->start_owner, 1);
 
 		/* Look for target world chosen */
 		for (j = 0; j < g->num_takeover; j++)
@@ -5546,8 +5532,8 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		/* Check for needing three */
 		else if (o_ptr->code & P4_CONSUME_3_DIFF)
 		{
-			/* Check for not three */
-			if (num != 3) return 0;
+			/* Check for not zero or three */
+			if (num != 0 && num != 3) return 0;
 		}
 
 		/* Check for needing all goods */
@@ -6210,6 +6196,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	card *c_ptr;
 	power *o_ptr;
 	int i, min, max, vp, vp_mult;
+	int types[6], num_types = 0;
 	int good, g_list[MAX_DECK], num_goods = 0;
 	int special[MAX_DECK], num_special = 2;
 
@@ -6338,6 +6325,9 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		return;
 	}
 
+	/* Clear good type counts */
+	for (i = 0; i < 6; i++) types[i] = 0;
+
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
 	{
@@ -6355,6 +6345,9 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 
 		/* Get good type */
 		good = c_ptr->d_ptr->good_type;
+
+		/* Count good type */
+		types[good]++;
 
 		/* Check for specific good type needed */
 		if (good != GOOD_ANY &&
@@ -6378,6 +6371,9 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		g_list[num_goods++] = i;
 	}
 
+	/* Count number of types */
+	for (i = 0; i < 6; i++) if (types[i]) num_types++;
+
 	/* Compute number of goods needed */
 	if (o_ptr->code & P4_CONSUME_TWO)
 	{
@@ -6388,12 +6384,28 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	{
 		/* Exactly three goods needed */
 		min = max = 3;
+
+		/* Check for "any" type and exactly 2 others */
+		if (types[GOOD_ANY] && num_types == 3)
+		{
+			/* Power is optional */
+			min = 0;
+		}
 	}
 	else if (o_ptr->code & P4_CONSUME_N_DIFF)
 	{
-		/* Up to four goods needed */
-		min = 0;
-		max = 4;
+		/* One of each type needed */
+		min = max = num_types;
+
+		/* Do not consume more than 4 */
+		if (num_types > 4) min = max = 4;
+
+		/* Check for "any" type available */
+		if (types[GOOD_ANY])
+		{
+			/* Reduce minimum (if not already 1) */
+			if (min > 1) min--;
+		}
 	}
 	else if (o_ptr->code & P4_CONSUME_ALL)
 	{
@@ -6418,6 +6430,20 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	{
 		/* Use only what is available */
 		max = num_goods;
+	}
+
+	/* Check for "any" type good available and specific consume power */
+	if (types[GOOD_ANY] &&
+	    !(o_ptr->code & P4_CONSUME_TWO) &&
+	    (o_ptr->code & (P4_CONSUME_NOVELTY | P4_CONSUME_RARE |
+	                    P4_CONSUME_GENE | P4_CONSUME_ALIEN)))
+	{
+		/* Check for less than maximum number */
+		if (num_goods <= o_ptr->times)
+		{
+			/* Reduce minimum number needed */
+			min--;
+		}
 	}
 
 	/* XXX Put power card/index in special array */
@@ -6784,11 +6810,11 @@ void phase_consume(game *g)
 /*
  * Produce a good on a world.
  */
-void produce_world(game *g, int who, int which)
+void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 {
 	player *p_ptr;
 	card *c_ptr;
-	power *o_ptr;
+	power *o_ptr, produce_bonus;
 	int i;
 	char msg[1024];
 
@@ -6802,7 +6828,44 @@ void produce_world(game *g, int who, int which)
 	add_good(g, c_ptr);
 
 	/* Mark world as producing */
-	c_ptr->produced = 1;
+	c_ptr->produced = c_ptr->d_ptr->good_type;
+
+	/* Check for "any" kind world */
+	if (c_ptr->d_ptr->good_type == GOOD_ANY)
+	{
+		/* Check for no card providing produce power */
+		if (c_idx < 0)
+		{
+			/* Create fake produce power */
+			produce_bonus.phase = PHASE_PRODUCE;
+			produce_bonus.code = P5_WINDFALL_ANY;
+			o_ptr = &produce_bonus;
+		}
+		else
+		{
+			/* Get power used */
+			o_ptr = &g->deck[c_idx].d_ptr->powers[o_idx];
+		}
+
+		/* Check for specific kind power used */
+		if (o_ptr->code & P5_WINDFALL_NOVELTY)
+			c_ptr->produced = GOOD_NOVELTY;
+		if (o_ptr->code & P5_WINDFALL_RARE)
+			c_ptr->produced = GOOD_RARE;
+		if (o_ptr->code & P5_WINDFALL_GENE)
+			c_ptr->produced = GOOD_GENE;
+		if (o_ptr->code & P5_WINDFALL_ALIEN)
+			c_ptr->produced = GOOD_ALIEN;
+
+		/* Check for any kind available */
+		if (o_ptr->code & P5_WINDFALL_ANY)
+		{
+			/* Ask player for kind of good produced */
+			c_ptr->produced = ask_player(g, who, CHOICE_OORT_KIND,
+			                             NULL, NULL, NULL, NULL,
+			                             0, 0, 0);
+		}
+	}
 
 	/* Message */
 	if (!g->simulation)
@@ -6850,7 +6913,8 @@ void produce_world(game *g, int who, int which)
  * Called when a player has chosen a card to discard in order to produce
  * on a world.
  */
-void discard_produce_chosen(game *g, int who, int world, int discard)
+void discard_produce_chosen(game *g, int who, int world, int discard,
+                            int c_idx, int o_idx)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -6879,13 +6943,13 @@ void discard_produce_chosen(game *g, int who, int world, int discard)
 	}
 
 	/* Produce on world */
-	produce_world(g, who, world);
+	produce_world(g, who, world, c_idx, o_idx);
 }
 
 /*
  * Ask the player to discard a card in order to produce on this world.
  */
-static void discard_produce(game *g, int who, int world)
+static void discard_produce(game *g, int who, int world, int c_idx, int o_idx)
 {
 	player *p_ptr;
 	int list[MAX_DECK], n = 0;
@@ -6902,13 +6966,13 @@ static void discard_produce(game *g, int who, int world)
 
 	/* Ask player to choose discard */
 	ask_player(g, who, CHOICE_DISCARD_PRODUCE, list, &n,
-	           special, &num_special, 0, 0, 0);
+	           special, &num_special, c_idx, o_idx, 0);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
 
 	/* Check for discard chosen */
-	if (n > 0) discard_produce_chosen(g, who, world, list[0]);
+	if (n > 0) discard_produce_chosen(g, who, world, list[0], c_idx, o_idx);
 }
 
 /*
@@ -6978,7 +7042,8 @@ static void discard_windfall(game *g, int who, int c_idx, int o_idx)
 	if (g->game_over) return;
 
 	/* Check for discard chosen */
-	if (n > 0) discard_produce_chosen(g, who, special[0], list[0]);
+	if (n > 0) discard_produce_chosen(g, who, special[0], list[0],
+	                                  c_idx, o_idx);
 }
 
 /*
@@ -7059,20 +7124,21 @@ static void produce_windfall(game *g, int who, int c_idx, int o_idx)
 	if (n == 1)
 	{
 		/* Produce */
-		produce_world(g, who, list[0]);
+		produce_world(g, who, list[0], c_idx, o_idx);
 
 		/* Done */
 		return;
 	}
 
 	/* Ask player to choose world to produce */
-	ask_player(g, who, CHOICE_WINDFALL, list, &n, NULL, NULL, 0, 0, 0);
+	ask_player(g, who, CHOICE_WINDFALL, list, &n, NULL, NULL, c_idx, o_idx,
+	           0);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
 
 	/* Produce on chosen world */
-	produce_world(g, who, list[0]);
+	produce_world(g, who, list[0], c_idx, o_idx);
 }
 
 /*
@@ -7129,7 +7195,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code == P5_PRODUCE)
 	{
 		/* Produce */
-		produce_world(g, who, c_idx);
+		produce_world(g, who, c_idx, c_idx, o_idx);
 
 		/* Done */
 		return;
@@ -7139,7 +7205,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code == (P5_DISCARD | P5_PRODUCE))
 	{
 		/* Discard to produce */
-		discard_produce(g, who, c_idx);
+		discard_produce(g, who, c_idx, c_idx, o_idx);
 
 		/* Done */
 		return;
@@ -7372,7 +7438,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		if (!c_ptr->produced) continue;
 
 		/* Count types */
-		produced[c_ptr->d_ptr->good_type]++;
+		produced[c_ptr->produced]++;
 	}
 
 	/* Check for draw per novelty produced */
@@ -7711,7 +7777,7 @@ void phase_produce_end(game *g)
 			all[i]++;
 
 			/* Check for rare */
-			if (c_ptr->d_ptr->good_type == GOOD_RARE) rare[i]++;
+			if (c_ptr->produced == GOOD_RARE) rare[i]++;
 		}
 	}
 
