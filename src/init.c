@@ -758,6 +758,9 @@ void init_game(game *g)
 		/* Player has no bonus military accrued */
 		p_ptr->bonus_military = 0;
 
+		/* Player has no bonus settle discount */
+		p_ptr->bonus_reduce = 0;
+
 		/* Player has not discarded any end of turn cards */
 		p_ptr->end_discard = 0;
 

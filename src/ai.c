@@ -5471,6 +5471,15 @@ static int ai_choose_search_keep(game *g, int who, int which, int category)
 	return 1;
 }
 
+/*
+ * Choose kind of Alien Oort Cloud Refinery.
+ */
+static int ai_choose_oort_kind(game *g, int who)
+{
+	/* XXX */
+	return GOOD_ALIEN;
+}
+
 
 /*
  * Make a choice of the given type.
@@ -5664,6 +5673,13 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose to keep */
 			rv = ai_choose_search_keep(g, who, arg1, arg2);
+			break;
+
+		/* Choose kind of Alien Oort Cloud Refinery */
+		case CHOICE_OORT_KIND:
+
+			/* Choose kind */
+			rv = ai_choose_oort_kind(g, who);
 			break;
 
 		/* Error */

@@ -54,10 +54,15 @@ int verbose = 0;
 game real_game;
 
 /*
- * State at start of turn.
+ * Number of undo positions saved.
  */
-static game save_state;
-static game undo_state;
+static int num_undo;
+
+/*
+ * Choice logs for each player.
+ */
+static int *orig_log[MAX_PLAYER];
+static int *orig_history[MAX_PLAYER];
 
 /*
  * Player we're playing as.
@@ -3028,6 +3033,9 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 			continue;
 		}
 
+		/* Skip unselectable */
+		if (!gtk_widget_get_sensitive(toggle)) continue;
+
 		/* Set prestige action */
 		prestige_action = i;
 
@@ -3287,13 +3295,6 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	/* Process events */
 	gtk_main();
 
-	/* Check for real selection made */
-	if (!restart_loop)
-	{
-		/* Save state for future undo */
-		undo_state = real_game;
-	}
-
 	/* Loop over choices */
 	for (i = 0; i < MAX_ACTION; i++)
 	{
@@ -3357,9 +3358,6 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 	GtkWidget *button[MAX_ACTION], *image, *label, *group;
 	GtkWidget *prestige = NULL;
 	int i, h, key = GDK_1;
-
-	/* Set save state */
-	save_state = real_game;
 
 	/* Check for advanced game */
 	if (real_game.advanced)
@@ -3484,13 +3482,6 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 
 	/* Process events */
 	gtk_main();
-
-	/* Check for real selection made */
-	if (!restart_loop)
-	{
-		/* Save state for future undo */
-		undo_state = real_game;
-	}
 
 	/* Loop over choices */
 	for (i = 0; i < MAX_ACTION; i++)
@@ -5782,6 +5773,61 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 }
 
 /*
+ * Ask player to choose color of Alien Oort Cloud Refinery
+ */
+int gui_choose_oort_kind(game *g, int who)
+{
+	GtkWidget *combo;
+	char buf[1024];
+	int i;
+
+	/* Create prompt */
+	sprintf(buf, "Choose Alien Oort Cloud Refinery kind");
+
+	/* Set prompt */
+	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
+
+	/* Reset displayed cards */
+	reset_cards(g, TRUE, TRUE);
+
+	/* Activate action button */
+	gtk_widget_set_sensitive(action_button, TRUE);
+
+	/* Create simple combo box */
+	combo = gtk_combo_box_new_text();
+
+	/* Append options to combo box */
+	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Novelty");
+	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Rare");
+	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Genes");
+	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Alien");
+
+	/* Set first choice */
+	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+
+	/* Add combo box to action box */
+	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
+
+	/* Show everything */
+	gtk_widget_show_all(combo);
+
+	/* Redraw everything */
+	redraw_everything();
+
+	/* Process events */
+	gtk_main();
+
+	/* Get selection */
+	i = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+
+	/* Destroy combo box */
+	gtk_widget_destroy(combo);
+
+	/* Return choice */
+	return i + 2;
+}
+
+/*
  * Player spots have been rotated.
  */
 static void gui_notify_rotation(game *g, int who)
@@ -6007,11 +6053,31 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			rv = gui_choose_search_keep(g, who, arg1, arg2);
 			break;
 
+		/* Choose color of Alien Oort Cloud Refinery */
+		case CHOICE_OORT_KIND:
+
+			/* Choose type */
+			rv = gui_choose_oort_kind(g, who);
+			break;
+
 		/* Error */
 		default:
 			printf("Unknown choice type!\n");
 			exit(1);
 	}
+
+	/* Check for aborted game */
+	if (g->game_over) return;
+
+	/* Save undo positions */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Save log size history */
+		g->p[i].choice_history[num_undo] = g->p[i].choice_size;
+	}
+
+	/* Add one undo position to list */
+	num_undo++;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -6090,15 +6156,7 @@ void reset_gui(void)
 	/* Reset our player index */
 	player_us = 0;
 
-	/* Reset choice logs */
-	for (i = 0; i < MAX_PLAYER; i++)
-	{
-		/* Reset choice log size and position */
-		real_game.p[i].choice_size = 0;
-		real_game.p[i].choice_pos = 0;
-	}
-
-	/* Restore opponent areas to originial */
+	/* Restore opponent areas to original */
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
 		/* Restore table area */
@@ -6113,6 +6171,10 @@ void reset_gui(void)
 	{
 		/* Set name */
 		real_game.p[i].name = player_names[i];
+
+		/* Restore choice log */
+		real_game.p[i].choice_log = orig_log[i];
+		real_game.p[i].choice_history = orig_history[i];
 	}
 
 	/* Restore player control functions */
@@ -6206,6 +6268,7 @@ void modify_gui(void)
 static void run_game(void)
 {
 	char buf[1024];
+	int i;
 
 	/* Loop forever */
 	while (1)
@@ -6216,29 +6279,25 @@ static void run_game(void)
 			/* Reset game */
 			reset_gui();
 
+			/* Loop over players */
+			for (i = 0; i < real_game.num_players; i++)
+			{
+				/* Clear choice log */
+				real_game.p[i].choice_size = 0;
+				real_game.p[i].choice_pos = 0;
+			}
+
 			/* Clear text log */
 			clear_log();
 
-			/* Disable undo/save menu item */
-			gtk_widget_set_sensitive(undo_item, FALSE);
-			gtk_widget_set_sensitive(save_item, FALSE);
+			/* Clear undos */
+			num_undo = 0;
 
 			/* Initialize game */
 			init_game(&real_game);
-
-			/* Begin game */
-			begin_game(&real_game);
-
-			/* Enable undo/save menu item */
-			gtk_widget_set_sensitive(undo_item, TRUE);
-			gtk_widget_set_sensitive(save_item, TRUE);
-
-			/* Check for aborted game */
-			if (real_game.game_over) continue;
-
-			/* Save beginning state */
-			undo_state = real_game;
 		}
+
+		/* Holding pattern for multiplayer */
 		else if (restart_loop == RESTART_NONE)
 		{
 			/* Do nothing until disconnected from server */
@@ -6252,40 +6311,64 @@ static void run_game(void)
 			restart_loop = RESTART_NEW;
 			continue;
 		}
-		else
+
+		/* Undo previous turn */
+		else if (restart_loop == RESTART_UNDO)
 		{
-			/* Reset game state */
-			real_game = undo_state;
-			save_state = undo_state;
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
 
-			/* Check for undo request */
-			if (restart_loop == RESTART_UNDO)
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Remove one state from undo list */
+			if (num_undo > 0) num_undo--;
+
+			/* Reset our position and GUI elements */
+			reset_gui();
+
+			/* Clear message log */
+			clear_log();
+
+			/* Loop over players */
+			for (i = 0; i < real_game.num_players; i++)
 			{
-				/* Add message */
-				message_add(&real_game, "Turn undone.\n");
+				/* Start at beginning of log */
+				real_game.p[i].choice_pos = 0;
+
+				/* Set end of choice log */
+				real_game.p[i].choice_size =
+				        real_game.p[i].choice_history[num_undo];
 			}
+		}
 
-			/* Check for load game request */
-			else if (restart_loop == RESTART_LOAD)
-			{
-				/* Modify GUI for new game settings */
-				modify_gui();
+		/* Load a new game */
+		else if (restart_loop == RESTART_LOAD)
+		{
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
 
-				/* Rotate players until we match */
-				while (real_game.p[player_us].control !=
-				       &gui_func)
-				{
-					/* Rotate player spots */
-					gui_notify_rotation(&real_game, 0);
-				}
+			/* Clear undos */
+			num_undo = 0;
 
-				/* Clear message log */
-				clear_log();
-			}
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Modify GUI for new game parameters */
+			modify_gui();
+
+			/* Reset our position and GUI elements */
+			reset_gui();
 		}
 
 		/* Clear restart loop flag */
 		restart_loop = 0;
+
+		/* Begin game */
+		begin_game(&real_game);
+
+		/* Check for aborted game */
+		if (real_game.game_over) continue;
 
 		/* Play game rounds until finished */
 		while (game_round(&real_game));
@@ -6508,9 +6591,10 @@ static void gui_new_game(GtkMenuItem *menu_item, gpointer data)
  */
 static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 {
-	GtkWidget *dialog;
+	game load_state;
+	GtkWidget *dialog, *alert;
 	char *fname;
-	int us, i;
+	int i;
 
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
@@ -6528,33 +6612,44 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		/* Get filename */
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
-		/* Try to load savefile into undo state */
-		if (load_game(&undo_state, fname, &us) < 0)
+		/* Loop over players */
+		for (i = 0; i < MAX_PLAYER; i++)
+		{
+			/* Set choice log pointer */
+			load_state.p[i].choice_log = orig_log[i];
+		}
+
+		/* Try to load savefile into load state */
+		if (load_game(&load_state, fname) < 0)
 		{
 			/* Error */
+			alert = gtk_message_dialog_new(NULL,
+			                    GTK_DIALOG_DESTROY_WITH_PARENT,
+			                    GTK_MESSAGE_ERROR,
+			                    GTK_BUTTONS_CLOSE,
+			                    "Failed to load game");
+
+			/* Run dialog */
+			gtk_dialog_run(GTK_DIALOG(alert));
+
+			/* Destroy filename */
+			g_free(fname);
+
+			/* Destroy load dialog */
+			gtk_widget_destroy(dialog);
+
+			/* Give up */
+			return;
 		}
 
 		/* Destroy filename */
 		g_free(fname);
 
-		/* Set our control functions */
-		undo_state.p[us].control = &gui_func;
-
-		/* Set all other control functions to AI */
-		for (i = 0; i < undo_state.num_players; i++)
-		{
-			/* Skip our player */
-			if (i == us) continue;
-
-			/* Set to AI */
-			undo_state.p[i].control = &ai_func;
-		}
-
-		/* Copy undo state to real game */
-		real_game = undo_state;
-
-		/* Reset game */
+		/* Reset GUI */
 		reset_gui();
+
+		/* Copy loaded state to real */
+		real_game = load_state;
 
 		/* Force current game over */
 		real_game.game_over = 1;
@@ -6595,7 +6690,7 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
 		/* Save to file */
-		if (save_game(&save_state, fname, player_us) < 0)
+		if (save_game(&real_game, fname, player_us) < 0)
 		{
 			/* Error */
 		}
@@ -6615,6 +6710,9 @@ static void gui_undo_game(GtkMenuItem *menu_item, gpointer data)
 {
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
+
+	/* Check for nothing to undo */
+	if (num_undo == 0) return;
 
 	/* Force game over */
 	real_game.game_over = 1;
@@ -7931,6 +8029,19 @@ int main(int argc, char *argv[])
 	{
 		/* Create log */
 		real_game.p[i].choice_log = (int *)malloc(sizeof(int) * 4096);
+
+		/* Save original log */
+		orig_log[i] = real_game.p[i].choice_log;
+
+		/* Create history of log sizes */
+		real_game.p[i].choice_history = (int*)malloc(sizeof(int) * 512);
+
+		/* Save original history */
+		orig_history[i] = real_game.p[i].choice_history;
+
+		/* Clear choice log size and position */
+		real_game.p[i].choice_size = 0;
+		real_game.p[i].choice_pos = 0;
 	}
 
 	/* Create toplevel window */

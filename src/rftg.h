@@ -443,22 +443,24 @@
 #define CHOICE_DISCARD_PRESTIGE 4
 #define CHOICE_PLACE            5
 #define CHOICE_PAYMENT          6
-#define CHOICE_TAKEOVER         7
-#define CHOICE_DEFEND           8
-#define CHOICE_TAKEOVER_PREVENT 9
-#define CHOICE_UPGRADE          10
-#define CHOICE_TRADE            11
-#define CHOICE_CONSUME          12
-#define CHOICE_CONSUME_HAND     13
-#define CHOICE_GOOD             14
-#define CHOICE_LUCKY            15
-#define CHOICE_ANTE             16
-#define CHOICE_KEEP             17
-#define CHOICE_WINDFALL         18
-#define CHOICE_PRODUCE          19
-#define CHOICE_DISCARD_PRODUCE  20
-#define CHOICE_SEARCH_TYPE      21
-#define CHOICE_SEARCH_KEEP      22
+#define CHOICE_SETTLE           7
+#define CHOICE_TAKEOVER         8
+#define CHOICE_DEFEND           9
+#define CHOICE_TAKEOVER_PREVENT 10
+#define CHOICE_UPGRADE          11
+#define CHOICE_TRADE            12
+#define CHOICE_CONSUME          13
+#define CHOICE_CONSUME_HAND     14
+#define CHOICE_GOOD             15
+#define CHOICE_LUCKY            16
+#define CHOICE_ANTE             17
+#define CHOICE_KEEP             18
+#define CHOICE_WINDFALL         19
+#define CHOICE_PRODUCE          20
+#define CHOICE_DISCARD_PRODUCE  21
+#define CHOICE_SEARCH_TYPE      22
+#define CHOICE_SEARCH_KEEP      23
+#define CHOICE_OORT_KIND        24
 
 
 /*
@@ -486,6 +488,22 @@ typedef struct power
 	int times;
 
 } power;
+
+/*
+ * Location of a power.
+ */
+typedef struct power_where
+{
+	/* Card index */
+	int c_idx;
+
+	/* Power index */
+	int o_idx;
+
+	/* Pointer to power */
+	power *o_ptr;
+
+} power_where;
 
 /*
  * A card's special VP bonus.
@@ -559,6 +577,12 @@ typedef struct card
 
 	/* Card's location */
 	int where;
+
+	/* Card's owner at start of phase */
+	int start_owner;
+
+	/* Card's location at start of phase */
+	int start_where;
 
 	/* Card is one just drawn or placed */
 	int temp;
@@ -646,6 +670,9 @@ typedef struct player
 	/* Bonus military accrued so far this phase */
 	int bonus_military;
 
+	/* Bonus settle discount accrued so far this phase */
+	int bonus_reduce;
+
 	/* Number of cards discarded at end of turn */
 	int end_discard;
 
@@ -702,6 +729,9 @@ typedef struct player
 	/* Size and current position of choice log */
 	int choice_size;
 	int choice_pos;
+
+	/* History of log sizes */
+	int *choice_history;
 
 } player;
 
@@ -775,6 +805,9 @@ typedef struct game
 
 	/* Takeover marked for failure */
 	int takeover_defeated[MAX_TAKEOVER];
+
+	/* XXX Current kind of "any" good world */
+	int oort_kind;
 
 	/* Actions selected this round */
 	int action_selected[MAX_ACTION];
@@ -874,5 +907,5 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
                               double *role[], double *action_score[],
                               int *num_action);
 
-extern int load_game(game *g, char *filename, int *player_us);
+extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);

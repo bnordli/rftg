@@ -22,6 +22,8 @@
 		D590CC99106ECC8600AAB072 /* cards.txt in Resources */ = {isa = PBXBuildFile; fileRef = D590CC75106ECC8500AAB072 /* cards.txt */; };
 		D590CC9A106ECC8600AAB072 /* images.data in Resources */ = {isa = PBXBuildFile; fileRef = D590CC76106ECC8500AAB072 /* images.data */; };
 		D590CCBF106ECCD400AAB072 /* rftg.icns in Resources */ = {isa = PBXBuildFile; fileRef = D590CCBE106ECCD400AAB072 /* rftg.icns */; };
+		DDB30B3312148DB500E36E49 /* client.c in Sources */ = {isa = PBXBuildFile; fileRef = DDB30B3212148DB400E36E49 /* client.c */; };
+		DDB30B3712148DC100E36E49 /* comm.c in Sources */ = {isa = PBXBuildFile; fileRef = DDB30B3612148DC100E36E49 /* comm.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +44,8 @@
 		D590CC75106ECC8500AAB072 /* cards.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = cards.txt; path = ../cards.txt; sourceTree = "<group>"; };
 		D590CC76106ECC8500AAB072 /* images.data */ = {isa = PBXFileReference; lastKnownFileType = file; name = images.data; path = ../images.data; sourceTree = "<group>"; };
 		D590CCBE106ECCD400AAB072 /* rftg.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = rftg.icns; sourceTree = "<group>"; };
+		DDB30B3212148DB400E36E49 /* client.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = client.c; path = ../client.c; sourceTree = SOURCE_ROOT; };
+		DDB30B3612148DC100E36E49 /* comm.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = comm.c; path = ../comm.c; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -94,6 +98,8 @@
 		29B97314FDCFA39411CA2CEA /* RFTG */ = {
 			isa = PBXGroup;
 			children = (
+				DDB30B3612148DC100E36E49 /* comm.c */,
+				DDB30B3212148DB400E36E49 /* client.c */,
 				D590CCBE106ECCD400AAB072 /* rftg.icns */,
 				D586A9EB106EC740000716A2 /* ai.c */,
 				D586A9EC106EC740000716A2 /* engine.c */,
@@ -232,6 +238,8 @@
 				D586A9F3106EC740000716A2 /* init.c in Sources */,
 				D586A9F4106EC740000716A2 /* net.c in Sources */,
 				2060857C10FD520000D02923 /* loadsave.c in Sources */,
+				DDB30B3312148DB500E36E49 /* client.c in Sources */,
+				DDB30B3712148DC100E36E49 /* comm.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -528,6 +528,11 @@ static void handle_status_player(char *ptr)
 	/* Read player's VP count */
 	p_ptr->vp = get_integer(&ptr);
 
+	/* Read player's phase bonuses */
+	p_ptr->phase_bonus_used = get_integer(&ptr);
+	p_ptr->bonus_military = get_integer(&ptr);
+	p_ptr->bonus_reduce = get_integer(&ptr);
+
 	/* Redraw status information later */
 	status_updated = 1;
 }
@@ -566,7 +571,8 @@ static void handle_status_card(char *ptr)
 	status_updated = 1;
 
 	/* Track latest played card */
-	if (c_ptr->order > real_game.p[c_ptr->owner].table_order)
+	if (c_ptr->owner >= 0 &&
+	    c_ptr->order > real_game.p[c_ptr->owner].table_order)
 	{
 		/* Update order */
 		real_game.p[c_ptr->owner].table_order = c_ptr->order;
@@ -755,6 +761,9 @@ static void handle_choose(char *ptr)
 	/* Check for disconnected */
 	if (client_state == CS_DISCONN) return;
 
+	/* Check for resigned */
+	if (client_sid == -1) return;
+
 	/* Start reply */
 	ptr = msg;
 
@@ -808,8 +817,13 @@ static void prepare_make_choice(game *g, int who, int type, int list[], int *nl,
 	gui_func.make_choice(g, who, type, list, nl, special, ns,
 	                     arg1, arg2, arg3);
 
-	/* Check for disconnected */
-	if (client_state == CS_DISCONN) return;
+	/* Check for disconnected or resigned */
+	if (client_state == CS_DISCONN || client_sid == -1)
+	{
+		/* Abort simulated game */
+		g->game_over = 1;
+		return;
+	}
 
 	/* Begin message */
 	start_msg(&ptr, MSG_CHOOSE);
@@ -1141,6 +1155,14 @@ static gboolean message_read(gpointer data)
 
 			/* Reset GUI elements */
 			reset_gui();
+
+			/* Loop over players */
+			for (x = 0; x < MAX_PLAYER; x++)
+			{
+				/* Clear choice log size */
+				real_game.p[x].choice_size = 0;
+				real_game.p[x].choice_pos = 0;
+			}
 
 			/* Reset prompt */
 			gtk_label_set_text(GTK_LABEL(action_prompt),
@@ -1487,6 +1509,9 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 		wsa_init = 1;
 	}
 #endif
+
+	/* Do nothing if already connected */
+	if (server_fd >= 0) return;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Connect to Server", NULL,
@@ -2115,6 +2140,9 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Reset buttons */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
+
+	/* Abort choice if being made */
+	if (making_choice) gtk_main_quit();
 }
 
 /*

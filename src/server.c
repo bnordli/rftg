@@ -157,6 +157,9 @@ typedef struct session
 	/* Condition variable to signal game thread when reply is ready */
 	pthread_cond_t wait_cond;
 
+	/* Time since last player joined */
+	time_t last_join;
+
 } session;
 
 
@@ -409,6 +412,9 @@ static void db_load_sessions(void)
 		s_ptr->disable_goal = strtol(row[9], NULL, 0);
 		s_ptr->disable_takeover = strtol(row[10], NULL, 0);
 		s_ptr->speed = strtol(row[11], NULL, 0);
+
+		/* Set last join time */
+		s_ptr->last_join = time(NULL);
 
 		/* Increase number of sessions */
 		num_session++;
@@ -1094,7 +1100,19 @@ static void obfuscate_game(game *ob, game *g, int who)
 		if (ob->deck[i].covered < 0) continue;
 
 		/* Find substitute good */
-		while (ob->deck[j].where != WHERE_GOOD) j++;
+		while (ob->deck[j].where != WHERE_GOOD)
+		{
+			/* Go to next substitute card */
+			j++;
+
+			/* XXX */
+			if (j >= g->deck_size)
+			{
+				printf("Failed to find substitute good\n");
+				j = 0;
+				break;
+			}
+		}
 
 		/* Use this card for a good */
 		ob->deck[i].covered = j;
@@ -1201,6 +1219,11 @@ static void update_status_one(int sid, int who)
 
 			/* Add player's VP count */
 			put_integer(p_ptr->vp, &ptr);
+
+			/* Add player's temporary phase bonuses */
+			put_integer(p_ptr->phase_bonus_used, &ptr);
+			put_integer(p_ptr->bonus_military, &ptr);
+			put_integer(p_ptr->bonus_reduce, &ptr);
 
 			/* Finish message */
 			finish_msg(msg, ptr);
@@ -1649,6 +1672,9 @@ static void handle_choice(int cid, char *ptr)
 	/* Get session ID from player */
 	sid = c_list[cid].sid;
 
+	/* Do nothing if client is not in a session */
+	if (sid < 0) return;
+
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
 
@@ -1939,6 +1965,9 @@ static void join_game(int cid, int sid)
 
 	/* Remember join for later */
 	db_join_game(c_list[cid].uid, s_ptr->gid);
+
+	/* Set last join time */
+	s_ptr->last_join = time(NULL);
 }
 
 /*
@@ -2173,7 +2202,7 @@ static void handle_login(int cid, char *ptr)
 	get_string(version, &ptr);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.7.1") < 0)
+	if (strcmp(version, "0.7.2") < 0)
 	{
 		/* Send denied message */
 		send_msgf(c_list[cid].fd, MSG_DENIED, "s",
@@ -2349,8 +2378,10 @@ static void handle_login(int cid, char *ptr)
  */
 static void handle_create(int cid, char *ptr)
 {
+	session *s_ptr;
 	char pass[1024], desc[1024];
 	int sid, i;
+	int maxp;
 
 	/* Check for player already in game */
 	if (c_list[cid].sid != -1) return;
@@ -2368,6 +2399,9 @@ static void handle_create(int cid, char *ptr)
 		/* Increase count of active sessions */
 		num_session++;
 	}
+
+	/* Get session pointer */
+	s_ptr = &s_list[sid];
 
 	/* Read game password and descripton */
 	get_string(pass, &ptr);
@@ -2389,38 +2423,65 @@ static void handle_create(int cid, char *ptr)
 	}
 
 	/* Set session state */
-	s_list[sid].state = SS_WAITING;
+	s_ptr->state = SS_WAITING;
 
 	/* Copy password and descripton to session */
-	strcpy(s_list[sid].pass, pass);
-	strcpy(s_list[sid].desc, desc);
+	strcpy(s_ptr->pass, pass);
+	strcpy(s_ptr->desc, desc);
 
 	/* Copy creator's ID */
-	s_list[sid].created = c_list[cid].uid;
+	s_ptr->created = c_list[cid].uid;
 
 	/* Clear user list */
-	s_list[sid].num_users = 0;
+	s_ptr->num_users = 0;
 
 	/* Loop over users */
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
 		/* Clear user and connection IDs */
-		s_list[sid].cids[i] = s_list[sid].uids[i] = -1;
+		s_ptr->cids[i] = s_ptr->uids[i] = -1;
 
 		/* Player is not under AI control */
-		s_list[sid].ai_control[i] = 0;
+		s_ptr->ai_control[i] = 0;
 	}
 
 	/* Read game parameters */
-	s_list[sid].min_player = get_integer(&ptr);
-	s_list[sid].max_player = get_integer(&ptr);
-	s_list[sid].expanded = get_integer(&ptr);
-	s_list[sid].advanced = get_integer(&ptr);
-	s_list[sid].disable_goal = get_integer(&ptr);
-	s_list[sid].disable_takeover = get_integer(&ptr);
+	s_ptr->min_player = get_integer(&ptr);
+	s_ptr->max_player = get_integer(&ptr);
+	s_ptr->expanded = get_integer(&ptr);
+	s_ptr->advanced = get_integer(&ptr);
+	s_ptr->disable_goal = get_integer(&ptr);
+	s_ptr->disable_takeover = get_integer(&ptr);
 
 	/* Read preferred game speed */
-	s_list[sid].speed = get_integer(&ptr);
+	s_ptr->speed = get_integer(&ptr);
+
+	/* Validate advanced game */
+	if (s_ptr->max_player > 2)
+	{
+		/* Cannot be advanced */
+		s_ptr->advanced = 0;
+	}
+
+	/* Validate expansion level */
+	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
+	if (s_ptr->expanded > 3) s_ptr->expanded = 3;
+
+	/* Compute maximum number of players allowed */
+	maxp = s_ptr->expanded + 4;
+	if (maxp > 6) maxp = 6;
+
+	/* Validate number of players */
+	if (s_ptr->min_player < 2) s_ptr->min_player = 2;
+	if (s_ptr->min_player > maxp) s_ptr->min_player = maxp;
+	if (s_ptr->max_player < 2) s_ptr->max_player = 2;
+	if (s_ptr->max_player > maxp) s_ptr->max_player = maxp;
+	if (s_ptr->min_player > s_ptr->max_player)
+		s_ptr->min_player = s_ptr->max_player;
+
+	/* Validate disabled flags */
+	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */
 	s_list[sid].gid = db_new_game(sid);
@@ -3008,7 +3069,7 @@ static void do_housekeeping(void)
 		    c_list[i].state == CS_DISCONN) continue;
 
 		/* Check for no data from client in quite some time */
-		if (cur_time - c_list[i].last_seen > 120)
+		if (cur_time - c_list[i].last_seen > 180)
 		{
 			/* Remove client */
 			kick_player(i, "Timeout");
@@ -3020,6 +3081,36 @@ static void do_housekeeping(void)
 		{
 			/* Send client a ping */
 			send_msgf(c_list[i].fd, MSG_PING, "");
+		}
+	}
+
+	/* Loop over sessions */
+	for (i = 0; i < num_session; i++)
+	{
+		/* Get session pointer */
+		s_ptr = &s_list[i];
+
+		/* Skip sessions that aren't waiting for players */
+		if (s_ptr->state != SS_WAITING) continue;
+
+		/* Assume nobody connected */
+		num = 0;
+
+		/* Loop over users in session */
+		for (j = 0; j < s_ptr->num_users; j++)
+		{
+			/* Check for connected user */
+			if (s_ptr->cids[j] >= 0) num++;
+		}
+
+		/* Don't remove session if someone is connected */
+		if (num) continue;
+
+		/* Check for long time since join activity */
+		if (time(NULL) - s_ptr->last_join > 3600)
+		{
+			/* Abandon session */
+			abandon_session(i);
 		}
 	}
 
