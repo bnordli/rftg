@@ -553,9 +553,11 @@ static void handle_status_card(char *ptr)
 
 	/* Read card owner */
 	c_ptr->owner = get_integer(&ptr);
+	c_ptr->start_owner = get_integer(&ptr);
 
 	/* Read card location */
 	c_ptr->where = get_integer(&ptr);
+	c_ptr->start_where = get_integer(&ptr);
 
 	/* Read temp flag */
 	c_ptr->temp = get_integer(&ptr);

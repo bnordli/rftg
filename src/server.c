@@ -1061,8 +1061,8 @@ static void obfuscate_game(game *ob, game *g, int who)
 			continue;
 
 		/* Clear card location */
-		ob->deck[i].owner = -1;
-		ob->deck[i].where = WHERE_DECK;
+		ob->deck[i].owner = ob->deck[i].start_owner = -1;
+		ob->deck[i].where = ob->deck[i].start_where = WHERE_DECK;
 		ob->deck[i].temp = 0;
 	}
 
@@ -1088,6 +1088,8 @@ static void obfuscate_game(game *ob, game *g, int who)
 		/* Copy card location */
 		ob->deck[j].where = g->deck[i].where;
 		ob->deck[j].owner = g->deck[i].owner;
+		ob->deck[j].start_where = g->deck[i].start_where;
+		ob->deck[j].start_owner = g->deck[i].start_owner;
 	}
 
 	/* Start at beginning of deck */
@@ -1254,9 +1256,11 @@ static void update_status_one(int sid, int who)
 
 			/* Add card owner */
 			put_integer(c_ptr->owner, &ptr);
+			put_integer(c_ptr->start_owner, &ptr);
 
 			/* Add card location */
 			put_integer(c_ptr->where, &ptr);
+			put_integer(c_ptr->start_where, &ptr);
 
 			/* Add temporary flag */
 			put_integer(c_ptr->temp, &ptr);
@@ -2202,7 +2206,7 @@ static void handle_login(int cid, char *ptr)
 	get_string(version, &ptr);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.7.2") < 0)
+	if (strcmp(version, "0.7.3") < 0)
 	{
 		/* Send denied message */
 		send_msgf(c_list[cid].fd, MSG_DENIED, "s",

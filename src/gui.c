@@ -3034,7 +3034,7 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 		}
 
 		/* Skip unselectable */
-		if (!gtk_widget_get_sensitive(toggle)) continue;
+		if (!GTK_WIDGET_SENSITIVE(toggle)) continue;
 
 		/* Set prestige action */
 		prestige_action = i;
