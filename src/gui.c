@@ -202,7 +202,7 @@ static int actions_chosen;
 /*
  * Number of icon images.
  */
-#define MAX_ICON 12
+#define MAX_ICON 13
 
 /*
  * Special icon numbers.
@@ -210,6 +210,7 @@ static int actions_chosen;
 #define ICON_QUESTION  9
 #define ICON_HANDSIZE  10
 #define ICON_VP        11
+#define ICON_MILITARY  12
 
 /*
  * Card images.
@@ -1545,12 +1546,13 @@ struct extra_info
 {
 	char text[1024];
 	char *fontstr;
+	int border;
 };
 
 /*
  * Set of "extra info" structures.
  */
-static struct extra_info status_extra_info[MAX_PLAYER][2];
+static struct extra_info status_extra_info[MAX_PLAYER][3];
 
 /*
  * Draw extra text on top of a GtkImage's window.
@@ -1590,11 +1592,16 @@ static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
 	x = (image->allocation.width - tw) / 2 + image->allocation.x;
 	y = (image->allocation.height - th) / 2 + image->allocation.y;
 
+	/* Draw border around text if asked */
+	if (ei->border)
+	{
+		gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1,layout);
+	}
+
 	/* Draw layout on top of image */
-	gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1, layout);
-	gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1, layout);
-	gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1, layout);
-	gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1, layout);
 	gdk_draw_layout(w, image->style->black_gc, x, y, layout);
 
 	/* Free font description */
@@ -1602,6 +1609,133 @@ static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
 
 	/* Continue handling event */
 	return FALSE;
+}
+
+/*
+ * Create a tooltip for a military strength icon.
+ */
+static void add_military_tooltip(GtkWidget *image, int who)
+{
+	char msg[1024], text[1024];
+	card *c_ptr;
+	power *o_ptr;
+	int i, j;
+	int base, rebel, blue, brown, green, yellow;
+
+	/* Begin with base military strength */
+	base = total_military(&real_game, who);
+
+	/* Create text */
+	sprintf(msg, "Base strength: %+d", base);
+
+	/* Start other strengths at base */
+	rebel = blue = brown = green = yellow = base;
+
+	/* Loop over cards */
+	for (i = 0; i < real_game.deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &real_game.deck[i];
+
+		/* Skip cards not belonging to current player */
+		if (c_ptr->owner != who) continue;
+
+		/* Skip inactive cards */
+		if (c_ptr->where != WHERE_ACTIVE) continue;
+
+		/* Skip just-played cards */
+		if (c_ptr->temp) continue;
+
+		/* Loop over card's powers */
+		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
+		{
+			/* Get power pointer */
+			o_ptr = &c_ptr->d_ptr->powers[j];
+
+			/* Skip incorrect phase */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Skip non-military powers */
+			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
+
+			/* Check for strength against rebels */
+			if (o_ptr->code & P3_AGAINST_REBEL)
+				rebel += o_ptr->value;
+
+			/* Check for strength against Novelty worlds */
+			if (o_ptr->code & P3_NOVELTY)
+				blue += o_ptr->value;
+
+			/* Check for strength against Rare worlds */
+			if (o_ptr->code & P3_RARE)
+				brown += o_ptr->value;
+
+			/* Check for strength against Gene worlds */
+			if (o_ptr->code & P3_GENE)
+				green += o_ptr->value;
+
+			/* Check for strength against Alien worlds */
+			if (o_ptr->code & P3_ALIEN)
+				yellow += o_ptr->value;
+		}
+	}
+
+	/* Add rebel strength if different than base */
+	if (rebel != base)
+	{
+		/* Create rebel text */
+		sprintf(text, "\nAgainst Rebel: %+d", rebel);
+		strcat(msg, text);
+	}
+
+	/* Add Novelty strength if different than base */
+	if (blue != base)
+	{
+		/* Create text */
+		sprintf(text, "\nAgainst Novelty: %+d", blue);
+		strcat(msg, text);
+	}
+
+	/* Add Rare strength if different than base */
+	if (brown != base)
+	{
+		/* Create text */
+		sprintf(text, "\nAgainst Rare: %+d", brown);
+		strcat(msg, text);
+	}
+
+	/* Add Gene strength if different than base */
+	if (green != base)
+	{
+		/* Create text */
+		sprintf(text, "\nAgainst Gene: %+d", green);
+		strcat(msg, text);
+	}
+
+	/* Add Alien strength if different than base */
+	if (yellow != base)
+	{
+		/* Create text */
+		sprintf(text, "\nAgainst Alien: %+d", yellow);
+		strcat(msg, text);
+	}
+
+	/* Check for active Imperium card */
+	if (count_active_flags(&real_game, who, FLAG_IMPERIUM))
+	{
+		/* Add vulnerability text */
+		strcat(msg, "\nIMPERIUM card played");
+	}
+
+	/* Check for active Rebel military world */
+	if (count_active_flags(&real_game, who, FLAG_MILITARY | FLAG_REBEL))
+	{
+		/* Add vulnerability text */
+		strcat(msg, "\nREBEL Military world played");
+	}
+
+	/* Set tooltip */
+	gtk_widget_set_tooltip_text(image, msg);
 }
 
 /*
@@ -1698,6 +1832,9 @@ static void redraw_status_area(int who, GtkWidget *box)
 	/* Set font */
 	ei->fontstr = "Sans 12";
 
+	/* Draw text a border */
+	ei->border = 1;
+
 	/* Connect expose-event to draw extra text */
 	g_signal_connect_after(G_OBJECT(image), "expose-event",
 	                       G_CALLBACK(draw_extra_text), ei);
@@ -1725,12 +1862,48 @@ static void redraw_status_area(int who, GtkWidget *box)
 	/* Set font */
 	ei->fontstr = "Sans 10";
 
+	/* Draw text a border */
+	ei->border = 1;
+
 	/* Connect expose-event to draw extra text */
 	g_signal_connect_after(G_OBJECT(image), "expose-event",
 	                       G_CALLBACK(draw_extra_text), ei);
 
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
+
+	/* Pack icon into status box */
+	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+
+	/* Create military icon image */
+	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_MILITARY], height, height,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Create image from pixbuf */
+	image = gtk_image_new_from_pixbuf(buf);
+
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[who][2];
+
+	/* Create text for military strength */
+	sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
+	        total_military(&real_game, who));
+
+	/* Set font */
+	ei->fontstr = "Sans 10";
+
+	/* No border */
+	ei->border = 0;
+
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
+
+	/* Add military strength tooltip */
+	add_military_tooltip(image, who);
 
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
@@ -2329,9 +2502,15 @@ static void gui_choose_action_advanced(game *g, int who, int action[2])
 	/* Destroy filler label */
 	gtk_widget_destroy(label);
 
-	/* Check for first action is second Develop/Settle */
+	/* Check for second Develop chosen without first */
 	if (action[0] == ACT_DEVELOP2) action[0] = ACT_DEVELOP;
+	if (action[1] == ACT_DEVELOP2 && action[0] != ACT_DEVELOP)
+		action[1] = ACT_DEVELOP;
+
+	/* Check for second Settle chosen without first */
 	if (action[0] == ACT_SETTLE2) action[0] = ACT_SETTLE;
+	if (action[1] == ACT_SETTLE2 && action[0] != ACT_SETTLE)
+		action[1] = ACT_SETTLE;
 }
 
 /*

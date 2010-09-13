@@ -2747,7 +2747,7 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 				special[num_special++] = i;
 
 				/* Track amount we can spend */
-				hand_military += max;
+				hand_military += o_ptr->value;
 			}
 		}
 	}
