@@ -49,6 +49,58 @@ int waiting_player[MAX_PLAYER];
 static void disconnect(void);
 
 /*
+ * Send message to server.
+ */
+void send_msg(int fd, char *msg)
+{
+	struct timeval timeout;
+	int size, sent = 0, x;
+	char *ptr;
+
+	/* Go to size area of message */
+	ptr = msg + 4;
+
+	/* Read size */
+	size = get_integer(&ptr);
+
+	/* Send until finished */
+	while (sent < size)
+	{
+		/* Write as much as possible */
+		x = send(fd, msg + sent, size - sent, 0);
+
+		/* Check for errors */
+		if (x < 0)
+		{
+			/* Check for broken pipe */
+			if (errno == EPIPE) return;
+
+			/* Check for try again */
+			if (errno == EAGAIN)
+			{
+				/* Create timeout */
+				timeout.tv_sec = 0;
+				timeout.tv_usec = 1000;
+
+				/* Wait a bit */
+				select(0, NULL, NULL, NULL, &timeout);
+
+				/* Try again */
+				continue;
+			}
+
+			/* Error */
+			perror("send");
+			disconnect();
+			return;
+		}
+
+		/* Count bytes sent */
+		sent += x;
+	}
+}
+
+/*
  * Delete row from user list if it matches passed-in data.
  */
 static gboolean delete_user(GtkTreeModel *model, GtkTreePath *path,
@@ -561,6 +613,7 @@ static void handle_status_card(char *ptr)
 
 	/* Read temp flag */
 	c_ptr->temp = get_integer(&ptr);
+	c_ptr->unpaid = get_integer(&ptr);
 
 	/* Read order played */
 	c_ptr->order = get_integer(&ptr);
@@ -854,7 +907,10 @@ static decisions prepare_func =
 {
 	NULL,
 	NULL,
+	NULL,
 	prepare_make_choice,
+	NULL,
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -1013,7 +1069,10 @@ static gboolean message_read(gpointer data)
 
 			/* Reset buttons */
 			game_view_changed(GTK_TREE_VIEW(games_view), NULL);
-			break;
+
+			/* XXX Do not free data */
+			return FALSE;
+
 
 		/* Login unsuccessful */
 		case MSG_DENIED:
@@ -1194,6 +1253,63 @@ static gboolean message_read(gpointer data)
 			message_add(&real_game, text);
 			break;
 
+		/* Received in-game chat message */
+		case MSG_GAMECHAT:
+
+			/* Read username */
+			get_string(username, &ptr);
+
+			/* Add colon to displayed username */
+			if (strlen(username) > 0) strcat(username, ": ");
+
+			/* Read text of message */
+			get_string(text, &ptr);
+
+			/* Add newline to message */
+			strcat(text, "\n");
+
+			/* Get chat buffer */
+			chat_buffer = gtk_text_view_get_buffer(
+			                           GTK_TEXT_VIEW(message_view));
+			
+			/* Get end mark */
+			gtk_text_buffer_get_iter_at_mark(chat_buffer, &end_iter,
+			                                 message_end);
+
+			/* Add username */
+			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
+			                                 &end_iter,
+			                                 username, -1, "bold",
+			                                 NULL);
+
+			/* Get end mark */
+			gtk_text_buffer_get_iter_at_mark(chat_buffer, &end_iter,
+			                                 message_end);
+
+			/* Check for message from server */
+			if (!strlen(username))
+			{
+				/* Add text (bolded) */
+				gtk_text_buffer_insert_with_tags_by_name(
+				                                 chat_buffer,
+								 &end_iter,
+								 text, -1,
+				                                 "bold",
+								 NULL);
+			}
+			else
+			{
+				/* Add text */
+				gtk_text_buffer_insert(chat_buffer, &end_iter,
+				                       text, -1);
+			}
+
+			/* Scroll to end mark */
+			gtk_text_view_scroll_mark_onscreen(
+			                            GTK_TEXT_VIEW(message_view),
+			                            message_end);
+			break;
+
 		/* Received chat message */
 		case MSG_CHAT:
 
@@ -1333,6 +1449,9 @@ static gboolean message_read(gpointer data)
 			/* Wait until done button pressed */
 			gtk_main();
 
+			/* Tell server we are out of the game */
+			send_msgf(server_fd, MSG_GAMEOVER, "");
+
 			/* Switch back to lobby view */
 			switch_view(1, 1);
 
@@ -1452,8 +1571,11 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 			ptr = buf;
 			type = get_integer(&ptr);
 
+			/* Clear buffer */
+			buf_full = 0;
+
 			/* Check for "meta game information" message */
-			if (type == MSG_STATUS_META)
+			if (type == MSG_STATUS_META || type == MSG_HELLO)
 			{
 				/* Handle message immediately */
 				message_read(buf);
@@ -1470,9 +1592,6 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 				g_timeout_add_full(G_PRIORITY_HIGH, 0,
 				                   message_read, copy, NULL);
 			}
-
-			/* Clear buffer */
-			buf_full = 0;
 		}
 	}
 
@@ -1493,6 +1612,8 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *server, *port, *user, *pass;
 	GtkWidget *table;
 	GIOChannel *io;
+	GSource *source;
+	unsigned int id;
 #ifdef WIN32
 	static int wsa_init = 0;
 	WSADATA wsa_data;
@@ -1732,7 +1853,13 @@ with the password you enter.");
 #endif
 
 			/* Add IO channel to event source for main loop */
-			g_io_add_watch(io, G_IO_IN, data_ready, NULL);
+			id = g_io_add_watch(io, G_IO_IN, data_ready, NULL);
+
+			/* Get source from ID */
+			source = g_main_context_find_source_by_id(NULL, id);
+
+			/* Disallow recursive handler calls */
+			g_source_set_can_recurse(source, FALSE);
 		}
 
 		/* Set client state */
@@ -1944,7 +2071,7 @@ static void player_changed(GtkRange *range, gpointer data)
 	}
 
 	/* Set two-player advanced checkbox sensitivity */
-	gtk_widget_set_sensitive(advanced_check, max == 2);
+	gtk_widget_set_sensitive(advanced_check, min == 2);
 }
 
 /*
@@ -2190,7 +2317,7 @@ void join_game(GtkButton *button, gpointer data)
 		/* Create dialog to request password */
 		dialog = gtk_dialog_new_with_buttons("Join Game", NULL,
 		                                     GTK_DIALOG_MODAL,
-		                                     GTK_STOCK_ADD,
+		                                     GTK_STOCK_OK,
 		                                     GTK_RESPONSE_ACCEPT,
 		                                     GTK_STOCK_CANCEL,
 		                                     GTK_RESPONSE_REJECT, NULL);

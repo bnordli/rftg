@@ -54,6 +54,8 @@ extern GtkWidget *games_view;
 extern GtkWidget *create_button, *join_button, *leave_button;
 extern GtkWidget *kick_button, *start_button;
 extern GtkWidget *action_prompt, *action_button;
+extern GtkWidget *message_view;
+extern GtkTextMark *message_end;
 extern char *exp_names[];
 extern game real_game;
 extern int player_us;

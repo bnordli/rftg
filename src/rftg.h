@@ -621,14 +621,25 @@ typedef struct decisions
 	/* Player spots have been rotated */
 	void (*notify_rotation)(struct game *g, int who);
 
+	/* Prepare for a phase */
+	void (*prepare_phase)(struct game *g, int who, int phase, int arg);
+
 	/* Make a choice among those given */
 	void (*make_choice)(struct game *g, int who, int type, int list[],
 	                    int *nl, int special[], int *ns, int arg1,
 	                    int arg2, int arg3);
 
+	/* Wait for answer to be ready */
+	void (*wait_answer)(struct game *g, int who);
+
 	/* Take sample cards into hand from Explore phase */
 	void (*explore_sample)(struct game *g, int who, int draw, int keep,
 	                       int discard_any);
+
+	/* Verify a choice in the log */
+	int (*verify_choice)(struct game *g, int who, int type, int list[],
+	                     int *nl, int special[], int *ns, int arg1,
+	                     int arg2, int arg3);
 
 	/* Game over */
 	void (*game_over)(struct game *g, int who);
@@ -840,8 +851,6 @@ extern decisions gui_func;
  * External functions.
  */
 extern void message_add(game *g, char *msg);
-extern void wait_for_answer(game *g, int who);
-extern void prepare_phase(game *g, int who, int phase, int arg);
 extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);

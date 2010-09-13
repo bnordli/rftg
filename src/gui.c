@@ -318,12 +318,12 @@ static GtkAccelGroup *window_accel;
 /*
  * Text buffer for message area.
  */
-static GtkWidget *message_view;
+GtkWidget *message_view;
 
 /*
  * Mark at end of message area text buffer.
  */
-static GtkTextMark *message_end;
+GtkTextMark *message_end;
 
 /*
  * y-coordinate of line of "last seen" text in buffer.
@@ -352,20 +352,6 @@ void message_add(game *g, char *msg)
 	/* Scroll to end mark */
 	gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(message_view),
 	                                   message_end);
-}
-
-/*
- * No need to ever wait for an answer.
- */
-void wait_for_answer(game *g, int who)
-{
-}
-
-/*
- * No need to prepare a phase in advance.
- */
-void prepare_phase(game *g, int who, int phase, int arg)
-{
 }
 
 /*
@@ -3802,15 +3788,6 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 }
 
 /*
- * Simulate Explore phase.
- *
- * We need to do nothing.
- */
-void gui_explore_sample(game *g, int who, int draw, int keep, int discard_any)
-{
-}
-
-/*
  * Choose whether to discard a card for prestige.
  */
 void gui_choose_discard_prestige(game *g, int who, int list[], int *num)
@@ -4385,6 +4362,7 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 
 	/* Select takeover to prevent */
 	list[0] = list[i];
+	special[0] = special[i];
 	*num = *num_special = 1;
 }
 
@@ -6140,8 +6118,11 @@ decisions gui_func =
 {
 	NULL,
 	gui_notify_rotation,
+	NULL,
 	gui_make_choice,
-	gui_explore_sample,
+	NULL,
+	NULL,
+	NULL,
 	NULL,
 	NULL
 };
@@ -8229,6 +8210,10 @@ int main(int argc, char *argv[])
 
 	/* Get message buffer */
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Create "bold" tag for chat messages */
+	gtk_text_buffer_create_tag(message_buffer, "bold", "weight", "bold",
+	                           NULL);
 
 	/* Get iterator for end of buffer */
 	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);

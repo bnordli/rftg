@@ -35,20 +35,6 @@ void message_add(game *g, char *msg)
 }
 
 /*
- * AI players always have an answer ready after they return.
- */
-void wait_for_answer(game *g, int who)
-{
-}
-
-/*
- * No need to prepare a phase in advance.
- */
-void prepare_phase(game *g, int who, int phase, int arg)
-{
-}
-
-/*
  * Use simple random number generator.
  */
 int game_rand(game *g)

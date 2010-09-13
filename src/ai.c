@@ -5869,8 +5869,11 @@ decisions ai_func =
 {
 	ai_initialize,
 	ai_notify_rotation,
+	NULL,
 	ai_make_choice,
+	NULL,
 	ai_explore_sample,
+	NULL,
 	ai_game_over,
 	ai_shutdown
 };

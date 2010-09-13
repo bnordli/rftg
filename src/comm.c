@@ -117,42 +117,6 @@ void finish_msg(char *start, char *end)
 }
 
 /*
- * Send a finished message to the given file descriptor.
- */
-void send_msg(int fd, char *msg)
-{
-	int size, sent = 0, x;
-	char *ptr;
-
-	/* Go to size area of message */
-	ptr = msg + 4;
-
-	/* Read size */
-	size = get_integer(&ptr);
-
-	/* Sent message */
-	while (sent < size)
-	{
-		/* Write as much of message as possible */
-		x = send(fd, msg + sent, size - sent, 0);
-
-		/* Check for errors */
-		if (x < 0)
-		{
-			/* Check for broken pipe error */
-			if (errno == EPIPE) return;
-
-			/* Error */
-			perror("send");
-			return;
-		}
-
-		/* Count bytes sent */
-		sent += x;
-	}
-}
-
-/*
  * Send a formatted message.
  */
 void send_msgf(int fd, int type, char *fmt, ...)

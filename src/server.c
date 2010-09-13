@@ -32,6 +32,15 @@ typedef struct conn
 	/* Amount of data currently in buffer */
 	int buf_full;
 
+	/* Data buffer for unsent messages */
+	char *out_buf;
+
+	/* Amount of data needing to be sent */
+	int out_len;
+
+	/* Current size of outgoing buffer */
+	int out_size;
+
 	/* Connection state */
 	int state;
 
@@ -52,6 +61,9 @@ typedef struct conn
 
 	/* Time of last communication */
 	time_t last_seen;
+
+	/* Mutex to protect outgoing buffer */
+	pthread_mutex_t conn_mutex;
 
 } conn;
 
@@ -151,8 +163,8 @@ typedef struct session
 	/* Ticks (roughly 10 seconds) we've been waiting on each player */
 	int wait_ticks[MAX_PLAYER];
 
-	/* Mutex for access to waiting flags */
-	pthread_mutex_t wait_mutex;
+	/* Mutex for access to session variables */
+	pthread_mutex_t session_mutex;
 
 	/* Condition variable to signal game thread when reply is ready */
 	pthread_cond_t wait_cond;
@@ -660,10 +672,32 @@ static void db_save_seats(int sid)
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
 		/* Update seat number */
-		sprintf(query, "UPDATE attendance SET seat=%d, ai=%d \
+		sprintf(query, "UPDATE attendance SET seat=%d \
 		                WHERE gid=%d AND uid=%d",
-		                i, s_ptr->ai_control[i],
-		                s_ptr->gid, s_ptr->uids[i]);
+		                i, s_ptr->gid, s_ptr->uids[i]);
+
+		/* Run query */
+		mysql_query(mysql, query);
+	}
+}
+
+/*
+ * Save AI control flags.
+ */
+static void db_save_ai_control(int sid)
+{
+	session *s_ptr = &s_list[sid];
+	char query[1024];
+	int i;
+
+	/* Loop over players in game */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Update seat number */
+		sprintf(query, "UPDATE attendance SET ai=%d \
+		                WHERE gid=%d AND uid=%d",
+		                s_ptr->ai_control[i], s_ptr->gid,
+		                s_ptr->uids[i]);
 
 		/* Run query */
 		mysql_query(mysql, query);
@@ -695,6 +729,78 @@ static void db_save_choices(int sid, int who)
 }
 
 /*
+ * Send a message to a client.
+ */
+void send_msg(int cid, char *msg)
+{
+	conn *c;
+	int size, x;
+	char *ptr;
+
+	/* Ensure valid connection */
+	if (cid < 0) return;
+
+	/* Get connection pointer */
+	c = &c_list[cid];
+
+	/* Check for kicked player */
+	if (c->fd < 0) return;
+
+	/* Go to size area of message */
+	ptr = msg + 4;
+
+	/* Read size */
+	size = get_integer(&ptr);
+
+	/* Grab mutex for connection */
+	pthread_mutex_lock(&c->conn_mutex);
+
+	/* Check for insufficient buffer size to hold message */
+	if (c->out_size < c->out_len + size)
+	{
+		/* Reallocate buffer */
+		c->out_buf = (char *)realloc(c->out_buf, c->out_len + size);
+	}
+	
+	/* Copy current message to end of buffer */
+	memcpy(c->out_buf + c->out_len, msg, size);
+
+	/* Add to current buffer length */
+	c->out_len += size;
+
+	/* Attempt to send full amount of buffer */
+	x = send(c->fd, c->out_buf, c->out_len, 0);
+
+	/* Check for errors */
+	if (x < 0)
+	{
+		/* Check for try again error */
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+		{
+			/* Release mutex */
+			pthread_mutex_unlock(&c->conn_mutex);
+			return;
+		}
+
+		/* Print error */
+		perror("send");
+
+		/* Release mutex */
+		pthread_mutex_unlock(&c->conn_mutex);
+		return;
+	}
+
+	/* Reduce buffer length by amount sent */
+	c->out_len -= x;
+
+	/* Shift buffer */
+	memmove(c->out_buf, c->out_buf + x, c->out_len);
+
+	/* Release connection mutex */
+	pthread_mutex_unlock(&c->conn_mutex);
+}
+
+/*
  * Send information about a player to all clients.
  */
 static void send_player_one(int dest, int who)
@@ -703,14 +809,13 @@ static void send_player_one(int dest, int who)
 	if (c_list[who].state == CS_DISCONN)
 	{
 		/* Send "player left" message */
-		send_msgf(c_list[dest].fd, MSG_PLAYER_LEFT, "s",
-		          c_list[who].user);
+		send_msgf(dest, MSG_PLAYER_LEFT, "s", c_list[who].user);
 	}
 	else
 	{
 		/* Send "new player" message */
-		send_msgf(c_list[dest].fd, MSG_PLAYER_NEW, "sd",
-		          c_list[who].user, c_list[who].state == CS_PLAYING);
+		send_msgf(dest, MSG_PLAYER_NEW, "sd", c_list[who].user,
+		          c_list[who].state == CS_PLAYING);
 	}
 }
 
@@ -765,7 +870,7 @@ static void send_session_one(int sid, int cid)
 	if (s_ptr->state != SS_WAITING)
 	{
 		/* Tell client that game is closed */
-		send_msgf(c_list[cid].fd, MSG_CLOSE_GAME, "d", sid);
+		send_msgf(cid, MSG_CLOSE_GAME, "d", sid);
 
 		/* Done */
 		return;
@@ -775,7 +880,7 @@ static void send_session_one(int sid, int cid)
 	db_user_name(s_ptr->created, name);
 
 	/* Send message to client */
-	send_msgf(c_list[cid].fd, MSG_OPENGAME, "dssddddddddd",
+	send_msgf(cid, MSG_OPENGAME, "dssddddddddd",
 	          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
 	          s_ptr->min_player, s_ptr->max_player,
 	          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
@@ -789,7 +894,7 @@ static void send_session_one(int sid, int cid)
 		if (i >= s_ptr->num_users)
 		{
 			/* Send empty player spot */
-			send_msgf(c_list[cid].fd, MSG_GAME_PLAYER, "ddsdd",
+			send_msgf(cid, MSG_GAME_PLAYER, "ddsdd",
 			          sid, i, "", 0, 0);
 
 			/* Next spot */
@@ -800,7 +905,7 @@ static void send_session_one(int sid, int cid)
 		db_user_name(s_ptr->uids[i], name);
 
 		/* Send message about joined player */
-		send_msgf(c_list[cid].fd, MSG_GAME_PLAYER, "ddsdd",
+		send_msgf(cid, MSG_GAME_PLAYER, "ddsdd",
 		          sid, i, name, s_ptr->cids[i] != -1,
 		          s_ptr->cids[i] == cid);
 	}
@@ -862,7 +967,7 @@ static void send_to_session(int sid, char *msg)
 		if (cid < 0) continue;
 
 		/* Send to client */
-		send_msg(c_list[cid].fd, msg);
+		send_msg(cid, msg);
 	}
 }
 
@@ -889,7 +994,7 @@ void message_add(game *g, char *txt)
 /*
  * Wait for player to have an answer ready.
  */
-void wait_for_answer(game *g, int who)
+static void server_wait(game *g, int who)
 {
 	session *s_ptr;
 
@@ -899,18 +1004,18 @@ void wait_for_answer(game *g, int who)
 	/* Get session pointer */
 	s_ptr = &s_list[g->session_id];
 
-	/* Acquire wait mutex */
-	pthread_mutex_lock(&s_ptr->wait_mutex);
+	/* Acquire session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Wait until player is ready */
 	while (s_ptr->waiting[who])
 	{
 		/* Wait for signal */
-		pthread_cond_wait(&s_ptr->wait_cond, &s_ptr->wait_mutex);
+		pthread_cond_wait(&s_ptr->wait_cond, &s_ptr->session_mutex);
 	}
 
-	/* Unlock wait mutex */
-	pthread_mutex_unlock(&s_ptr->wait_mutex);
+	/* Unlock session mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 }
 
 /*
@@ -1141,6 +1246,11 @@ static int player_changed(player *p_ptr, player *q_ptr)
 	if (p_ptr->prestige != q_ptr->prestige) return 1;
 	if (p_ptr->prestige_action_used != q_ptr->prestige_action_used)return 1;
 
+	/* Check for change in temporary phase bonuses */
+	if (p_ptr->phase_bonus_used != q_ptr->phase_bonus_used) return 1;
+	if (p_ptr->bonus_military != q_ptr->bonus_military) return 1;
+	if (p_ptr->bonus_reduce != q_ptr->bonus_reduce) return 1;
+
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
@@ -1231,7 +1341,7 @@ static void update_status_one(int sid, int who)
 			finish_msg(msg, ptr);
 
 			/* Send to client */
-			send_msg(c_list[s_ptr->cids[who]].fd, msg);
+			send_msg(s_ptr->cids[who], msg);
 		}
 	}
 
@@ -1262,8 +1372,9 @@ static void update_status_one(int sid, int who)
 			put_integer(c_ptr->where, &ptr);
 			put_integer(c_ptr->start_where, &ptr);
 
-			/* Add temporary flag */
+			/* Add temporary flags */
 			put_integer(c_ptr->temp, &ptr);
+			put_integer(c_ptr->unpaid, &ptr);
 
 			/* Add order played on table */
 			put_integer(c_ptr->order, &ptr);
@@ -1275,7 +1386,7 @@ static void update_status_one(int sid, int who)
 			finish_msg(msg, ptr);
 
 			/* Send to client */
-			send_msg(c_list[s_ptr->cids[who]].fd, msg);
+			send_msg(s_ptr->cids[who], msg);
 		}
 	}
 
@@ -1303,7 +1414,7 @@ static void update_status_one(int sid, int who)
 		finish_msg(msg, ptr);
 
 		/* Send to client */
-		send_msg(c_list[s_ptr->cids[who]].fd, msg);
+		send_msg(s_ptr->cids[who], msg);
 	}
 
 	/* Copy game state to remembered */
@@ -1370,8 +1481,8 @@ static void update_waiting(int sid)
 	/* Start waiting message */
 	start_msg(&ptr, MSG_WAITING);
 
-	/* Lock waiting mutex */
-	pthread_mutex_lock(&s_ptr->wait_mutex);
+	/* Lock session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -1381,7 +1492,7 @@ static void update_waiting(int sid)
 	}
 
 	/* Unlock mutex */
-	pthread_mutex_unlock(&s_ptr->wait_mutex);
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Finish message */
 	finish_msg(msg, ptr);
@@ -1428,7 +1539,7 @@ static void server_notify_rotation(game *g, int who)
 		if (s_ptr->cids[i] < 0) continue;
 
 		/* Tell player about new seat */
-		send_msgf(c_list[s_ptr->cids[i]].fd, MSG_SEAT, "d", i);
+		send_msgf(s_ptr->cids[i], MSG_SEAT, "d", i);
 	}
 
 	/* Tell players about new names in seats */
@@ -1438,7 +1549,7 @@ static void server_notify_rotation(game *g, int who)
 /*
  * Ask player to prepare choices for the given phase.
  */
-void prepare_phase(game *g, int who, int phase, int arg)
+static void server_prepare(game *g, int who, int phase, int arg)
 {
 	session *s_ptr = &s_list[g->session_id];
 
@@ -1455,17 +1566,17 @@ void prepare_phase(game *g, int who, int phase, int arg)
 	update_status(g->session_id);
 
 	/* Ask player to prepare */
-	send_msgf(c_list[s_ptr->cids[who]].fd, MSG_PREPARE, "ddd",
+	send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
 	          g->p[who].choice_size, phase, arg);
 
-	/* Lock waiting mutex */
-	pthread_mutex_lock(&s_ptr->wait_mutex);
+	/* Lock session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Player has option to play */
 	s_ptr->waiting[who] = WAIT_OPTION;
 
 	/* Unlock mutex */
-	pthread_mutex_unlock(&s_ptr->wait_mutex);
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
 }
@@ -1485,28 +1596,25 @@ static void ask_client(int sid, int who)
 	/* Send game updates to players */
 	update_status(sid);
 
+	/* Lock session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
+
 	/* Get choice pointer */
 	o_ptr = &s_ptr->out[who];
 
 	/* Get connection ID for this player */
 	cid = s_ptr->cids[who];
 
-	/* Lock waiting mutex */
-	pthread_mutex_lock(&s_ptr->wait_mutex);
-
 	/* Check for no outstanding choice for this client */
 	if (s_ptr->waiting[who] == WAIT_READY ||
 	    s_ptr->waiting[who] == WAIT_OPTION)
 	{
 		/* Unlock mutex */
-		pthread_mutex_unlock(&s_ptr->wait_mutex);
+		pthread_mutex_unlock(&s_ptr->session_mutex);
 
 		/* Nothing to do */
 		return;
 	}
-
-	/* Unlock mutex */
-	pthread_mutex_unlock(&s_ptr->wait_mutex);
 
 	/* Check for AI control */
 	if (s_ptr->ai_control[who])
@@ -1526,17 +1634,14 @@ static void ask_client(int sid, int who)
 		/* Release AI mutex */
 		pthread_mutex_unlock(&ai_mutex);
 
-		/* Acquire wait mutex for session */
-		pthread_mutex_lock(&s_ptr->wait_mutex);
-
 		/* Mark player as no longer waiting */
 		s_ptr->waiting[who] = WAIT_READY;
 
 		/* Signal game thread to continue */
 		pthread_cond_signal(&s_ptr->wait_cond);
 
-		/* Unlock wait mutex */
-		pthread_mutex_unlock(&s_ptr->wait_mutex);
+		/* Unlock mutex */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
 
 		/* Update waiting status */
 		update_waiting(sid);
@@ -1544,6 +1649,9 @@ static void ask_client(int sid, int who)
 		/* Done */
 		return;
 	}
+
+	/* Release session mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Check for no player */
 	if (cid < 0) return;
@@ -1591,7 +1699,7 @@ static void ask_client(int sid, int who)
 	finish_msg(msg, ptr);
 
 	/* Send message to client */
-	send_msg(c_ptr->fd, msg);
+	send_msg(cid, msg);
 }
 
 /*
@@ -1606,8 +1714,8 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 	choice *o_ptr = &s_ptr->out[who];
 	int i;
 
-	/* Get wait mutex */
-	pthread_mutex_lock(&s_ptr->wait_mutex);
+	/* Get session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Mark player as being waited on */
 	s_ptr->waiting[who] = WAIT_BLOCKED;
@@ -1615,8 +1723,8 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Start counting ticks waiting */
 	s_ptr->wait_ticks[who] = 0;
 
-	/* Release wait mutex */
-	pthread_mutex_unlock(&s_ptr->wait_mutex);
+	/* Release mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Update waiting status */
 	update_waiting(sid);
@@ -1664,6 +1772,16 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 }
 
 /*
+ * Verify that a decision in the given player's choice log is legal.
+ */
+static int server_verify_choice(game *g, int who, int type, int list[], int *nl,
+                                int special[], int *ns, int arg1, int arg2,
+                                int arg3)
+{
+	return 1;
+}
+
+/*
  * Handle a choice reply message from a client.
  */
 static void handle_choice(int cid, char *ptr)
@@ -1697,6 +1815,9 @@ static void handle_choice(int cid, char *ptr)
 	/* Get position in choice log that client is sending */
 	pos = get_integer(&ptr);
 
+	/* Grab session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
+
 	/* Get pointer to end of choice log */
 	l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
 
@@ -1705,7 +1826,11 @@ static void handle_choice(int cid, char *ptr)
 
 	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
-	if (pos != p_ptr->choice_size) return;
+	if (pos != p_ptr->choice_size)
+	{
+		pthread_mutex_unlock(&s_ptr->session_mutex);
+		return;
+	}
 
 	/* Copy return value */
 	*l_ptr++ = get_integer(&ptr);
@@ -1739,11 +1864,14 @@ static void handle_choice(int cid, char *ptr)
 	/* Mark new size of choice log */
 	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
 
+	/* Release session mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
+
 	/* Save choice log to database */
 	db_save_choices(sid, who);
 
-	/* Acquire wait mutex for session */
-	pthread_mutex_lock(&s_ptr->wait_mutex);
+	/* Acquire mutex for session */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Check for blocked player */
 	if (s_ptr->waiting[who] == WAIT_BLOCKED)
@@ -1759,7 +1887,7 @@ static void handle_choice(int cid, char *ptr)
 	pthread_cond_signal(&s_ptr->wait_cond);
 
 	/* Unlock wait mutex */
-	pthread_mutex_unlock(&s_ptr->wait_mutex);
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Update waiting status */
 	update_waiting(sid);
@@ -1786,8 +1914,8 @@ static void handle_prepare(int cid, char *ptr)
 		if (s_ptr->cids[who] == cid) break;
 	}
 
-	/* Acquire wait mutex for session */
-	pthread_mutex_lock(&s_ptr->wait_mutex);
+	/* Acquire mutex for session */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Check for preparing player */
 	if (s_ptr->waiting[who] == WAIT_OPTION)
@@ -1799,8 +1927,8 @@ static void handle_prepare(int cid, char *ptr)
 	/* Signal game thread to continue */
 	pthread_cond_signal(&s_ptr->wait_cond);
 
-	/* Unlock wait mutex */
-	pthread_mutex_unlock(&s_ptr->wait_mutex);
+	/* Unlock mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	printf("S:%d Received preparation complete from %d\n", sid, cid);
 
@@ -1815,8 +1943,11 @@ decisions server_func =
 {
 	NULL,
 	server_notify_rotation,
+	server_prepare,
 	server_make_choice,
+	server_wait,
 	NULL,
+	server_verify_choice,
 	NULL,
 	NULL
 };
@@ -1859,6 +1990,9 @@ static void accept_conn(int listen_fd)
 		exit(1);
 	}
 
+	/* Set socket to nonblocking */
+	fcntl(c_list[i].fd, F_SETFL, O_NONBLOCK);
+
 	/* Set state to initialized */
 	c_list[i].state = CS_INIT;
 
@@ -1871,6 +2005,9 @@ static void accept_conn(int listen_fd)
 	/* Clear buffer length */
 	c_list[i].buf_full = 0;
 
+	/* Clear outgoing buffer length */
+	c_list[i].out_len = 0;
+
 	/* Clear username */
 	strcpy(c_list[i].user, "");
 
@@ -1879,17 +2016,44 @@ static void accept_conn(int listen_fd)
 }
 
 /*
+ * Send a "game chat" message to everyone in the given session.
+ */
+static void send_gamechat(int sid, char *user, char *text)
+{
+	char msg[1024], *ptr = msg;
+
+	/* Start at beginning of message */
+	ptr = msg;
+
+	/* Create log message */
+	start_msg(&ptr, MSG_GAMECHAT);
+
+	/* Copy user sending chat to message */
+	put_string(user, &ptr);
+
+	/* Copy chat text to message */
+	put_string(text, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send to session */
+	send_to_session(sid, msg);
+}
+
+/*
  * Kick a player from the server.
  */
 static void kick_player(int cid, char *reason)
 {
 	int sid, i;
+	char text[1024];
 
 	/* Print message */
 	printf("Kicking player %d for %s\n", cid, reason);
 
 	/* Send goodbye message */
-	send_msgf(c_list[cid].fd, MSG_GOODBYE, "s", reason);
+	send_msgf(cid, MSG_GOODBYE, "s", reason);
 
 	/* Set state to disconnected */
 	c_list[cid].state = CS_DISCONN;
@@ -1925,6 +2089,16 @@ static void kick_player(int cid, char *reason)
 
 	/* Send session details */
 	send_session(sid);
+
+	/* Check for active session */
+	if (s_list[sid].state == SS_STARTED)
+	{
+		/* Format offline message */
+		sprintf(text, "%s disconnected.", c_list[cid].user);
+
+		/* Send to remaining players in session */
+		send_gamechat(sid, "", text);
+	}
 }
 
 /*
@@ -1944,8 +2118,22 @@ static void join_game(int cid, int sid)
 		/* Check for match */
 		if (s_ptr->uids[i] == c_list[cid].uid)
 		{
+			/* Check for started session */
+			if (s_ptr->state == SS_STARTED)
+			{
+				/* Grab session mutex */
+				pthread_mutex_lock(&s_ptr->session_mutex);
+			}
+
 			/* Mark connection ID */
 			s_ptr->cids[i] = cid;
+
+			/* Check for started session */
+			if (s_ptr->state == SS_STARTED)
+			{
+				/* Release session mutex */
+				pthread_mutex_unlock(&s_ptr->session_mutex);
+			}
 
 			/* Resend session information */
 			send_session(sid);
@@ -2011,20 +2199,26 @@ static void leave_game(int sid, int who)
 static void switch_ai(int sid, int who)
 {
 	session *s_ptr = &s_list[sid];
-	char msg[1024];
+	char text[1024];
+
+	/* Acquire session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Mark player as AI */
 	s_ptr->ai_control[who] = 1;
 
 	/* Save AI control in database */
-	db_save_seats(sid);
+	db_save_ai_control(sid);
 
-	/* Tell players about switch */
-	sprintf(msg, "%s has been placed under AI control.\n",
+	/* Release session mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
+
+	/* Format message */
+	sprintf(text, "%s has been placed under AI control.",
 	        s_ptr->g.p[who].name);
 
-	/* Send message */
-	message_add(&s_ptr->g, msg);
+	/* Send to session */
+	send_gamechat(sid, "", text);
 
 	/* Have AI answer most recent choice question */
 	ask_client(sid, who);
@@ -2040,8 +2234,8 @@ void *run_game(void *arg)
 	session *s_ptr = (session *)arg;
 	int i;
 
-	/* Initialize wait mutex and condition variable */
-	pthread_mutex_init(&s_ptr->wait_mutex, NULL);
+	/* Initialize  mutex and condition variable */
+	pthread_mutex_init(&s_ptr->session_mutex, NULL);
 	pthread_cond_init(&s_ptr->wait_cond, NULL);
 
 	/* Initialize game */
@@ -2053,6 +2247,9 @@ void *run_game(void *arg)
 	/* Send meta status to clients */
 	update_meta(s_ptr - s_list);
 
+	/* Acquire session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
+
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
@@ -2060,8 +2257,11 @@ void *run_game(void *arg)
 		if (s_ptr->cids[i] < 0) continue;
 
 		/* Give player a seat number */
-		send_msgf(c_list[s_ptr->cids[i]].fd, MSG_SEAT, "d", i);
+		send_msgf(s_ptr->cids[i], MSG_SEAT, "d", i);
 	}
+
+	/* Release mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Begin game */
 	begin_game(&s_ptr->g);
@@ -2085,16 +2285,7 @@ void *run_game(void *arg)
 		if (s_ptr->cids[i] < 0) continue;
 
 		/* Tell player that gawe is over */
-		send_msgf(c_list[s_ptr->cids[i]].fd, MSG_GAMEOVER, "");
-
-		/* Move player back to lobby state */
-		c_list[s_ptr->cids[i]].state = CS_LOBBY;
-
-		/* Remove player from session */
-		c_list[s_ptr->cids[i]].sid = -1;
-
-		/* Tell everyone player is in lobby */
-		send_player(s_ptr->cids[i]);
+		send_msgf(s_ptr->cids[i], MSG_GAMEOVER, "");
 	}
 
 	/* Mark session as finished */
@@ -2113,6 +2304,13 @@ static void start_session(int sid)
 	char name[80];
 	pthread_t t;
 	int i;
+
+	/* Check for advanced flag and more than two players */
+	if (s_ptr->num_users > 2 && s_ptr->advanced)
+	{
+		/* Clear advanced flag */
+		s_ptr->advanced = 0;
+	}
 
 	/* Copy paramaters to game structure */
 	s_ptr->g.num_players = s_ptr->num_users;
@@ -2190,6 +2388,7 @@ static void start_all_sessions(void)
 static void handle_login(int cid, char *ptr)
 {
 	char user[1024], pass[1024], version[1024];
+	char text[1024];
 	int i, j;
 
 	/* Ensure client is in INIT state */
@@ -2205,12 +2404,15 @@ static void handle_login(int cid, char *ptr)
 	get_string(pass, &ptr);
 	get_string(version, &ptr);
 
+	printf("Login attempt from %s\n", user);
+
 	/* Check for too old version */
-	if (strcmp(version, "0.7.3") < 0)
+	if (strcmp(version, "0.7.4") < 0)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_DENIED, "s",
-			  "Client version too old");
+		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
+
+		printf("Denied (too old)\n");
 
 		/* Done */
 		return;
@@ -2220,8 +2422,9 @@ static void handle_login(int cid, char *ptr)
 	if (strcmp(version, VERSION) > 0)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_DENIED, "s",
-			  "Client version too new");
+		send_msgf(cid, MSG_DENIED, "s", "Client version too new");
+
+		printf("Denied (too new)\n");
 
 		/* Done */
 		return;
@@ -2231,8 +2434,9 @@ static void handle_login(int cid, char *ptr)
 	if (strlen(user) < 2 || strlen(user) > 20)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_DENIED, "s",
-		          "Illegal username");
+		send_msgf(cid, MSG_DENIED, "s", "Illegal username");
+
+		printf("Denied (illegal username)\n");
 
 		/* Done */
 		return;
@@ -2245,8 +2449,9 @@ static void handle_login(int cid, char *ptr)
 		if (!isalnum(*ptr) && *ptr != '_')
 		{
 			/* Send denied message */
-			send_msgf(c_list[cid].fd, MSG_DENIED, "s",
-			          "Illegal username");
+			send_msgf(cid, MSG_DENIED, "s", "Illegal username");
+
+			printf("Denied (illegal username)\n");
 
 			/* Done */
 			return;
@@ -2266,8 +2471,10 @@ static void handle_login(int cid, char *ptr)
 		if (!strcmp(c_list[i].user, user))
 		{
 			/* Send denied message */
-			send_msgf(c_list[cid].fd, MSG_DENIED, "s",
+			send_msgf(cid, MSG_DENIED, "s",
 			          "User already logged in");
+
+			printf("Denied (already logged in)\n");
 
 			/* Done */
 			return;
@@ -2278,8 +2485,9 @@ static void handle_login(int cid, char *ptr)
 	if (strlen(pass) < 1 || strlen(pass) > 20)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_DENIED, "s",
-		          "Illegal password length");
+		send_msgf(cid, MSG_DENIED, "s", "Illegal password length");
+
+		printf("Denied (illegal password length)\n");
 
 		/* Done */
 		return;
@@ -2292,8 +2500,9 @@ static void handle_login(int cid, char *ptr)
 	if (c_list[cid].uid < 0)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_DENIED, "s",
-		          "Incorrect password");
+		send_msgf(cid, MSG_DENIED, "s", "Incorrect password");
+
+		printf("Denied (incorrect password)\n");
 
 		/* Done */
 		return;
@@ -2309,10 +2518,10 @@ static void handle_login(int cid, char *ptr)
 	c_list[cid].state = CS_LOBBY;
 
 	/* Tell client that login was successful */
-	send_msgf(c_list[cid].fd, MSG_HELLO, "");
+	send_msgf(cid, MSG_HELLO, "");
 
 	/* Send welcome chat to client */
-	send_msgf(c_list[cid].fd, MSG_CHAT, "ss", "",
+	send_msgf(cid, MSG_CHAT, "ss", "",
 	          "Welcome to the Race for the Galaxy server!");
 
 	/* Clear session ID */
@@ -2338,7 +2547,7 @@ static void handle_login(int cid, char *ptr)
 				join_game(cid, i);
 
 				/* Tell client about joined session */
-				send_msgf(c_list[cid].fd, MSG_JOINACK, "d", i);
+				send_msgf(cid, MSG_JOINACK, "d", i);
 
 				/* Check for started session */
 				if (s_list[i].state == SS_STARTED)
@@ -2347,15 +2556,19 @@ static void handle_login(int cid, char *ptr)
 					c_list[cid].state = CS_PLAYING;
 
 					/* Tell client that game has started */
-					send_msgf(c_list[cid].fd, MSG_START,
-					          "");
+					send_msgf(cid, MSG_START, "");
+
+					/* Format message */
+					sprintf(text, "%s reconnected.", user);
+
+					/* Send to session */
+					send_gamechat(i, "", text);
 
 					/* Tell client about game state */
 					update_meta(i);
 
 					/* Give player a seat number */
-					send_msgf(c_list[cid].fd, MSG_SEAT, "d",
-					          j);
+					send_msgf(cid, MSG_SEAT, "d", j);
 
 					/* Update waiting status */
 					update_waiting(i);
@@ -2383,7 +2596,7 @@ static void handle_login(int cid, char *ptr)
 static void handle_create(int cid, char *ptr)
 {
 	session *s_ptr;
-	char pass[1024], desc[1024];
+	char pass[2048], desc[2048];
 	int sid, i;
 	int maxp;
 
@@ -2407,6 +2620,10 @@ static void handle_create(int cid, char *ptr)
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
 
+	/* Clear password and description */
+	memset(pass, 0, 2048);
+	memset(desc, 0, 2048);
+
 	/* Read game password and descripton */
 	get_string(pass, &ptr);
 	get_string(desc, &ptr);
@@ -2423,6 +2640,14 @@ static void handle_create(int cid, char *ptr)
 	{
 		/* Kick player */
 		kick_player(cid, "Game password too long!");
+		return;
+	}
+
+	/* Check for too-long description */
+	if (strlen(desc) > 40)
+	{
+		/* Kick player */
+		kick_player(cid, "Game description too long!");
 		return;
 	}
 
@@ -2461,7 +2686,7 @@ static void handle_create(int cid, char *ptr)
 	s_ptr->speed = get_integer(&ptr);
 
 	/* Validate advanced game */
-	if (s_ptr->max_player > 2)
+	if (s_ptr->min_player > 2)
 	{
 		/* Cannot be advanced */
 		s_ptr->advanced = 0;
@@ -2494,7 +2719,7 @@ static void handle_create(int cid, char *ptr)
 	join_game(cid, sid);
 
 	/* Send accepted message */
-	send_msgf(c_list[cid].fd, MSG_JOINACK, "d", sid);
+	send_msgf(cid, MSG_JOINACK, "d", sid);
 }
 
 /*
@@ -2513,7 +2738,7 @@ static void handle_join(int cid, char *ptr)
 	if (s_list[sid].state != SS_WAITING)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_JOINNAK, "s", "Game not open");
+		send_msgf(cid, MSG_JOINNAK, "s", "Game not open");
 		return;
 	}
 
@@ -2524,7 +2749,7 @@ static void handle_join(int cid, char *ptr)
 		if (s_list[sid].uids[i] == c_list[cid].uid)
 		{
 			/* Send denied message */
-			send_msgf(c_list[cid].fd, MSG_JOINNAK, "s",
+			send_msgf(cid, MSG_JOINNAK, "s",
 			          "Already in this game");
 			return;
 		}
@@ -2534,8 +2759,7 @@ static void handle_join(int cid, char *ptr)
 	if (c_list[cid].sid != -1)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_JOINNAK, "s",
-		          "Already joined a game");
+		send_msgf(cid, MSG_JOINNAK, "s", "Already joined a game");
 		return;
 	}
 
@@ -2543,7 +2767,7 @@ static void handle_join(int cid, char *ptr)
 	if (s_list[sid].num_users >= s_list[sid].max_player)
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_JOINNAK, "s", "Game full");
+		send_msgf(cid, MSG_JOINNAK, "s", "Game full");
 		return;
 	}
 
@@ -2554,8 +2778,7 @@ static void handle_join(int cid, char *ptr)
 	if (strlen(s_list[sid].pass) > 0 && strcmp(pass, s_list[sid].pass))
 	{
 		/* Send denied message */
-		send_msgf(c_list[cid].fd, MSG_JOINNAK, "s",
-		          "Incorrect game password");
+		send_msgf(cid, MSG_JOINNAK, "s", "Incorrect game password");
 		return;
 	}
 
@@ -2563,7 +2786,7 @@ static void handle_join(int cid, char *ptr)
 	join_game(cid, sid);
 
 	/* Send accepted message */
-	send_msgf(c_list[cid].fd, MSG_JOINACK, "d", sid);
+	send_msgf(cid, MSG_JOINACK, "d", sid);
 }
 
 /*
@@ -2580,7 +2803,7 @@ static void abandon_session(int sid)
 		if (s_ptr->cids[0] >= 0)
 		{
 			/* Tell player that they are out */
-			send_msgf(c_list[s_ptr->cids[0]].fd, MSG_LEAVE, "");
+			send_msgf(s_ptr->cids[0], MSG_LEAVE, "");
 		}
 
 		/* Remove first user from session */
@@ -2676,8 +2899,7 @@ static void handle_remove(int cid, char *ptr)
 			if (s_ptr->cids[i] >= 0)
 			{
 				/* Tell player that they are out */
-				send_msgf(c_list[s_ptr->cids[i]].fd, MSG_LEAVE,
-				          "");
+				send_msgf(s_ptr->cids[i], MSG_LEAVE, "");
 			}
 
 			/* Remove player */
@@ -2696,12 +2918,22 @@ static void handle_resign(int cid, char *ptr)
 {
 	session *s_ptr;
 	int i;
+	char text[1024];
 
 	/* Ensure client is playing a game */
 	if (c_list[cid].state != CS_PLAYING) return;
 
 	/* Get session player is in */
 	s_ptr = &s_list[c_list[cid].sid];
+
+	/* Format resignation message */
+	sprintf(text, "%s resigns.", c_list[cid].user);
+
+	/* Send message to session */
+	send_gamechat(c_list[cid].sid, "", text);
+
+	/* Acquire session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Look for player in session */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -2712,9 +2944,19 @@ static void handle_resign(int cid, char *ptr)
 		/* Remove connection from session */
 		s_ptr->cids[i] = -1;
 
+		/* Release session mutex */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
+
 		/* Switch player to AI control */
 		switch_ai(c_list[cid].sid, i);
 		break;
+	}
+
+	/* XXX Paranoia */
+	if (i == s_ptr->num_users)
+	{
+		/* Release session mutex */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
 	}
 
 	/* Move player back to lobby state */
@@ -2735,6 +2977,7 @@ static void handle_start(int cid, char *ptr)
 	session *s_ptr;
 	int sid;
 	int i;
+	char text[1024];
 
 	/* Read session ID from client */
 	sid = get_integer(&ptr);
@@ -2783,7 +3026,7 @@ static void handle_start(int cid, char *ptr)
 		c_list[cid].state = CS_PLAYING;
 
 		/* Send game started message */
-		send_msgf(c_list[cid].fd, MSG_START, "");
+		send_msgf(cid, MSG_START, "");
 
 		/* Tell everyone player is in game */
 		send_player(cid);
@@ -2791,6 +3034,12 @@ static void handle_start(int cid, char *ptr)
 
 	/* Message */
 	printf("Starting game %s (session %d)\n", s_ptr->desc, sid);
+
+	/* Format game number message */
+	sprintf(text, "Starting game #%d", s_ptr->gid);
+
+	/* Send message to session */
+	send_gamechat(sid, "", text);
 
 	/* Initialize and run game */
 	start_session(sid);
@@ -2801,7 +3050,7 @@ static void handle_start(int cid, char *ptr)
  */
 static void handle_chat(int cid, char *ptr)
 {
-	char chat[1024], text[1024], msg[1024];
+	char chat[1024];
 	int i;
 
 	/* Read chat message */
@@ -2817,30 +3066,38 @@ static void handle_chat(int cid, char *ptr)
 			if (c_list[i].state == CS_DISCONN) continue;
 
 			/* Send chat to player */
-			send_msgf(c_list[i].fd, MSG_CHAT, "ss",
-			          c_list[cid].user, chat);
+			send_msgf(i, MSG_CHAT, "ss", c_list[cid].user, chat);
 		}
 	}
 	else
 	{
-		/* Format chat with user's name */
-		sprintf(text, "%s: %s\n", c_list[cid].user, chat);
-
-		/* Start at beginning of message */
-		ptr = msg;
-
-		/* Create log message */
-		start_msg(&ptr, MSG_LOG);
-
-		/* Copy chat text to message */
-		put_string(text, &ptr);
-
-		/* Finish message */
-		finish_msg(msg, ptr);
-
 		/* Send to session */
-		send_to_session(c_list[cid].sid, msg);
+		send_gamechat(c_list[cid].sid, c_list[cid].user, chat);
 	}
+}
+
+/*
+ * Handle a game over message, which client sends once player has acknowledged
+ * that the game is over.
+ */
+static void handle_gameover(int cid, char *ptr)
+{
+	char text[1024];
+
+	/* Format message */
+	sprintf(text, "%s has returned to lobby.", c_list[cid].user);
+
+	/* Tell session that player has left */
+	send_gamechat(c_list[cid].sid, "", text);
+
+	/* Move player back to lobby state */
+	c_list[cid].state = CS_LOBBY;
+
+	/* Remove player from session */
+	c_list[cid].sid = -1;
+
+	/* Tell everyone player is in lobby */
+	send_player(cid);
 }
 
 /*
@@ -2943,6 +3200,14 @@ static void handle_msg(int cid)
 			/* Handle chat message */
 			handle_chat(cid, ptr);
 			break;
+
+		/* Client acknowledges game over */
+		case MSG_GAMEOVER:
+
+			/* Move client back to lobby */
+			handle_gameover(cid, ptr);
+			break;
+
 
 		/* Unknown type */
 		default:
@@ -3057,6 +3322,28 @@ static void do_housekeeping(void)
 		/* Check for finished session */
 		if (s_ptr->state == SS_DONE)
 		{
+			/* Assume no players left in session */
+			num = 0;
+
+			/* Loop over players in session */
+			for (j = 0; j < s_ptr->num_users; j++)
+			{
+				/* Check for connected user */
+				if (s_ptr->cids[j] >= 0)
+				{
+					/* Check for player not back in lobby */
+					if (c_list[s_ptr->cids[j]].state ==
+					                             CS_PLAYING)
+					{
+						/* Count player */
+						num++;
+					}
+				}
+			}
+
+			/* Do not clear sessions that still have players */
+			if (num) continue;
+
 			/* Save state */
 			db_save_game_state(i);
 
@@ -3084,7 +3371,7 @@ static void do_housekeeping(void)
 		if (cur_time - c_list[i].last_seen > 60)
 		{
 			/* Send client a ping */
-			send_msgf(c_list[i].fd, MSG_PING, "");
+			send_msgf(i, MSG_PING, "");
 		}
 	}
 
@@ -3130,6 +3417,9 @@ static void do_housekeeping(void)
 		/* Assume nobody connected */
 		num = 0;
 
+		/* Try to acquire session mutex */
+		if (pthread_mutex_trylock(&s_ptr->session_mutex)) continue;
+
 		/* Loop over users in session */
 		for (j = 0; j < s_ptr->num_users; j++)
 		{
@@ -3137,11 +3427,14 @@ static void do_housekeeping(void)
 			if (s_ptr->cids[j] >= 0) num++;
 		}
 
+		/* Release mutex */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
+
 		/* Don't set people to AI if no one connected */
 		if (num == 0) continue;
 
-		/* Grab mutex protecting wait array */
-		pthread_mutex_lock(&s_ptr->wait_mutex);
+		/* Try to acquire session mutex */
+		if (pthread_mutex_trylock(&s_ptr->session_mutex)) continue;
 
 		/* Loop over users in session */
 		for (j = 0; j < s_ptr->num_users; j++)
@@ -3167,18 +3460,18 @@ static void do_housekeeping(void)
 				}
 
 				/* Release wait mutex */
-				pthread_mutex_unlock(&s_ptr->wait_mutex);
+				pthread_mutex_unlock(&s_ptr->session_mutex);
 
 				/* Set player to AI */
 				switch_ai(i, j);
 
 				/* Reacquire wait mutex */
-				pthread_mutex_lock(&s_ptr->wait_mutex);
+				pthread_mutex_lock(&s_ptr->session_mutex);
 			}
 		}
 
-		/* Release wait mutex */
-		pthread_mutex_unlock(&s_ptr->wait_mutex);
+		/* Release mutex */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
 	}
 }
 
@@ -3190,12 +3483,13 @@ int main(int argc, char *argv[])
 {
 	struct sockaddr_in listen_addr;
 	struct timeval sel_timeout;
-	fd_set readfds;
+	fd_set readfds, writefds;
 	int listen_fd;
 	int i, n;
 	my_bool reconnect = 1;
 	time_t last_housekeep = 0;
 	int port = 16309;
+	char *db = "rftg";
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
@@ -3205,6 +3499,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set port number */
 			port = atoi(argv[++i]);
+		}
+
+		/* Check for database name */
+		if (!strcmp(argv[i], "-d"))
+		{
+			/* Set database name */
+			db = argv[++i];
 		}
 	}
 
@@ -3223,7 +3524,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Attempt to connect to database server */
-	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, "rftg", 0, NULL, 0))
+	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, db, 0, NULL, 0))
 	{
 		/* Print error and exit */
 		printf("Database connection: %s\n", mysql_error(mysql));
@@ -3282,6 +3583,9 @@ int main(int argc, char *argv[])
 		/* Clear set of connections to listen on */
 		FD_ZERO(&readfds);
 
+		/* Clear set of connections to wait for ability to write */
+		FD_ZERO(&writefds);
+
 		/* Add main listening socket to list */
 		FD_SET(listen_fd, &readfds);
 
@@ -3299,6 +3603,19 @@ int main(int argc, char *argv[])
 
 				/* Track biggest file descriptor */
 				if (c_list[i].fd > n) n = c_list[i].fd;
+
+				/* Grab connection mutex */
+				pthread_mutex_lock(&c_list[i].conn_mutex);
+
+				/* Check for unsent data */
+				if (c_list[i].out_len > 0)
+				{
+					/* Add to write set */
+					FD_SET(c_list[i].fd, &writefds);
+				}
+
+				/* Release connection mutex */
+				pthread_mutex_unlock(&c_list[i].conn_mutex);
 			}
 		}
 
@@ -3307,7 +3624,7 @@ int main(int argc, char *argv[])
 		sel_timeout.tv_usec = 0;
 
 		/* Wait for activity on any connection */
-		select(n + 1, &readfds, NULL, NULL, &sel_timeout);
+		select(n + 1, &readfds, &writefds, NULL, &sel_timeout);
 
 		/* Check for new incoming connection */
 		if (FD_ISSET(listen_fd, &readfds))
@@ -3327,6 +3644,13 @@ int main(int argc, char *argv[])
 				{
 					/* Handle incoming data */
 					handle_data(i);
+				}
+
+				/* Check for unsent data ready to send */
+				if (FD_ISSET(c_list[i].fd, &writefds))
+				{
+					/* Send ping to flush buffer */
+					send_msgf(i, MSG_PING, "");
 				}
 			}
 		}

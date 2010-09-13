@@ -768,8 +768,12 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 	/* Check for aborted game */
 	if (g->game_over) return -1;
 
-	/* Wait for answer to become available (if needed) */
-	wait_for_answer(g, who);
+	/* Check for need to wait for answer */
+	if (p_ptr->control->wait_answer)
+	{
+		/* Wait for answer to become available */
+		p_ptr->control->wait_answer(g, who);
+	}
 
 	/* Return logged answer */
 	return extract_choice(g, who, type, list, nl, special, ns);
@@ -802,13 +806,21 @@ static void send_choice(game *g, int who, int type, int list[], int *nl,
  */
 static void wait_for_all(game *g)
 {
+	player *p_ptr;
 	int i;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
-		/* Wait for player */
-		wait_for_answer(g, i);
+		/* Get player pointer */
+		p_ptr = &g->p[i];
+
+		/* Check for need to wait for answer */
+		if (p_ptr->control->wait_answer)
+		{
+			/* Wait for answer to become available */
+			p_ptr->control->wait_answer(g, i);
+		}
 	}
 }
 
@@ -919,6 +931,11 @@ static int get_powers(game *g, int who, int phase, power_where *w_list)
 
 			/* Skip incorrect phase */
 			if (o_ptr->phase != phase) continue;
+
+			/* Check for settle phase and discard power */
+			if (o_ptr->phase == PHASE_SETTLE &&
+			    (o_ptr->code & P3_DISCARD) &&
+			    c_ptr->where == WHERE_DISCARD) continue;
 
 			/* Copy power location */
 			w_list[n].c_idx = i;
@@ -1042,7 +1059,7 @@ char *search_name[MAX_SEARCH] =
 	"development providing +1 or +2 Military",
 	"military windfall with 1 or 2 defense",
 	"peaceful windfall with 1 or 2 cost",
-	"world with Choromosome symbol",
+	"world with Chromosome symbol",
 	"world producing or coming with Alien good",
 	"card consuming two or more goods",
 	"military world with 5 or more defense",
@@ -1643,6 +1660,9 @@ void phase_explore(game *g)
 		if (g->game_over) return;
 	}
 
+	/* Wait for all players to finish choosing */
+	wait_for_all(g);
+
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
@@ -1652,9 +1672,6 @@ void phase_explore(game *g)
 		/* Check for need to discard */
 		if (kept[i] != drawn[i])
 		{
-			/* Wait for player to decide */
-			wait_for_answer(g, i);
-
 			/* Get cards to discard */
 			extract_choice(g, i, CHOICE_DISCARD, list, &num,
 			               NULL, NULL);
@@ -1687,6 +1704,7 @@ void phase_explore(game *g)
 
 		/* Check for our simulated game */
 		if (g->simulation && g->sim_who == i &&
+		    p_ptr->control->explore_sample &&
 		    (player_chose(g, i, ACT_EXPLORE_5_0) ||
 		     player_chose(g, i, ACT_EXPLORE_1_1)))
 		{
@@ -2372,8 +2390,13 @@ void phase_develop(game *g)
 		/* Skip players who are not placing anything */
 		if (p_ptr->placing == -1) continue;
 
-		/* Ask player to prepare answers for payment */
-		prepare_phase(g, i, PHASE_DEVELOP, p_ptr->placing);
+		/* Check for prepare function */
+		if (p_ptr->control->prepare_phase)
+		{
+			/* Ask player to prepare answers for payment */
+			p_ptr->control->prepare_phase(g, i, PHASE_DEVELOP,
+			                              p_ptr->placing);
+		}
 	}
 
 	/* Loop over players */
@@ -2960,6 +2983,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_GENE)
 			{
 				/* Mark power as used */
+				c_ptr->used[j] = 1;
+
+				/* Remember power is used */
 				consume_reduce++;
 
 				/* Reduce cost */
@@ -3963,6 +3989,9 @@ int upgrade_chosen(game *g, int who, int replacement, int old)
 		/* Discard good */
 		good->where = WHERE_DISCARD;
 		good->owner = -1;
+
+		/* Clear covered flag */
+		c_ptr->covered = -1;
 	}
 
 	/* Discard old card */
@@ -4410,7 +4439,7 @@ void settle_action(game *g, int who, int world)
 			if (g->game_over) return;
 
 			/* Award bonuses for settling */
-			settle_bonus(g, who, world, 0);
+			settle_bonus(g, who, p_ptr->placing, 0);
 		}
 	}
 
@@ -4759,7 +4788,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
                             int defeated)
 {
 	player *p_ptr;
-	card *c_ptr;
+	card *c_ptr, *good;
 	power *o_ptr = NULL;
 	int defense;
 	int prestige = 0;
@@ -4915,11 +4944,14 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		if (c_ptr->covered != -1)
 		{
 			/* Get good card pointer */
-			c_ptr = &g->deck[c_ptr->covered];
+			good = &g->deck[c_ptr->covered];
 
 			/* Discard good as well */
-			c_ptr->owner = -1;
-			c_ptr->where = WHERE_DISCARD;
+			good->owner = -1;
+			good->where = WHERE_DISCARD;
+
+			/* Remove covered from destroyed card */
+			c_ptr->covered = -1;
 		}
 
 		/* Success */
@@ -4950,10 +4982,10 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	if (c_ptr->covered != -1)
 	{
 		/* Get good card pointer */
-		c_ptr = &g->deck[c_ptr->covered];
+		good = &g->deck[c_ptr->covered];
 
 		/* Transfer good as well */
-		c_ptr->owner = who;
+		good->owner = who;
 	}
 
 	/* Award settle bonus */
@@ -5206,8 +5238,13 @@ void phase_settle(game *g)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
-		/* Ask player to prepare answers for payment */
-		prepare_phase(g, i, PHASE_SETTLE, p_ptr->placing);
+		/* Check for prepare function */
+		if (p_ptr->control->prepare_phase)
+		{
+			/* Ask player to prepare answers for payment */
+			p_ptr->control->prepare_phase(g, i, PHASE_SETTLE,
+			                              p_ptr->placing);
+		}
 	}
 
 	/* Loop over players */
@@ -6652,8 +6689,12 @@ void phase_consume(game *g)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
-		/* Ask player to prepare answers for consume powers */
-		prepare_phase(g, i, PHASE_CONSUME, 0);
+		/* Check for prepare function */
+		if (p_ptr->control->prepare_phase)
+		{
+			/* Ask player to prepare answers for consume phase */
+			p_ptr->control->prepare_phase(g, i, PHASE_CONSUME, 0);
+		}
 	}
 
 	/* Loop over players */
@@ -7531,6 +7572,13 @@ int produce_action(game *g, int who)
 		if ((o_ptr->code & P5_PRODUCE) && c_ptr->covered != -1)
 			continue;
 
+		/* Check for discard needed and no cards in hand */
+		if ((o_ptr->code & P5_DISCARD) &&
+		    (count_player_area(g, who, WHERE_HAND) +
+		     p_ptr->fake_hand - p_ptr->fake_discards -
+		     p_ptr->fake_played_dev -
+		     p_ptr->fake_played_world < 1)) continue;
+
 		/* Check for useable power */
 		if (o_ptr->code & (P5_PRODUCE |
 				   P5_WINDFALL_ANY |
@@ -7572,7 +7620,7 @@ int produce_action(game *g, int who)
 	    !(p_ptr->phase_bonus_used & (1 << 2)))
 	{
 		/* Add bonus to list */
-		cidx[num] = -1;
+		cidx[num] = -2;
 		oidx[num] = -1;
 		num++;
 
@@ -7786,8 +7834,12 @@ void phase_produce(game *g)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
-		/* Ask player to prepare answers for produce powers */
-		prepare_phase(g, i, PHASE_PRODUCE, 0);
+		/* Check for prepare function */
+		if (p_ptr->control->prepare_phase)
+		{
+			/* Ask player to prepare answers for produce phase */
+			p_ptr->control->prepare_phase(g, i, PHASE_PRODUCE, 0);
+		}
 	}
 
 	/* Loop over players */
