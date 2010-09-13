@@ -437,6 +437,50 @@ void apply_training(net *learn)
 }
 
 /*
+ * Destroy a neural net.
+ */
+void free_net(net *learn)
+{
+	int i;
+
+	/* Free simple arrays */
+	free(learn->input_value);
+	free(learn->prev_input);
+	free(learn->hidden_sum);
+	free(learn->hidden_result);
+	free(learn->hidden_error);
+	free(learn->net_result);
+	free(learn->win_prob);
+
+	/* Free rows of hidden weights */
+	for (i = 0; i < learn->num_inputs + 1; i++)
+	{
+		/* Free weight row */
+		free(learn->hidden_weight[i]);
+	}
+
+	/* Free list of rows */
+	free(learn->hidden_weight);
+
+	/* Free rows of output weights */
+	for (i = 0; i < learn->num_hidden + 1; i++)
+	{
+		/* Free weight row */
+		free(learn->output_weight[i]);
+	}
+
+	/* Free list of rows */
+	free(learn->output_weight);
+
+	/* Clear old past input sets */
+	clear_store(learn);
+
+	/* Free list of past inputs */
+	free(learn->past_input);
+	free(learn->past_input_player);
+}
+
+/*
  * Load network weights from disk.
  */
 int load_net(net *learn, char *fname)

@@ -75,6 +75,14 @@ static void ai_initialize(game *g, int who, double factor)
 	/* Do nothing if correct networks already loaded */
 	if (loaded_p == g->num_players && loaded_e == g->expanded) return;
 
+	/* Free old networks if some already loaded */
+	if (loaded_p > 0)
+	{
+		/* Free old networks */
+		free_net(&eval);
+		free_net(&role);
+	}
+
 	/* Compute number of inputs */
 	inputs = EVAL_MISC + EVAL_PLAYER * g->num_players;
 
@@ -189,6 +197,9 @@ static void complete_turn(game *g, int partial)
 		printf("complete_turn() called with real game!\n");
 		exit(1);
 	}
+
+	/* Do nothing in aborted games */
+	if (g->game_over) return;
 
 	/* Finish current phase */
 	for (i = g->turn + 1; i < g->num_players; i++)

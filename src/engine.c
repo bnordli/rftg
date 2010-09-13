@@ -649,6 +649,9 @@ void phase_explore(game *g)
 			/* Add message */
 			message_add(msg);
 		}
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 
 	/* Clear leftover temp flags */
@@ -4867,6 +4870,9 @@ void phase_produce(game *g)
 
 	/* Clear any temp flags on cards */
 	clear_temp(g);
+
+	/* Check intermediate goals */
+	check_goals(g);
 }
 
 /*

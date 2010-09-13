@@ -736,6 +736,10 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 		/* Composite border onto card image buffer */
 		gdk_pixbuf_composite(border_buf, buf, 0, 0, w, h, 0, 0, 1, 1,
 		                     GDK_INTERP_BILINEAR, 255);
+
+		/* Release our copies of pixbufs */
+		g_object_unref(G_OBJECT(blank_buf));
+		g_object_unref(G_OBJECT(border_buf));
 	}
 
 	/* Make image widget */
@@ -1160,21 +1164,66 @@ static void redraw_goal(void)
 }
 
 /*
+ * Action name abbreviations.
+ */
+static char *action_abbr[MAX_ACTION] =
+{
+	"E5",
+	"E1",
+	"D",
+	"D",
+	"S",
+	"S",
+	"CT",
+	"C2",
+	"P",
+};
+
+/*
  * Redraw a player's status information.
  */
 static void redraw_status_area(int who, GtkWidget *label)
 {
 	char buf[1024];
+	char text[1024];
 
-	/* Create label */
+	/* Clear label text */
+	strcpy(text, "");
+
+	/* Create card/VP text */
 	sprintf(buf, "Active: %d  Hand: %d  VP: %d/%d/%d",
 	        count_player_area(&real_game, who, WHERE_ACTIVE),
 	        count_player_area(&real_game, who, WHERE_HAND),
 	        real_game.p[who].vp, real_game.p[who].goal_vp,
 		real_game.p[who].end_vp);
 
+	/* Append card/VP text to label */
+	strcat(text, buf);
+
+	/* Check for actions chosen */
+	if (real_game.cur_action >= ACT_EXPLORE_5_0)
+	{
+		/* Check for advanced game */
+		if (real_game.advanced)
+		{
+			/* Show both actions */
+			sprintf(buf, "  %s/%s",
+			        action_abbr[real_game.p[who].action[0]],
+			        action_abbr[real_game.p[who].action[1]]);
+		}
+		else
+		{
+			/* Show selected action */
+			sprintf(buf, "  %s",
+			        action_abbr[real_game.p[who].action[0]]);
+		}
+
+		/* Append action text to label */
+		strcat(text, buf);
+	}
+
 	/* Set label */
-	gtk_label_set_text(GTK_LABEL(label), buf);
+	gtk_label_set_text(GTK_LABEL(label), text);
 }
 
 /*
@@ -1310,6 +1359,7 @@ static void redraw_everything(void)
 static void table_request(GtkWidget *widget, GtkRequisition *requisition,
                           gpointer data)
 {
+#if 0
 	int req_height;
 
 	/* Determine height to request */
@@ -1317,6 +1367,7 @@ static void table_request(GtkWidget *widget, GtkRequisition *requisition,
 
 	/* Request height to match width */
 	gtk_widget_set_size_request(widget, 0, req_height);
+#endif
 }
 
 /*
@@ -4238,6 +4289,9 @@ int main(int argc, char *argv[])
 
 	/* Set random seed */
 	real_game.random_seed = time(NULL);
+
+	/* Prevent locale usage -- use C locale for everything */
+	gtk_disable_setlocale();
 
 	/* Parse GTK options */
 	gtk_init(&argc, &argv);
