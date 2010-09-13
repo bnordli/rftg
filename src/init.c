@@ -239,7 +239,7 @@ void read_cards(void)
 	FILE *fff;
 	char buf[1024], *ptr;
 	int num_design = 0;
-	design *d_ptr;
+	design *d_ptr = NULL;
 	power *o_ptr;
 	vp_bonus *v_ptr;
 	int i, code, phase;
@@ -670,15 +670,17 @@ void init_game(game *g)
 		n = 0;
 
 		/* Use correct "first" goals */
-		switch (g->expanded)
+		if (g->expanded == 1)
 		{
 			/* First expansion only */
-			case 1: j = GOAL_FIRST_5_VP;
-				k = GOAL_FIRST_SIX_DEVEL; break;
-
+			j = GOAL_FIRST_5_VP;
+			k = GOAL_FIRST_SIX_DEVEL;
+		}
+		else
+		{
 			/* First and second expansion */
-			case 2: j = GOAL_FIRST_5_VP;
-				k = GOAL_FIRST_8_ACTIVE; break;
+			j = GOAL_FIRST_5_VP;
+			k = GOAL_FIRST_8_ACTIVE;
 		}
 
 		/* Add "first" goals to list */
@@ -708,15 +710,17 @@ void init_game(game *g)
 		n = 0;
 
 		/* Use correct "most" goals */
-		switch (g->expanded)
+		if (g->expanded == 1)
 		{
 			/* First expansion only */
-			case 1: j = GOAL_MOST_MILITARY;
-				k = GOAL_MOST_PRODUCTION; break;
-
+			j = GOAL_MOST_MILITARY;
+			k = GOAL_MOST_PRODUCTION;
+		}
+		else
+		{
 			/* First and second expansion */
-			case 2: j = GOAL_MOST_MILITARY;
-				k = GOAL_MOST_REBEL; break;
+			j = GOAL_MOST_MILITARY;
+			k = GOAL_MOST_REBEL;
 		}
 
 		/* Add "most" goals to list */

@@ -117,24 +117,30 @@ static void input_name(char *ptr, int idx)
 int main(int argc, char *argv[])
 {
 	net learner;
-	int i, j, inputs;
-	double start[9];
+	int i, j, inputs, outputs = 7;
+	double start[23];
 	char buf[1024], *ptr;
 
 	read_cards();
 
+	if (strstr(argv[1], "2a")) outputs = 23;
+
 	num_players = atoi(argv[2]);
 	inputs = 66 + num_players * 394;
 
-	make_learner(&learner, inputs, 50, 9);
+	make_learner(&learner, inputs, 50, outputs);
 
-	load_net(&learner, argv[1]);
+	if (load_net(&learner, argv[1]))
+	{
+		printf("Couldn't read %s\n", argv[1]);
+		exit(1);
+	}
 
 	for (i = 0; i < inputs; i++) learner.input_value[i] = 0;
 
 	compute_net(&learner);
 
-	for (i = 0; i < 9; i++) start[i] = learner.win_prob[i];
+	for (i = 0; i < outputs; i++) start[i] = learner.win_prob[i];
 
 	for (i = 0; i < inputs; i++)
 	{
@@ -148,7 +154,7 @@ int main(int argc, char *argv[])
 
 		printf("%s: ", buf);
 
-		for (j = 0; j < 9; j++)
+		for (j = 0; j < outputs; j++)
 		{
 			printf("%.4f ", learner.win_prob[j] - start[j]);
 		}

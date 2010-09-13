@@ -233,7 +233,7 @@ static void refresh_draw(game *g)
 /*
  * Return a card pointer from the draw deck.
  */
-static card *random_draw(game *g)
+card *random_draw(game *g)
 {
 	card *c_ptr = NULL;
 	int i, n;
@@ -629,6 +629,9 @@ void phase_explore(game *g)
 		/* Have player discard extras */
 		discard_to(g, i, keep, discard_any);
 
+		/* Check for aborted game */
+		if (g->game_over) return;
+
 		/* Message */
 		if (!g->simulation)
 		{
@@ -650,8 +653,15 @@ void phase_explore(game *g)
 			message_add(msg);
 		}
 
-		/* Check for aborted game */
-		if (g->game_over) return;
+		/* Check for our simulated game */
+		if (g->simulation && g->sim_who == i &&
+		    (player_chose(g, i, ACT_EXPLORE_5_0) ||
+		     player_chose(g, i, ACT_EXPLORE_1_1)))
+		{
+			/* Place "sample" cards in hand */
+			p_ptr->control->explore_sample(g, i, drawn[i], keep,
+			                               discard_any);
+		}
 	}
 
 	/* Clear leftover temp flags */
@@ -1105,10 +1115,10 @@ void phase_develop(game *g)
 		/* Ask player to choose */
 		p_ptr->placing = p_ptr->control->choose_place(g, i, list, n,
 		                                              PHASE_DEVELOP);
-	}
 
-	/* Check for aborted game */
-	if (g->game_over) return;
+		/* Check for aborted game */
+		if (g->game_over) return;
+	}
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -1137,6 +1147,9 @@ void phase_develop(game *g)
 
 		/* Clear placing choice */
 		p_ptr->placing = -1;
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 
 	/* Clear any temp flags on cards */
@@ -2452,6 +2465,9 @@ void settle_action(game *g, int who, int world)
 	/* Have user pay for card (in some way) */
 	pay_settle(g, who, world);
 
+	/* Check for aborted game */
+	if (g->game_over) return;
+
 	/* Check for placed world */
 	if (!takeover) settle_bonus(g, who);
 
@@ -2528,6 +2544,9 @@ void settle_action(game *g, int who, int world)
 		/* Ask player to choose */
 		p_ptr->placing = p_ptr->control->choose_place(g, who, list, n,
 		                                              PHASE_SETTLE);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 
 		/* Check for no choice */
 		if (p_ptr->placing == -1)
@@ -3019,10 +3038,10 @@ void phase_settle(game *g)
 		/* Ask player to choose */
 		p_ptr->placing = p_ptr->control->choose_place(g, i, list, n,
 		                                              PHASE_SETTLE);
-	}
 
-	/* Check for aborted game */
-	if (g->game_over) return;
+		/* Check for aborted game */
+		if (g->game_over) return;
+	}
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -3247,6 +3266,17 @@ void trade_action(game *g, int who, int no_bonus)
 		list[n++] = i;
 	}
 
+	/* Check for opponent's no goods in simulated game */
+	if (!n && g->simulation && g->sim_who != who)
+	{
+		/* Check for newly settled world */
+		if (p_ptr->fake_played_world)
+		{
+			/* XXX Assume world is Windfall worth 4 */
+			draw_cards(g, who, 4);
+		}
+	}
+
 	/* Check for no goods to trade */
 	if (!n) return;
 
@@ -3469,6 +3499,9 @@ static void draw_lucky(game *g, int who)
 	/* Ask player to choose lucky number */
 	cost = p_ptr->control->choose_lucky(g, who);
 
+	/* Check for aborted game */
+	if (g->game_over) return;
+
 	/* Draw top card */
 	c_ptr = random_draw(g);
 
@@ -3556,11 +3589,17 @@ static void ante_card(game *g, int who)
 	/* Ask player to choose ante */
 	chosen = p_ptr->control->choose_ante(g, who, list, n);
 
+	/* Check for aborted game */
+	if (g->game_over) return;
+
 	/* Check for no card chosen */
 	if (chosen < 0) return;
 
 	/* Get card pointer */
 	c_ptr = &g->deck[chosen];
+
+	/* Location is known to all */
+	c_ptr->known = ~0;
 
 	/* Get card cost */
 	cost = c_ptr->d_ptr->cost;
@@ -3583,6 +3622,9 @@ static void ante_card(game *g, int who)
 
 		/* Check for more expensive than ante */
 		if (drawn[i]->d_ptr->cost > cost) success = 1;
+
+		/* Location is known to all */
+		drawn[i]->known = ~0;
 
 		/* Message */
 		if (!g->simulation)
@@ -3628,6 +3670,9 @@ static void ante_card(game *g, int who)
 
 	/* Ask player which card to keep */
 	chosen = p_ptr->control->choose_keep(g, who, list, n);
+
+	/* Check for aborted game */
+	if (g->game_over) return;
 
 	/* Message */
 	if (!g->simulation)
@@ -5105,6 +5150,9 @@ void phase_discard(game *g)
 
 		/* Ask player to discard remaining */
 		p_ptr->control->choose_discard(g, i, list, n, n - target);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 }
 

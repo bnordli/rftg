@@ -115,6 +115,10 @@ int main(int argc, char *argv[])
 	/* Set advanced flag */
 	my_game.advanced = advanced;
 
+	/* Assume no options disabled */
+	my_game.goal_disabled = 0;
+	my_game.takeover_disabled = 0;
+
 	/* Call initialization functions */
 	for (i = 0; i < num_players; i++)
 	{

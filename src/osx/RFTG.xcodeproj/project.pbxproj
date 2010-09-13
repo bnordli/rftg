@@ -1,0 +1,341 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 42;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		15409F750DCB9D6C00BC6E83 /* GLib.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15409F740DCB9D6C00BC6E83 /* GLib.framework */; };
+		15409F790DCB9D7A00BC6E83 /* Gtk.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15409F780DCB9D7A00BC6E83 /* Gtk.framework */; };
+		15409F7D0DCB9D8800BC6E83 /* Cairo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15409F7C0DCB9D8800BC6E83 /* Cairo.framework */; };
+		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
+		9C28009A10768CDA0091054D /* network in Resources */ = {isa = PBXBuildFile; fileRef = 9C28007A10768CDA0091054D /* network */; };
+		D586A9F0106EC740000716A2 /* ai.c in Sources */ = {isa = PBXBuildFile; fileRef = D586A9EB106EC740000716A2 /* ai.c */; };
+		D586A9F1106EC740000716A2 /* engine.c in Sources */ = {isa = PBXBuildFile; fileRef = D586A9EC106EC740000716A2 /* engine.c */; };
+		D586A9F2106EC740000716A2 /* gui.c in Sources */ = {isa = PBXBuildFile; fileRef = D586A9ED106EC740000716A2 /* gui.c */; };
+		D586A9F3106EC740000716A2 /* init.c in Sources */ = {isa = PBXBuildFile; fileRef = D586A9EE106EC740000716A2 /* init.c */; };
+		D586A9F4106EC740000716A2 /* net.c in Sources */ = {isa = PBXBuildFile; fileRef = D586A9EF106EC740000716A2 /* net.c */; };
+		D586A9F6106EC7CC000716A2 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D586A9F5106EC7CC000716A2 /* CoreFoundation.framework */; };
+		D590CC99106ECC8600AAB072 /* cards.txt in Resources */ = {isa = PBXBuildFile; fileRef = D590CC75106ECC8500AAB072 /* cards.txt */; };
+		D590CC9A106ECC8600AAB072 /* images.data in Resources */ = {isa = PBXBuildFile; fileRef = D590CC76106ECC8500AAB072 /* images.data */; };
+		D590CCBF106ECCD400AAB072 /* rftg.icns in Resources */ = {isa = PBXBuildFile; fileRef = D590CCBE106ECCD400AAB072 /* rftg.icns */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		089C165DFE840E0CC02AAC07 /* English */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = English; path = English.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		15409F740DCB9D6C00BC6E83 /* GLib.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLib.framework; path = /Library/Frameworks/GLib.framework; sourceTree = "<absolute>"; };
+		15409F780DCB9D7A00BC6E83 /* Gtk.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Gtk.framework; path = /Library/Frameworks/Gtk.framework; sourceTree = "<absolute>"; };
+		15409F7C0DCB9D8800BC6E83 /* Cairo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cairo.framework; path = /Library/Frameworks/Cairo.framework; sourceTree = "<absolute>"; };
+		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9C28007A10768CDA0091054D /* network */ = {isa = PBXFileReference; lastKnownFileType = folder; name = network; path = ../network; sourceTree = "<group>"; };
+		9C2800A710768D470091054D /* RFTG.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RFTG.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D586A9EB106EC740000716A2 /* ai.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = ai.c; path = ../ai.c; sourceTree = SOURCE_ROOT; };
+		D586A9EC106EC740000716A2 /* engine.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = engine.c; path = ../engine.c; sourceTree = SOURCE_ROOT; };
+		D586A9ED106EC740000716A2 /* gui.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = gui.c; path = ../gui.c; sourceTree = SOURCE_ROOT; };
+		D586A9EE106EC740000716A2 /* init.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = init.c; path = ../init.c; sourceTree = SOURCE_ROOT; };
+		D586A9EF106EC740000716A2 /* net.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = net.c; path = ../net.c; sourceTree = SOURCE_ROOT; };
+		D586A9F5106EC7CC000716A2 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = /System/Library/Frameworks/CoreFoundation.framework; sourceTree = "<absolute>"; };
+		D590CC75106ECC8500AAB072 /* cards.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = cards.txt; path = ../cards.txt; sourceTree = "<group>"; };
+		D590CC76106ECC8500AAB072 /* images.data */ = {isa = PBXFileReference; lastKnownFileType = file; name = images.data; path = ../images.data; sourceTree = "<group>"; };
+		D590CCBE106ECCD400AAB072 /* rftg.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = rftg.icns; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8D11072E0486CEB800E47090 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				15409F750DCB9D6C00BC6E83 /* GLib.framework in Frameworks */,
+				15409F790DCB9D7A00BC6E83 /* Gtk.framework in Frameworks */,
+				15409F7D0DCB9D8800BC6E83 /* Cairo.framework in Frameworks */,
+				D586A9F6106EC7CC000716A2 /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		080E96DDFE201D6D7F000001 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Classes;
+			sourceTree = "<group>";
+		};
+		1058C7A0FEA54F0111CA2CBB /* Linked Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				15409F7C0DCB9D8800BC6E83 /* Cairo.framework */,
+				15409F780DCB9D7A00BC6E83 /* Gtk.framework */,
+				15409F740DCB9D6C00BC6E83 /* GLib.framework */,
+			);
+			name = "Linked Frameworks";
+			sourceTree = "<group>";
+		};
+		1058C7A2FEA54F0111CA2CBB /* Other Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = "Other Frameworks";
+			sourceTree = "<group>";
+		};
+		19C28FACFE9D520D11CA2CBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9C2800A710768D470091054D /* RFTG.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		29B97314FDCFA39411CA2CEA /* RFTG */ = {
+			isa = PBXGroup;
+			children = (
+				D590CCBE106ECCD400AAB072 /* rftg.icns */,
+				D586A9EB106EC740000716A2 /* ai.c */,
+				D586A9EC106EC740000716A2 /* engine.c */,
+				D586A9ED106EC740000716A2 /* gui.c */,
+				D586A9EE106EC740000716A2 /* init.c */,
+				D586A9EF106EC740000716A2 /* net.c */,
+				080E96DDFE201D6D7F000001 /* Classes */,
+				29B97315FDCFA39411CA2CEA /* Other Sources */,
+				29B97317FDCFA39411CA2CEA /* Resources */,
+				29B97323FDCFA39411CA2CEA /* Frameworks */,
+				19C28FACFE9D520D11CA2CBB /* Products */,
+			);
+			name = RFTG;
+			sourceTree = "<group>";
+		};
+		29B97315FDCFA39411CA2CEA /* Other Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D590CC75106ECC8500AAB072 /* cards.txt */,
+				D590CC76106ECC8500AAB072 /* images.data */,
+				D590CC77106ECC8500AAB072 /* network */,
+			);
+			name = "Other Sources";
+			sourceTree = "<group>";
+		};
+		29B97317FDCFA39411CA2CEA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				8D1107310486CEB800E47090 /* Info.plist */,
+				9C28007A10768CDA0091054D /* network */,
+				089C165CFE840E0CC02AAC07 /* InfoPlist.strings */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		29B97323FDCFA39411CA2CEA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1058C7A0FEA54F0111CA2CBB /* Linked Frameworks */,
+				1058C7A2FEA54F0111CA2CBB /* Other Frameworks */,
+				D586A9F5106EC7CC000716A2 /* CoreFoundation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D590CC77106ECC8500AAB072 /* network */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = network;
+			path = ../network;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8D1107260486CEB800E47090 /* RFTG */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "RFTG" */;
+			buildPhases = (
+				D534BB33106ECA74003490A6 /* Copy config.h */,
+				8D1107290486CEB800E47090 /* Resources */,
+				8D11072C0486CEB800E47090 /* Sources */,
+				8D11072E0486CEB800E47090 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RFTG;
+			productInstallPath = "$(HOME)/Applications";
+			productName = RFTG;
+			productReference = 9C2800A710768D470091054D /* RFTG.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		29B97313FDCFA39411CA2CEA /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "RFTG" */;
+			compatibilityVersion = "Xcode 2.4";
+			hasScannedForEncodings = 1;
+			mainGroup = 29B97314FDCFA39411CA2CEA /* RFTG */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8D1107260486CEB800E47090 /* RFTG */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8D1107290486CEB800E47090 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */,
+				D590CC99106ECC8600AAB072 /* cards.txt in Resources */,
+				D590CC9A106ECC8600AAB072 /* images.data in Resources */,
+				D590CCBF106ECCD400AAB072 /* rftg.icns in Resources */,
+				9C28009A10768CDA0091054D /* network in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		D534BB33106ECA74003490A6 /* Copy config.h */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			comments = "Rather than running configure, we cheat and just copy a config.h over.  If you want to run configure yourself, you must add the bin folder from GLib.framework which contains pkg-config.";
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy config.h";
+			outputPaths = (
+				"$(SRCROOT)/config.h",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "cp $SRCROOT/osx_config.h $SRCROOT/../config.h";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8D11072C0486CEB800E47090 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D586A9F0106EC740000716A2 /* ai.c in Sources */,
+				D586A9F1106EC740000716A2 /* engine.c in Sources */,
+				D586A9F2106EC740000716A2 /* gui.c in Sources */,
+				D586A9F3106EC740000716A2 /* init.c in Sources */,
+				D586A9F4106EC740000716A2 /* net.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		089C165CFE840E0CC02AAC07 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				089C165DFE840E0CC02AAC07 /* English */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		C01FCF4B08A954540054247B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(HOME)/Applications";
+				PRODUCT_NAME = RFTG;
+				WRAPPER_EXTENSION = app;
+				ZERO_LINK = YES;
+			};
+			name = Debug;
+		};
+		C01FCF4C08A954540054247B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = i386;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_MODEL_TUNING = G5;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_PATH = "$(HOME)/Applications";
+				PRODUCT_NAME = RFTG;
+				WRAPPER_EXTENSION = app;
+			};
+			name = Release;
+		};
+		C01FCF4F08A954540054247B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				/Library/Frameworks/Cairo.framework/Headers = /Library/Frameworks/Cairo.framework/Headers;
+				/Library/Frameworks/GLib.framework/Headers = /Library/Frameworks/GLib.framework/Headers;
+				ARCHS = i386;
+				GCC_VERSION = 4.0;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					/Library/Frameworks/Cairo.framework/Headers,
+					/Library/Frameworks/GLib.framework/Headers,
+					/Library/Frameworks/Gtk.framework/Headers,
+				);
+				PREBINDING = NO;
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
+				VALID_ARCHS = i386;
+			};
+			name = Debug;
+		};
+		C01FCF5008A954540054247B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				/Library/Frameworks/Cairo.framework/Headers = /Library/Frameworks/Cairo.framework/Headers;
+				/Library/Frameworks/GLib.framework/Headers = /Library/Frameworks/GLib.framework/Headers;
+				ARCHS = i386;
+				GCC_VERSION = 4.0;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					/Library/Frameworks/Cairo.framework/Headers,
+					/Library/Frameworks/GLib.framework/Headers,
+					/Library/Frameworks/Gtk.framework/Headers,
+				);
+				PREBINDING = NO;
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
+				VALID_ARCHS = i386;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "RFTG" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C01FCF4B08A954540054247B /* Debug */,
+				C01FCF4C08A954540054247B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C01FCF4E08A954540054247B /* Build configuration list for PBXProject "RFTG" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C01FCF4F08A954540054247B /* Debug */,
+				C01FCF5008A954540054247B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 29B97313FDCFA39411CA2CEA /* Project object */;
+}

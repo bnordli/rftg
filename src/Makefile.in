@@ -71,7 +71,8 @@ am_learner_OBJECTS = engine.$(OBJEXT) init.$(OBJEXT) ai.$(OBJEXT) \
 learner_OBJECTS = $(am_learner_OBJECTS)
 learner_LDADD = $(LDADD)
 am_rftg_OBJECTS = rftg-engine.$(OBJEXT) rftg-init.$(OBJEXT) \
-	rftg-ai.$(OBJEXT) rftg-gui.$(OBJEXT) rftg-net.$(OBJEXT)
+	rftg-ai.$(OBJEXT) rftg-loadsave.$(OBJEXT) rftg-gui.$(OBJEXT) \
+	rftg-net.$(OBJEXT)
 rftg_OBJECTS = $(am_rftg_OBJECTS)
 rftg_DEPENDENCIES =
 dist_binSCRIPT_INSTALL = $(INSTALL_SCRIPT)
@@ -197,7 +198,7 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 dist_bin_SCRIPTS = do_train
-rftg_SOURCES = engine.c init.c ai.c gui.c net.c net.h rftg.h
+rftg_SOURCES = engine.c init.c ai.c loadsave.c gui.c net.c net.h rftg.h
 learner_SOURCES = engine.c init.c ai.c learner.c net.c net.h rftg.h
 dumpnet_SOURCES = net.c engine.c dumpnet.c init.c rftg.h net.h
 dumprole_SOURCES = net.c engine.c dumprole.c init.c rftg.h net.h
@@ -206,7 +207,7 @@ rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DDATADIR=\"$(pkgdatadir)\"
 rftg_LDADD = @GTK_LIBS@
 SUBDIRS = network
 ACLOCAL_AMFLAGS = -I m4
-EXTRA_DIST = config.rpath m4/ChangeLog
+EXTRA_DIST = config.rpath m4/ChangeLog osx
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
@@ -337,6 +338,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-engine.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-gui.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-init.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-loadsave.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-net.Po@am__quote@
 
 .c.o:
@@ -394,6 +396,20 @@ rftg-ai.obj: ai.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='ai.c' object='rftg-ai.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-ai.obj `if test -f 'ai.c'; then $(CYGPATH_W) 'ai.c'; else $(CYGPATH_W) '$(srcdir)/ai.c'; fi`
+
+rftg-loadsave.o: loadsave.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -MT rftg-loadsave.o -MD -MP -MF "$(DEPDIR)/rftg-loadsave.Tpo" -c -o rftg-loadsave.o `test -f 'loadsave.c' || echo '$(srcdir)/'`loadsave.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/rftg-loadsave.Tpo" "$(DEPDIR)/rftg-loadsave.Po"; else rm -f "$(DEPDIR)/rftg-loadsave.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='loadsave.c' object='rftg-loadsave.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-loadsave.o `test -f 'loadsave.c' || echo '$(srcdir)/'`loadsave.c
+
+rftg-loadsave.obj: loadsave.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -MT rftg-loadsave.obj -MD -MP -MF "$(DEPDIR)/rftg-loadsave.Tpo" -c -o rftg-loadsave.obj `if test -f 'loadsave.c'; then $(CYGPATH_W) 'loadsave.c'; else $(CYGPATH_W) '$(srcdir)/loadsave.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/rftg-loadsave.Tpo" "$(DEPDIR)/rftg-loadsave.Po"; else rm -f "$(DEPDIR)/rftg-loadsave.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='loadsave.c' object='rftg-loadsave.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-loadsave.obj `if test -f 'loadsave.c'; then $(CYGPATH_W) 'loadsave.c'; else $(CYGPATH_W) '$(srcdir)/loadsave.c'; fi`
 
 rftg-gui.o: gui.c
 @am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -MT rftg-gui.o -MD -MP -MF "$(DEPDIR)/rftg-gui.Tpo" -c -o rftg-gui.o `test -f 'gui.c' || echo '$(srcdir)/'`gui.c; \

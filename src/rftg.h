@@ -497,6 +497,10 @@ typedef struct interface
 	void (*choose_discard)(struct game *g, int who, int list[], int num,
 	                       int discard);
 
+	/* Take sample cards into hand from Explore phase */
+	void (*explore_sample)(struct game *g, int who, int draw, int keep,
+	                       int discard_any);
+
 	/* Choose card to place */
 	int (*choose_place)(struct game *g, int who, int list[], int num,
 	                    int phase);
@@ -716,9 +720,11 @@ typedef struct game
 /*
  * External variables.
  */
+extern design library[MAX_DESIGN];
 extern char *action_name[MAX_ACTION];
 extern char *goal_name[MAX_GOAL];
 extern interface ai_func;
+extern interface gui_func;
 
 /*
  * External functions.
@@ -730,6 +736,7 @@ extern int myrand(unsigned int *seed);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
+extern card *random_draw(game *g);
 extern void draw_card(game *g, int who);
 extern void draw_cards(game *g, int who, int num);
 extern void clear_temp(game *g);
@@ -771,8 +778,9 @@ extern void score_game(game *g);
 extern int game_round(game *g);
 extern void declare_winner(game *g);
 
-extern void ai_debug(game *g, double role[MAX_PLAYER][MAX_ACTION],
-                              double win_prob[MAX_PLAYER][MAX_PLAYER],
-                              double action_score[MAX_PLAYER][MAX_ACTION],
-                              double threshold);
+extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
+                              double *role[], double *action_score[],
+                              int *num_action);
 
+extern int load_game(game *g, char *filename);
+extern int save_game(game *g, char *filename);

@@ -22,6 +22,12 @@
 #include <gdk/gdkkeysyms.h>
 #include "rftg.h"
 
+/* Apple OS X specific-code */
+#ifdef __APPLE__     
+#include "CoreFoundation/CoreFoundation.h"
+#include "ige-mac-menu.h"
+#endif
+
 /*
  * User options.
  */
@@ -71,14 +77,27 @@ int verbose = 0;
 static game real_game;
 
 /*
+ * State at start of turn.
+ */
+static game save_state;
+static game undo_state;
+
+/*
  * Player we're playing as.
  */
 static int player_us;
 
 /*
- * User asked to start a new game.
+ * Reasons to restart main loop.
  */
-static int start_new;
+#define RESTART_NEW   1
+#define RESTART_LOAD  2
+#define RESTART_UNDO  3
+
+/*
+ * We have restarted the main game loop.
+ */
+static int restart_loop;
 
 /*
  * Player names.
@@ -134,11 +153,14 @@ typedef struct displayed
 	/* Card is eligible for being chosen */
 	int eligible;
 
-	/* Card is from tableau */
-	int special;
+	/* Card should be seperated from others */
+	int gapped;
 
 	/* Card is selected */
 	int selected;
+
+	/* Card should be highlighted when selected */
+	int highlight;
 
 	/* Card is not eligible for selection, but should be colored anyway */
 	int color;
@@ -175,7 +197,7 @@ static int table_size[MAX_PLAYER];
 static int action_restrict;
 static int action_min, action_max, action_payment_which;
 static power *action_power;
-static int action_choice1, action_choice2;
+static int actions_chosen;
 
 /*
  * Number of icon images.
@@ -205,6 +227,11 @@ static GdkPixbuf *goal_cache[MAX_GOAL];
 static GdkPixbuf *icon_cache[MAX_ICON];
 
 /*
+ * Action card images.
+ */
+static GdkPixbuf *action_cache[MAX_ACTION];
+
+/*
  * Card back image.
  */
 static GdkPixbuf *card_back;
@@ -221,6 +248,7 @@ static GtkWidget *goal_area;
 static GtkWidget *game_status;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box, *action_prompt, *action_button;
+static GtkWidget *undo_item, *save_item;
 
 /*
  * Keyboard accelerator group for main window.
@@ -236,6 +264,12 @@ static GtkWidget *message_view;
  * Mark at end of message area text buffer.
  */
 static GtkTextMark *message_end;
+
+/*
+ * y-coordinate of line of "last seen" text in buffer.
+ */
+static int message_last_y;
+
 
 /*
  * Forward declarations.
@@ -281,6 +315,70 @@ static void clear_log(void)
 
 	/* Clear text buffer */
 	gtk_text_buffer_set_text(message_buffer, "", 0);
+
+	/* Reset last seen line */
+	message_last_y = 0;
+}
+
+/*
+ * Draw a line across the message text view.
+ */
+static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
+                                    gpointer data)
+{
+	int x, y;
+	int w;
+
+	/* Convert buffer coordinates to window coordinates */
+	gtk_text_view_buffer_to_window_coords(GTK_TEXT_VIEW(text_view),
+	                                      GTK_TEXT_WINDOW_WIDGET,
+	                                      0, message_last_y, &x, &y);
+
+	/* Don't draw line at very top of window */
+	if (!y) return FALSE;
+
+	/* Get widget width */
+	w = text_view->allocation.width;
+
+	/* Draw line across window */
+	gdk_draw_line(event->window, text_view->style->black_gc, 0, y, w, y);
+
+	/* Continue handling event */
+	return FALSE;
+}
+
+/*
+ * Add a separator at the end of all previously seen text.
+ */
+static void reset_text_separator(void)
+{
+	GtkTextIter end_iter;
+	GtkTextBuffer *message_buffer;
+	GdkRectangle rect;
+	int x, y;
+
+	/* Convert current line coordinates to window coordinates */
+	gtk_text_view_buffer_to_window_coords(GTK_TEXT_VIEW(message_view),
+	                                      GTK_TEXT_WINDOW_WIDGET,
+	                                      0, message_last_y, &x, &y);
+
+	/* Invalidate old line */
+	gtk_widget_queue_draw_area(message_view, 0, y,
+	                           message_view->allocation.width, 1);
+
+	/* Get message buffer */
+	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Get end mark */
+	gtk_text_buffer_get_iter_at_mark(message_buffer, &end_iter,
+	                                 message_end);
+
+	/* Get location (in buffer coordinates) of end iterator */
+	gtk_text_view_get_iter_location(GTK_TEXT_VIEW(message_view), &end_iter,
+	                                &rect);
+
+	/* Remember y-coordinate */
+	message_last_y = rect.y;
 }
 
 /*
@@ -389,6 +487,19 @@ static void load_image_bundle(void)
 			pix_ptr = &icon_cache[x];
 		}
 
+		/* Check for action card image */
+		else if (buf[0] == 5)
+		{
+			/* Read card number */
+			count = g_input_stream_read(fs, buf, 2, NULL, NULL);
+
+			/* Convert to integer */
+			x = strtol(buf, NULL, 10);
+
+			/* Get pointer to pixbuf holder */
+			pix_ptr = &action_cache[x];
+		}
+
 		/* Check for something else */
 		else
 		{
@@ -495,7 +606,7 @@ static void load_images(void)
 		}
 	}
 
-	/* Loop over actions */
+	/* Loop over icons */
 	for (i = 0; i < MAX_ICON; i++)
 	{
 		/* Skip second develop/settle action */
@@ -512,6 +623,26 @@ static void load_images(void)
 		{
 			/* Print error */
 			printf("Cannot open icon image %s!\n", fn);
+		}
+	}
+
+	/* Loop over actions */
+	for (i = 0; i < MAX_ACTION; i++)
+	{
+		/* Skip second develop/settle action */
+		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
+
+		/* Construct image filename */
+		sprintf(fn, "image/action%01d.jpg", i);
+
+		/* Load image */
+		action_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+
+		/* Check for error */
+		if (!action_cache[i])
+		{
+			/* Print error */
+			printf("Cannot open action card image %s!\n", fn);
 		}
 	}
 }
@@ -803,6 +934,42 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
 }
 
 /*
+ * Refresh the full-size card image with an action card.
+ *
+ * Called when the pointer moves over a action button.
+ */
+static gboolean redraw_action(GtkWidget *widget, GdkEventCrossing *event,
+                              gpointer data)
+{
+	int a = GPOINTER_TO_INT(data);
+	GdkPixbuf *buf;
+
+	/* Set image to card face */
+	buf = action_cache[a];
+
+	/* Check for halfsize image */
+	if (opt.full_reduced == 1)
+	{
+		/* Scale image */
+		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
+		                          CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
+	}
+
+	/* Set image */
+	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
+
+	/* Check for halfsize image */
+	if (opt.full_reduced == 1)
+	{
+		/* Remove our scaled buffer */
+		g_object_unref(G_OBJECT(buf));
+	}
+
+	/* Continue to handle event */
+	return FALSE;
+}
+
+/*
  * Create an event box containing the given card's image.
  */
 static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
@@ -986,8 +1153,8 @@ static void redraw_hand(void)
 		/* Get card pointer */
 		i_ptr = &hand[i];
 
-		/* Check for "special" card from tableau */
-		if (i_ptr->special)
+		/* Check for "gapped" card */
+		if (i_ptr->gapped)
 		{
 			/* Make extra space for gap */
 			n++;
@@ -1019,8 +1186,8 @@ static void redraw_hand(void)
 		/* Get card pointer */
 		i_ptr = &hand[i];
 
-		/* Skip spot before first special card */
-		if (i_ptr->special && !gap)
+		/* Skip spot before first gap card */
+		if (i_ptr->gapped && !gap)
 		{
 			/* Increase count */
 			count++;
@@ -1032,11 +1199,11 @@ static void redraw_hand(void)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    i_ptr->special && i_ptr->selected, 0);
+		                    i_ptr->highlight && i_ptr->selected, 0);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(hand_area), box, count * width,
-		              i_ptr->selected && !i_ptr->special ? 0 :
+		              i_ptr->selected && !i_ptr->highlight ? 0 :
 		                                             height - card_h);
 
 		/* Check for eligible card */
@@ -1156,7 +1323,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    i_ptr->special && i_ptr->selected, 0);
+		                    i_ptr->highlight && i_ptr->selected, 0);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
@@ -1165,7 +1332,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 		gtk_widget_show_all(box);
 
 		/* Check for good */
-		if (i_ptr->covered || (i_ptr->selected && !i_ptr->special))
+		if (i_ptr->covered || (i_ptr->selected && !i_ptr->highlight))
 		{
 			/* Get event box with no image */
 			good_box = new_image_box(i_ptr->d_ptr, 3 * card_w / 4,
@@ -1176,7 +1343,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 			/* Place box on card */
 			gtk_fixed_put(GTK_FIXED(area), good_box,
 			              x * width + card_w / 4,
-			              i_ptr->selected && !i_ptr->special ?
+			              i_ptr->selected && !i_ptr->highlight ?
 			                  y * height :
 				          y * height + card_h / 4);
 
@@ -1372,24 +1539,83 @@ static void redraw_goal(void)
 }
 
 /*
+ * Extra text and font string to be drawn on an image.
+ */
+struct extra_info
+{
+	char text[1024];
+	char *fontstr;
+};
+
+/*
+ * Set of "extra info" structures.
+ */
+static struct extra_info status_extra_info[MAX_PLAYER][2];
+
+/*
+ * Draw extra text on top of a GtkImage's window.
+ */
+static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
+                                gpointer data)
+{
+	GdkWindow *w;
+	PangoLayout *layout;
+	PangoFontDescription *font;
+	int tw, th;
+	int x, y;
+	struct extra_info *ei = (struct extra_info *)data;
+
+	/* Get window to draw on */
+	w = gtk_widget_get_window(image);
+
+	/* Create pango layout */
+	layout = gtk_widget_create_pango_layout(image, NULL);
+
+	/* Set marked-up text */
+	pango_layout_set_markup(layout, ei->text, -1);
+
+	/* Set alignment to center */
+	pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
+
+	/* Create font description for text */
+	font = pango_font_description_from_string(ei->fontstr);
+
+	/* Set layout's font */
+	pango_layout_set_font_description(layout, font);
+
+	/* Get size of text */
+	pango_layout_get_pixel_size(layout, &tw, &th);
+
+	/* Compute point to start drawing */
+	x = (image->allocation.width - tw) / 2 + image->allocation.x;
+	y = (image->allocation.height - th) / 2 + image->allocation.y;
+
+	/* Draw layout on top of image */
+	gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1, layout);
+	gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1, layout);
+	gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1, layout);
+	gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1, layout);
+	gdk_draw_layout(w, image->style->black_gc, x, y, layout);
+
+	/* Free font description */
+	pango_font_description_free(font);
+
+	/* Continue handling event */
+	return FALSE;
+}
+
+/*
  * Redraw a player's status information.
  */
 static void redraw_status_area(int who, GtkWidget *box)
 {
 	GtkWidget *image, *label;
-	GdkGC *gc;
 	GdkPixbuf *buf;
-	GdkPixmap *pixmap;
-	GdkBitmap *mask;
-	GdkColor white, black;
-	PangoLayout *layout;
-	PangoFontDescription *font;
-	char text[1024];
 	int width, height;
-	int tw, th, x, y;
 	int act0, act1;
 	int gray;
 	int i;
+	struct extra_info *ei;
 
 	/* First destroy all pre-existing widgets */
 	gtk_container_foreach(GTK_CONTAINER(box), destroy_widget, NULL);
@@ -1459,56 +1685,25 @@ static void redraw_status_area(int who, GtkWidget *box)
 	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], height, height,
 	                              GDK_INTERP_BILINEAR);
 
-	/* Extract pixmap and bitmask from image buffer */
-	gdk_pixbuf_render_pixmap_and_mask(buf, &pixmap, &mask, 128);
+	/* Create image from pixbuf */
+	image = gtk_image_new_from_pixbuf(buf);
 
-	/* Create graphics context */
-	gc = gdk_gc_new(pixmap);
-
-	/* Get white and black colors */
-	gdk_color_white(gdk_gc_get_colormap(gc), &white);
-	gdk_color_black(gdk_gc_get_colormap(gc), &black);
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[who][0];
 
 	/* Create text for handsize */
-	sprintf(text, "<b>%d</b>", count_player_area(&real_game, who,
-	                                             WHERE_HAND));
+	sprintf(ei->text, "<b>%d</b>", count_player_area(&real_game, who,
+	                                                 WHERE_HAND));
 
-	/* Create pango layout */
-	layout = gtk_widget_create_pango_layout(box, NULL);
+	/* Set font */
+	ei->fontstr = "Sans 12";
 
-	/* Set marked-up text */
-	pango_layout_set_markup(layout, text, -1);
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
 
-	/* Create font description for text */
-	font = pango_font_description_from_string("Sans 12");
-
-	/* Set layout's font */
-	pango_layout_set_font_description(layout, font);
-
-	/* Get size of text */
-	pango_layout_get_pixel_size(layout, &tw, &th);
-
-	/* Compute point to start drawing */
-	x = (height - tw) / 2;
-	y = (height - th) / 2;
-
-	/* Draw layout on top of icon */
-	gdk_draw_layout_with_colors(pixmap, gc, x - 1, y, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x + 1, y, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x, y - 1, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x, y + 1, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x, y, layout, &black, NULL);
-
-	/* Make image widget */
-	image = gtk_image_new_from_pixmap(pixmap, mask);
-
-	/* Free font description */
-	pango_font_description_free(font);
-
-	/* Destroy our copy of the icon and pixmap */
+	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
-	g_object_unref(G_OBJECT(pixmap));
-	g_object_unref(G_OBJECT(mask));
 
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
@@ -1517,58 +1712,28 @@ static void redraw_status_area(int who, GtkWidget *box)
 	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], height, height,
 	                              GDK_INTERP_BILINEAR);
 
-	/* Extract pixmap and bitmask from image buffer */
-	gdk_pixbuf_render_pixmap_and_mask(buf, &pixmap, &mask, 128);
+	/* Create image from pixbuf */
+	image = gtk_image_new_from_pixbuf(buf);
+
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[who][1];
 
 	/* Create text for victory points */
-	sprintf(text, "<b>%d\n%d</b>", real_game.p[who].vp,
-	                               real_game.p[who].end_vp);
+	sprintf(ei->text, "<b>%d\n%d</b>", real_game.p[who].vp,
+	                                   real_game.p[who].end_vp);
 
-	/* Create pango layout */
-	layout = gtk_widget_create_pango_layout(box, text);
+	/* Set font */
+	ei->fontstr = "Sans 10";
 
-	/* Set marked-up text */
-	pango_layout_set_markup(layout, text, -1);
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
 
-	/* Center text in layout */
-	pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
-
-	/* Create font description for text */
-	font = pango_font_description_from_string("Sans 10");
-
-	/* Set layout's font */
-	pango_layout_set_font_description(layout, font);
-
-	/* Get size of text */
-	pango_layout_get_pixel_size(layout, &tw, &th);
-
-	/* Compute point to start drawing */
-	x = (height - tw) / 2;
-	y = (height - th) / 2;
-
-	/* Draw layout on top of icon */
-	gdk_draw_layout_with_colors(pixmap, gc, x - 1, y, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x + 1, y, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x, y - 1, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x, y + 1, layout, &white, NULL);
-	gdk_draw_layout_with_colors(pixmap, gc, x, y, layout, &black, NULL);
-
-	/* Make image widget */
-	image = gtk_image_new_from_pixmap(pixmap, mask);
-
-	/* Free font description */
-	pango_font_description_free(font);
-
-	/* Destroy our copy of the icon and pixmap */
+	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
-	g_object_unref(G_OBJECT(pixmap));
-	g_object_unref(G_OBJECT(mask));
 
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
-
-	/* Destroy graphics context */
-	g_object_unref(gc);
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
@@ -1712,6 +1877,7 @@ static void redraw_phase(void)
 			case ACT_SETTLE2: name = "Settle"; break;
 			case ACT_CONSUME_TRADE: name = "Consume"; break;
 			case ACT_PRODUCE: name = "Produce"; break;
+			default: name = ""; break;
 		}
 
 		/* Check for basic game and advanced actions */
@@ -1932,8 +2098,8 @@ static void reset_hand(int color)
 		/* Card is not eligible or selected */
 		i_ptr->eligible = i_ptr->selected = 0;
 
-		/* Card is not special */
-		i_ptr->special = 0;
+		/* Card is not highlighted or gapped */
+		i_ptr->highlight = i_ptr->gapped = 0;
 
 		/* Set color flag */
 		i_ptr->color = color;
@@ -1983,8 +2149,8 @@ static void reset_table(int who, int color)
 		/* Check for good */
 		i_ptr->covered = (c_ptr->covered != -1);
 
-		/* Card is not special */
-		i_ptr->special = 0;
+		/* Card is not highlighted or gapped */
+		i_ptr->highlight = i_ptr->gapped = 0;
 	}
 
 	/* Sort list */
@@ -2012,63 +2178,49 @@ static void reset_cards(int color_hand, int color_table)
 /*
  * Callback when action choice changes.
  */
-static void action_choice_changed(GtkComboBox *combo, gpointer data)
+static void action_choice_changed(GtkToggleButton *button, gpointer data)
 {
-	int which = GPOINTER_TO_INT(data);
-	char *name;
-	int i;
-
-	/* Get name of choice */
-	name = gtk_combo_box_get_active_text(combo);
-
-	/* Loop over choices */
-	for (i = 0; i < MAX_ACTION; i++)
+	/* Check for toggled button */
+	if (gtk_toggle_button_get_active(button))
 	{
-		/* Check for match */
-		if (!strcmp(name, action_name[i]))
-		{
-			/* Store choice */
-			if (which == 1)
-			{
-				/* Store first choice */
-				action_choice1 = i;
-			}
-			else
-			{
-				/* Store second choice */
-				action_choice2 = i;
-			}
-
-			/* Stop looking */
-			break;
-		}
-	}
-
-	/* Check for illegal combination */
-	if (action_choice1 == action_choice2 &&
-	    action_choice1 != ACT_DEVELOP && action_choice1 != ACT_SETTLE)
-	{
-		/* Disable action button */
-		gtk_widget_set_sensitive(action_button, FALSE);
+		/* Increment count of buttons pressed */
+		actions_chosen++;
 	}
 	else
 	{
-		/* Enable action button */
-		gtk_widget_set_sensitive(action_button, TRUE);
+		/* Decrement count of buttons pressed */
+		actions_chosen--;
 	}
+
+	/* Check for exactly 2 actions chosen */
+	gtk_widget_set_sensitive(action_button, actions_chosen == 2);
 }
+
+/*
+ * Callback when an action button's key is pressed.
+ */
+static void action_keyed(GtkWidget *widget, gpointer data)
+{
+	/* Change button state */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget),
+	              !gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)));
+}
+
 
 /*
  * Choose two actions.
  */
 static void gui_choose_action_advanced(game *g, int who, int action[2])
 {
-	GtkWidget *combo1, *combo2;
-	int i;
-	char *name;
+	GtkWidget *button[MAX_ACTION], *image, *label;
+	GdkPixbuf *buf;
+	int i, a, h, n = 0, key = GDK_1;
 
 	/* Deactivate action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
+
+	/* Clear count of buttons chosen */
+	actions_chosen = 0;
 
 	/* Reset displayed cards */
 	reset_cards(TRUE, TRUE);
@@ -2077,80 +2229,109 @@ static void gui_choose_action_advanced(game *g, int who, int action[2])
 	redraw_everything();
 
 	/* Set prompt */
-	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Action");
+	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Actions");
 
-	/* Create two combo boxes */
-	combo1 = gtk_combo_box_new_text();
-	combo2 = gtk_combo_box_new_text();
+	/* Get height of action box */
+	h = action_box->allocation.height - 8;
 
 	/* Loop over actions */
 	for (i = 0; i < MAX_ACTION; i++)
 	{
-		/* Skip second develop/settle */
-		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
+		/* Create toggle button */
+		button[i] = gtk_toggle_button_new();
 
-		/* Get action name */
-		name = action_name[i];
+		/* Get action index */
+		a = i;
 
-		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo1), name);
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo2), name);
+		/* Check for second Develop or Settle */
+		if (a == ACT_DEVELOP2) a = ACT_DEVELOP;
+		if (a == ACT_SETTLE2) a = ACT_SETTLE;
+
+		/* Scale action icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[a], h, h,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Create image widget from action icon */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Destroy local copy of pixbuf */
+		g_object_unref(buf);
+
+		/* Do not request height */
+		gtk_widget_set_size_request(image, -1, 0);
+
+		/* Pack image into button */
+		gtk_container_add(GTK_CONTAINER(button[i]), image);
+
+		/* Pack button into action box */
+		gtk_box_pack_start(GTK_BOX(action_box), button[i], FALSE,
+		                   FALSE, 0);
+
+		/* Create tooltip for button */
+		gtk_widget_set_tooltip_text(button[i], action_name[i]);
+
+		/* Add handler for keypresses */
+		gtk_widget_add_accelerator(button[i], "key-signal",
+		                           window_accel, key++, 0, 0);
+		/* Connect "toggled" signal */
+		g_signal_connect(G_OBJECT(button[i]), "toggled",
+		                 G_CALLBACK(action_choice_changed), NULL);
+
+		/* Connect "pointer enter" signal */
+		g_signal_connect(G_OBJECT(button[i]), "enter-notify-event",
+		                 G_CALLBACK(redraw_action), GINT_TO_POINTER(a));
+
+		/* Connect key-signal */
+		g_signal_connect(G_OBJECT(button[i]), "key-signal",
+		                 G_CALLBACK(action_keyed), NULL);
+
+		/* Show everything */
+		gtk_widget_show_all(button[i]);
 	}
 
-	/* Set first choice */
-	gtk_combo_box_set_active(GTK_COMBO_BOX(combo1), 0);
-	gtk_combo_box_set_active(GTK_COMBO_BOX(combo2), 0);
+	/* Create filler label */
+	label = gtk_label_new("");
 
-	/* Set cached action choices */
-	action_choice1 = action_choice2 = 0;
+	/* Add label after action buttons */
+	gtk_box_pack_start(GTK_BOX(action_box), label, TRUE, TRUE, 0);
 
-	/* Add combo boxes to action box */
-	gtk_box_pack_end(GTK_BOX(action_box), combo1, FALSE, TRUE, 0);
-	gtk_box_pack_end(GTK_BOX(action_box), combo2, FALSE, TRUE, 0);
-
-	/* Connect "changed" signal */
-	g_signal_connect(G_OBJECT(combo1), "changed",
-	                 G_CALLBACK(action_choice_changed), GINT_TO_POINTER(1));
-	g_signal_connect(G_OBJECT(combo2), "changed",
-	                 G_CALLBACK(action_choice_changed), GINT_TO_POINTER(2));
-
-	/* Show everything */
-	gtk_widget_show_all(combo1);
-	gtk_widget_show_all(combo2);
+	/* Show label */
+	gtk_widget_show(label);
 
 	/* Process events */
 	gtk_main();
 
-	/* Destroy combo boxes */
-	gtk_widget_destroy(combo1);
-	gtk_widget_destroy(combo2);
-
-	/* Set actions */
-	action[0] = action_choice1;
-	action[1] = action_choice2;
-
-	/* Handle double Develop */
-	if (action[0] == ACT_DEVELOP && action[1] == ACT_DEVELOP)
+	/* Check for real selection made */
+	if (!restart_loop)
 	{
-		/* Set second choice to second develop */
-		action[1] = ACT_DEVELOP2;
+		/* Save state for future undo */
+		undo_state = real_game;
 	}
 
-	/* Handle double Settle */
-	if (action[0] == ACT_SETTLE && action[1] == ACT_SETTLE)
+	/* Loop over choices */
+	for (i = 0; i < MAX_ACTION; i++)
 	{
-		/* Set second choice to second settle */
-		action[1] = ACT_SETTLE2;
+		/* Check for active */
+		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(button[i])))
+		{
+			/* Set choice */
+			action[n++] = i;
+		}
 	}
 
-	/* Reorder actions if needed */
-	if (action[0] > action[1])
+	/* Destroy buttons */
+	for (i = 0; i < MAX_ACTION; i++)
 	{
-		/* Swap actions */
-		i = action[0];
-		action[0] = action[1];
-		action[1] = i;
+		/* Destroy button */
+		gtk_widget_destroy(button[i]);
 	}
+
+	/* Destroy filler label */
+	gtk_widget_destroy(label);
+
+	/* Check for first action is second Develop/Settle */
+	if (action[0] == ACT_DEVELOP2) action[0] = ACT_DEVELOP;
+	if (action[0] == ACT_SETTLE2) action[0] = ACT_SETTLE;
 }
 
 /*
@@ -2158,9 +2339,12 @@ static void gui_choose_action_advanced(game *g, int who, int action[2])
  */
 void gui_choose_action(game *g, int who, int action[2])
 {
-	GtkWidget *combo;
-	char *name;
-	int i;
+	GtkWidget *button[MAX_ACTION], *image, *label;
+	GdkPixbuf *buf;
+	int i, h, key = GDK_1;
+
+	/* Set save state */
+	save_state = real_game;
 
 	/* Check for advanced game */
 	if (real_game.advanced)
@@ -2181,8 +2365,11 @@ void gui_choose_action(game *g, int who, int action[2])
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Action");
 
-	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	/* Start with first radio button cleared */
+	button[0] = NULL;
+
+	/* Get height of action box */
+	h = action_box->allocation.height - 8;
 
 	/* Loop over actions */
 	for (i = 0; i < MAX_ACTION; i++)
@@ -2190,45 +2377,98 @@ void gui_choose_action(game *g, int who, int action[2])
 		/* Skip second develop/settle */
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
-		/* Get action name */
-		name = action_name[i];
+		/* Create radio button */
+		button[i] = gtk_radio_button_new_from_widget(
+		                                   GTK_RADIO_BUTTON(button[0]));
 
-		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), name);
+		/* Scale action icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[i], h, h,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Create image widget from action icon */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Destroy local copy of pixbuf */
+		g_object_unref(buf);
+
+		/* Do not request height */
+		gtk_widget_set_size_request(image, -1, 0);
+
+		/* Draw button without separate indicator */
+		gtk_toggle_button_set_mode(GTK_TOGGLE_BUTTON(button[i]), FALSE);
+
+		/* Pack image into button */
+		gtk_container_add(GTK_CONTAINER(button[i]), image);
+
+		/* Pack button into action box */
+		gtk_box_pack_start(GTK_BOX(action_box), button[i], FALSE,
+		                   FALSE, 0);
+
+		/* Create tooltip for button */
+		gtk_widget_set_tooltip_text(button[i], action_name[i]);
+
+		/* Add handler for keypresses */
+		gtk_widget_add_accelerator(button[i], "key-signal",
+		                           window_accel, key++, 0, 0);
+
+		/* Connect "pointer enter" signal */
+		g_signal_connect(G_OBJECT(button[i]), "enter-notify-event",
+		                 G_CALLBACK(redraw_action), GINT_TO_POINTER(i));
+
+		/* Connect key-signal */
+		g_signal_connect(G_OBJECT(button[i]), "key-signal",
+		                 G_CALLBACK(action_keyed), NULL);
+
+		/* Show everything */
+		gtk_widget_show_all(button[i]);
 	}
 
-	/* Set first choice */
-	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+	/* Create filler label */
+	label = gtk_label_new("");
 
-	/* Add combo box to action box */
-	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
+	/* Add label after action buttons */
+	gtk_box_pack_start(GTK_BOX(action_box), label, TRUE, TRUE, 0);
 
-	/* Show everything */
-	gtk_widget_show_all(combo);
+	/* Show label */
+	gtk_widget_show(label);
 
 	/* Process events */
 	gtk_main();
 
-	/* Get selection name */
-	name = gtk_combo_box_get_active_text(GTK_COMBO_BOX(combo));
+	/* Check for real selection made */
+	if (!restart_loop)
+	{
+		/* Save state for future undo */
+		undo_state = real_game;
+	}
 
 	/* Loop over choices */
 	for (i = 0; i < MAX_ACTION; i++)
 	{
-		/* Check for match */
-		if (!strcmp(name, action_name[i]))
+		/* Skip second develop/settle */
+		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
+
+		/* Check for active */
+		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(button[i])))
 		{
-			/* Stop looking */
-			break;
+			/* Set choice */
+			action[0] = i;
+			action[1] = -1;
 		}
 	}
 
-	/* Destroy combo box */
-	gtk_widget_destroy(combo);
+	/* Destroy buttons */
+	for (i = 0; i < MAX_ACTION; i++)
+	{
+		/* Skip second develop/settle */
+		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
-	/* Set choice */
-	action[0] = i;
-	action[1] = -1;
+		/* Destroy button */
+		gtk_widget_destroy(button[i]);
+	}
+
+	/* Destroy filler label */
+	gtk_widget_destroy(label);
 }
 
 /*
@@ -2279,7 +2519,9 @@ int gui_choose_start(game *g, int who, int list[], int num)
 
 		/* Card is eligible */
 		i_ptr->eligible = 1;
-		i_ptr->special = 1;
+
+		/* Card should be highlighted when selected */
+		i_ptr->highlight = 1;
 		
 		/* Card is not selected */
 		i_ptr->selected = 0;
@@ -2350,13 +2592,6 @@ void gui_choose_discard(game *g, int who, int list[], int num, int discard)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
-
-				/* Check for discarding most of cards */
-				if (discard > num / 2)
-				{
-					/* Start with card selected */
-					i_ptr->selected = 1;
-				}
 			}
 		}
 	}
@@ -2383,6 +2618,15 @@ void gui_choose_discard(game *g, int who, int list[], int num, int discard)
 
 	/* Discard chosen cards */
 	discard_callback(&real_game, player_us, list, n);
+}
+
+/*
+ * Simulate Explore phase.
+ *
+ * We need to do nothing.
+ */
+void gui_explore_sample(game *g, int who, int draw, int keep, int discard_any)
+{
 }
 
 /*
@@ -2426,6 +2670,9 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* Card should be highlighted when selected */
+				i_ptr->highlight = 1;
 			}
 		}
 	}
@@ -2520,8 +2767,8 @@ void gui_choose_pay(game *g, int who, int which, int list[], int num,
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 
-				/* Card is special */
-				i_ptr->special = 1;
+				/* Card should be highlighted when selected */
+				i_ptr->highlight = 1;
 			}
 		}
 	}
@@ -2611,7 +2858,7 @@ int gui_choose_takeover(game *g, int who, int list[], int num,
 				{
 					/* Card is eligible */
 					i_ptr->eligible = 1;
-					i_ptr->special = 1;
+					i_ptr->highlight = 1;
 				}
 			}
 		}
@@ -2632,8 +2879,8 @@ int gui_choose_takeover(game *g, int who, int list[], int num,
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 
-				/* Card is special */
-				i_ptr->special = 1;
+				/* Card should be highlighted when selected */
+				i_ptr->highlight = 1;
 			}
 		}
 	}
@@ -2746,8 +2993,8 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 
-				/* Card is special */
-				i_ptr->special = 1;
+				/* Card should be highlighted when selected */
+				i_ptr->highlight = 1;
 			}
 		}
 	}
@@ -3012,12 +3259,7 @@ void gui_choose_consume(game *g, int who, power olist[], int num)
 		else
 		{
 			/* Get type of good to consume */
-			if (o_ptr->code & P4_CONSUME_ANY)
-			{
-				/* Any good */
-				name = "";
-			}
-			else if (o_ptr->code & P4_CONSUME_NOVELTY)
+			if (o_ptr->code & P4_CONSUME_NOVELTY)
 			{
 				/* Novelty good */
 				name = "Novelty ";
@@ -3036,6 +3278,11 @@ void gui_choose_consume(game *g, int who, power olist[], int num)
 			{
 				/* Alien good */
 				name = "Alien ";
+			}
+			else
+			{
+				/* Any good */
+				name = "";
 			}
 
 			/* Check for two goods */
@@ -3427,7 +3674,8 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 
 		/* Card is eligible */
 		i_ptr->eligible = 1;
-		i_ptr->special = 1;
+		i_ptr->gapped = 1;
+		i_ptr->highlight = 1;
 		
 		/* Card is not selected */
 		i_ptr->selected = 0;
@@ -3715,7 +3963,7 @@ static void gui_notify_rotation(game *g)
 /*
  * Interface to GUI decision functions.
  */
-static interface gui_func =
+interface gui_func =
 {
 	NULL,
 	gui_notify_rotation,
@@ -3723,6 +3971,7 @@ static interface gui_func =
 	gui_choose_action,
 	gui_react_action,
 	gui_choose_discard,
+	gui_explore_sample,
 	gui_choose_place,
 	gui_choose_pay,
 	gui_choose_takeover,
@@ -3783,6 +4032,74 @@ static void reset_game(void)
 }
 
 /*
+ * Modify GUI elements for the correct number of players.
+ */
+static void modify_gui(void)
+{
+	int i;
+
+	/* Check for basic game */
+	if (!real_game.expanded || real_game.goal_disabled)
+	{
+		/* Hide goal area */
+		gtk_widget_hide(goal_area);
+	}
+	else
+	{
+		/* Show goal area */
+		gtk_widget_show(goal_area);
+	}
+
+	/* Loop over existing players */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Show status */
+		gtk_widget_show_all(player_box[i]);
+	}
+
+	/* Loop over non-existant players */
+	for ( ; i < MAX_PLAYER; i++)
+	{
+		/* Hide status */
+		gtk_widget_hide_all(player_box[i]);
+	}
+
+	/* Show/hide separators */
+	for (i = 1; i < MAX_PLAYER; i++)
+	{
+		/* Do not show first or last separators */
+		if (i < 2 || i >= real_game.num_players)
+		{
+			/* Hide separator */
+			gtk_widget_hide(player_sep[i]);
+		}
+		else
+		{
+			/* Show separator */
+			gtk_widget_show(player_sep[i]);
+		}
+	}
+
+	/* Check for no full-size image */
+	if (opt.full_reduced == 2)
+	{
+		/* Hide image */
+		gtk_widget_hide(full_image);
+	}
+	else
+	{
+		/* Show image */
+		gtk_widget_show(full_image);
+	}
+
+	/* Redraw full-size image */
+	redraw_full(NULL, NULL, NULL);
+
+	/* Handle pending events */
+	while (gtk_events_pending()) gtk_main_iteration();
+}
+
+/*
  * Run games forever.
  */
 static void run_game(void)
@@ -3793,25 +4110,74 @@ static void run_game(void)
 	/* Loop forever */
 	while (1)
 	{
-		/* Reset game */
-		reset_game();
-
-		/* Initialize game */
-		init_game(&real_game);
-
-		/* Play game rounds until finished */
-		while (game_round(&real_game));
-
-		/* Check for new game request */
-		if (start_new)
+		/* Check for new game starting */
+		if (restart_loop == RESTART_NEW)
 		{
-			/* Clear flag */
-			start_new = 0;
+			/* Reset game */
+			reset_game();
 
 			/* Clear text log */
 			clear_log();
 
-			/* Start again */
+			/* Disable undo/save menu item */
+			gtk_widget_set_sensitive(undo_item, FALSE);
+			gtk_widget_set_sensitive(save_item, FALSE);
+
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Enable undo/save menu item */
+			gtk_widget_set_sensitive(undo_item, TRUE);
+			gtk_widget_set_sensitive(save_item, TRUE);
+
+			/* Check for aborted game */
+			if (real_game.game_over) continue;
+
+			/* Save beginning state */
+			undo_state = real_game;
+		}
+		else
+		{
+			/* Reset game state */
+			real_game = undo_state;
+			save_state = undo_state;
+
+			/* Check for undo request */
+			if (restart_loop == RESTART_UNDO)
+			{
+				/* Add message */
+				message_add("Turn undone.\n");
+			}
+
+			/* Check for load game request */
+			else if (restart_loop == RESTART_LOAD)
+			{
+				/* Modify GUI for new game settings */
+				modify_gui();
+
+				/* Rotate players until we match */
+				while (real_game.p[player_us].control !=
+				       &gui_func)
+				{
+					/* Rotate player spots */
+					gui_notify_rotation(&real_game);
+				}
+
+				/* Clear message log */
+				clear_log();
+			}
+		}
+
+		/* Clear restart loop flag */
+		restart_loop = 0;
+
+		/* Play game rounds until finished */
+		while (game_round(&real_game));
+
+		/* Check for restart request */
+		if (restart_loop)
+		{
+			/* Restart loop */
 			continue;
 		}
 
@@ -3846,81 +4212,7 @@ static void run_game(void)
 
 		/* Process events */
 		gtk_main();
-
-		/* Clear text log */
-		clear_log();
-
-		/* Clear new game flag */
-		start_new = 0;
 	}
-}
-
-/*
- * Modify GUI elements for the correct number of players.
- */
-static void modify_gui(void)
-{
-	int i;
-
-	/* Check for basic game */
-	if (!real_game.expanded || real_game.goal_disabled)
-	{
-		/* Hide goal area */
-		gtk_widget_hide(goal_area);
-	}
-	else
-	{
-		/* Show goal area */
-		gtk_widget_show(goal_area);
-	}
-
-	/* Loop over existing players */
-	for (i = 0; i < real_game.num_players; i++)
-	{
-		/* Show status */
-		gtk_widget_show_all(player_box[i]);
-	}
-
-	/* Loop over non-existant players */
-	for ( ; i < MAX_PLAYER; i++)
-	{
-		/* Hide status */
-		gtk_widget_hide_all(player_box[i]);
-	}
-
-	/* Show/hide seperators */
-	for (i = 1; i < MAX_PLAYER; i++)
-	{
-		/* Do not show first or last seperators */
-		if (i < 2 || i >= real_game.num_players)
-		{
-			/* Hide seperator */
-			gtk_widget_hide(player_sep[i]);
-		}
-		else
-		{
-			/* Show seperator */
-			gtk_widget_show(player_sep[i]);
-		}
-	}
-
-	/* Check for no full-size image */
-	if (opt.full_reduced == 2)
-	{
-		/* Hide image */
-		gtk_widget_hide(full_image);
-	}
-	else
-	{
-		/* Show image */
-		gtk_widget_show(full_image);
-	}
-
-	/* Redraw full-size image */
-	redraw_full(NULL, NULL, NULL);
-
-	/* Handle pending events */
-	while (gtk_events_pending()) gtk_main_iteration();
 }
 
 /*
@@ -3930,8 +4222,13 @@ static void read_prefs(void)
 {
 	char *path;
 
-	/* Build user preference filename */
+    /* Build user preference filename */
+#ifdef __APPLE__
+	path = g_build_filename(g_get_home_dir(),
+	                        "Library/Preferences/net.keldon.rftg", NULL);
+#else
 	path = g_build_filename(g_get_user_config_dir(), "rftg", NULL);
+#endif
 
 	/* Create keyfile structure */
 	pref_file = g_key_file_new();
@@ -3975,8 +4272,13 @@ static void save_prefs(void)
 	FILE *fff;
 	char *path, *data;
 
-	/* Build user preference filename */
+    /* Build user preference filename */
+#ifdef __APPLE__
+	path = g_build_filename(g_get_home_dir(),
+	                        "Library/Preferences/net.keldon.rftg", NULL);
+#else
 	path = g_build_filename(g_get_user_config_dir(), "rftg", NULL);
+#endif
 
 	/* Set game options */
 	g_key_file_set_integer(pref_file, "game", "num_players",
@@ -4020,6 +4322,27 @@ static void save_prefs(void)
  */
 static void apply_options(void)
 {
+	/* Sanity check advanced mode */
+	if (opt.num_players > 2)
+	{
+		/* Clear advanced mode */
+		opt.advanced = 0;
+	}
+
+	/* Sanity check number of players in base game */
+	if (opt.expanded < 1 && opt.num_players > 4)
+	{
+		/* Reset to four players */
+		opt.num_players = 4;
+	}
+
+	/* Sanity check number of players in first expansion */
+	if (opt.expanded < 2 && opt.num_players > 5)
+	{
+		/* Reset to five players */
+		opt.num_players = 5;
+	}
+
 	/* Set number of players */
 	real_game.num_players = opt.num_players;
 
@@ -4039,13 +4362,113 @@ static void apply_options(void)
 /*
  * New game.
  */
-static void new_game(GtkMenuItem *menu_item, gpointer data)
+static void gui_new_game(GtkMenuItem *menu_item, gpointer data)
 {
 	/* Force game over */
 	real_game.game_over = 1;
 	
-	/* Set new game flag */
-	start_new = 1;
+	/* Start new game immediately */
+	restart_loop = RESTART_NEW;
+
+	/* Quit waiting for events */
+	gtk_main_quit();
+}
+
+/*
+ * Load game.
+ */
+static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
+{
+	GtkWidget *dialog;
+	char *fname;
+
+	/* Create file chooser dialog box */
+	dialog = gtk_file_chooser_dialog_new("Load game", NULL,
+	                                  GTK_FILE_CHOOSER_ACTION_OPEN,
+	                                  GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                  GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
+                                          NULL);
+
+	/* Run dialog and check response */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Get filename */
+		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+		/* Try to load savefile into undo state */
+		if (load_game(&undo_state, fname) < 0)
+		{
+			/* Error */
+		}
+
+		/* Destroy filename */
+		g_free(fname);
+
+		/* Copy undo state to real game */
+		real_game = undo_state;
+
+		/* Reset game */
+		reset_game();
+
+		/* Force current game over */
+		real_game.game_over = 1;
+
+		/* Switch to loaded state when able */
+		restart_loop = RESTART_LOAD;
+		
+		/* Quit waiting for events */
+		gtk_main_quit();
+	}
+
+	/* Destroy file choose dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
+ * Save game.
+ */
+static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
+{
+	GtkWidget *dialog;
+	char *fname;
+
+	/* Create file chooser dialog box */
+	dialog = gtk_file_chooser_dialog_new("Save game", NULL,
+	                                  GTK_FILE_CHOOSER_ACTION_SAVE,
+	                                  GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                  GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
+                                          NULL);
+
+	/* Run dialog and check response */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Get filename */
+		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+		/* Save to file */
+		if (save_game(&save_state, fname) < 0)
+		{
+			/* Error */
+		}
+
+		/* Destroy filename */
+		g_free(fname);
+	}
+
+	/* Destroy file chooser dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
+ * Undo game.
+ */
+static void gui_undo_game(GtkMenuItem *menu_item, gpointer data)
+{
+	/* Force game over */
+	real_game.game_over = 1;
+	
+	/* Switch to undo state when able */
+	restart_loop = RESTART_UNDO;
 
 	/* Quit waiting for events */
 	gtk_main_quit();
@@ -4348,7 +4771,7 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		real_game.game_over = 1;
 
 		/* Start new game */
-		start_new = 1;
+		restart_loop = RESTART_NEW;
 
 		/* Save preferences */
 		save_prefs();
@@ -4494,6 +4917,7 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 		case WHERE_HAND: name = "Hand"; break;
 		case WHERE_ACTIVE: name = "Active"; break;
 		case WHERE_GOOD: name = "Good"; break;
+		default: name = "Unknown"; break;
 	}
 
 	/* Set "text" property of renderer */
@@ -4566,7 +4990,7 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 		i_ptr->index = c;
 
 		/* Clear all other fields */
-		i_ptr->eligible = i_ptr->special = 0;
+		i_ptr->eligible = i_ptr->gapped = 0;
 		i_ptr->selected = i_ptr->color = 0;
 		i_ptr->covered = 0;
 	}
@@ -4582,7 +5006,7 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 		i_ptr->index = c;
 
 		/* Clear all other fields */
-		i_ptr->eligible = i_ptr->special = 0;
+		i_ptr->eligible = i_ptr->gapped = 0;
 		i_ptr->selected = i_ptr->color = 0;
 		i_ptr->covered = 0;
 	}
@@ -4855,16 +5279,58 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
+ * Action names/action combination names.
+ */
+static char *ai_debug_action[2][23] =
+{
+	{
+		"Explore +5",
+		"Explore +1,+1",
+		"Develop",
+		"Settle",
+		"Consume-Trade",
+		"Consume-x2",
+		"Produce"
+	},
+
+	{
+		"E5/E1",
+		"E5/D",
+		"E5/S",
+		"E5/CT",
+		"E5/C2",
+		"E5/P",
+		"E1/D",
+		"E1/S",
+		"E1/CT",
+		"E1/C2",
+		"E1/P",
+		"D/D",
+		"D/S",
+		"D/CT",
+		"D/C2",
+		"D/P",
+		"S/S",
+		"S/CT",
+		"S/C2",
+		"S/P",
+		"CT/C2",
+		"CT/P",
+		"C2/P"
+	}
+};
+
+/*
  * Show AI debugging information.
  */
 static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *label, *table;
-	double role[MAX_PLAYER][MAX_ACTION];
+	double *role[MAX_PLAYER];
+	double *action_score[MAX_PLAYER];
 	double win_prob[MAX_PLAYER][MAX_PLAYER];
-	double action_score[MAX_PLAYER][MAX_ACTION];
-	double threshold = -1;
+	int num_action;
 	char buf[1024];
 	int i, j;
 
@@ -4878,7 +5344,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	                     "Race for the Galaxy " VERSION);
 
 	/* Get debug information from AI */
-	ai_debug(&real_game, role, win_prob, action_score, threshold);
+	ai_debug(&real_game, win_prob, role, action_score, &num_action);
 
 	/* Create label */
 	label = gtk_label_new("Role choice probabilities:");
@@ -4887,16 +5353,16 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), label);
 
 	/* Create table for role probabilities */
-	table = gtk_table_new(real_game.num_players + 1, MAX_ACTION + 1, FALSE);
+	table = gtk_table_new(real_game.num_players + 1, num_action + 1, FALSE);
 
 	/* Set spacings between columns */
 	gtk_table_set_col_spacings(GTK_TABLE(table), 5);
 
 	/* Loop over action names */
-	for (i = 0; i < MAX_ACTION; i++)
+	for (i = 0; i < num_action; i++)
 	{
 		/* Create label */
-		label = gtk_label_new(action_name[i]);
+		label = gtk_label_new(ai_debug_action[real_game.advanced][i]);
 
 		/* Add label to table */
 		gtk_table_attach_defaults(GTK_TABLE(table), label,
@@ -4914,7 +5380,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 		                          0, 1, i + 1, i + 2);
 
 		/* Loop over actions */
-		for (j = 0; j < MAX_ACTION; j++)
+		for (j = 0; j < num_action; j++)
 		{
 			/* Create label text */
 			sprintf(buf, "%.2f", role[i][j]);
@@ -4990,16 +5456,16 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), label);
 
 	/* Create table for role probabilities */
-	table = gtk_table_new(real_game.num_players + 1, MAX_ACTION + 1, FALSE);
+	table = gtk_table_new(real_game.num_players + 1, num_action + 1, FALSE);
 
 	/* Set spacings between columns */
 	gtk_table_set_col_spacings(GTK_TABLE(table), 5);
 
 	/* Loop over action names */
-	for (i = 0; i < MAX_ACTION; i++)
+	for (i = 0; i < num_action; i++)
 	{
 		/* Create label */
-		label = gtk_label_new(action_name[i]);
+		label = gtk_label_new(ai_debug_action[real_game.advanced][i]);
 
 		/* Add label to table */
 		gtk_table_attach_defaults(GTK_TABLE(table), label,
@@ -5017,7 +5483,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 		                          0, 1, i + 1, i + 2);
 
 		/* Loop over actions */
-		for (j = 0; j < MAX_ACTION; j++)
+		for (j = 0; j < num_action; j++)
 		{
 			/* Create label text */
 			sprintf(buf, "%.2f", action_score[i][j]);
@@ -5042,13 +5508,21 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Destroy dialog box */
 	gtk_widget_destroy(dialog);
+
+	/* Free rows of role probabilities and action scores */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Free rows */
+		free(role[i]);
+		free(action_score[i]);
+	}
 }
 
 
 /*
  * Quit.
  */
-static void quit_game(GtkMenuItem *menu_item, gpointer data)
+static void gui_quit_game(GtkMenuItem *menu_item, gpointer data)
 {
 	/* Quit */
 	exit(0);
@@ -5104,6 +5578,9 @@ Send bug reports to keldon@keldon.net");
  */
 static void action_pressed(GtkButton *button, gpointer data)
 {
+	/* Move text separator to bottom */
+	reset_text_separator();
+
 	/* Disable action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
 
@@ -5130,7 +5607,7 @@ int main(int argc, char *argv[])
 	GtkWidget *left_vbox, *right_vbox;
 	GtkWidget *menu_bar, *game_menu, *debug_menu, *help_menu;
 	GtkWidget *game_item, *debug_item, *help_item;
-	GtkWidget *new_item, *select_item, *option_item, *quit_item;
+	GtkWidget *new_item, *load_item, *select_item, *option_item, *quit_item;
 	GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 	GtkWidget *h_sep, *v_sep, *event;
 	GtkWidget *msg_scroll;
@@ -5141,6 +5618,19 @@ int main(int argc, char *argv[])
 	GdkColor color;
 	int i;
 
+#ifdef __APPLE__        
+	/* Set cwd to OS X .app bundle Resource fork so relative paths work */
+	CFBundleRef mainBundle = CFBundleGetMainBundle();
+	CFURLRef resourcesURL = CFBundleCopyResourcesDirectoryURL(mainBundle);
+	char path[PATH_MAX];
+	if (!CFURLGetFileSystemRepresentation(resourcesURL, TRUE, (UInt8 *)path, PATH_MAX))
+	{
+		// error! Resources (cards and ai nets) will not load.
+	}
+	CFRelease(resourcesURL);	
+	chdir(path);
+#endif
+	
 	/* Set random seed */
 	real_game.random_seed = time(NULL);
 
@@ -5233,6 +5723,9 @@ int main(int argc, char *argv[])
 	g_signal_new("key-signal", gtk_event_box_get_type(), G_SIGNAL_ACTION,
                      0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
+	g_signal_new("key-signal", gtk_toggle_button_get_type(),G_SIGNAL_ACTION,
+                     0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
 
 	/* Create main vbox to hold menu bar, then rest of game area */
 	main_vbox = gtk_vbox_new(FALSE, 0);
@@ -5263,12 +5756,18 @@ int main(int argc, char *argv[])
 
 	/* Create game menu items */
 	new_item = gtk_menu_item_new_with_label("New"); 
+	load_item = gtk_menu_item_new_with_label("Load Game..."); 
+	save_item = gtk_menu_item_new_with_label("Save Game..."); 
+	undo_item = gtk_menu_item_new_with_label("Undo Turn");
 	select_item = gtk_menu_item_new_with_label("Select Parameters...");
 	option_item = gtk_menu_item_new_with_label("GUI Options...");
 	quit_item = gtk_menu_item_new_with_label("Quit"); 
 
 	/* Add items to game menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), load_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), select_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
@@ -5295,13 +5794,19 @@ int main(int argc, char *argv[])
 
 	/* Attach events to menu items */
 	g_signal_connect(G_OBJECT(new_item), "activate",
-	                 G_CALLBACK(new_game), NULL);
+	                 G_CALLBACK(gui_new_game), NULL);
+	g_signal_connect(G_OBJECT(load_item), "activate",
+	                 G_CALLBACK(gui_load_game), NULL);
+	g_signal_connect(G_OBJECT(save_item), "activate",
+	                 G_CALLBACK(gui_save_game), NULL);
+	g_signal_connect(G_OBJECT(undo_item), "activate",
+	                 G_CALLBACK(gui_undo_game), NULL);
 	g_signal_connect(G_OBJECT(select_item), "activate",
 	                 G_CALLBACK(select_parameters), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
-	                 G_CALLBACK(quit_game), NULL);
+	                 G_CALLBACK(gui_quit_game), NULL);
 	g_signal_connect(G_OBJECT(debug_card_item), "activate",
 	                 G_CALLBACK(debug_card_dialog), NULL);
 	g_signal_connect(G_OBJECT(debug_ai_item), "activate",
@@ -5360,6 +5865,10 @@ int main(int argc, char *argv[])
 	/* Get mark at end of buffer */
 	message_end = gtk_text_buffer_create_mark(message_buffer, NULL,
 	                                          &end_iter, FALSE);
+
+	/* Connect "expose-event" */
+	g_signal_connect_after(G_OBJECT(message_view), "expose-event",
+	                       G_CALLBACK(message_view_expose), NULL);
 
 	/* Make scrolled window for message buffer */
 	msg_scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -5445,10 +5954,10 @@ int main(int argc, char *argv[])
 		/* Check for opponent */
 		if (i != player_us)
 		{
-			/* Create seperator */
+			/* Create separator */
 			player_sep[i] = gtk_vseparator_new();
 
-			/* Pack seperator between opponent boxes */
+			/* Pack separator between opponent boxes */
 			gtk_box_pack_start(GTK_BOX(top_box), player_sep[i],
 			                   FALSE, FALSE, 0);
 
@@ -5469,7 +5978,7 @@ int main(int argc, char *argv[])
 	gtk_box_pack_start(GTK_BOX(active_box), player_box[player_us], TRUE,
 	                   TRUE, 0);
 
-	/* Create seperator between goal area and active area */
+	/* Create separator between goal area and active area */
 	v_sep = gtk_vseparator_new();
 
 	/* Pack geal and active areas into table box */
@@ -5513,6 +6022,9 @@ int main(int argc, char *argv[])
 
 	/* Create box for action area */
 	action_box = gtk_hbox_new(FALSE, 0);
+
+	/* Set minimum height for action box */
+	gtk_widget_set_size_request(action_box, -1, 35);
 
 	/* Create action prompt */
 	action_prompt = gtk_label_new("Action");
@@ -5576,8 +6088,28 @@ int main(int argc, char *argv[])
 	/* Show all widgets */
 	gtk_widget_show_all(window);
 
+#ifdef __APPLE__
+	/* Setup OS X style menus */	
+	IgeMacMenuGroup *group = ige_mac_menu_add_app_menu_group();
+	ige_mac_menu_add_app_menu_item(group,
+	                               GTK_MENU_ITEM(about_item), NULL);
+	
+	group = ige_mac_menu_add_app_menu_group();
+	ige_mac_menu_add_app_menu_item(group,
+	                               GTK_MENU_ITEM(option_item),
+	                               "Preferences...");
+	
+	ige_mac_menu_set_quit_menu_item(GTK_MENU_ITEM(quit_item));
+	
+	gtk_widget_hide(menu_bar);
+	ige_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));	
+#endif
+	
 	/* Modify GUI for current setup */
 	modify_gui();
+
+	/* Start new game */
+	restart_loop = RESTART_NEW;
 
 	/* Run games */
 	run_game();

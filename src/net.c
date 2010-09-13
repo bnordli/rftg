@@ -28,13 +28,10 @@
 /*
  * Create a random weight value.
  */
-static void init_weight(weight *wgt)
+static void init_weight(double *wgt)
 {
 	/* Initialize weight to random value */
-	wgt->value = 0.2 * rand() / RAND_MAX - 0.1;
-
-	/* Clear change */
-	wgt->delta = 0;
+	*wgt = 0.2 * rand() / RAND_MAX - 0.1;
 }
 
 /*
@@ -82,40 +79,62 @@ void make_learner(net *learn, int input, int hidden, int output)
 	learn->hidden_result[hidden] = 1.0;
 
 	/* Create rows of hidden weights */
-	learn->hidden_weight = (weight **)malloc(sizeof(weight *) *
+	learn->hidden_weight = (double **)malloc(sizeof(double *) *
 	                                         (input + 1));
+
+	/* Create rows of hidden weight deltas */
+	learn->hidden_delta = (double **)malloc(sizeof(double *) *
+	                                        (input + 1));
 
 	/* Loop over hidden weight rows */
 	for (i = 0; i < input + 1; i++)
 	{
 		/* Create weight row */
-		learn->hidden_weight[i] = (weight *)malloc(sizeof(weight) *
+		learn->hidden_weight[i] = (double *)malloc(sizeof(double) *
 		                                           hidden);
+
+		/* Create weight delta row */
+		learn->hidden_delta[i] = (double *)malloc(sizeof(double) *
+		                                          hidden);
 
 		/* Randomize weights */
 		for (j = 0; j < hidden; j++)
 		{
 			/* Randomize this weight */
 			init_weight(&learn->hidden_weight[i][j]);
+
+			/* Clear delta */
+			learn->hidden_delta[i][j] = 0;
 		}
 	}
 
 	/* Create rows of output weights */
-	learn->output_weight = (weight **)malloc(sizeof(weight *) *
+	learn->output_weight = (double **)malloc(sizeof(double *) *
 	                                         (hidden + 1));
+
+	/* Create rows of output weight deltas */
+	learn->output_delta = (double **)malloc(sizeof(double *) *
+	                                        (hidden + 1));
 
 	/* Loop over output weight rows */
 	for (i = 0; i < hidden + 1; i++)
 	{
 		/* Create weight row */
-		learn->output_weight[i] = (weight *)malloc(sizeof(weight) *
+		learn->output_weight[i] = (double *)malloc(sizeof(double) *
 		                                           output);
+
+		/* Create weight delta row */
+		learn->output_delta[i] = (double *)malloc(sizeof(double) *
+		                                          output);
 
 		/* Randomize weights */
 		for (j = 0; j < output; j++)
 		{
 			/* Randomize this weight */
 			init_weight(&learn->output_weight[i][j]);
+
+			/* Clear delta */
+			learn->output_delta[i][j] = 0;
 		}
 	}
 
@@ -164,14 +183,43 @@ void compute_net(net *learn)
 		/* Check for difference from previous input */
 		if (learn->input_value[i] != learn->prev_input[i])
 		{
-			/* Loop over hidden weights */
-			for (j = 0; j < learn->num_hidden; j++)
+			/* Check for increase by one */
+			if (learn->input_value[i] - learn->prev_input[i] == 1)
 			{
-				/* Adjust sum */
-				learn->hidden_sum[j] +=
-				              learn->hidden_weight[i][j].value *
-				                       (learn->input_value[i] -
-				                        learn->prev_input[i]);
+				/* Add weight value to sum */
+				for (j = 0; j < learn->num_hidden; j++)
+				{
+					/* Adjust sum */
+					learn->hidden_sum[j] +=
+					             learn->hidden_weight[i][j];
+				}
+			}
+
+			/* Check for decrease by one */
+			else if (learn->input_value[i] -
+			         learn->prev_input[i] == -1)
+			{
+				/* Subtract weight value from sum */
+				for (j = 0; j < learn->num_hidden; j++)
+				{
+					/* Adjust sum */
+					learn->hidden_sum[j] -=
+					             learn->hidden_weight[i][j];
+				}
+			}
+
+			/* Input changed by fractional amount */
+			else
+			{
+				/* Loop over hidden weights */
+				for (j = 0; j < learn->num_hidden; j++)
+				{
+					/* Adjust sum */
+					learn->hidden_sum[j] +=
+					           learn->hidden_weight[i][j] *
+					                (learn->input_value[i] -
+				                         learn->prev_input[i]);
+				}
 			}
 
 			/* Store input */
@@ -200,7 +248,7 @@ void compute_net(net *learn)
 		{
 			/* Add weighted result to sum */
 			sum += learn->hidden_result[j] *
-			       learn->output_weight[j][i].value;
+			       learn->output_weight[j][i];
 		}
 
 		/* Check for first node */
@@ -210,19 +258,18 @@ void compute_net(net *learn)
 			adj = -sum;
 		}
 
-		/* Save sum */
-		learn->net_result[i] = sum + adj;
+		/* Compute output result */
+		learn->net_result[i] = exp(sum + adj);
 
 		/* Track total output */
-		learn->prob_sum += exp(learn->net_result[i]);
+		learn->prob_sum += learn->net_result[i];
 	}
 
 	/* Then compute output probabilities */
 	for (i = 0; i < learn->num_output; i++)
 	{
 		/* Compute probability */
-		learn->win_prob[i] = exp(learn->net_result[i]) /
-		                     learn->prob_sum;
+		learn->win_prob[i] = learn->net_result[i] / learn->prob_sum;
 	}
 }
 
@@ -318,7 +365,7 @@ void train_net(net *learn, double lambda, double *desired)
 			corr = -error * learn->hidden_result[j] * deriv;
 
 			/* Compute hidden node's effect on output */
-			hderiv = deriv * learn->output_weight[j][i].value;
+			hderiv = deriv * learn->output_weight[j][i];
 
 			/* Loop over other output nodes */
 			for (k = 0; k < learn->num_output; k++)
@@ -327,9 +374,9 @@ void train_net(net *learn, double lambda, double *desired)
 				if (i == k) continue;
 
 				/* Subtract this node's factor */
-				hderiv -= learn->output_weight[j][k].value *
-				          exp(learn->net_result[i] +
-				              learn->net_result[k]) /
+				hderiv -= learn->output_weight[j][k] *
+				          learn->net_result[i] *
+				          learn->net_result[k] /
 				          (learn->prob_sum * learn->prob_sum);
 			}
 
@@ -337,12 +384,11 @@ void train_net(net *learn, double lambda, double *desired)
 			learn->hidden_error[j] += error * hderiv;
 
 			/* Apply correction */
-			learn->output_weight[j][i].delta += learn->alpha * corr;
+			learn->output_delta[j][i] += learn->alpha * corr;
 		}
 
 		/* Compute bias weight's correction */
-		learn->output_weight[j][i].delta += learn->alpha * -error *
-		                                    deriv;
+		learn->output_delta[j][i] += learn->alpha * -error * deriv;
 	}
 
 	/* Create array of hidden weight correction factors */
@@ -368,7 +414,7 @@ void train_net(net *learn, double lambda, double *desired)
 		for (j = 0; j < learn->num_hidden; j++)
 		{
 			/* Adjust weight */
-			learn->hidden_weight[i][j].delta += hidden_corr[j] *
+			learn->hidden_delta[i][j] += hidden_corr[j] *
 			                                  learn->input_value[i];
 		}
 	}
@@ -412,11 +458,10 @@ void apply_training(net *learn)
 		for (j = 0; j < learn->num_output; j++)
 		{
 			/* Apply training */
-			learn->output_weight[i][j].value +=
-			                       learn->output_weight[i][j].delta;
+			learn->output_weight[i][j] += learn->output_delta[i][j];
 
 			/* Clear delta */
-			learn->output_weight[i][j].delta = 0;
+			learn->output_delta[i][j] = 0;
 		}
 	}
 
@@ -427,11 +472,10 @@ void apply_training(net *learn)
 		for (j = 0; j < learn->num_hidden; j++)
 		{
 			/* Apply training */
-			learn->hidden_weight[i][j].value +=
-			                       learn->hidden_weight[i][j].delta;
+			learn->hidden_weight[i][j] += learn->hidden_delta[i][j];
 
 			/* Clear delta */
-			learn->hidden_weight[i][j].delta = 0;
+			learn->hidden_delta[i][j] = 0;
 		}
 	}
 }
@@ -457,20 +501,24 @@ void free_net(net *learn)
 	{
 		/* Free weight row */
 		free(learn->hidden_weight[i]);
+		free(learn->hidden_delta[i]);
 	}
 
 	/* Free list of rows */
 	free(learn->hidden_weight);
+	free(learn->hidden_delta);
 
 	/* Free rows of output weights */
 	for (i = 0; i < learn->num_hidden + 1; i++)
 	{
 		/* Free weight row */
 		free(learn->output_weight[i]);
+		free(learn->output_delta[i]);
 	}
 
 	/* Free list of rows */
 	free(learn->output_weight);
+	free(learn->output_delta);
 
 	/* Clear old past input sets */
 	clear_store(learn);
@@ -496,7 +544,7 @@ int load_net(net *learn, char *fname)
 	if (!fff) return -1;
 
 	/* Read network size from file */
-	fscanf(fff, "%d %d %d\n", &input, &hidden, &output);
+	if (fscanf(fff, "%d %d %d\n", &input, &hidden, &output) != 3) return -1;
 
 	/* Check for mismatch */
 	if (input != learn->num_inputs ||
@@ -514,7 +562,7 @@ int load_net(net *learn, char *fname)
 		{
 			/* Load a weight */
 			if (fscanf(fff, "%lf\n",
-			           &learn->hidden_weight[j][i].value) != 1)
+			           &learn->hidden_weight[j][i]) != 1)
 			{
 				/* Failure */
 				return -1;
@@ -530,7 +578,7 @@ int load_net(net *learn, char *fname)
 		{
 			/* Load a weight */
 			if (fscanf(fff, "%lf\n",
-			           &learn->output_weight[j][i].value) != 1)
+			           &learn->output_weight[j][i]) != 1)
 			{
 				/* Failure */
 				return -1;
@@ -570,8 +618,7 @@ void save_net(net *learn, char *fname)
 		for (j = 0; j < learn->num_inputs + 1; j++)
 		{
 			/* Save a weight */
-			fprintf(fff, "%.12le\n",
-			        learn->hidden_weight[j][i].value);
+			fprintf(fff, "%.12le\n", learn->hidden_weight[j][i]);
 		}
 	}
 
@@ -582,8 +629,7 @@ void save_net(net *learn, char *fname)
 		for (j = 0; j < learn->num_hidden + 1; j++)
 		{
 			/* Save a weight */
-			fprintf(fff, "%.12le\n",
-			        learn->output_weight[j][i].value);
+			fprintf(fff, "%.12le\n", learn->output_weight[j][i]);
 		}
 	}
 

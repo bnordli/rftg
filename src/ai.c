@@ -42,6 +42,7 @@ static net role;
  * Counters for tracking usefulness of role prediction.
  */
 static int role_hit, role_miss;
+static double role_avg;
 
 /*
  * Size of evaluator neural net.
@@ -56,6 +57,12 @@ static int role_hit, role_miss;
 #define ROLE_MISC   66
 #define ROLE_PLAYER 394
 #define ROLE_HIDDEN 50
+
+/*
+ * Number of outputs for role predictor network (basic and advanced).
+ */
+#define ROLE_OUT     7
+#define ROLE_OUT_ADV 23
 
 /*
  * Forward declaration.
@@ -121,10 +128,11 @@ static void ai_initialize(game *g, int who, double factor)
 	inputs = ROLE_MISC + ROLE_PLAYER * g->num_players;
 
 	/* Create role predictor network */
-	make_learner(&role, inputs, ROLE_HIDDEN, MAX_ACTION);
+	make_learner(&role, inputs, ROLE_HIDDEN,
+	             g->advanced ? ROLE_OUT_ADV : ROLE_OUT);
 
 	/* Set learning rate */
-	role.alpha = 0.05;
+	role.alpha = 0.0005 * factor;
 #ifdef DEBUG
 	role.alpha = 0.0;
 #endif
@@ -788,6 +796,9 @@ static void perform_training(game *g, int who, double *desired)
 		/* Reduce training amount as we go back in time */
 		lambda *= 0.7;
 	}
+
+	/* Apply accumulated training */
+	apply_training(&eval);
 }
 
 /*
@@ -1050,7 +1061,7 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION])
 	compute_net(&role);
 
 	/* Copy scores */
-	for (i = 0; i < MAX_ACTION; i++)
+	for (i = 0; i < role.num_output; i++)
 	{
 		/* Copy scores for action */
 		prob[i] = role.win_prob[i];
@@ -1058,14 +1069,58 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION])
 }
 
 /*
+ * List of all advanced game action combinations.
+ */
+static int adv_combo[ROLE_OUT_ADV][2] =
+{
+	{ ACT_EXPLORE_5_0, ACT_EXPLORE_1_1 },
+	{ ACT_EXPLORE_5_0, ACT_DEVELOP },
+	{ ACT_EXPLORE_5_0, ACT_SETTLE },
+	{ ACT_EXPLORE_5_0, ACT_CONSUME_TRADE },
+	{ ACT_EXPLORE_5_0, ACT_CONSUME_X2 },
+	{ ACT_EXPLORE_5_0, ACT_PRODUCE },
+	{ ACT_EXPLORE_1_1, ACT_DEVELOP },
+	{ ACT_EXPLORE_1_1, ACT_SETTLE },
+	{ ACT_EXPLORE_1_1, ACT_CONSUME_TRADE },
+	{ ACT_EXPLORE_1_1, ACT_CONSUME_X2 },
+	{ ACT_EXPLORE_1_1, ACT_PRODUCE },
+	{ ACT_DEVELOP, ACT_DEVELOP2 },
+	{ ACT_DEVELOP, ACT_SETTLE },
+	{ ACT_DEVELOP, ACT_CONSUME_TRADE },
+	{ ACT_DEVELOP, ACT_CONSUME_X2 },
+	{ ACT_DEVELOP, ACT_PRODUCE },
+	{ ACT_SETTLE, ACT_SETTLE2 },
+	{ ACT_SETTLE, ACT_CONSUME_TRADE },
+	{ ACT_SETTLE, ACT_CONSUME_X2 },
+	{ ACT_SETTLE, ACT_PRODUCE },
+	{ ACT_CONSUME_TRADE, ACT_CONSUME_X2 },
+	{ ACT_CONSUME_TRADE, ACT_PRODUCE },
+	{ ACT_CONSUME_X2, ACT_PRODUCE }
+};
+
+/*
+ * Mapping of role outputs in non-advanced game to actions.
+ */
+static int role_out[ROLE_OUT] =
+{
+	ACT_EXPLORE_5_0,
+	ACT_EXPLORE_1_1,
+	ACT_DEVELOP,
+	ACT_SETTLE,
+	ACT_CONSUME_TRADE,
+	ACT_CONSUME_X2,
+	ACT_PRODUCE
+};
+
+/*
  * Helper function for ai_choose_action_advanced(), below.
  */
-static void ai_choose_action_advanced_aux(game *g, int who, int oa1, int oa2,
-                                          double scores[MAX_ACTION][MAX_ACTION],
+static void ai_choose_action_advanced_aux(game *g, int who, int oa,
+                                          double scores[ROLE_OUT_ADV],
                                           double prob)
 {
 	game sim1, sim2;
-	int a1, a2;
+	int act;
 	double score;
 	int opp;
 #ifdef DEBUG
@@ -1079,80 +1134,69 @@ static void ai_choose_action_advanced_aux(game *g, int who, int oa1, int oa2,
 	opp = !who;
 
 	/* Clear selected actions */
-	for (a1 = 0; a1 <= ACT_PRODUCE; a1++) sim1.action_selected[a1] = 0;
+	for (act = 0; act <= ACT_PRODUCE; act++) sim1.action_selected[act] = 0;
 
 	/* Set opponent's actions */
-	sim1.p[opp].action[0] = oa1;
-	sim1.p[opp].action[1] = oa2;
+	sim1.p[opp].action[0] = adv_combo[oa][0];
+	sim1.p[opp].action[1] = adv_combo[oa][1];
 
 	/* Set opponent's actions as selected */
-	sim1.action_selected[oa1] = 1;
-	sim1.action_selected[oa2] = 1;
+	sim1.action_selected[adv_combo[oa][0]] = 1;
+	sim1.action_selected[adv_combo[oa][1]] = 1;
 
-	/* Loop over our choices for first action */
-	for (a1 = ACT_EXPLORE_5_0; a1 <= ACT_PRODUCE; a1++)
+	/* Loop over our choices for actions */
+	for (act = 0; act < ROLE_OUT_ADV; act++)
 	{
-		/* First action can never be second develop/settle */
-		if (a1 == ACT_DEVELOP2 || a1 == ACT_SETTLE2) continue;
+		/* Simulate game */
+		simulate_game(&sim2, &sim1, who);
 
-		/* Loop over second action */
-		for (a2 = a1 + 1; a2 <= ACT_PRODUCE; a2++)
+		/* Set our actions */
+		sim2.p[who].action[0] = adv_combo[act][0];
+		sim2.p[who].action[1] = adv_combo[act][1];
+
+		/* Set our actions as selected */
+		sim2.action_selected[adv_combo[act][0]] = 1;
+		sim2.action_selected[adv_combo[act][1]] = 1;
+
+		/* Collapse explore phase */
+		if (sim2.action_selected[ACT_EXPLORE_1_1])
 		{
-			/* Skip illegal combinations */
-			if (a2 == ACT_DEVELOP2 && a1 != ACT_DEVELOP) continue;
-			if (a2 == ACT_SETTLE2 && a1 != ACT_SETTLE) continue;
+			/* Set only first explore action */
+			sim2.action_selected[ACT_EXPLORE_5_0] = 1;
+			sim2.action_selected[ACT_EXPLORE_1_1] = 0;
+		}
 
-			/* Simulate game */
-			simulate_game(&sim2, &sim1, who);
+		/* Collapse consume phase */
+		if (sim2.action_selected[ACT_CONSUME_X2])
+		{
+			/* Set only first consume action */
+			sim2.action_selected[ACT_CONSUME_TRADE] = 1;
+			sim2.action_selected[ACT_CONSUME_X2] = 0;
+		}
 
-			/* Set our actions */
-			sim2.p[who].action[0] = a1;
-			sim2.p[who].action[1] = a2;
-
-			/* Set our actions as selected */
-			sim2.action_selected[a1] = 1;
-			sim2.action_selected[a2] = 1;
-
-			/* Collapse explore phase */
-			if (sim2.action_selected[ACT_EXPLORE_1_1])
-			{
-				/* Set only first explore action */
-				sim2.action_selected[ACT_EXPLORE_5_0] = 1;
-				sim2.action_selected[ACT_EXPLORE_1_1] = 0;
-			}
-
-			/* Collapse consume phase */
-			if (sim2.action_selected[ACT_CONSUME_X2])
-			{
-				/* Set only first consume action */
-				sim2.action_selected[ACT_CONSUME_TRADE] = 1;
-				sim2.action_selected[ACT_CONSUME_X2] = 0;
-			}
-
-			/* Start at beginning of turn */
-			sim2.cur_action = -1;
+		/* Start at beginning of turn */
+		sim2.cur_action = -1;
 
 #ifdef DEBUG
-			old_computes = num_computes;
+		old_computes = num_computes;
 #endif
 
-			/* Complete turn */
-			complete_turn(&sim2, 0);
+		/* Complete turn */
+		complete_turn(&sim2, 0);
 
-			/* Evaluate state after turn */
-			score = eval_game(&sim2, who);
+		/* Evaluate state after turn */
+		score = eval_game(&sim2, who);
 
 #ifdef DEBUG
 #if 0
-			printf("Trying %s/%s:\nactive %d, goods %d, hand %d, VP %d: score %f\n", action_name[a1], action_name[a2], count_player_area(&sim2, who, WHERE_ACTIVE) + sim2.p[who].fake_played_dev + sim2.p[who].fake_played_world, count_player_area(&sim2, who, WHERE_GOOD), count_player_area(&sim2, who, WHERE_HAND) + sim2.p[who].fake_hand - sim2.p[who].fake_discards - sim2.p[who].fake_played_dev - sim2.p[who].fake_played_world, sim2.p[who].end_vp, score);
-			dump_active(&sim2, who);
+		printf("Trying %s/%s:\nactive %d, goods %d, hand %d, VP %d: score %f\n", action_name[a1], action_name[a2], count_player_area(&sim2, who, WHERE_ACTIVE) + sim2.p[who].fake_played_dev + sim2.p[who].fake_played_world, count_player_area(&sim2, who, WHERE_GOOD), count_player_area(&sim2, who, WHERE_HAND) + sim2.p[who].fake_hand - sim2.p[who].fake_discards - sim2.p[who].fake_played_dev - sim2.p[who].fake_played_world, sim2.p[who].end_vp, score);
+		dump_active(&sim2, who);
 #endif
-			printf("Trying %s/%s: %d (%f)\n", action_name[a1], action_name[a2], num_computes - old_computes, score);
+		printf("Trying %s/%s: %d (%f)\n", action_name[adv_combo[act][0]], action_name[adv_combo[act][1]], num_computes - old_computes, score);
 #endif
 
-			/* Add score to actions */
-			scores[a1][a2] += score * prob;
-		}
+		/* Add score to actions */
+		scores[act] += score * prob;
 	}
 }
 
@@ -1161,13 +1205,13 @@ static void ai_choose_action_advanced_aux(game *g, int who, int oa1, int oa2,
  */
 static void ai_choose_action_advanced(game *g, int who, int action[2])
 {
-	double scores[MAX_ACTION][MAX_ACTION], b_s = -1, prob;
-	double most = 0, threshold_l, threshold_h, used = 0, max_used = 0;
-	double choice_prob[MAX_ACTION];
+	double scores[ROLE_OUT_ADV], b_s = -1, b_p, prob;
+	double threshold_l, threshold_h, used = 0;
+	double choice_prob[ROLE_OUT_ADV];
+	double desired[ROLE_OUT_ADV], sum = 0.0;
 	int opp;
-	int b_a1, b_a2;
-	int oa1, oa2;
-	int a1, a2;
+	int b_a, b_i;
+	int i, oa, act;
 #ifdef DEBUG
 	int taken = 0;
 #endif
@@ -1184,98 +1228,51 @@ static void ai_choose_action_advanced(game *g, int who, int action[2])
 	/* Predict opponent's actions */
 	predict_action(g, opp, choice_prob);
 
-	/* Store role predictor inputs */
-	store_net(&role, opp);
-
 #ifdef DEBUG
 	printf("----- Player %d probability\n", opp);
-	for (a1 = 0; a1 < MAX_ACTION; a1++)
+	for (act = 0; act < MAX_ACTION; act++)
 	{
-		printf("%.2f ", choice_prob[a1]);
+		printf("%.2f ", choice_prob[act]);
 	}
 	printf("\n");
 #endif
 
 	/* Clear scores array */
-	for (a1 = 0; a1 <= ACT_PRODUCE; a1++)
+	for (act = 0; act < ROLE_OUT_ADV; act++)
 	{
-		/* Loop over second action */
-		for (a2 = 0; a2 <= ACT_PRODUCE; a2++)
-		{
-			/* Clear this score */
-			scores[a1][a2] = 0.0;
-		}
+		/* Clear this score */
+		scores[act] = 0.0;
 	}
 
-	/* Loop over opponent's first action */
-	for (oa1 = ACT_EXPLORE_5_0; oa1 <= ACT_PRODUCE; oa1++)
-	{
-		/* First action can never be second develop/settle */
-		if (oa1 == ACT_DEVELOP2 || oa1 == ACT_SETTLE2) continue;
-
-		/* Loop over opponent's second action */
-		for (oa2 = oa1 + 1; oa2 <= ACT_PRODUCE; oa2++)
-		{
-			/* Skip illegal combinations */
-			if (oa2 == ACT_DEVELOP2 && oa1 != ACT_DEVELOP) continue;
-			if (oa2 == ACT_SETTLE2 && oa1 != ACT_SETTLE) continue;
-
-			/* Compute probability of this combination */
-			prob = choice_prob[oa1] * choice_prob[oa2];
-
-			/* Track most probable choice */
-			if (prob > most) most = prob;
-
-			/* Count total size of "probability space" */
-			max_used += prob;
-		}
-	}
-
-	/* No high threshold */
+	/* Set initial thresholds */
 	threshold_h = 1.0;
-
-	/* Compute minimum probability threshold */
-	threshold_l = most / 2;
+	threshold_l = 0.5;
 
 	/* Check action combinations until most of probabilities are checked */
-	while (used < max_used * 0.8)
+	while (used < 0.8)
 	{
-		/* Loop over opponent's first action */
-		for (oa1 = ACT_EXPLORE_5_0; oa1 <= ACT_PRODUCE; oa1++)
+		/* Loop over opponent's actions */
+		for (oa = 0; oa < ROLE_OUT_ADV; oa++)
 		{
-			/* First action can never be second develop/settle */
-			if (oa1 == ACT_DEVELOP2 || oa1 == ACT_SETTLE2) continue;
+			/* Compute probability of this combination */
+			prob = choice_prob[oa];
 
-			/* Loop over opponent's second action */
-			for (oa2 = oa1 + 1; oa2 <= ACT_PRODUCE; oa2++)
-			{
-				/* Skip illegal combinations */
-				if (oa2 == ACT_DEVELOP2 && oa1 != ACT_DEVELOP)
-					continue;
-				if (oa2 == ACT_SETTLE2 && oa1 != ACT_SETTLE)
-					continue;
+			/* Check for too low probability */
+			if (prob < threshold_l) continue;
 
-				/* Compute probability of this combination */
-				prob = choice_prob[oa1] * choice_prob[oa2];
-
-				/* Check for too low probability */
-				if (prob < threshold_l) continue;
-
-				/* Check for too high probability */
-				if (prob >= threshold_h) continue;
+			/* Check for too high probability */
+			if (prob >= threshold_h) continue;
 
 #ifdef DEBUG
-				taken++;
-				printf("Investigating opponent %s/%s (prob %f)\n", action_name[oa1], action_name[oa2], prob);
+			taken++;
+			printf("Investigating opponent %s/%s (prob %f)\n", action_name[adv_combo[oa][0]], action_name[adv_combo[oa][1]], prob);
 #endif
 
-				/* Check our action scores against this combo */
-				ai_choose_action_advanced_aux(g, who, oa1, oa2,
-				                              scores, prob);
+			/* Check our action scores against this combo */
+			ai_choose_action_advanced_aux(g, who, oa, scores, prob);
 
-				/* Track used amount of probability space */
-				used += prob;
-			}
+			/* Track used amount of probability space */
+			used += prob;
 		}
 
 		/* Lower high threshold to current low threshold */
@@ -1286,43 +1283,82 @@ static void ai_choose_action_advanced(game *g, int who, int action[2])
 	}
 
 #ifdef DEBUG
-	printf("Probability space used: %f/%f\n", used, max_used);
+	printf("Probability space used: %f\n", used);
 	printf("Threshold: %f, Taken: %d\n", threshold_l, taken);
 #endif
 
-	/* Loop over our choices for first action */
-	for (a1 = ACT_EXPLORE_5_0; a1 <= ACT_PRODUCE; a1++)
+	/* Loop over our action choices */
+	for (act = 0; act < ROLE_OUT_ADV; act++)
 	{
-		/* First action can never be second develop/settle */
-		if (a1 == ACT_DEVELOP2 || a1 == ACT_SETTLE2) continue;
-
-		/* Loop over second action */
-		for (a2 = a1 + 1; a2 <= ACT_PRODUCE; a2++)
-		{
-			/* Skip illegal combinations */
-			if (a2 == ACT_DEVELOP2 && a1 != ACT_DEVELOP) continue;
-			if (a2 == ACT_SETTLE2 && a1 != ACT_SETTLE) continue;
-
 #ifdef DEBUG
-			printf("Score %d %d: %f\n", a1, a2, scores[a1][a2]);
+		printf("Score %d: %f\n", act, scores[act]);
 #endif
 
-			/* Check for better score */
-			if (scores[a1][a2] > b_s)
-			{
-				/* Track best score */
-				b_s = scores[a1][a2];
+		/* Check for better score */
+		if (scores[act] > b_s)
+		{
+			/* Track best score */
+			b_s = scores[act];
 
-				/* Track best action pair */
-				b_a1 = a1;
-				b_a2 = a2;
-			}
+			/* Track best action combination */
+			b_a = act;
 		}
 	}
 
 	/* Set best actions */
-	action[0] = b_a1;
-	action[1] = b_a2;
+	action[0] = adv_combo[b_a][0];
+	action[1] = adv_combo[b_a][1];
+
+	/* Predict our own actions */
+	predict_action(g, who, desired);
+
+	/* Track stats on predicted actions */
+	role_avg += desired[b_a];
+
+	/* Clear best score */
+	b_p = -1;
+	b_i = -1;
+
+	/* Find most predicted action */
+	for (i = 0; i < ROLE_OUT_ADV; i++)
+	{
+		/* Check for higher than before */
+		if (desired[i] > b_p)
+		{
+			/* Track best score */
+			b_p = desired[i];
+			b_i = i;
+		}
+	}
+
+	/* Check for chosen action matching prediction */
+	if (b_i == b_a)
+	{
+		/* Count hits */
+		role_hit++;
+	}
+	else
+	{
+		/* Count miss */
+		role_miss++;
+	}
+
+	/* Compute probability sum */
+	for (i = 0; i < ROLE_OUT_ADV; i++)
+	{
+		/* Add this action's portion */
+		sum += exp(20 * (scores[i] / b_s));
+	}
+
+	/* Compute actual action probabilities */
+	for (i = 0; i < ROLE_OUT_ADV; i++)
+	{
+		/* Compute probability ratio */
+		desired[i] = exp(20 * (scores[i] / b_s)) / sum;
+	}
+
+	/* Train network */
+	train_net(&role, 1.0, desired);
 }
 
 /*
@@ -1330,7 +1366,7 @@ static void ai_choose_action_advanced(game *g, int who, int action[2])
  */
 static void ai_choose_action_aux(game *g, int who, int current, double prob,
                                  double *prob_used, double scores[],
-                                 double choice_prob[][MAX_ACTION],
+                                 double *choice_prob[MAX_PLAYER],
                                  double threshold)
 {
 	game sim;
@@ -1358,20 +1394,17 @@ static void ai_choose_action_aux(game *g, int who, int current, double prob,
 	if (current == g->num_players)
 	{
 		/* Loop over available actions */
-		for (i = 0; i < MAX_ACTION; i++)
+		for (i = 0; i < ROLE_OUT; i++)
 		{
-			/* Skip advanced actions */
-			if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
-
 			/* Simulate game */
 			simulate_game(&sim, g, who);
 
 			/* Try this action */
-			sim.p[who].action[0] = i;
+			sim.p[who].action[0] = role_out[i];
 			sim.p[who].action[1] = -1;
 
 			/* Mark action as selected */
-			sim.action_selected[i] = 1;
+			sim.action_selected[role_out[i]] = 1;
 
 #ifdef DEBUG
 			old_computes = num_computes;
@@ -1423,20 +1456,17 @@ static void ai_choose_action_aux(game *g, int who, int current, double prob,
 	}
 
 	/* Loop over current player's choices */
-	for (i = 0; i < MAX_ACTION; i++)
+	for (i = 0; i < ROLE_OUT; i++)
 	{
-		/* Skip advanced actions */
-		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
-
 		/* Simulate game */
 		simulate_game(&sim, g, who);
 
 		/* Set player's action */
-		sim.p[current].action[0] = i;
+		sim.p[current].action[0] = role_out[i];
 		sim.p[current].action[1] = -1;
 
 		/* Add action's phase */
-		sim.action_selected[i] = 1;
+		sim.action_selected[role_out[i]] = 1;
 
 		/* Try next player's actions */
 		ai_choose_action_aux(&sim, who, current + 1,
@@ -1451,10 +1481,11 @@ static void ai_choose_action_aux(game *g, int who, int current, double prob,
 static void ai_choose_action(game *g, int who, int action[2])
 {
 	game sim;
-	double scores[MAX_ACTION], prob_used = 0, b_s = -1;
+	double scores[ROLE_OUT], prob_used = 0, b_s = -1, b_p;
 	double most_prob, threshold = 1.0;
-	double choice_prob[MAX_PLAYER][MAX_ACTION];
-	int i, current, best = -1;
+	double *choice_prob[MAX_PLAYER];
+	double desired[ROLE_OUT], sum = 0;
+	int i, current, best = -1, b_i;
 
 	/* Perform training at beginning of each round */
 	perform_training(g, who, NULL);
@@ -1463,11 +1494,18 @@ static void ai_choose_action(game *g, int who, int action[2])
 	if (g->advanced) return ai_choose_action_advanced(g, who, action);
 
 	/* Clear scores */
-	for (i = 0; i < MAX_ACTION; i++) scores[i] = 0.0;
+	for (i = 0; i < ROLE_OUT; i++) scores[i] = 0.0;
 
 #ifdef DEBUG
 	printf("--- Player %d choosing action\n", who);
 #endif
+
+	/* Create rows of probabilities */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Create row */
+		choice_prob[i] = (double *)malloc(sizeof(double) * ROLE_OUT);
+	}
 
 	/* Get action predictions */
 	for (current = 0; current < g->num_players; current++)
@@ -1478,12 +1516,9 @@ static void ai_choose_action(game *g, int who, int action[2])
 		/* Predict opponent's actions */
 		predict_action(g, current, choice_prob[current]);
 
-		/* Store role predictor inputs */
-		store_net(&role, current);
-
 #ifdef DEBUG
 		printf("----- Player %d probability\n", current);
-		for (i = 0; i < MAX_ACTION; i++)
+		for (i = 0; i < ROLE_OUT; i++)
 		{
 			printf("%.2f ", choice_prob[current][i]);
 		}
@@ -1494,11 +1529,8 @@ static void ai_choose_action(game *g, int who, int action[2])
 		most_prob = 0;
 
 		/* Loop over actions */
-		for (i = 0; i < MAX_ACTION; i++)
+		for (i = 0; i < ROLE_OUT; i++)
 		{
-			/* Skip advanced actions */
-			if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
-
 			/* Check for bigger */
 			if (choice_prob[current][i] > most_prob)
 			{
@@ -1535,11 +1567,18 @@ static void ai_choose_action(game *g, int who, int action[2])
 	ai_choose_action_aux(&sim, who, 0, 1.0, &prob_used, scores,
 	                     choice_prob, threshold);
 
+	/* Free rows of probabilities */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Free row */
+		free(choice_prob[i]);
+	}
+
 #ifdef DEBUG
 	printf("----- Prob used: %.2f\n", prob_used);
 
 	printf("----- Action scores\n");
-	for (i = 0; i < MAX_ACTION; i++)
+	for (i = 0; i < ROLE_OUT; i++)
 	{
 		printf("%.2f ", scores[i]);
 	}
@@ -1547,11 +1586,8 @@ static void ai_choose_action(game *g, int who, int action[2])
 #endif
 
 	/* Loop over possible actions */
-	for (i = 0; i < MAX_ACTION; i++)
+	for (i = 0; i < ROLE_OUT; i++)
 	{
-		/* Skip advanced actions */
-		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
-
 		/* Check for better */
 		if (scores[i] > b_s)
 		{
@@ -1562,10 +1598,61 @@ static void ai_choose_action(game *g, int who, int action[2])
 	}
 
 	/* Select best action */
-	action[0] = best;
+	action[0] = role_out[best];
 
 	/* No second action */
 	action[1] = -1;
+
+	/* Predict our own action */
+	predict_action(g, who, desired);
+
+	/* Track stats on predicted actions */
+	role_avg += desired[best];
+
+	/* Clear best score */
+	b_p = -1;
+	b_i = -1;
+
+	/* Find most predicted action */
+	for (i = 0; i < ROLE_OUT; i++)
+	{
+		/* Check for higher than before */
+		if (desired[i] > b_p)
+		{
+			/* Track best score */
+			b_p = desired[i];
+			b_i = i;
+		}
+	}
+
+	/* Check for chosen action matching prediction */
+	if (b_i == best)
+	{
+		/* Count hits */
+		role_hit++;
+	}
+	else
+	{
+		/* Count miss */
+		role_miss++;
+	}
+
+	/* Compute probability sum */
+	for (i = 0; i < ROLE_OUT; i++)
+	{
+		/* Add this action's portion */
+		sum += exp(20 * (scores[i] / b_s));
+	}
+
+	/* Compute actual action probabilities */
+	for (i = 0; i < ROLE_OUT; i++)
+	{
+		/* Compute probability ratio */
+		desired[i] = exp(20 * (scores[i] / b_s)) / sum;
+	}
+
+	/* Train network */
+	train_net(&role, 1.0, desired);
 }
 
 /*
@@ -1573,104 +1660,8 @@ static void ai_choose_action(game *g, int who, int action[2])
  */
 static void ai_react_action(game *g, int who, int action[2])
 {
-	double prob[MAX_ACTION], b_s = -1;
-	int i, j, best = -1, best2 = -1;
-
-	/* Loop over past input sets */
-	for (i = role.num_past - 1; i >= 0; i--)
-	{
-		/* Skip input sets for wrong player */
-		if (role.past_input_player[i] != who) continue;
-
-		/* Copy past inputs to network */
-		memcpy(role.input_value, role.past_input[i],
-		       sizeof(double) * (role.num_inputs + 1));
-
-		/* Done */
-		break;
-	}
-
-	/* Compute network results */
-	compute_net(&role);
-
-	/* Copy probabilities */
-	for (i = 0; i < MAX_ACTION; i++) prob[i] = role.win_prob[i];
-
-	if (!g->advanced)
-	{
-		for (i = 0; i < MAX_ACTION; i++)
-		{
-			if (prob[i] > b_s)
-			{
-				b_s = prob[i];
-				best = i;
-			}
-		}
-
-		if (player_chose(g, who, best))
-		{
-			role_hit++;
-		}
-		else
-		{
-			role_miss++;
-		}
-	}
-	else
-	{
-		for (i = 0; i < MAX_ACTION; i++)
-		{
-			if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
-
-			for (j = i + 1; j < MAX_ACTION; j++)
-			{
-				if (j == ACT_DEVELOP2 && i != ACT_DEVELOP) continue;
-				if (j == ACT_SETTLE2 && i != ACT_SETTLE) continue;
-
-				if (prob[i] * prob[j] > b_s)
-				{
-					b_s = prob[i] * prob[j];
-					best = i;
-					best2 = j;
-				}
-			}
-		}
-
-		if (player_chose(g, who, best) && player_chose(g, who, best2))
-		{
-			role_hit++;
-		}
-		else
-		{
-			role_miss++;
-		}
-	}
-
-	/* Loop over actions */
-	for (i = 0; i < MAX_ACTION; i++)
-	{
-		/* Zero probability */
-		prob[i] = 0;
-
-		/* Set probability of chosen action */
-		if (player_chose(g, who, i))
-		{
-			/* Basic game */
-			if (!g->advanced)
-			{
-				/* Full probability */
-				prob[i] = 1;
-			}
-			else
-			{
-				/* Half */
-				prob[i] = 0.5;
-			}
-		}
-	}
-
-	/* Train network */
-	train_net(&role, 1.0, prob);
+	/* Apply training */
+	apply_training(&role);
 }
 
 /*
@@ -1847,6 +1838,268 @@ static void ai_choose_discard(game *g, int who, int list[], int num,
 
 	/* Apply best choice */
 	discard_callback(g, who, discards, discard);
+}
+
+/*
+ * Structure holding a score with associated sample Explore cards.
+ */
+struct explore_score
+{
+	double score;
+	int list[MAX_DECK];
+};
+
+/*
+ * Compare two scores for explored cards.
+ */
+static int cmp_explore_score(const void *p1, const void *p2)
+{
+	struct explore_score *e1 = (struct explore_score *)p1;
+	struct explore_score *e2 = (struct explore_score *)p2;
+
+	/* Compare scores */
+	if (e1->score > e2->score) return 1;
+	if (e1->score < e2->score) return -1;
+	return 0;
+}
+
+/*
+ * Claim a card for ourself.
+ *
+ * The card may be in an opponent's hard or used as a good.  If so, find
+ * a card to replace it.
+ *
+ * XXX This entire function is nasty.
+ */
+static void claim_card(game *g, int who, int which)
+{
+	card *c_ptr, *replace;
+	int i;
+
+	/* Get card pointer */
+	c_ptr = &g->deck[which];
+
+	/* Check for card in use */
+	if (c_ptr->owner != -1)
+	{
+		/* Get replacement card */
+		replace = random_draw(g);
+
+		/* Check for card used as good */
+		if (c_ptr->where == WHERE_GOOD)
+		{
+			/* Find covered card */
+			for (i = 0; i < g->deck_size; i++)
+			{
+				/* Check for covered */
+				if (g->deck[i].covered == which)
+				{
+					/* Switch to replacement card */
+					g->deck[i].covered = replace - g->deck;
+
+					/* Done looking */
+					break;
+				}
+			}
+		}
+
+		/* Replace claimed card */
+		replace->owner = c_ptr->owner;
+		replace->where = c_ptr->where;
+	}
+
+	/* Put card in hand */
+	c_ptr->owner = who;
+	c_ptr->where = WHERE_HAND;
+
+	/* Mark card as temporary */
+	c_ptr->temp = 1;
+}
+
+/*
+ * Discard worst cards when checking for likely Explore results.
+ */
+static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
+                                  int discard_any)
+{
+	game sim;
+	card *c_ptr;
+	int list[MAX_DECK], discards[MAX_DECK], num = 0, n = 0;
+	int i, b_i, discard;
+	int old_action, best;
+	double score, b_s;
+
+	/* Compute number of cards to discard */
+	discard = draw - keep;
+
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Skip unowned cards */
+		if (c_ptr->owner != who) continue;
+
+		/* Skip cards not in hand */
+		if (c_ptr->where != WHERE_HAND) continue;
+
+		/* Skip old cards if they can't be discarded */
+		if (!c_ptr->temp && !discard_any) continue;
+
+		/* Add card to list */
+		list[num++] = i;
+	}
+
+	/* XXX - Check for lots of cards and discards */
+	while (num > 8 && discard > 2 && (num - discard) > 2)
+	{
+		/* Clear best score */
+		b_s = b_i = -1;
+
+		/* Discard worst card */
+		for (i = 0; i < num; i++)
+		{
+			/* Simulate game */
+			simulate_game(&sim, g, who);
+
+			/* Discard one */
+			discard_callback(&sim, who, &list[i], 1);
+
+			/* Evaluate game */
+			score = eval_game(&sim, who);
+
+			/* Check for better score */
+			if (score_better(score, b_s))
+			{
+				/* Track best */
+				b_s = score;
+				b_i = i;
+			}
+		}
+
+		/* Discard worst card */
+		discard_callback(g, who, &list[b_i], 1);
+
+		/* Move last card into given spot */
+		list[b_i] = list[--num];
+
+		/* One less card to discard */
+		discard--;
+	}
+
+	/* Clear best score */
+	b_s = -1;
+
+	/* XXX Change action so that we don't simulate rest of turn */
+	old_action = g->cur_action;
+	g->cur_action = -1;
+
+	/* Find best set of cards */
+	ai_choose_discard_aux(g, who, list, num, discard, 0, &best, &b_s);
+
+	/* Loop over set of chosen cards */
+	for (i = 0; (1 << i) <= best; i++)
+	{
+		/* Check for bit set */
+		if (best & (1 << i))
+		{
+			/* Add card to list */
+			discards[n++] = list[i];
+		}
+	}
+
+	/* Apply best choice */
+	discard_callback(g, who, discards, discard);
+
+	/* XXX Reset action */
+	g->cur_action = old_action;
+}
+
+/*
+ * Place a representative sample of possible cards from an Explore phase
+ * in our hand.
+ */
+static void ai_explore_sample(game *g, int who, int draw, int keep,
+                              int discard_any)
+{
+	game sim;
+	card *c_ptr;
+	int unknown[MAX_DECK], num_unknown = 0;
+	struct explore_score scores[5];
+	int i, j, k;
+	unsigned int seed;
+
+	/* Loop over deck */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Check for unknown location */
+		if (!(c_ptr->known & (1 << who)))
+		{
+			/* Add to list */
+			unknown[num_unknown++] = i;
+		}
+	}
+
+	/* Try multiple random samples */
+	for (i = 0; i < 5; i++)
+	{
+		/* Simulate game */
+		simulate_game(&sim, g, who);
+
+		/* Use iteration as seed */
+		seed = i;
+
+		/* Pick cards from unknown list */
+		for (j = 0; j < draw; j++)
+		{
+			/* Choose card at random */
+			k = myrand(&seed) % num_unknown;
+
+			/* Claim card for ourself */
+			claim_card(&sim, who, unknown[k]);
+
+			/* Add claimed card to list for this iteration */
+			scores[i].list[j] = unknown[k];
+
+			/* Remove card from list */
+			unknown[k] = unknown[--num_unknown];
+		}
+
+		/* Discard worst cards */
+		ai_explore_sample_aux(&sim, who, draw, keep, discard_any);
+
+		/* Score game */
+		scores[i].score = eval_game(&sim, who);
+
+		/* Put chosen cards back in unknown list */
+		for (j = 0; j < draw; j++)
+		{
+			/* Add back to list */
+			unknown[num_unknown++] = scores[i].list[j];
+		}
+	}
+
+	/* Sort list of scores */
+	qsort(scores, 5, sizeof(struct explore_score), cmp_explore_score);
+
+	/* Claim cards from median score */
+	for (j = 0; j < draw; j++)
+	{
+		/* Claim card */
+		claim_card(g, who, scores[2].list[j]);
+	}
+
+	/* Discard worst cards */
+	ai_explore_sample_aux(g, who, draw, keep, discard_any);
+
+	/* Clear fake drawn card counters */
+	g->p[who].total_fake = 0;
+	g->p[who].fake_hand = 0;
+	g->p[who].fake_discards = 0;
 }
 
 /*
@@ -3749,10 +4002,6 @@ static void ai_game_over(game *g, int who)
 	/* Check for training done for all players */
 	if (who == g->num_players - 1)
 	{
-		/* Apply accumulated training */
-		apply_training(&eval);
-		apply_training(&role);
-
 		/* Clear stored past inputs */
 		clear_store(&eval);
 		clear_store(&role);
@@ -3788,6 +4037,7 @@ static void ai_shutdown(game *g, int who)
 	save_net(&role, fname);
 
 	printf("Role hit: %d, Role miss: %d\n", role_hit, role_miss);
+	printf("Role avg: %f\n", role_avg / (role_hit + role_miss));
 	printf("Role error: %f\n", role.error / role.num_error);
 	printf("Eval error: %f\n", eval.error / eval.num_error);
 
@@ -3806,6 +4056,7 @@ interface ai_func =
 	ai_choose_action,
 	ai_react_action,
 	ai_choose_discard,
+	ai_explore_sample,
 	ai_choose_place,
 	ai_choose_pay,
 	ai_choose_takeover,
@@ -3827,22 +4078,14 @@ interface ai_func =
 /*
  * Provide debugging information.
  */
-void ai_debug(game *g, double role[MAX_PLAYER][MAX_ACTION],
-                       double win_prob[MAX_PLAYER][MAX_PLAYER],
-                       double action_score[MAX_PLAYER][MAX_ACTION],
-                       double t)
+void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
+                       double *role[], double *action_score[], int *num_action)
 {
 	game sim;
 	int i, j, n, who;
-	double prob_used = 0;
-	double most_prob, threshold;
-
-	/* Loop over players */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Predict action choices */
-		predict_action(g, i, role[i]);
-	}
+	int oa;
+	double used = 0;
+	double prob, most_prob, threshold, threshold_h, threshold_l;
 
 	/* Loop over point-of-view players */
 	for (i = 0; i < g->num_players; i++)
@@ -3864,8 +4107,102 @@ void ai_debug(game *g, double role[MAX_PLAYER][MAX_ACTION],
 		}
 	}
 
-	/* Don't handle advanced game */
-	if (g->advanced) return;
+	/* Create role probability and action score arrays */
+	if (g->advanced)
+	{
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Create role row */
+			role[i] = (double *)malloc(sizeof(double) *
+			                           ROLE_OUT_ADV);
+
+			/* Create action score row */
+			action_score[i] = (double *)malloc(sizeof(double) *
+			                                   ROLE_OUT_ADV);
+
+			/* Set number of action columns */
+			*num_action = ROLE_OUT_ADV;
+		}
+	}
+	else
+	{
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Create role row */
+			role[i] = (double *)malloc(sizeof(double) * ROLE_OUT);
+
+			/* Create action score row */
+			action_score[i] = (double *)malloc(sizeof(double) *
+			                                   ROLE_OUT);
+
+			/* Set number of action columns */
+			*num_action = ROLE_OUT;
+		}
+	}
+
+	/* Loop over players */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Predict action choices */
+		predict_action(g, i, role[i]);
+	}
+
+	/* Compute action scores for the advanced game */
+	if (g->advanced)
+	{
+		/* Loop over players */
+		for (who = 0; who < g->num_players; who++)
+		{
+			/* Clear scores */
+			for (i = 0; i < ROLE_OUT_ADV; i++)
+				action_score[who][i] = 0.0;
+
+			/* Simulate game */
+			simulate_game(&sim, g, who);
+
+			/* Set initial thresholds */
+			threshold_h = 1.0;
+			threshold_l = 0.5;
+
+			/* No probability space checked */
+			used = 0;
+
+			/* Check action combinations */
+			while (used < 0.8)
+			{
+				/* Loop over opponent's actions */
+				for (oa = 0; oa < ROLE_OUT_ADV; oa++)
+				{
+					/* Get probability of this combo */
+					prob = role[!who][oa];
+
+					/* Check for too low probability */
+					if (prob < threshold_l) continue;
+
+					/* Check for too high probability */
+					if (prob >= threshold_h) continue;
+
+					/* Get our action scores against this */
+					ai_choose_action_advanced_aux(g, who,
+					           oa, action_score[who], prob);
+
+					/* Track amount of probability space */
+					used += prob;
+				}
+
+				/* Lower high threshold */
+				threshold_h = threshold_l;
+
+				/* Lower bottom threshold */
+				threshold_l /= 2;
+			}
+		}
+
+		/* Done */
+		return;
+	}
 
 	/* Loop over players */
 	for (who = 0; who < g->num_players; who++)
@@ -3873,64 +4210,62 @@ void ai_debug(game *g, double role[MAX_PLAYER][MAX_ACTION],
 		/* Simulate game */
 		simulate_game(&sim, g, who);
 
-		/* Check for no user-set threshold */
-		if (t == -1)
+		/* Start with high threshold */
+		threshold = 1;
+
+		/* Clear amount of probability space searched */
+		used = 0;
+
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
 		{
-			/* Start with high threshold */
-			threshold = 1;
+			/* Skip ourself */
+			if (i == who) continue;
 
-			/* Loop over players */
-			for (i = 0; i < g->num_players; i++)
+			/* Clear biggest probability */
+			most_prob = 0;
+
+			/* Loop over actions */
+			for (j = 0; j < ROLE_OUT; j++)
 			{
-				/* Skip ourself */
-				if (i == who) continue;
-
-				/* Clear biggest probability */
-				most_prob = 0;
-
-				/* Loop over actions */
-				for (j = 0; j < MAX_ACTION; j++)
+				/* Check for bigger */
+				if (role[i][j] > most_prob)
 				{
-					/* Skip advanced actions */
-					if (j == ACT_DEVELOP2 || j == ACT_SETTLE2) continue;
-
-					/* Check for bigger */
-					if (role[i][j] > most_prob)
-					{
-						/* Track biggest */
-						most_prob = role[i][j];
-					}
+					/* Track biggest */
+					most_prob = role[i][j];
 				}
-
-				/* Lower threshold */
-				threshold *= most_prob;
 			}
 
-			/* Reduce threshold to check similar events */
-			threshold /= 8;
-
-			/* Always check everything with two players */
-			if (g->num_players == 2) threshold = 0;
-
-			/* Increase threshold with large numbers of players */
-			if (g->num_players == 4) threshold *= 3;
-			if (g->num_players >= 5) threshold *= 6;
+			/* Lower threshold */
+			threshold *= most_prob;
 		}
-		else
-		{
-			/* Use user threshold */
-			threshold = t;
-		}
+
+		/* Reduce threshold to check similar events */
+		threshold /= 8;
+
+		/* Always check everything with two players */
+		if (g->num_players == 2) threshold = 0;
+
+		/* Increase threshold with large numbers of players */
+		if (g->num_players == 4) threshold *= 3;
+		if (g->num_players >= 5) threshold *= 6;
 
 		/* Clear scores */
-		for (i = 0; i < MAX_ACTION; i++) action_score[who][i] = 0.0;
+		for (i = 0; i < ROLE_OUT; i++) action_score[who][i] = 0.0;
 
 		/* Clear active actions */
 		for (i = 0; i < MAX_ACTION; i++) sim.action_selected[i] = 0;
 
 		/* Evaluate action tree */
-		ai_choose_action_aux(&sim, who, 0, 1.0, &prob_used,
+		ai_choose_action_aux(&sim, who, 0, 1.0, &used,
 		                     action_score[who], role, threshold);
+
+		/* Normalize action scores */
+		for (i = 0; i < ROLE_OUT; i++)
+		{
+			/* Normalize score */
+			action_score[who][i] /= used;
+		}
 	}
 }
 

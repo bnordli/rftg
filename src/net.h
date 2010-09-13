@@ -24,19 +24,6 @@
 #include <math.h>
 
 /*
- * A weight in the neural net.
- */
-typedef struct weight
-{
-	/* Current value */
-	double value;
-
-	/* Accumulated delta */
-	double delta;
-
-} weight;
-
-/*
  * A two-layer neural net.
  */
 typedef struct net
@@ -60,10 +47,16 @@ typedef struct net
 	int num_output;
 
 	/* Hidden layer weights */
-	weight **hidden_weight;
+	double **hidden_weight;
+
+	/* Accumulated deltas to hidden weights */
+	double **hidden_delta;
 
 	/* Output layer weights */
-	weight **output_weight;
+	double **output_weight;
+
+	/* Accumulated deltas to output weights */
+	double **output_delta;
 
 	/* Hidden node sums */
 	double *hidden_sum;

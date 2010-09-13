@@ -1,5 +1,5 @@
 AC_PREREQ(2.61)
-AC_INIT([rftg], [0.5.4], [keldon@keldon.net])
+AC_INIT([rftg], [0.6.0], [keldon@keldon.net])
 AC_CONFIG_SRCDIR([engine.c])
 AC_CONFIG_HEADER(config.h)
 
