@@ -463,6 +463,9 @@ static void handle_status_meta(char *ptr)
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
 
+	/* Load AI neural networks for this game */
+	ai_func.init(&real_game, 0, 0);
+
 	/* Modify GUI for expansion and number of players */
 	modify_gui();
 
@@ -1048,6 +1051,9 @@ static gboolean message_read(gpointer data)
 			/* Get username */
 			get_string(username, &ptr);
 
+			/* Get in-game status */
+			x = get_integer(&ptr);
+
 			/* Remove any matching users from list */
 			gtk_tree_model_foreach(GTK_TREE_MODEL(user_list),
 			                       delete_user, username);
@@ -1055,9 +1061,9 @@ static gboolean message_read(gpointer data)
 			/* Add row to list */
 			gtk_list_store_append(user_list, &list_iter);
 
-			/* Set name */
+			/* Set name and status */
 			gtk_list_store_set(user_list, &list_iter,
-			                   0, username, -1);
+			                   0, username, 1, x, -1);
 			break;
 
 		/* A player has left */
@@ -2088,6 +2094,27 @@ void send_chat(GtkEntry *entry, gpointer data)
 
 	/* Clear entry */
 	gtk_entry_set_text(entry, "");
+}
+
+/*
+ * Resign from current game and return to lobby.
+ */
+void resign_game(GtkMenuItem *menu_item, gpointer data)
+{
+	/* Do nothing if not connected to server */
+	if (server_fd < 0) return;
+
+	/* Ask server to resign */
+	send_msgf(server_fd, MSG_RESIGN, "");
+
+	/* Leave current session */
+	client_sid = -1;
+
+	/* Switch back to lobby view */
+	switch_view(1, 1);
+
+	/* Reset buttons */
+	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
 }
 
 /*

@@ -703,8 +703,8 @@ static void send_player_one(int dest, int who)
 	else
 	{
 		/* Send "new player" message */
-		send_msgf(c_list[dest].fd, MSG_PLAYER_NEW, "s",
-		          c_list[who].user);
+		send_msgf(c_list[dest].fd, MSG_PLAYER_NEW, "sd",
+		          c_list[who].user, c_list[who].state == CS_PLAYING);
 	}
 }
 
@@ -1152,7 +1152,9 @@ static void update_status_one(int sid, int who)
 	for (i = 0; i < s_ptr->g.num_players; i++)
 	{
 		/* Check for difference in status */
-		if (player_changed(&obfus.p[i], &s_ptr->old[who].p[i]))
+		if (player_changed(&obfus.p[i], &s_ptr->old[who].p[i]) ||
+		    (s_ptr->old[who].cur_action < ACT_SEARCH &&
+		     obfus.cur_action >= ACT_SEARCH))
 		{
 			/* Get player pointer */
 			p_ptr = &obfus.p[i];
@@ -1438,7 +1440,7 @@ void prepare_phase(game *g, int who, int phase, int arg)
 	/* Unlock mutex */
 	pthread_mutex_unlock(&s_ptr->wait_mutex);
 
-	/* printf("Asking %d to prepare for phase %d at %d\n", s_ptr->cids[who], phase, g->p[who].choice_size); */
+	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
 }
 
 /*
@@ -1522,7 +1524,7 @@ static void ask_client(int sid, int who)
 	/* Get connection pointer */
 	c_ptr = &c_list[cid];
 
-	/* printf("Asking %d for choice (type %d) at %d\n", cid, o_ptr->type, s_ptr->g.p[who].choice_size); */
+	printf("S:%d Asking %d for choice (type %d) at %d\n", sid, cid, o_ptr->type, s_ptr->g.p[who].choice_size);
 
 	/* Start choice message */
 	start_msg(&ptr, MSG_CHOOSE);
@@ -1671,7 +1673,7 @@ static void handle_choice(int cid, char *ptr)
 	/* Copy choice type to log */
 	*l_ptr++ = get_integer(&ptr);
 
-	/* printf("Received choice type %d position %d from %d, current size is %d.\n", *(l_ptr - 1), pos, cid, p_ptr->choice_size); */
+	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
 	if (pos != p_ptr->choice_size) return;
 
@@ -1770,7 +1772,7 @@ static void handle_prepare(int cid, char *ptr)
 	/* Unlock wait mutex */
 	pthread_mutex_unlock(&s_ptr->wait_mutex);
 
-	/* printf("Received preparation complete from %d\n", who); */
+	printf("S:%d Received preparation complete from %d\n", sid, cid);
 
 	/* Update waiting status */
 	update_waiting(sid);
@@ -2057,6 +2059,9 @@ void *run_game(void *arg)
 
 		/* Remove player from session */
 		c_list[s_ptr->cids[i]].sid = -1;
+
+		/* Tell everyone player is in lobby */
+		send_player(s_ptr->cids[i]);
 	}
 
 	/* Mark session as finished */
@@ -2168,7 +2173,7 @@ static void handle_login(int cid, char *ptr)
 	get_string(version, &ptr);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.6.1") < 0)
+	if (strcmp(version, "0.7.1") < 0)
 	{
 		/* Send denied message */
 		send_msgf(c_list[cid].fd, MSG_DENIED, "s",
@@ -2506,6 +2511,13 @@ static void abandon_session(int sid)
 	/* Loop until session is empty */
 	while (s_ptr->num_users > 0)
 	{
+		/* Check for connected player */
+		if (s_ptr->cids[0] >= 0)
+		{
+			/* Tell player that they are out */
+			send_msgf(c_list[s_ptr->cids[0]].fd, MSG_LEAVE, "");
+		}
+
 		/* Remove first user from session */
 		leave_game(sid, 0);
 	}
@@ -2613,6 +2625,44 @@ static void handle_remove(int cid, char *ptr)
 }
 
 /*
+ * Handle a resign game message from client.
+ */
+static void handle_resign(int cid, char *ptr)
+{
+	session *s_ptr;
+	int i;
+
+	/* Ensure client is playing a game */
+	if (c_list[cid].state != CS_PLAYING) return;
+
+	/* Get session player is in */
+	s_ptr = &s_list[c_list[cid].sid];
+
+	/* Look for player in session */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Skip incorrect player */
+		if (s_ptr->cids[i] != cid) continue;
+
+		/* Remove connection from session */
+		s_ptr->cids[i] = -1;
+
+		/* Switch player to AI control */
+		switch_ai(c_list[cid].sid, i);
+		break;
+	}
+
+	/* Move player back to lobby state */
+	c_list[cid].state = CS_LOBBY;
+
+	/* Remove player from session */
+	c_list[cid].sid = -1;
+
+	/* Tell everyone player is in lobby */
+	send_player(cid);
+}
+
+/*
  * Handle a start game message from client.
  */
 static void handle_start(int cid, char *ptr)
@@ -2669,6 +2719,9 @@ static void handle_start(int cid, char *ptr)
 
 		/* Send game started message */
 		send_msgf(c_list[cid].fd, MSG_START, "");
+
+		/* Tell everyone player is in game */
+		send_player(cid);
 	}
 
 	/* Message */
@@ -2695,6 +2748,9 @@ static void handle_chat(int cid, char *ptr)
 		/* Loop over all clients in lobby */
 		for (i = 0; i < num_conn; i++)
 		{
+			/* Skip disconnected players */
+			if (c_list[i].state == CS_DISCONN) continue;
+
 			/* Send chat to player */
 			send_msgf(c_list[i].fd, MSG_CHAT, "ss",
 			          c_list[cid].user, chat);
@@ -2793,6 +2849,13 @@ static void handle_msg(int cid)
 
 			/* Handle remove message */
 			handle_remove(cid, ptr);
+			break;
+
+		/* Resign from game */
+		case MSG_RESIGN:
+
+			/* Handle resign message */
+			handle_resign(cid, ptr);
 			break;
 
 		/* Choice made */
@@ -2998,7 +3061,7 @@ static void do_housekeeping(void)
 			s_ptr->wait_ticks[j]++;
 
 			/* Check for too much time elasped */
-			if (s_ptr->wait_ticks[j] > 5)
+			if (s_ptr->wait_ticks[j] > 30)
 			{
 				/* Check for player connected */
 				if (s_ptr->cids[j] >= 0)
@@ -3028,7 +3091,7 @@ static void do_housekeeping(void)
  * Initialize connection to database, open main listening socket, then loop
  * forever waiting for incoming data on connections.
  */
-int main(void)
+int main(int argc, char *argv[])
 {
 	struct sockaddr_in listen_addr;
 	struct timeval sel_timeout;
@@ -3037,6 +3100,18 @@ int main(void)
 	int i, n;
 	my_bool reconnect = 1;
 	time_t last_housekeep = 0;
+	int port = 16309;
+
+	/* Parse arguments */
+	for (i = 1; i < argc; i++)
+	{
+		/* Check for port number */
+		if (!strcmp(argv[i], "-p"))
+		{
+			/* Set port number */
+			port = atoi(argv[++i]);
+		}
+	}
 
 	/* Read card library */
 	read_cards();
@@ -3086,7 +3161,7 @@ int main(void)
 
 	/* Create address of listening socket */
 	listen_addr.sin_family = AF_INET;
-	listen_addr.sin_port = htons(16309);
+	listen_addr.sin_port = htons(port);
 	listen_addr.sin_addr.s_addr = 0;
 
 	/* Bind socket to local port */

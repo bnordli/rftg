@@ -4187,6 +4187,9 @@ static int score_consume(game *g, int who, int c_idx, int o_idx)
 	int vp = 0, card = 0, goods = 1;
 	int score;
 
+	/* Check for bonus power from prestige trade */
+	if (c_idx < 0) return 0;
+
 	/* Get card pointer */
 	c_ptr = &g->deck[c_idx];
 
@@ -4257,6 +4260,9 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 	/* Check for simple powers */
 	for (i = 0; i < *num; i++)
 	{
+		/* Skip special prestige bonus power */
+		if (cidx[i] < 0) continue;
+
 		/* Get card pointer */
 		c_ptr = &g->deck[cidx[i]];
 
@@ -4309,6 +4315,9 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 	/* Loop over powers */
 	for (i = 0; i < *num; i++)
 	{
+		/* Skip bonus power from prestige trade */
+		if (cidx[i] < 0) continue;
+
 		/* Get card pointer */
 		c_ptr = &g->deck[cidx[i]];
 
@@ -4323,6 +4332,9 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 
 			/* Ignore already skipped powers */
 			if (skip[j]) continue;
+
+			/* Skip bonus power from prestige trade */
+			if (cidx[j] < 0) continue;
 
 			/* Get card pointer */
 			b_ptr = &g->deck[cidx[j]];
@@ -4403,6 +4415,9 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 	{
 		/* Check for skip */
 		if (skip[i]) continue;
+
+		/* Check for bonus power from prestige trade */
+		if (cidx[i] < 0) continue;
 
 		/* Get card pointer */
 		c_ptr = &g->deck[cidx[i]];

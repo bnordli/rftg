@@ -78,6 +78,7 @@ extern void game_view_changed(GtkTreeView *view, gpointer data);
 extern void send_chat(GtkEntry *entry, gpointer data);
 extern void connect_dialog(GtkMenuItem *menu_item, gpointer data);
 extern void disconnect_server(GtkMenuItem *menu_item, gpointer data);
+extern void resign_game(GtkMenuItem *menu_item, gpointer data);
 extern void create_dialog(GtkButton *button, gpointer data);
 extern void join_game(GtkButton *button, gpointer data);
 extern void leave_game(GtkButton *button, gpointer data);

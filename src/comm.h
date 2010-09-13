@@ -38,6 +38,7 @@
 #define MSG_CREATE            27
 #define MSG_START             28
 #define MSG_REMOVE            29
+#define MSG_RESIGN            30
 
 #define MSG_STATUS_META       40
 #define MSG_STATUS_PLAYER     41

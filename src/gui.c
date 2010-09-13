@@ -144,6 +144,9 @@ typedef struct displayed
 	/* Order card was played in (if on table) */
 	int order;
 
+	/* Tooltip to display (if any) */
+	char *tooltip;
+
 } displayed;
 
 /*
@@ -849,6 +852,13 @@ static gboolean action_check_payment(void)
 	/* Set simulation flag */
 	sim.simulation = 1;
 
+	/* Loop over players */
+	for (i = 0; i < sim.num_players; i++)
+	{
+		/* Have AI make any pending decisions for this player */
+		sim.p[i].control = &ai_func;
+	}
+
 	/* Try to make payment */
 	return payment_callback(&sim, player_us, action_payment_which,
 	                        list, n, special, ns, action_payment_mil);
@@ -1542,6 +1552,17 @@ void redraw_hand(void)
 			}
 		}
 
+		/* Add tooltip if available */
+		if (i_ptr->tooltip)
+		{
+			/* Add tooltip to widget */
+			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
+
+			/* Free copy of string */
+			free(i_ptr->tooltip);
+			i_ptr->tooltip = NULL;
+		}
+
 		/* Show image */
 		gtk_widget_show_all(box);
 
@@ -1627,6 +1648,17 @@ static void redraw_table_area(int who, GtkWidget *area)
 
 		/* Show image */
 		gtk_widget_show_all(box);
+
+		/* Add tooltip if available */
+		if (i_ptr->tooltip)
+		{
+			/* Add tooltip to widget */
+			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
+
+			/* Free copy of string */
+			free(i_ptr->tooltip);
+			i_ptr->tooltip = NULL;
+		}
 
 		/* Check for good */
 		if (i_ptr->covered || (i_ptr->selected && !i_ptr->highlight))
@@ -2034,6 +2066,58 @@ static char *get_military_tooltip(game *g, int who)
 
 	/* Return tooltip text */
 	return msg;
+}
+
+/*
+ * Create a tooltip for a displayed card.
+ */
+static char *display_card_tooltip(game *g, int who, int which)
+{
+	char text[1024];
+	card *c_ptr, *b_ptr;
+	int i, count = 0;
+
+	/* Get card pointer */
+	c_ptr = &g->deck[which];
+
+	/* Check for nothing to display */
+	if (!(c_ptr->d_ptr->flags & FLAG_START_SAVE)) return NULL;
+
+	/* Loop over cards in deck */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		b_ptr = &g->deck[i];
+
+		/* Count cards saved */
+		if (b_ptr->where == WHERE_SAVED) count++;
+	}
+
+	/* Start tooltip text */
+	sprintf(text, "%d card%s saved", count, (count == 1) ? "" : "s");
+
+	/* Check for card not owned by player showing */
+	if (count == 0 || c_ptr->owner != who) return strdup(text);
+
+	/* Add list of cards saved */
+	strcat(text, ":\n");
+
+	/* Loop over cards in deck */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		b_ptr = &g->deck[i];
+
+		/* Skip cards that aren't saved */
+		if (b_ptr->where != WHERE_SAVED) continue;
+
+		/* Add card name to tooltip */
+		strcat(text, "\n\t");
+		strcat(text, b_ptr->d_ptr->name);
+	}
+
+	/* Return tooltip */
+	return strdup(text);
 }
 
 /*
@@ -2716,6 +2800,9 @@ static void reset_table(game *g, int who, int color)
 
 		/* Copy order played */
 		i_ptr->order = c_ptr->order;
+
+		/* Get tooltip */
+		i_ptr->tooltip = display_card_tooltip(g, player_us, i);
 	}
 
 	/* Sort list */
@@ -3752,8 +3839,8 @@ void gui_choose_discard_prestige(game *g, int who, int list[], int *num)
 	action_min = 0;
 	action_max = 1;
 
-	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, FALSE);
+	/* Activate action button */
+	gtk_widget_set_sensitive(action_button, TRUE);
 
 	/* Reset displayed cards */
 	reset_cards(g, FALSE, TRUE);
@@ -4231,7 +4318,7 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
  * Choose which takeover, if any, to prevent.
  */
 void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
-                                 int special[])
+                                 int special[], int *num_special)
 {
 	GtkWidget *combo;
 	card *c_ptr, *b_ptr;
@@ -4301,13 +4388,13 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 	if (i == *num)
 	{
 		/* Set no choice */
-		*num = 0;
+		*num = *num_special = 0;
 		return;
 	}
 
 	/* Select takeover to prevent */
 	list[0] = list[i];
-	*num = 1;
+	*num = *num_special = 1;
 }
 
 /*
@@ -4563,6 +4650,10 @@ static int cmp_consume(const void *l1, const void *l2)
 	power *o_ptr1;
 	power *o_ptr2;
 
+	/* Check for prestige trade bonus */
+	if (l_ptr1->c_idx < 0) return 1;
+	if (l_ptr2->c_idx < 0) return -1;
+
 	/* Get first power */
 	o_ptr1 = &real_game.deck[l_ptr1->c_idx].d_ptr->powers[l_ptr1->o_idx];
 	o_ptr2 = &real_game.deck[l_ptr2->c_idx].d_ptr->powers[l_ptr2->o_idx];
@@ -4575,11 +4666,11 @@ static int cmp_consume(const void *l1, const void *l2)
  * Ask user which consume power to use.
  */
 void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
-                        int optional)
+                        int *num_special, int optional)
 {
 	GtkWidget *combo;
 	card *c_ptr;
-	power *o_ptr;
+	power *o_ptr, prestige_bonus;
 	pow_loc l_list[MAX_DECK];
 	char buf[1024], *name, buf2[1024];
 	int i;
@@ -4613,11 +4704,26 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	/* Loop over powers */
 	for (i = 0; i < *num; i++)
 	{
-		/* Get card pointer */
-		c_ptr = &g->deck[l_list[i].c_idx];
+		/* Check for prestige trade bonus power */
+		if (l_list[i].c_idx < 0)
+		{
+			/* Make fake power */
+			prestige_bonus.phase = PHASE_CONSUME;
+			prestige_bonus.code = P4_DISCARD_HAND | P4_GET_VP;
+			prestige_bonus.value = 1;
+			prestige_bonus.times = 2;
 
-		/* Get power pointer */
-		o_ptr = &c_ptr->d_ptr->powers[l_list[i].o_idx];
+			/* Use fake power */
+			o_ptr = &prestige_bonus;
+		}
+		else
+		{
+			/* Get card pointer */
+			c_ptr = &g->deck[l_list[i].c_idx];
+
+			/* Get power pointer */
+			o_ptr = &c_ptr->d_ptr->powers[l_list[i].o_idx];
+		}
 
 		/* Check for simple powers */
 		if (o_ptr->code == P4_DRAW)
@@ -4824,14 +4930,14 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	if (i == *num)
 	{
 		/* Set no choice */
-		*num = 0;
+		*num = *num_special = 0;
 		return;
 	}
 
 	/* Select chosen power */
 	cidx[0] = l_list[i].c_idx;
 	oidx[0] = l_list[i].o_idx;
-	*num = 1;
+	*num = *num_special = 1;
 }
 
 /*
@@ -4841,29 +4947,49 @@ void gui_choose_consume_hand(game *g, int who, int c_idx, int o_idx, int list[],
                              int *num)
 {
 	card *c_ptr;
-	power *o_ptr;
-	char buf[1024];
+	power *o_ptr, prestige_bonus;
+	char buf[1024], *card_name;
 	displayed *i_ptr;
 	int i, j, n = 0;
 
-	/* Get card pointer */
-	c_ptr = &g->deck[c_idx];
+	/* Check for prestige trade bonus power */
+	if (c_idx < 0)
+	{
+		/* Make fake power */
+		prestige_bonus.phase = PHASE_CONSUME;
+		prestige_bonus.code = P4_DISCARD_HAND | P4_GET_VP;
+		prestige_bonus.value = 1;
+		prestige_bonus.times = 2;
 
-	/* Get power pointer */
-	o_ptr = &c_ptr->d_ptr->powers[o_idx];
+		/* Use fake power */
+		o_ptr = &prestige_bonus;
+
+		/* Use fake card name */
+		card_name = "Prestige Trade bonus";
+	}
+	else
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[c_idx];
+
+		/* Get power pointer */
+		o_ptr = &c_ptr->d_ptr->powers[o_idx];
+
+		/* Use card name */
+		card_name = c_ptr->d_ptr->name;
+	}
 
 	/* Check for needing two cards */
 	if (o_ptr->code & P4_CONSUME_TWO)
 	{
 		/* Create prompt */
-		sprintf(buf, "Choose cards to consume on %s",
-		        c_ptr->d_ptr->name);
+		sprintf(buf, "Choose cards to consume on %s", card_name);
 	}
 	else
 	{
 		/* Create prompt */
 		sprintf(buf, "Choose up to %d cards to consume on %s",
-		        o_ptr->times, c_ptr->d_ptr->name);
+		        o_ptr->times, card_name);
 	}
 
 	/* Set prompt */
@@ -5583,12 +5709,14 @@ int gui_choose_search_type(game *g, int who)
  */
 int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 {
+	GtkWidget *combo;
 	card *c_ptr;
 	displayed *i_ptr;
 	char buf[1024];
+	int i;
 
 	/* Get card pointer */
-	c_ptr = &real_game.deck[arg1];
+	c_ptr = &g->deck[arg1];
 
 	/* Create prompt */
 	sprintf(buf, "Choose to keep/discard %s", c_ptr->d_ptr->name);
@@ -5597,12 +5725,7 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 
 	/* Reset displayed cards */
-	reset_cards(g, FALSE, TRUE);
-
-	/* Set button restriction */
-	action_restrict = RESTRICT_NUM;
-	action_min = 0;
-	action_max = 1;
+	reset_cards(g, TRUE, TRUE);
 
 	/* Activate action button */
 	gtk_widget_set_sensitive(action_button, TRUE);
@@ -5617,12 +5740,30 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Card is in hand */
 	i_ptr->hand = 1;
 
-	/* Card is eligible */
-	i_ptr->eligible = 1;
+	/* Card is ineligible */
+	i_ptr->eligible = 0;
 	i_ptr->gapped = 1;
+	i_ptr->color = 1;
 
 	/* Card is not selected */
 	i_ptr->selected = 0;
+
+	/* Create simple combo box */
+	combo = gtk_combo_box_new_text();
+
+	/* Append options to combo box */
+	gtk_combo_box_append_text(GTK_COMBO_BOX(combo),
+	                          "Discard (keep searching)");
+	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Keep card");
+
+	/* Set first choice */
+	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+
+	/* Add combo box to action box */
+	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
+
+	/* Show everything */
+	gtk_widget_show_all(combo);
 
 	/* Redraw everything */
 	redraw_everything();
@@ -5630,8 +5771,14 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Process events */
 	gtk_main();
 
-	/* Check for selected */
-	return !i_ptr->selected;
+	/* Get selection */
+	i = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+
+	/* Destroy combo box */
+	gtk_widget_destroy(combo);
+
+	/* Return choice */
+	return i;
 }
 
 /*
@@ -5754,7 +5901,8 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 		case CHOICE_TAKEOVER_PREVENT:
 
 			/* Choose takeover to prevent */
-			gui_choose_takeover_prevent(g, who, list, nl, special);
+			gui_choose_takeover_prevent(g, who, list, nl,
+			                            special, ns);
 			rv = 0;
 			break;
 
@@ -5778,7 +5926,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 		case CHOICE_CONSUME:
 
 			/* Choose power */
-			gui_choose_consume(g, who, list, special, nl, arg1);
+			gui_choose_consume(g, who, list, special, nl, ns, arg1);
 			rv = 0;
 			break;
 
@@ -6941,6 +7089,7 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 		case WHERE_HAND: name = "Hand"; break;
 		case WHERE_ACTIVE: name = "Active"; break;
 		case WHERE_GOOD: name = "Good"; break;
+		case WHERE_SAVED: name = "Saved"; break;
 		default: name = "Unknown"; break;
 	}
 
@@ -7682,7 +7831,7 @@ int main(int argc, char *argv[])
 	GtkWidget *game_item, *network_item, *debug_item, *help_item;
 	GtkWidget *new_item, *load_item, *select_item, *option_item, *quit_item;
 	GtkWidget *debug_card_item, *debug_ai_item, *about_item;
-	GtkWidget *connect_item, *disconnect_item;
+	GtkWidget *connect_item, *disconnect_item, *resign_item;
 	GtkWidget *h_sep, *v_sep, *event;
 	GtkWidget *msg_scroll;
 	GtkWidget *table_box, *active_box;
@@ -7869,10 +8018,12 @@ int main(int argc, char *argv[])
 	/* Create network menu items */
 	connect_item = gtk_menu_item_new_with_label("Connect to server...");
 	disconnect_item = gtk_menu_item_new_with_label("Disconnect");
+	resign_item = gtk_menu_item_new_with_label("Resign from game");
 
 	/* Add items to network menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(network_menu), connect_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(network_menu), disconnect_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(network_menu), resign_item);
 
 	/* Create debug menu */
 	debug_menu = gtk_menu_new();
@@ -7913,6 +8064,8 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(connect_dialog), NULL);
 	g_signal_connect(G_OBJECT(disconnect_item), "activate",
 	                 G_CALLBACK(disconnect_server), NULL);
+	g_signal_connect(G_OBJECT(resign_item), "activate",
+	                 G_CALLBACK(resign_game), NULL);
 	g_signal_connect(G_OBJECT(debug_card_item), "activate",
 	                 G_CALLBACK(debug_card_dialog), NULL);
 	g_signal_connect(G_OBJECT(debug_ai_item), "activate",
@@ -8349,7 +8502,7 @@ int main(int argc, char *argv[])
 	chat_hbox = gtk_hbox_new(FALSE, 5);
 
 	/* Create list of online users */
-	user_list = gtk_list_store_new(1, G_TYPE_STRING);
+	user_list = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_INT);
 
 	/* Create view for chat users */
 	users_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(user_list));
@@ -8357,10 +8510,17 @@ int main(int argc, char *argv[])
 	/* Create text renderer */
 	render = gtk_cell_renderer_text_new();
 
-	/* Create column for user list */
+	/* Create toggle button renderer */
+	toggle_render = gtk_cell_renderer_toggle_new();
+
+	/* Create columns for user list */
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(users_view),
 	                                            -1, "Users online", render,
 	                                            "text", 0, NULL);
+	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(users_view),
+	                                            -1, "In game",
+	                                            toggle_render,
+	                                            "active", 1, NULL);
 
 	/* Create scrolled window for chat users */
 	users_scroll = gtk_scrolled_window_new(NULL, NULL);

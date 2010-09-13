@@ -1083,7 +1083,8 @@ int search_match(game *g, int which, int category)
 				if (o_ptr->code == P3_EXTRA_MILITARY)
 				{
 					/* Check for correct amount */
-					if (o_ptr->value <= 2) return 1;
+					if (o_ptr->value == 1 ||
+					    o_ptr->value == 2) return 1;
 				}
 			}
 
@@ -3616,6 +3617,16 @@ int takeover_callback(game *g, int special, int world)
 		/* Skip non-Settle powers */
 		if (o_ptr->phase != PHASE_SETTLE) continue;
 
+		/* Skip non-takeover powers */
+		if (!(o_ptr->code & (P3_TAKEOVER_REBEL |
+		                     P3_TAKEOVER_IMPERIUM |
+		                     P3_TAKEOVER_MILITARY |
+		                     P3_TAKEOVER_PRESTIGE)))
+		{
+			/* Skip power */
+			continue;
+		}
+
 		/* Check for discard flag */
 		if (o_ptr->code & P3_DISCARD)
 		{
@@ -3748,7 +3759,8 @@ int settle_check_takeover(game *g, int who)
 			}
 
 			/* Check for "takeover using prestige" power */
-			if (o_ptr->code & P3_TAKEOVER_PRESTIGE)
+			if (o_ptr->code & P3_TAKEOVER_PRESTIGE &&
+			    p_ptr->prestige > 0)
 			{
 				/* Mark power */
 				takeover_prestige = 1;
@@ -4155,8 +4167,9 @@ static void settle_bonus(game *g, int who, int world)
 		/* Check for prestige after rebel power */
 		if (o_ptr->code & P3_PRESTIGE_REBEL)
 		{
-			/* Check for rebel world placed */
-			if (c_ptr->d_ptr->flags & FLAG_REBEL)
+			/* Check for rebel military world placed */
+			if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
+			    (c_ptr->d_ptr->flags & FLAG_MILITARY))
 			{
 				/* Award prestige */
 				gain_prestige(g, who, o_ptr->value);
@@ -6237,6 +6250,9 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		/* Consume cards from hand */
 		consume_discard(g, who, -1, -1);
 
+		/* Power used */
+		p_ptr->phase_bonus_used = 1;
+
 		/* Done */
 		return;
 	}
@@ -6598,7 +6614,7 @@ int consume_action(game *g, int who)
 			    count_player_area(g, who, WHERE_HAND) +
 			    p_ptr->fake_hand - p_ptr->fake_discards -
 			    p_ptr->fake_played_dev -
-			    p_ptr->fake_played_world > 0)
+			    p_ptr->fake_played_world >= need)
 			{
 				/* Add power to list */
 				cidx[n] = i;
@@ -6631,6 +6647,20 @@ int consume_action(game *g, int who)
 				optional = 0;
 			}
 		}
+	}
+
+	/* Check for extra power given by Prestige Consume-Trade */
+	if (player_chose(g, who, ACT_PRESTIGE | ACT_CONSUME_TRADE) &&
+	    !p_ptr->phase_bonus_used &&
+	    (count_player_area(g, who, WHERE_HAND) +
+	     p_ptr->fake_hand - p_ptr->fake_discards -
+	     p_ptr->fake_played_dev -
+	     p_ptr->fake_played_world >= 1))
+	{
+		/* Add power to list */
+		cidx[n] = -1;
+		oidx[n] = -1;
+		n++;
 	}
 
 	/* Check for no usable powers */
