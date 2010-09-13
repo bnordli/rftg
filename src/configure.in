@@ -1,0 +1,22 @@
+AC_PREREQ(2.61)
+AC_INIT([rftg], [0.5.0], [keldon@keldon.net])
+AC_CONFIG_SRCDIR([engine.c])
+AC_CONFIG_HEADER(config.h)
+
+AM_INIT_AUTOMAKE([1.9])
+
+AC_PROG_CC
+
+AC_CHECK_LIB([m], [exp])
+
+AC_HEADER_STDC
+AC_CHECK_HEADERS([stdio.h])
+
+AM_PATH_GTK_2_0(2.12.0)
+
+#AC_FUNC_MALLOC
+AC_FUNC_MEMCMP
+AC_CHECK_FUNCS([memset])
+
+AC_CONFIG_FILES([Makefile network/Makefile])
+AC_OUTPUT
