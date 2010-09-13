@@ -23,7 +23,7 @@
 /*
  * Load a game from the given filename.
  */
-int load_game(game *g, char *filename)
+int load_game(game *g, char *filename, int *player_us)
 {
 	FILE *fff;
 	player *p_ptr;
@@ -82,11 +82,8 @@ int load_game(game *g, char *filename)
 		/* Read control information */
 		fscanf(fff, "%d\n", &j);
 
-		/* Check for AI player */
-		if (j == 0) p_ptr->control = &ai_func;
-
 		/* Check for human player */
-		if (j == 1) p_ptr->control = &gui_func;
+		if (j == 1) *player_us = i;
 
 		/* Loop over goals */
 		for (j = 0; j < MAX_GOAL; j++)
@@ -129,7 +126,7 @@ int load_game(game *g, char *filename)
 		c_ptr->d_ptr = &library[j];
 
 		/* Read card's good information */
-		fscanf(fff, "%d %d ", &c_ptr->good, &c_ptr->covered);
+		fscanf(fff, "%*d %d ", &c_ptr->covered);
 
 		/* Read card's order played information */
 		fscanf(fff, "%d\n", &c_ptr->order);
@@ -160,7 +157,7 @@ int load_game(game *g, char *filename)
  *
  * We can only save a game that is in the "choose actions" phase of a turn.
  */
-int save_game(game *g, char *filename)
+int save_game(game *g, char *filename, int player_us)
 {
 	FILE *fff;
 	player *p_ptr;
@@ -195,7 +192,7 @@ int save_game(game *g, char *filename)
 		fprintf(fff, "%s\n", p_ptr->name);
 
 		/* Write 0 for AI player, 1 for human */
-		fprintf(fff, "%d\n", p_ptr->control == &ai_func ? 0 : 1);
+		fprintf(fff, "%d\n", player_us == i);
 
 		/* Loop over goals */
 		for (j = 0; j < MAX_GOAL; j++)
@@ -235,7 +232,7 @@ int save_game(game *g, char *filename)
 		fprintf(fff, "%d ", c_ptr->d_ptr->index);
 
 		/* Write good information */
-		fprintf(fff, "%d %d ", c_ptr->good, c_ptr->covered);
+		fprintf(fff, "0 %d ", c_ptr->covered);
 
 		/* Write order played */
 		fprintf(fff, "%d\n", c_ptr->order);

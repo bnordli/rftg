@@ -1,16 +1,25 @@
 bin_PROGRAMS = rftg
-noinst_PROGRAMS = learner dumpnet dumprole
+noinst_PROGRAMS = learner dumpnet
+if BUILD_SERVER
+noinst_PROGRAMS += server
+endif
 dist_bin_SCRIPTS = do_train
 
-rftg_SOURCES = engine.c init.c ai.c loadsave.c gui.c net.c net.h rftg.h
+rftg_SOURCES = engine.c init.c ai.c loadsave.c gui.c net.c net.h rftg.h \
+               client.c client.h comm.c comm.h
 learner_SOURCES = engine.c init.c ai.c learner.c net.c net.h rftg.h
-dumpnet_SOURCES = net.c engine.c dumpnet.c init.c rftg.h net.h
-dumprole_SOURCES = net.c engine.c dumprole.c init.c rftg.h net.h
+dumpnet_SOURCES = net.c dumpnet.c net.h
+server_SOURCES = server.c engine.c init.c ai.c loadsave.c net.c net.h rftg.h \
+		 comm.c comm.h
 
 dist_pkgdata_DATA = cards.txt images.data
 
-rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DDATADIR=\"$(pkgdatadir)\"
+AM_CFLAGS = -Wall
+
+rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DRFTGDIR=\"$(pkgdatadir)\"
 rftg_LDADD = @GTK_LIBS@
+
+server_LDADD = -lmysqlclient
 
 SUBDIRS = network
 

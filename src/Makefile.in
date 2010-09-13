@@ -37,7 +37,8 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 bin_PROGRAMS = rftg$(EXEEXT)
-noinst_PROGRAMS = learner$(EXEEXT) dumpnet$(EXEEXT) dumprole$(EXEEXT)
+noinst_PROGRAMS = learner$(EXEEXT) dumpnet$(EXEEXT) $(am__EXEEXT_1)
+@BUILD_SERVER_TRUE@am__append_1 = server
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(dist_bin_SCRIPTS) \
 	$(dist_pkgdata_DATA) $(srcdir)/Makefile.am \
@@ -57,24 +58,24 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)" \
 	"$(DESTDIR)$(pkgdatadir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
+@BUILD_SERVER_TRUE@am__EXEEXT_1 = server$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
-am_dumpnet_OBJECTS = net.$(OBJEXT) engine.$(OBJEXT) dumpnet.$(OBJEXT) \
-	init.$(OBJEXT)
+am_dumpnet_OBJECTS = net.$(OBJEXT) dumpnet.$(OBJEXT)
 dumpnet_OBJECTS = $(am_dumpnet_OBJECTS)
 dumpnet_LDADD = $(LDADD)
-am_dumprole_OBJECTS = net.$(OBJEXT) engine.$(OBJEXT) \
-	dumprole.$(OBJEXT) init.$(OBJEXT)
-dumprole_OBJECTS = $(am_dumprole_OBJECTS)
-dumprole_LDADD = $(LDADD)
 am_learner_OBJECTS = engine.$(OBJEXT) init.$(OBJEXT) ai.$(OBJEXT) \
 	learner.$(OBJEXT) net.$(OBJEXT)
 learner_OBJECTS = $(am_learner_OBJECTS)
 learner_LDADD = $(LDADD)
 am_rftg_OBJECTS = rftg-engine.$(OBJEXT) rftg-init.$(OBJEXT) \
 	rftg-ai.$(OBJEXT) rftg-loadsave.$(OBJEXT) rftg-gui.$(OBJEXT) \
-	rftg-net.$(OBJEXT)
+	rftg-net.$(OBJEXT) rftg-client.$(OBJEXT) rftg-comm.$(OBJEXT)
 rftg_OBJECTS = $(am_rftg_OBJECTS)
 rftg_DEPENDENCIES =
+am_server_OBJECTS = server.$(OBJEXT) engine.$(OBJEXT) init.$(OBJEXT) \
+	ai.$(OBJEXT) loadsave.$(OBJEXT) net.$(OBJEXT) comm.$(OBJEXT)
+server_OBJECTS = $(am_server_OBJECTS)
+server_DEPENDENCIES =
 dist_binSCRIPT_INSTALL = $(INSTALL_SCRIPT)
 SCRIPTS = $(dist_bin_SCRIPTS)
 DEFAULT_INCLUDES = -I. -I$(srcdir) -I.
@@ -84,10 +85,10 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(dumpnet_SOURCES) $(dumprole_SOURCES) $(learner_SOURCES) \
-	$(rftg_SOURCES)
-DIST_SOURCES = $(dumpnet_SOURCES) $(dumprole_SOURCES) \
-	$(learner_SOURCES) $(rftg_SOURCES)
+SOURCES = $(dumpnet_SOURCES) $(learner_SOURCES) $(rftg_SOURCES) \
+	$(server_SOURCES)
+DIST_SOURCES = $(dumpnet_SOURCES) $(learner_SOURCES) $(rftg_SOURCES) \
+	$(server_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-exec-recursive install-info-recursive \
@@ -124,6 +125,8 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BUILD_SERVER_FALSE = @BUILD_SERVER_FALSE@
+BUILD_SERVER_TRUE = @BUILD_SERVER_TRUE@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
@@ -155,6 +158,7 @@ PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
+PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
@@ -198,13 +202,19 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 dist_bin_SCRIPTS = do_train
-rftg_SOURCES = engine.c init.c ai.c loadsave.c gui.c net.c net.h rftg.h
+rftg_SOURCES = engine.c init.c ai.c loadsave.c gui.c net.c net.h rftg.h \
+               client.c client.h comm.c comm.h
+
 learner_SOURCES = engine.c init.c ai.c learner.c net.c net.h rftg.h
-dumpnet_SOURCES = net.c engine.c dumpnet.c init.c rftg.h net.h
-dumprole_SOURCES = net.c engine.c dumprole.c init.c rftg.h net.h
+dumpnet_SOURCES = net.c dumpnet.c net.h
+server_SOURCES = server.c engine.c init.c ai.c loadsave.c net.c net.h rftg.h \
+		 comm.c comm.h
+
 dist_pkgdata_DATA = cards.txt images.data
-rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DDATADIR=\"$(pkgdatadir)\"
+AM_CFLAGS = -Wall
+rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DRFTGDIR=\"$(pkgdatadir)\"
 rftg_LDADD = @GTK_LIBS@
+server_LDADD = -lmysqlclient
 SUBDIRS = network
 ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST = config.rpath m4/ChangeLog osx
@@ -292,15 +302,15 @@ clean-noinstPROGRAMS:
 dumpnet$(EXEEXT): $(dumpnet_OBJECTS) $(dumpnet_DEPENDENCIES) 
 	@rm -f dumpnet$(EXEEXT)
 	$(LINK) $(dumpnet_LDFLAGS) $(dumpnet_OBJECTS) $(dumpnet_LDADD) $(LIBS)
-dumprole$(EXEEXT): $(dumprole_OBJECTS) $(dumprole_DEPENDENCIES) 
-	@rm -f dumprole$(EXEEXT)
-	$(LINK) $(dumprole_LDFLAGS) $(dumprole_OBJECTS) $(dumprole_LDADD) $(LIBS)
 learner$(EXEEXT): $(learner_OBJECTS) $(learner_DEPENDENCIES) 
 	@rm -f learner$(EXEEXT)
 	$(LINK) $(learner_LDFLAGS) $(learner_OBJECTS) $(learner_LDADD) $(LIBS)
 rftg$(EXEEXT): $(rftg_OBJECTS) $(rftg_DEPENDENCIES) 
 	@rm -f rftg$(EXEEXT)
 	$(LINK) $(rftg_LDFLAGS) $(rftg_OBJECTS) $(rftg_LDADD) $(LIBS)
+server$(EXEEXT): $(server_OBJECTS) $(server_DEPENDENCIES) 
+	@rm -f server$(EXEEXT)
+	$(LINK) $(server_LDFLAGS) $(server_OBJECTS) $(server_LDADD) $(LIBS)
 install-dist_binSCRIPTS: $(dist_bin_SCRIPTS)
 	@$(NORMAL_INSTALL)
 	test -z "$(bindir)" || $(mkdir_p) "$(DESTDIR)$(bindir)"
@@ -328,18 +338,22 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ai.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/comm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dumpnet.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dumprole.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/engine.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/init.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/learner.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/loadsave.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/net.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-ai.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-client.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-comm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-engine.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-gui.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-init.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-loadsave.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rftg-net.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/server.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	if $(COMPILE) -MT $@ -MD -MP -MF "$(DEPDIR)/$*.Tpo" -c -o $@ $<; \
@@ -438,6 +452,34 @@ rftg-net.obj: net.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='net.c' object='rftg-net.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-net.obj `if test -f 'net.c'; then $(CYGPATH_W) 'net.c'; else $(CYGPATH_W) '$(srcdir)/net.c'; fi`
+
+rftg-client.o: client.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -MT rftg-client.o -MD -MP -MF "$(DEPDIR)/rftg-client.Tpo" -c -o rftg-client.o `test -f 'client.c' || echo '$(srcdir)/'`client.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/rftg-client.Tpo" "$(DEPDIR)/rftg-client.Po"; else rm -f "$(DEPDIR)/rftg-client.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='client.c' object='rftg-client.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-client.o `test -f 'client.c' || echo '$(srcdir)/'`client.c
+
+rftg-client.obj: client.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -MT rftg-client.obj -MD -MP -MF "$(DEPDIR)/rftg-client.Tpo" -c -o rftg-client.obj `if test -f 'client.c'; then $(CYGPATH_W) 'client.c'; else $(CYGPATH_W) '$(srcdir)/client.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/rftg-client.Tpo" "$(DEPDIR)/rftg-client.Po"; else rm -f "$(DEPDIR)/rftg-client.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='client.c' object='rftg-client.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-client.obj `if test -f 'client.c'; then $(CYGPATH_W) 'client.c'; else $(CYGPATH_W) '$(srcdir)/client.c'; fi`
+
+rftg-comm.o: comm.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -MT rftg-comm.o -MD -MP -MF "$(DEPDIR)/rftg-comm.Tpo" -c -o rftg-comm.o `test -f 'comm.c' || echo '$(srcdir)/'`comm.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/rftg-comm.Tpo" "$(DEPDIR)/rftg-comm.Po"; else rm -f "$(DEPDIR)/rftg-comm.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='comm.c' object='rftg-comm.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-comm.o `test -f 'comm.c' || echo '$(srcdir)/'`comm.c
+
+rftg-comm.obj: comm.c
+@am__fastdepCC_TRUE@	if $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -MT rftg-comm.obj -MD -MP -MF "$(DEPDIR)/rftg-comm.Tpo" -c -o rftg-comm.obj `if test -f 'comm.c'; then $(CYGPATH_W) 'comm.c'; else $(CYGPATH_W) '$(srcdir)/comm.c'; fi`; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/rftg-comm.Tpo" "$(DEPDIR)/rftg-comm.Po"; else rm -f "$(DEPDIR)/rftg-comm.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='comm.c' object='rftg-comm.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(rftg_CFLAGS) $(CFLAGS) -c -o rftg-comm.obj `if test -f 'comm.c'; then $(CYGPATH_W) 'comm.c'; else $(CYGPATH_W) '$(srcdir)/comm.c'; fi`
 uninstall-info-am:
 install-dist_pkgdataDATA: $(dist_pkgdata_DATA)
 	@$(NORMAL_INSTALL)
@@ -634,7 +676,8 @@ distdir: $(DISTFILES)
 	      || exit 1; \
 	  fi; \
 	done
-	-find $(distdir) -type d ! -perm -777 -exec chmod a+rwx {} \; -o \
+	-find "$(distdir)" -type d ! -perm -755 \
+		-exec chmod u+rwx,go+rx {} \; -o \
 	  ! -type d ! -perm -444 -links 1 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -400 -exec chmod a+r {} \; -o \
 	  ! -type d ! -perm -444 -exec $(SHELL) $(install_sh) -c -m a+r {} {} \; \

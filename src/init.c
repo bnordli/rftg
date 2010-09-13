@@ -41,9 +41,13 @@ static char *flag_name[] =
 	"TERRAFORMING",
 	"IMPERIUM",
 	"CHROMO",
+	"PRESTIGE",
 	"STARTHAND_3",
+	"START_SAVE",
 	"DISCARD_TO_12",
 	"GAME_END_14",
+	"TAKE_DISCARDS",
+	"SELECT_LAST",
 	NULL
 };
 
@@ -53,7 +57,7 @@ static char *flag_name[] =
 static char *good_name[] =
 {
 	"",
-	"",
+	"ANY",
 	"NOVELTY",
 	"RARE",
 	"GENE",
@@ -64,7 +68,7 @@ static char *good_name[] =
 /*
  * Special power flag names (by phase).
  */
-static char *power_name[6][32] =
+static char *power_name[6][64] =
 {
 	/* No phase zero */
 	{
@@ -76,6 +80,7 @@ static char *power_name[6][32] =
 		"DRAW",
 		"KEEP",
 		"DISCARD_ANY",
+		"DISCARD_PRESTIGE",
 		NULL,
 	},
 
@@ -84,7 +89,13 @@ static char *power_name[6][32] =
 		"DRAW",
 		"REDUCE",
 		"DRAW_AFTER",
+		"EXPLORE",
 		"DISCARD_REDUCE",
+		"SAVE_COST",
+		"PRESTIGE",
+		"PRESTIGE_REBEL",
+		"PRESTIGE_SIX",
+		"CONSUME_RARE",
 		NULL,
 	},
 
@@ -95,21 +106,40 @@ static char *power_name[6][32] =
 		"RARE",
 		"GENE",
 		"ALIEN",
-		"DISCARD_ZERO",
-		"DISCARD_MILITARY",
+		"DISCARD",
+		"REDUCE_ZERO",
 		"MILITARY_HAND",
 		"EXTRA_MILITARY",
 		"AGAINST_REBEL",
+		"AGAINST_CHROMO",
 		"PER_MILITARY",
+		"PER_CHROMO",
+		"IF_IMPERIUM",
 		"PAY_MILITARY",
 		"PAY_DISCOUNT",
+		"PAY_PRESTIGE",
 		"CONQUER_SETTLE",
+		"NO_TAKEOVER",
 		"DRAW_AFTER",
+		"EXPLORE_AFTER",
+		"PRESTIGE",
+		"PRESTIGE_REBEL",
+		"SAVE_COST",
 		"PLACE_TWO",
+		"PLACE_MILITARY",
+		"CONSUME_RARE",
+		"CONSUME_GENE",
+		"CONSUME_PRESTIGE",
+		"AUTO_PRODUCE",
+		"PRODUCE_PRESTIGE",
 		"TAKEOVER_REBEL",
 		"TAKEOVER_IMPERIUM",
 		"TAKEOVER_MILITARY",
+		"TAKEOVER_PRESTIGE",
+		"DESTROY",
 		"TAKEOVER_DEFENSE",
+		"PREVENT_TAKEOVER",
+		"UPGRADE_WORLD",
 		NULL,
 	},
 
@@ -122,6 +152,7 @@ static char *power_name[6][32] =
 		"TRADE_ALIEN",
 		"TRADE_THIS",
 		"TRADE_BONUS_CHROMO",
+		"NO_TRADE",
 		"TRADE_ACTION",
 		"TRADE_NO_BONUS",
 		"CONSUME_ANY",
@@ -134,9 +165,11 @@ static char *power_name[6][32] =
 		"CONSUME_3_DIFF",
 		"CONSUME_N_DIFF",
 		"CONSUME_ALL",
+		"CONSUME_PRESTIGE",
 		"GET_CARD",
 		"GET_2_CARD",
 		"GET_VP",
+		"GET_PRESTIGE",
 		"DRAW",
 		"DRAW_LUCKY",
 		"DISCARD_HAND",
@@ -149,25 +182,29 @@ static char *power_name[6][32] =
 	/* Phase five */
 	{
 		"PRODUCE",
-		"DISCARD_PRODUCE",
 		"WINDFALL_ANY",
 		"WINDFALL_NOVELTY",
 		"WINDFALL_RARE",
 		"WINDFALL_GENE",
 		"WINDFALL_ALIEN",
 		"NOT_THIS",
+		"DISCARD",
 		"DRAW",
 		"DRAW_IF",
+		"PRESTIGE_IF",
 		"DRAW_EACH_NOVELTY",
 		"DRAW_EACH_RARE",
 		"DRAW_EACH_GENE",
 		"DRAW_EACH_ALIEN",
 		"DRAW_WORLD_GENE",
 		"DRAW_MOST_RARE",
+		"DRAW_MOST_PRODUCED",
 		"DRAW_DIFFERENT",
+		"PRESTIGE_MOST_CHROMO",
 		"DRAW_MILITARY",
 		"DRAW_REBEL",
 		"DRAW_CHROMO",
+		"TAKE_SAVED",
 		NULL,
 	}
 };
@@ -202,9 +239,11 @@ static char *vp_name[] =
 	"CHROMO_FLAG",
 	"MILITARY",
 	"TOTAL_MILITARY",
+	"NEGATIVE_MILITARY",
 	"REBEL_MILITARY",
 	"THREE_VP",
 	"KIND_GOOD",
+	"PRESTIGE",
 	"NAME",
 	NULL
 };
@@ -212,7 +251,7 @@ static char *vp_name[] =
 /*
  * Lookup a power code.
  */
-static int lookup_power(char *ptr, int phase)
+static uint64_t lookup_power(char *ptr, int phase)
 {
 	int i = 0;
 
@@ -220,7 +259,7 @@ static int lookup_power(char *ptr, int phase)
 	while (power_name[phase][i])
 	{
 		/* Check this power */
-		if (!strcmp(power_name[phase][i], ptr)) return 1 << i;
+		if (!strcmp(power_name[phase][i], ptr)) return 1ULL << i;
 
 		/* Next effect */
 		i++;
@@ -242,10 +281,11 @@ void read_cards(void)
 	design *d_ptr = NULL;
 	power *o_ptr;
 	vp_bonus *v_ptr;
-	int i, code, phase;
+	int i, phase;
+	uint64_t code;
 
 	/* Open card database */
-	fff = fopen(DATADIR "/cards.txt", "r");
+	fff = fopen(RFTGDIR "/cards.txt", "r");
 
 	/* Check for error */
 	if (!fff)
@@ -493,58 +533,6 @@ void read_cards(void)
 }
 
 /*
- * Rotate players one spot.
- *
- * This will be called until the player with the lowest start world is
- * player number 0.
- */
-static void rotate_players(game *g)
-{
-	player temp, *p_ptr;
-	card *c_ptr;
-	int i;
-
-	/* Store copy of player 0 */
-	temp = g->p[0];
-
-	/* Loop over players */
-	for (i = 0; i < g->num_players - 1; i++)
-	{
-		/* Copy players one space */
-		g->p[i] = g->p[i + 1];
-	}
-
-	/* Store old player 0 in last spot */
-	g->p[i] = temp;
-
-	/* Loop over cards in deck */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip cards owned by no one */
-		if (c_ptr->owner == -1) continue;
-
-		/* Adjust owner */
-		c_ptr->owner--;
-
-		/* Check for wraparound */
-		if (c_ptr->owner < 0) c_ptr->owner = g->num_players - 1;
-	}
-
-	/* Loop over players */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Get player pointer */
-		p_ptr = &g->p[i];
-
-		/* Notify player of rotation */
-		p_ptr->control->notify_rotation(g);
-	}
-}
-
-/*
  * Initialize a game.
  */
 void init_game(game *g)
@@ -552,13 +540,8 @@ void init_game(game *g)
 	player *p_ptr;
 	design *d_ptr;
 	card *c_ptr;
-	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
 	int goal[MAX_GOAL];
-	int start_picks[MAX_PLAYER][2];
 	int i, j, k, n;
-	int lowest = 99, low_i = -1;
-	int num_start = 0, num_start_red = 0, num_start_blue = 0;
-	char msg[1024];
 
 	/* Save current random seed */
 	g->start_seed = g->random_seed;
@@ -573,6 +556,9 @@ void init_game(game *g)
 
 	/* Set size of VP pool */
 	g->vp_pool = g->num_players * 12;
+
+	/* Increase size of pool in third expansion */
+	if (g->expanded >= 3) g->vp_pool += 5;
 
 	/* First game round */
 	g->round = 1;
@@ -624,6 +610,9 @@ void init_game(game *g)
 			/* Card is not just drawn */
 			c_ptr->temp = 0;
 
+			/* Card is not unpaid */
+			c_ptr->unpaid = 0;
+
 			/* Card's location is not known */
 			c_ptr->known = 0;
 
@@ -636,30 +625,8 @@ void init_game(game *g)
 			/* Set card's design */
 			c_ptr->d_ptr = d_ptr;
 
-			/* Card is not a good nor covered by one */
-			c_ptr->good = 0;
+			/* Card is not covered by a good */
 			c_ptr->covered = -1;
-
-			/* Check for start world */
-			if (d_ptr->flags & FLAG_START)
-			{
-				/* Add to list */
-				start[num_start++] = g->deck_size - 1;
-			}
-
-			/* Check for red start world */
-			if (d_ptr->flags & FLAG_START_RED)
-			{
-				/* Add to list */
-				start_red[num_start_red++] = g->deck_size - 1;
-			}
-
-			/* Check for blue start world */
-			if (d_ptr->flags & FLAG_START_BLUE)
-			{
-				/* Add to list */
-				start_blue[num_start_blue++] = g->deck_size - 1;
-			}
 		}
 	}
 
@@ -676,11 +643,17 @@ void init_game(game *g)
 			j = GOAL_FIRST_5_VP;
 			k = GOAL_FIRST_SIX_DEVEL;
 		}
-		else
+		else if (g->expanded == 2)
 		{
 			/* First and second expansion */
 			j = GOAL_FIRST_5_VP;
 			k = GOAL_FIRST_8_ACTIVE;
+		}
+		else
+		{
+			/* All expansions */
+			j = GOAL_FIRST_5_VP;
+			k = GOAL_FIRST_4_MILITARY;
 		}
 
 		/* Add "first" goals to list */
@@ -694,7 +667,7 @@ void init_game(game *g)
 		for (i = 0; i < 4; i++)
 		{
 			/* Choose goal at random */
-			j = myrand(&g->random_seed) % n;
+			j = game_rand(g) % n;
 
 			/* Goal is active */
 			g->goal_active[goal[j]] = 1;
@@ -716,11 +689,17 @@ void init_game(game *g)
 			j = GOAL_MOST_MILITARY;
 			k = GOAL_MOST_PRODUCTION;
 		}
-		else
+		else if (g->expanded == 2)
 		{
 			/* First and second expansion */
 			j = GOAL_MOST_MILITARY;
 			k = GOAL_MOST_REBEL;
+		}
+		else
+		{
+			/* All expansions */
+			j = GOAL_MOST_MILITARY;
+			k = GOAL_MOST_CONSUME;
 		}
 
 		/* Add "most" goals to list */
@@ -734,7 +713,7 @@ void init_game(game *g)
 		for (i = 0; i < 2; i++)
 		{
 			/* Choose goal at random */
-			j = myrand(&g->random_seed) % n;
+			j = game_rand(g) % n;
 
 			/* Goal is active */
 			g->goal_active[goal[j]] = 1;
@@ -767,6 +746,9 @@ void init_game(game *g)
 		p_ptr->action[0] = p_ptr->prev_action[0] = -1;
 		p_ptr->action[1] = p_ptr->prev_action[1] = -1;
 
+		/* Player has not used prestige/search action */
+		p_ptr->prestige_action_used = 0;
+
 		/* Player has not used phase bonus */
 		p_ptr->phase_bonus_used = 0;
 
@@ -782,192 +764,22 @@ void init_game(game *g)
 		/* No cards played yet */
 		p_ptr->table_order = 0;
 
+		/* Player has no prestige */
+		p_ptr->prestige = p_ptr->prestige_turn = 0;
+
 		/* Player has no points */
 		p_ptr->vp = p_ptr->goal_vp = p_ptr->end_vp = 0;
 
 		/* Player is not the winner */
 		p_ptr->winner = 0;
 
-		/* Player has earned no cards/VP this phase */
+		/* Player has earned no rewards this phase */
 		p_ptr->phase_cards = p_ptr->phase_vp = 0;
+		p_ptr->phase_prestige = 0;
 
 		/* Player has no fake cards */
 		p_ptr->fake_hand = p_ptr->total_fake = 0;
 		p_ptr->fake_played_dev = p_ptr->fake_played_world = 0;
 	       	p_ptr->fake_discards = 0;
 	}
-
-	/* Check for second (or later) expansion */
-	if (g->expanded >= 2)
-	{
-		/* Loop over players */
-		for (i = 0; i < g->num_players; i++)
-		{
-			/* Choose a Red start world */
-			n = myrand(&g->random_seed) % num_start_red;
-
-			/* Add to start world choices */
-			start_picks[i][0] = start_red[n];
-
-			/* Collapse list */
-			start_red[n] = start_red[--num_start_red];
-
-			/* Choose a Blue start world */
-			n = myrand(&g->random_seed) % num_start_blue;
-
-			/* Add to start world choices */
-			start_picks[i][1] = start_blue[n];
-
-			/* Collapse list */
-			start_blue[n] = start_blue[--num_start_blue];
-
-			/* Get card pointer to first start choice */
-			c_ptr = &g->deck[start_picks[i][0]];
-
-			/* XXX Move card to discard */
-			c_ptr->where = WHERE_DISCARD;
-
-			/* Get card pointer to second start choice */
-			c_ptr = &g->deck[start_picks[i][1]];
-
-			/* XXX Move card to discard */
-			c_ptr->where = WHERE_DISCARD;
-		}
-
-		/* Loop over players again */
-		for (i = 0; i < g->num_players; i++)
-		{
-			/* Get player pointer */
-			p_ptr = &g->p[i];
-
-			/* Give player six cards */
-			draw_cards(g, i, 6);
-
-			/* Ask player which start world they want */
-			j = p_ptr->control->choose_start(g, i, start_picks[i],
-			                                 2);
-
-			/* Check for aborted game */
-			if (g->game_over) return;
-
-			/* Remember start world */
-			p_ptr->start = j;
-
-			/* XXX Place start world (for now) */
-			g->deck[j].where = WHERE_ACTIVE;
-			g->deck[j].owner = i;
-
-			/* Assume player gets four cards */
-			n = 4;
-
-			/* Get player's start world */
-			c_ptr = &g->deck[p_ptr->start];
-
-			/* Check for starting with less */
-			if (c_ptr->d_ptr->flags & FLAG_STARTHAND_3) n = 3;
-
-			/* Have player discard down */
-			discard_to(g, i, n, 1);
-
-			/* XXX Remove start world so others don't see */
-			g->deck[j].where = WHERE_DISCARD;
-
-			/* Check for aborted game */
-			if (g->game_over) return;
-		}
-
-		/* Loop over players one last time */
-		for (i = 0; i < g->num_players; i++)
-		{
-			/* Place player's chosen start world */
-			place_card(g, i, g->p[i].start);
-		}
-	}
-	else
-	{
-		/* Loop over players */
-		for (i = 0; i < g->num_players; i++)
-		{
-			/* Choose a start world number */
-			n = myrand(&g->random_seed) % num_start;
-
-			/* Chosen world to player */
-			place_card(g, i, start[n]);
-
-			/* Remember start world */
-			g->p[i].start = start[n];
-
-			/* Collapse list */
-			start[n] = start[--num_start];
-		}
-
-		/* Loop over players again */
-		for (i = 0; i < g->num_players; i++)
-		{
-			/* Give player six cards */
-			draw_cards(g, i, 6);
-		}
-	}
-
-	/* Find lowest numbered start world */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Check for lower number */
-		if (g->p[i].start < lowest)
-		{
-			/* Remember lowest number */
-			lowest = g->p[i].start;
-			low_i = i;
-		}
-	}
-
-	/* Rotate players until player 0 holds lowest start world */
-	for (i = 0; i < low_i; i++) rotate_players(g);
-
-	/* Loop over players */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Get player pointer */
-		p_ptr = &g->p[i];
-
-		/* Get player's start world */
-		c_ptr = &g->deck[p_ptr->start];
-
-		/* Format message */
-		sprintf(msg, "%s starts with %s.\n", p_ptr->name,
-		        c_ptr->d_ptr->name);
-
-		/* Send message */
-		message_add(msg);
-	}
-
-	/* Loop over players */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Get player pointer */
-		p_ptr = &g->p[i];
-
-		/* Assume player gets four cards */
-		n = 4;
-
-		/* Get player's start world */
-		c_ptr = &g->deck[p_ptr->start];
-
-		/* Check for starting with less */
-		if (c_ptr->d_ptr->flags & FLAG_STARTHAND_3) n = 3;
-
-		/* Have player discard down */
-		discard_to(g, i, n, 1);
-
-		/* Check for aborted game */
-		if (g->game_over) return;
-	}
-
-	/* Clear temporary flags on drawn cards */
-	clear_temp(g);
-
-	/* XXX Pretend settle phase to set goal progress properly */
-	g->cur_action = ACT_SETTLE;
-	check_goals(g);
-	g->cur_action = -1;
 }

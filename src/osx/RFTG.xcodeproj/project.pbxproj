@@ -10,6 +10,7 @@
 		15409F750DCB9D6C00BC6E83 /* GLib.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15409F740DCB9D6C00BC6E83 /* GLib.framework */; };
 		15409F790DCB9D7A00BC6E83 /* Gtk.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15409F780DCB9D7A00BC6E83 /* Gtk.framework */; };
 		15409F7D0DCB9D8800BC6E83 /* Cairo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15409F7C0DCB9D8800BC6E83 /* Cairo.framework */; };
+		2060857C10FD520000D02923 /* loadsave.c in Sources */ = {isa = PBXBuildFile; fileRef = 2060857B10FD520000D02923 /* loadsave.c */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		9C28009A10768CDA0091054D /* network in Resources */ = {isa = PBXBuildFile; fileRef = 9C28007A10768CDA0091054D /* network */; };
 		D586A9F0106EC740000716A2 /* ai.c in Sources */ = {isa = PBXBuildFile; fileRef = D586A9EB106EC740000716A2 /* ai.c */; };
@@ -28,6 +29,7 @@
 		15409F740DCB9D6C00BC6E83 /* GLib.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLib.framework; path = /Library/Frameworks/GLib.framework; sourceTree = "<absolute>"; };
 		15409F780DCB9D7A00BC6E83 /* Gtk.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Gtk.framework; path = /Library/Frameworks/Gtk.framework; sourceTree = "<absolute>"; };
 		15409F7C0DCB9D8800BC6E83 /* Cairo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cairo.framework; path = /Library/Frameworks/Cairo.framework; sourceTree = "<absolute>"; };
+		2060857B10FD520000D02923 /* loadsave.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = loadsave.c; path = ../loadsave.c; sourceTree = SOURCE_ROOT; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9C28007A10768CDA0091054D /* network */ = {isa = PBXFileReference; lastKnownFileType = folder; name = network; path = ../network; sourceTree = "<group>"; };
 		9C2800A710768D470091054D /* RFTG.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RFTG.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -98,6 +100,7 @@
 				D586A9ED106EC740000716A2 /* gui.c */,
 				D586A9EE106EC740000716A2 /* init.c */,
 				D586A9EF106EC740000716A2 /* net.c */,
+				2060857B10FD520000D02923 /* loadsave.c */,
 				080E96DDFE201D6D7F000001 /* Classes */,
 				29B97315FDCFA39411CA2CEA /* Other Sources */,
 				29B97317FDCFA39411CA2CEA /* Resources */,
@@ -228,6 +231,7 @@
 				D586A9F2106EC740000716A2 /* gui.c in Sources */,
 				D586A9F3106EC740000716A2 /* init.c in Sources */,
 				D586A9F4106EC740000716A2 /* net.c in Sources */,
+				2060857C10FD520000D02923 /* loadsave.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

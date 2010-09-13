@@ -25,14 +25,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <ctype.h>
 #include <string.h>
+#include <time.h>
 
 /*
  * Default data directory if not otherwise specified.
  */
-#ifndef DATADIR
-# define DATADIR "."
+#ifndef RFTGDIR
+# define RFTGDIR "."
 #endif
 
 /*
@@ -43,17 +45,17 @@
 /*
  * Maximum number of expansion levels.
  */
-#define MAX_EXPANSION 3
+#define MAX_EXPANSION 4
 
 /*
  * Number of card designs.
  */
-#define MAX_DESIGN 151
+#define MAX_DESIGN 191
 
 /*
  * Number of cards in the deck.
  */
-#define MAX_DECK 180
+#define MAX_DECK 228
 
 /*
  * Number of powers per card.
@@ -63,7 +65,7 @@
 /*
  * Number of special VP bonuses per card.
  */
-#define MAX_VP_BONUS 5
+#define MAX_VP_BONUS 6
 
 /*
  * Maximum number of pending takeovers.
@@ -73,7 +75,7 @@
 /*
  * Number of intermediate goals.
  */
-#define MAX_GOAL 15
+#define MAX_GOAL 20
 
 /*
  * Number of turn phases.
@@ -83,7 +85,12 @@
 /*
  * Number of available actions.
  */
-#define MAX_ACTION 9
+#define MAX_ACTION 10
+
+/*
+ * Number of Search categories.
+ */
+#define MAX_SEARCH 9
 
 
 /*
@@ -100,15 +107,19 @@
 /*
  * Player action choices.
  */
-#define ACT_EXPLORE_5_0    0
-#define ACT_EXPLORE_1_1    1
-#define ACT_DEVELOP        2
-#define ACT_DEVELOP2       3
-#define ACT_SETTLE         4
-#define ACT_SETTLE2        5
-#define ACT_CONSUME_TRADE  6
-#define ACT_CONSUME_X2     7
-#define ACT_PRODUCE        8
+#define ACT_SEARCH         0
+#define ACT_EXPLORE_5_0    1
+#define ACT_EXPLORE_1_1    2
+#define ACT_DEVELOP        3
+#define ACT_DEVELOP2       4
+#define ACT_SETTLE         5
+#define ACT_SETTLE2        6
+#define ACT_CONSUME_TRADE  7
+#define ACT_CONSUME_X2     8
+#define ACT_PRODUCE        9
+
+#define ACT_MASK           0x7f
+#define ACT_PRESTIGE       0x80
 
 /*
  * Card types.
@@ -133,14 +144,20 @@
 #define FLAG_IMPERIUM      0x200
 #define FLAG_CHROMO        0x400
 
-#define FLAG_STARTHAND_3   0x800
-#define FLAG_DISCARD_TO_12 0x1000
-#define FLAG_GAME_END_14   0x2000
+#define FLAG_PRESTIGE      0x800
+
+#define FLAG_STARTHAND_3   0x1000
+#define FLAG_START_SAVE    0x2000
+#define FLAG_DISCARD_TO_12 0x4000
+#define FLAG_GAME_END_14   0x8000
+#define FLAG_TAKE_DISCARDS 0x10000
+#define FLAG_SELECT_LAST   0x20000
 
 
 /*
  * Good types (and cost).
  */
+#define GOOD_ANY      1
 #define GOOD_NOVELTY  2
 #define GOOD_RARE     3
 #define GOOD_GENE     4
@@ -154,128 +171,193 @@
 #define WHERE_HAND     2
 #define WHERE_ACTIVE   3
 #define WHERE_GOOD     4
+#define WHERE_SAVED    5
+#define WHERE_ASIDE    6
+
+/*
+ * Search categories.
+ */
+#define SEARCH_DEV_MILITARY       0
+#define SEARCH_MILITARY_WINDFALL  1
+#define SEARCH_PEACEFUL_WINDFALL  2
+#define SEARCH_CHROMO_WORLD       3
+#define SEARCH_ALIEN_WORLD        4
+#define SEARCH_CONSUME_TWO        5
+#define SEARCH_MILITARY_5         6
+#define SEARCH_6_DEV              7
+#define SEARCH_TAKEOVER           8
+
 
 /*
  * Card power effects by phase.
  */
 
 /* Phase one -- Explore */
-#define P1_DRAW         0x1
-#define P1_KEEP         0x2
+#define P1_DRAW               (1ULL << 0)
+#define P1_KEEP               (1ULL << 1)
 
-#define P1_DISCARD_ANY  0x4
+#define P1_DISCARD_ANY        (1ULL << 2)
+
+#define P1_DISCARD_PRESTIGE   (1ULL << 3)
 
 
 /* Phase two -- Develop */
-#define P2_DRAW               0x1
-#define P2_REDUCE             0x2
-#define P2_DRAW_AFTER         0x4
+#define P2_DRAW               (1ULL << 0)
+#define P2_REDUCE             (1ULL << 1)
 
-#define P2_DISCARD_REDUCE     0x8
+#define P2_DRAW_AFTER         (1ULL << 2)
+#define P2_EXPLORE            (1ULL << 3)
+
+#define P2_DISCARD_REDUCE     (1ULL << 4)
+#define P2_SAVE_COST          (1ULL << 5)
+
+#define P2_PRESTIGE           (1ULL << 6)
+#define P2_PRESTIGE_REBEL     (1ULL << 7)
+#define P2_PRESTIGE_SIX       (1ULL << 8)
+
+#define P2_CONSUME_RARE       (1ULL << 9)
 
 
 /* Phase three -- Settle */
-#define P3_REDUCE             0x1
+#define P3_REDUCE             (1ULL << 0)
 
-#define P3_NOVELTY            0x2
-#define P3_RARE               0x4
-#define P3_GENE               0x8
-#define P3_ALIEN              0x10
+#define P3_NOVELTY            (1ULL << 1)
+#define P3_RARE               (1ULL << 2)
+#define P3_GENE               (1ULL << 3)
+#define P3_ALIEN              (1ULL << 4)
 
-#define P3_DISCARD_ZERO       0x20
-#define P3_DISCARD_MILITARY   0x40
-#define P3_MILITARY_HAND      0x80
+#define P3_DISCARD            (1ULL << 5)
 
-#define P3_EXTRA_MILITARY     0x100
-#define P3_AGAINST_REBEL      0x200
-#define P3_PER_MILITARY       0x400
+#define P3_REDUCE_ZERO        (1ULL << 6)
+#define P3_MILITARY_HAND      (1ULL << 7)
 
-#define P3_PAY_MILITARY       0x800
-#define P3_PAY_DISCOUNT       0x1000
+#define P3_EXTRA_MILITARY     (1ULL << 8)
+#define P3_AGAINST_REBEL      (1ULL << 9)
+#define P3_AGAINST_CHROMO     (1ULL << 10)
+#define P3_PER_MILITARY       (1ULL << 11)
+#define P3_PER_CHROMO         (1ULL << 12)
+#define P3_IF_IMPERIUM        (1ULL << 13)
 
-#define P3_CONQUER_SETTLE     0x2000
+#define P3_PAY_MILITARY       (1ULL << 14)
+#define P3_PAY_DISCOUNT       (1ULL << 15)
+#define P3_PAY_PRESTIGE       (1ULL << 16)
 
-#define P3_DRAW_AFTER         0x4000
+#define P3_CONQUER_SETTLE     (1ULL << 17)
+#define P3_NO_TAKEOVER        (1ULL << 18)
 
-#define P3_PLACE_TWO          0x8000
+#define P3_DRAW_AFTER         (1ULL << 19)
+#define P3_EXPLORE_AFTER      (1ULL << 20)
+#define P3_PRESTIGE           (1ULL << 21)
+#define P3_PRESTIGE_REBEL     (1ULL << 22)
+#define P3_SAVE_COST          (1ULL << 23)
 
-#define P3_TAKEOVER_REBEL     0x10000
-#define P3_TAKEOVER_IMPERIUM  0x20000
-#define P3_TAKEOVER_MILITARY  0x40000
+#define P3_PLACE_TWO          (1ULL << 24)
+#define P3_PLACE_MILITARY     (1ULL << 25)
 
-#define P3_TAKEOVER_DEFENSE   0x80000
+#define P3_CONSUME_RARE       (1ULL << 26)
+#define P3_CONSUME_GENE       (1ULL << 27)
+#define P3_CONSUME_PRESTIGE   (1ULL << 28)
 
+#define P3_AUTO_PRODUCE       (1ULL << 29)
+#define P3_PRODUCE_PRESTIGE   (1ULL << 30)
+
+#define P3_TAKEOVER_REBEL     (1ULL << 31)
+#define P3_TAKEOVER_IMPERIUM  (1ULL << 32)
+#define P3_TAKEOVER_MILITARY  (1ULL << 33)
+#define P3_TAKEOVER_PRESTIGE  (1ULL << 34)
+
+#define P3_DESTROY            (1ULL << 35)
+
+#define P3_TAKEOVER_DEFENSE   (1ULL << 36)
+#define P3_PREVENT_TAKEOVER   (1ULL << 37)
+
+#define P3_UPGRADE_WORLD      (1ULL << 38)
+
+/* Mask of takeover powers */
+#define P3_TAKEOVER_MASK (P3_TAKEOVER_REBEL | P3_TAKEOVER_IMPERIUM | \
+                          P3_TAKEOVER_MILITARY | P3_PRESTIGE_TAKEOVER)
 
 /* Phase four -- Consume */
-#define P4_TRADE_ANY          0x1
-#define P4_TRADE_NOVELTY      0x2
-#define P4_TRADE_RARE         0x4
-#define P4_TRADE_GENE         0x8
-#define P4_TRADE_ALIEN        0x10
-#define P4_TRADE_THIS         0x20
-#define P4_TRADE_BONUS_CHROMO 0x40
+#define P4_TRADE_ANY          (1ULL << 0)
+#define P4_TRADE_NOVELTY      (1ULL << 1)
+#define P4_TRADE_RARE         (1ULL << 2)
+#define P4_TRADE_GENE         (1ULL << 3)
+#define P4_TRADE_ALIEN        (1ULL << 4)
+#define P4_TRADE_THIS         (1ULL << 5)
+#define P4_TRADE_BONUS_CHROMO (1ULL << 6)
 
-#define P4_TRADE_ACTION       0x80
-#define P4_TRADE_NO_BONUS     0x100
+#define P4_NO_TRADE           (1ULL << 7)
 
-#define P4_CONSUME_ANY        0x200
-#define P4_CONSUME_NOVELTY    0x400
-#define P4_CONSUME_RARE       0x800
-#define P4_CONSUME_GENE       0x1000
-#define P4_CONSUME_ALIEN      0x2000
+#define P4_TRADE_ACTION       (1ULL << 8)
+#define P4_TRADE_NO_BONUS     (1ULL << 9)
 
-#define P4_CONSUME_THIS       0x4000
+#define P4_CONSUME_ANY        (1ULL << 10)
+#define P4_CONSUME_NOVELTY    (1ULL << 11)
+#define P4_CONSUME_RARE       (1ULL << 12)
+#define P4_CONSUME_GENE       (1ULL << 13)
+#define P4_CONSUME_ALIEN      (1ULL << 14)
 
-#define P4_CONSUME_TWO        0x8000
+#define P4_CONSUME_THIS       (1ULL << 15)
 
-#define P4_CONSUME_3_DIFF     0x10000
-#define P4_CONSUME_N_DIFF     0x20000
-#define P4_CONSUME_ALL        0x40000
+#define P4_CONSUME_TWO        (1ULL << 16)
 
-#define P4_GET_CARD           0x80000
-#define P4_GET_2_CARD         0x100000
-#define P4_GET_VP             0x200000
+#define P4_CONSUME_3_DIFF     (1ULL << 17)
+#define P4_CONSUME_N_DIFF     (1ULL << 18)
+#define P4_CONSUME_ALL        (1ULL << 19)
 
-#define P4_DRAW               0x400000
-#define P4_DRAW_LUCKY         0x800000
-#define P4_DISCARD_HAND       0x1000000
-#define P4_ANTE_CARD          0x2000000
-#define P4_VP                 0x4000000
+#define P4_CONSUME_PRESTIGE   (1ULL << 20)
 
-#define P4_RECYCLE            0x8000000
+#define P4_GET_CARD           (1ULL << 21)
+#define P4_GET_2_CARD         (1ULL << 22)
+#define P4_GET_VP             (1ULL << 23)
+#define P4_GET_PRESTIGE       (1ULL << 24)
+
+#define P4_DRAW               (1ULL << 25)
+#define P4_DRAW_LUCKY         (1ULL << 26)
+#define P4_DISCARD_HAND       (1ULL << 27)
+#define P4_ANTE_CARD          (1ULL << 28)
+#define P4_VP                 (1ULL << 29)
+
+#define P4_RECYCLE            (1ULL << 30)
 
 /* Mask of trade powers */
 #define P4_TRADE_MASK (P4_TRADE_ANY | P4_TRADE_NOVELTY | P4_TRADE_RARE | \
                        P4_TRADE_GENE | P4_TRADE_ALIEN | P4_TRADE_THIS | \
-                       P4_TRADE_BONUS_CHROMO)
+                       P4_TRADE_BONUS_CHROMO | P4_NO_TRADE)
 
 
 /* Phase five -- Produce */
-#define P5_PRODUCE            0x1
-#define P5_DISCARD_PRODUCE    0x2
+#define P5_PRODUCE              (1ULL << 0)
 
-#define P5_WINDFALL_ANY       0x4
-#define P5_WINDFALL_NOVELTY   0x8
-#define P5_WINDFALL_RARE      0x10
-#define P5_WINDFALL_GENE      0x20
-#define P5_WINDFALL_ALIEN     0x40
-#define P5_NOT_THIS           0x80
+#define P5_WINDFALL_ANY         (1ULL << 1)
+#define P5_WINDFALL_NOVELTY     (1ULL << 2)
+#define P5_WINDFALL_RARE        (1ULL << 3)
+#define P5_WINDFALL_GENE        (1ULL << 4)
+#define P5_WINDFALL_ALIEN       (1ULL << 5)
+#define P5_NOT_THIS             (1ULL << 6)
+#define P5_DISCARD              (1ULL << 7)
 
-#define P5_DRAW               0x100
-#define P5_DRAW_IF            0x200
+#define P5_DRAW                 (1ULL << 8)
+#define P5_DRAW_IF              (1ULL << 9)
+#define P5_PRESTIGE_IF          (1ULL << 10)
 
-#define P5_DRAW_EACH_NOVELTY  0x400
-#define P5_DRAW_EACH_RARE     0x800
-#define P5_DRAW_EACH_GENE     0x1000
-#define P5_DRAW_EACH_ALIEN    0x2000
+#define P5_DRAW_EACH_NOVELTY    (1ULL << 11)
+#define P5_DRAW_EACH_RARE       (1ULL << 12)
+#define P5_DRAW_EACH_GENE       (1ULL << 13)
+#define P5_DRAW_EACH_ALIEN      (1ULL << 14)
 
-#define P5_DRAW_WORLD_GENE    0x4000
-#define P5_DRAW_MOST_RARE     0x8000
-#define P5_DRAW_DIFFERENT     0x10000
+#define P5_DRAW_WORLD_GENE      (1ULL << 15)
+#define P5_DRAW_MOST_RARE       (1ULL << 16)
+#define P5_DRAW_MOST_PRODUCED   (1ULL << 17)
+#define P5_DRAW_DIFFERENT       (1ULL << 18)
 
-#define P5_DRAW_MILITARY      0x20000
-#define P5_DRAW_REBEL         0x40000
-#define P5_DRAW_CHROMO        0x80000
+#define P5_PRESTIGE_MOST_CHROMO (1ULL << 19)
+
+#define P5_DRAW_MILITARY        (1ULL << 20)
+#define P5_DRAW_REBEL           (1ULL << 21)
+#define P5_DRAW_CHROMO          (1ULL << 22)
+
+#define P5_TAKE_SAVED           (1ULL << 23)
 
 
 /*
@@ -311,13 +393,15 @@
 
 #define VP_MILITARY             23
 #define VP_TOTAL_MILITARY       24
+#define VP_NEGATIVE_MILITARY    25
 
-#define VP_REBEL_MILITARY       25
+#define VP_REBEL_MILITARY       26
 
-#define VP_THREE_VP             26
-#define VP_KIND_GOOD            27
+#define VP_THREE_VP             27
+#define VP_KIND_GOOD            28
+#define VP_PRESTIGE             29
 
-#define VP_NAME                 28
+#define VP_NAME                 30
 
 
 /*
@@ -334,13 +418,47 @@
 #define GOAL_FIRST_4_GOODS      7
 #define GOAL_FIRST_8_ACTIVE     8
 
-#define GOAL_MOST_MILITARY      9
-#define GOAL_MOST_BLUE_BROWN    10
-#define GOAL_MOST_DEVEL         11
-#define GOAL_MOST_PRODUCTION    12
+#define GOAL_FIRST_NEG_MILITARY 9
+#define GOAL_FIRST_2_PRESTIGE   10
+#define GOAL_FIRST_4_MILITARY   11
 
-#define GOAL_MOST_EXPLORE       13
-#define GOAL_MOST_REBEL         14
+#define GOAL_MOST_MILITARY      12
+#define GOAL_MOST_BLUE_BROWN    13
+#define GOAL_MOST_DEVEL         14
+#define GOAL_MOST_PRODUCTION    15
+
+#define GOAL_MOST_EXPLORE       16
+#define GOAL_MOST_REBEL         17
+
+#define GOAL_MOST_PRESTIGE      18
+#define GOAL_MOST_CONSUME       19
+
+/*
+ * Choice types we can send to players.
+ */
+#define CHOICE_ACTION           0
+#define CHOICE_START            1
+#define CHOICE_DISCARD          2
+#define CHOICE_SAVE             3
+#define CHOICE_DISCARD_PRESTIGE 4
+#define CHOICE_PLACE            5
+#define CHOICE_PAYMENT          6
+#define CHOICE_TAKEOVER         7
+#define CHOICE_DEFEND           8
+#define CHOICE_TAKEOVER_PREVENT 9
+#define CHOICE_UPGRADE          10
+#define CHOICE_TRADE            11
+#define CHOICE_CONSUME          12
+#define CHOICE_CONSUME_HAND     13
+#define CHOICE_GOOD             14
+#define CHOICE_LUCKY            15
+#define CHOICE_ANTE             16
+#define CHOICE_KEEP             17
+#define CHOICE_WINDFALL         18
+#define CHOICE_PRODUCE          19
+#define CHOICE_DISCARD_PRODUCE  20
+#define CHOICE_SEARCH_TYPE      21
+#define CHOICE_SEARCH_KEEP      22
 
 
 /*
@@ -359,7 +477,7 @@ typedef struct power
 	int phase;
 
 	/* Power's effect code */
-	int code;
+	uint64_t code;
 
 	/* Power's value */
 	int value;
@@ -442,8 +560,11 @@ typedef struct card
 	/* Card's location */
 	int where;
 
-	/* Card is one just drawn (explore) and may be discarded */
+	/* Card is one just drawn or placed */
 	int temp;
+
+	/* Card is being placed and is not yet paid for */
+	int unpaid;
 
 	/* Bitmask of players who know card's location */
 	int known;
@@ -457,9 +578,6 @@ typedef struct card
 	/* Card design */
 	design *d_ptr;
 
-	/* Card is face down as a good */
-	int good;
-
 	/* Card covering us (as a good) */
 	int covered;
 
@@ -469,88 +587,24 @@ typedef struct card
 } card;
 
 /*
- * Function type for choose callback.
- */
-typedef int (*choose_result)(struct game *, int, int *, int);
-
-/*
  * Collection of function pointers for a player's decisions.
  */
-typedef struct interface
+typedef struct decisions
 {
 	/* Initialize */
 	void (*init)(struct game *g, int who, double factor);
 
 	/* Player spots have been rotated */
-	void (*notify_rotation)(struct game *g);
+	void (*notify_rotation)(struct game *g, int who);
 
-	/* Choose a start world */
-	int (*choose_start)(struct game *g, int who, int list[], int num);
-
-	/* Choose action */
-	void (*choose_action)(struct game *g, int who, int action[2]);
-
-	/* React to action choice */
-	void (*react_action)(struct game *g, int who, int action[2]);
-
-	/* Choose cards to discard */
-	void (*choose_discard)(struct game *g, int who, int list[], int num,
-	                       int discard);
+	/* Make a choice among those given */
+	void (*make_choice)(struct game *g, int who, int type, int list[],
+	                    int *nl, int special[], int *ns, int arg1,
+	                    int arg2, int arg3);
 
 	/* Take sample cards into hand from Explore phase */
 	void (*explore_sample)(struct game *g, int who, int draw, int keep,
 	                       int discard_any);
-
-	/* Choose card to place */
-	int (*choose_place)(struct game *g, int who, int list[], int num,
-	                    int phase);
-
-	/* Choose method of payment */
-	void (*choose_pay)(struct game *g, int who, int which, int list[],
-	                   int num, int special[], int num_special);
-
-	/* Choose world to takeover */
-	int (*choose_takeover)(struct game *g, int who, int list[], int num,
-	                       int special[], int num_special);
-
-	/* Choose method of takeover defense */
-	void (*choose_defend)(struct game *g, int who, int which, int opponent,
-	                      int deficit, int list[], int num,
-	                      int special[], int num_special);
-
-	/* Choose good to trade */
-	void (*choose_trade)(struct game *g, int who, int list[], int num,
-	                     int no_bonus);
-
-	/* Choose consume power to use */
-	void (*choose_consume)(struct game *g, int who, power olist[], int num);
-
-	/* Choose cards from hand to consume */
-	void (*choose_consume_hand)(struct game *g, int who, power *o_ptr,
-	                            int list[], int num);
-
-	/* Choose goods to consume */
-	void (*choose_good)(struct game *g, int who, power *o_ptr, int goods[],
-	                    int num, int min, int max);
-
-	/* Choose lucky number */
-	int (*choose_lucky)(struct game *g, int who);
-
-	/* Choose card to ante while gambling */
-	int (*choose_ante)(struct game *g, int who, int list[], int num);
-
-	/* Choose card to keep after gambling successfully */
-	int (*choose_keep)(struct game *g, int who, int list[], int num);
-
-	/* Choose windfall world to produce on */
-	void (*choose_windfall)(struct game *g, int who, int list[], int num);
-
-	/* Choose produce power to use */
-	void (*choose_produce)(struct game *g, int who, power olist[], int num);
-
-	/* Choose card to discard when needed to produce */
-	void (*choose_discard_produce)(struct game *g, int who, int world,
-	                               int list[], int num);
 
 	/* Game over */
 	void (*game_over)(struct game *g, int who);
@@ -558,7 +612,7 @@ typedef struct interface
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
 
-} interface;
+} decisions;
 
 /*
  * Information about a player.
@@ -569,13 +623,16 @@ typedef struct player
 	char *name;
 
 	/* Ask player to make decisions */
-	interface *control;
+	decisions *control;
 
 	/* Action(s) chosen */
 	int action[2];
 
 	/* Previous turn action(s) */
 	int prev_action[2];
+
+	/* Player has used prestige/search action */
+	int prestige_action_used;
 
 	/* Player has used phase bonus */
 	int phase_bonus_used;
@@ -597,6 +654,12 @@ typedef struct player
 
 	/* Progress toward each goal */
 	int goal_progress[MAX_GOAL];
+
+	/* Prestige */
+	int prestige;
+
+	/* Prestige earned this turn */
+	int prestige_turn;
 
 	/* Victory point chips */
 	int vp;
@@ -628,9 +691,17 @@ typedef struct player
 	/* Counter for cards played */
 	int table_order;
 
-	/* Cards and VP earned during the current phase */
+	/* Cards, VP, and prestige earned during the current phase */
 	int phase_cards;
 	int phase_vp;
+	int phase_prestige;
+
+	/* Log of player's choices */
+	int *choice_log;
+
+	/* Size and current position of choice log */
+	int choice_size;
+	int choice_pos;
 
 } player;
 
@@ -639,6 +710,9 @@ typedef struct player
  */
 typedef struct game
 {
+	/* Session ID in online server */
+	int session_id;
+
 	/* Current random seed */
 	unsigned int random_seed;
 
@@ -699,6 +773,9 @@ typedef struct game
 	/* Card holding takeover power */
 	int takeover_power[MAX_TAKEOVER];
 
+	/* Takeover marked for failure */
+	int takeover_defeated[MAX_TAKEOVER];
+
 	/* Actions selected this round */
 	int action_selected[MAX_ACTION];
 
@@ -721,60 +798,75 @@ typedef struct game
  * External variables.
  */
 extern design library[MAX_DESIGN];
-extern char *action_name[MAX_ACTION];
 extern char *goal_name[MAX_GOAL];
-extern interface ai_func;
-extern interface gui_func;
+extern char *search_name[MAX_SEARCH];
+extern decisions ai_func;
+extern decisions gui_func;
 
 /*
  * External functions.
  */
-extern void message_add(char *msg);
+extern void message_add(game *g, char *msg);
+extern void wait_for_answer(game *g, int who);
+extern void prepare_phase(game *g, int who, int phase, int arg);
+extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);
-extern int myrand(unsigned int *seed);
+extern int simple_rand(unsigned int *seed);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
 extern card *random_draw(game *g);
 extern void draw_card(game *g, int who);
 extern void draw_cards(game *g, int who, int num);
+extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
 extern void add_good(game *g, card *c_ptr);
+extern int search_match(game *g, int which, int category);
+extern void phase_search(game *g);
 extern void phase_explore(game *g);
 extern void place_card(game *g, int who, int which);
 extern void develop_action(game *g, int who, int placing);
 extern void phase_develop(game *g);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
-                            int special[], int num_special);
+                            int special[], int num_special, int mil_only);
 extern int takeover_callback(game *g, int special, int world);
 extern int settle_check_takeover(game *g, int who);
+extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
 extern void resolve_takeovers(game *g);
 extern void phase_settle(game *g);
 extern void trade_chosen(game *g, int who, int which, int no_bonus);
-extern void trade_action(game *g, int who, int no_bonus);
-extern int good_chosen(game *g, int who, power *o_ptr, int g_list[], int num);
-extern int consume_hand_chosen(game *g, int who, power *o_ptr, int list[],
-                               int n);
-extern void consume_chosen(game *g, int who, power *o_ptr);
+extern void trade_action(game *g, int who, int no_bonus, int phase_bonus);
+extern int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[],
+                       int num);
+extern int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
+                               int list[], int n);
+extern void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx);
+extern void consume_chosen(game *g, int who, int c_idx, int o_idx);
 extern int consume_action(game *g, int who);
+extern void consume_player(game *g, int who);
 extern void phase_consume(game *g);
 extern void produce_world(game *g, int who, int which);
 extern void discard_produce_chosen(game *g, int who, int world, int discard);
-extern void produce_chosen(game *g, int who, power *o_ptr);
+extern void produce_chosen(game *g, int who, int c_idx, int o_idx);
 extern int produce_action(game *g, int who);
 extern void phase_produce_end(game *g);
+extern void produce_player(game *g, int who);
 extern void phase_produce(game *g);
 extern void phase_discard(game *g);
 extern int goal_minimum(int goal);
 extern void check_goals(game *g);
 extern int total_military(game *g, int who);
 extern void score_game(game *g);
+extern char *action_name(int act);
+extern int start_callback(game *g, int who, int list[], int n, int special[],
+                          int num_special);
+extern void begin_game(game *g);
 extern int game_round(game *g);
 extern void declare_winner(game *g);
 
@@ -782,5 +874,5 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
                               double *role[], double *action_score[],
                               int *num_action);
 
-extern int load_game(game *g, char *filename);
-extern int save_game(game *g, char *filename);
+extern int load_game(game *g, char *filename, int *player_us);
+extern int save_game(game *g, char *filename, int player_us);

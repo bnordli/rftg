@@ -15,7 +15,7 @@ name=$expanded.$players$advanced
 
 rm -f rftg.$name.out
 
-for i in `seq 1 1000`
+for i in `seq 1 200`
 do
 	if [ "$advanced" = a ]
 	then

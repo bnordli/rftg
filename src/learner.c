@@ -28,10 +28,33 @@ int verbose = 0;
 /*
  * Print messages to standard output.
  */
-void message_add(char *msg)
+void message_add(game *g, char *msg)
 {
 	/* Print if verbose flag set */
 	if (verbose) printf("%s", msg);
+}
+
+/*
+ * AI players always have an answer ready after they return.
+ */
+void wait_for_answer(game *g, int who)
+{
+}
+
+/*
+ * No need to prepare a phase in advance.
+ */
+void prepare_phase(game *g, int who, int phase, int arg)
+{
+}
+
+/*
+ * Use simple random number generator.
+ */
+int game_rand(game *g)
+{
+	/* Call simple random number generator */
+	return simple_rand(&g->random_seed);
 }
 
 /*
@@ -43,7 +66,6 @@ int main(int argc, char *argv[])
 	int i, j, n = 100;
 	int num_players = 3;
 	int expansion = 0, advanced = 0;
-	int seed;
 	char buf[1024];
 	double factor = 1.0;
 
@@ -133,6 +155,13 @@ int main(int argc, char *argv[])
 
 		/* Initialize AI */
 		my_game.p[i].control->init(&my_game, i, factor);
+
+		/* Create choice log for player */
+		my_game.p[i].choice_log = (int *)malloc(sizeof(int) * 4096);
+
+		/* Clear choice log size and position */
+		my_game.p[i].choice_size = 0;
+		my_game.p[i].choice_pos = 0;
 	}
 
 	/* Play a number of games */
@@ -140,6 +169,9 @@ int main(int argc, char *argv[])
 	{
 		/* Initialize game */
 		init_game(&my_game);
+
+		/* Begin game */
+		begin_game(&my_game);
 
 		/* Play game rounds until finished */
 		while (game_round(&my_game));
@@ -151,31 +183,22 @@ int main(int argc, char *argv[])
 		for (j = 0; j < num_players; j++)
 		{
 			/* Print score */
-			printf("Player %d: %d\n", j, my_game.p[j].end_vp);
+			printf("%s: %d\n", my_game.p[j].name,
+			                   my_game.p[j].end_vp);
 		}
 
 		/* Declare winner */
 		declare_winner(&my_game);
-
-		/* Print winner */
-		for (j = 0; j < num_players; j++)
-		{
-			/* Skip non-winner */
-			if (!my_game.p[j].winner) continue;
-
-			/* Do nothing if not verbose */
-			if (!verbose) break;
-
-			/* Print winner message */
-			printf("Player %d wins with %d.\n", j,
-			                                   my_game.p[j].end_vp);
-		}
 
 		/* Call player game over functions */
 		for (j = 0; j < num_players; j++)
 		{
 			/* Call game over function */
 			my_game.p[j].control->game_over(&my_game, j);
+
+			/* Clear choice log */
+			my_game.p[j].choice_size = 0;
+			my_game.p[j].choice_pos = 0;
 		}
 	}
 

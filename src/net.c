@@ -158,6 +158,16 @@ void make_learner(net *learn, int input, int hidden, int output)
 
 	/* No training done */
 	learn->num_training = 0;
+
+	/* Create array for input names */
+	learn->input_name = (char **)malloc(sizeof(char *) * input);
+
+	/* Clear array of input names */
+	for (i = 0; i < input; i++)
+	{
+		/* Clear name */
+		learn->input_name[i] = NULL;
+	}
 }
 
 /*
@@ -526,6 +536,16 @@ void free_net(net *learn)
 	/* Free list of past inputs */
 	free(learn->past_input);
 	free(learn->past_input_player);
+
+	/* Free input names */
+	for (i = 0; i < learn->num_inputs; i++)
+	{
+		/* Free name if set */
+		if (learn->input_name[i]) free(learn->input_name[i]);
+	}
+
+	/* Free array of input names */
+	free(learn->input_name);
 }
 
 /*
@@ -536,6 +556,7 @@ int load_net(net *learn, char *fname)
 	FILE *fff;
 	int i, j;
 	int input, hidden, output;
+	char name[80];
 
 	/* Open weights file */
 	fff = fopen(fname, "r");
@@ -553,6 +574,30 @@ int load_net(net *learn, char *fname)
 
 	/* Read number of training iterations */
 	fscanf(fff, "%d\n", &learn->num_training);
+
+	/* Loop over input names */
+	for (i = 0; i < learn->num_inputs; i++)
+	{
+		/* Read an input name */
+		fgets(name, 80, fff);
+
+		/* Strip newline */
+		name[strlen(name) - 1] = '\0';
+
+		/* Check for differing existing name */
+		if (learn->input_name[i] && strcmp(name, learn->input_name[i]))
+		{
+			/* Failure */
+			return -1;
+		}
+
+		/* Set name if not given */
+		if (!learn->input_name[i])
+		{
+			/* Set name */
+			learn->input_name[i] = strdup(name);
+		}
+	}
 
 	/* Loop over hidden nodes */
 	for (i = 0; i < learn->num_hidden; i++)
@@ -610,6 +655,22 @@ void save_net(net *learn, char *fname)
 
 	/* Save training iterations */
 	fprintf(fff, "%d\n", learn->num_training);
+
+	/* Loop over inputs */
+	for (i = 0; i < learn->num_inputs; i++)
+	{
+		/* Check for no name given */
+		if (!learn->input_name[i])
+		{
+			/* Write empty string */
+			fprintf(fff, "\n");
+		}
+		else
+		{
+			/* Save input name */
+			fprintf(fff, "%s\n", learn->input_name[i]);
+		}
+	}
 
 	/* Loop over hidden nodes */
 	for (i = 0; i < learn->num_hidden; i++)

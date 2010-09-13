@@ -94,6 +94,9 @@ typedef struct net
 	/* Training iterations this network has gone through */
 	int num_training;
 
+	/* Names of inputs */
+	char **input_name;
+
 } net;
 
 /* External functions */
