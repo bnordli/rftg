@@ -245,7 +245,14 @@ void read_cards(void)
 	int i, code, phase;
 
 	/* Open card database */
-	fff = fopen("cards.txt", "r");
+	fff = fopen(DATADIR "/cards.txt", "r");
+
+	/* Check for error */
+	if (!fff)
+	{
+		/* Try reading from current directory instead */
+		fff = fopen("cards.txt", "r");
+	}
 
 	/* Check for failure */
 	if (!fff)
@@ -657,7 +664,7 @@ void init_game(game *g)
 	}
 
 	/* Add goals when expanded */
-	if (g->expanded)
+	if (g->expanded && !g->goal_disabled)
 	{
 		/* No goals available yet */
 		n = 0;
@@ -776,6 +783,9 @@ void init_game(game *g)
 
 		/* Player is not the winner */
 		p_ptr->winner = 0;
+
+		/* Player has earned no cards/VP this phase */
+		p_ptr->phase_cards = p_ptr->phase_vp = 0;
 
 		/* Player has no fake cards */
 		p_ptr->fake_hand = p_ptr->total_fake = 0;
@@ -951,4 +961,9 @@ void init_game(game *g)
 
 	/* Clear temporary flags on drawn cards */
 	clear_temp(g);
+
+	/* XXX Pretend settle phase to set goal progress properly */
+	g->cur_action = ACT_SETTLE;
+	check_goals(g);
+	g->cur_action = -1;
 }

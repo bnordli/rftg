@@ -29,6 +29,13 @@
 #include <string.h>
 
 /*
+ * Default data directory if not otherwise specified.
+ */
+#ifndef DATADIR
+# define DATADIR "."
+#endif
+
+/*
  * Maximum number of players.
  */
 #define MAX_PLAYER 6
@@ -617,6 +624,10 @@ typedef struct player
 	/* Counter for cards played */
 	int table_order;
 
+	/* Cards and VP earned during the current phase */
+	int phase_cards;
+	int phase_vp;
+
 } player;
 
 /*
@@ -648,6 +659,12 @@ typedef struct game
 	/* Number of expansions in use */
 	int expanded;
 
+	/* Disable goals in expanded games */
+	int goal_disabled;
+
+	/* Disable takeovers in second (or later) expansion */
+	int takeover_disabled;
+
 	/* Size of deck in use */
 	int deck_size;
 
@@ -662,6 +679,9 @@ typedef struct game
 
 	/* Goals yet unclaimed */
 	int goal_avail[MAX_GOAL];
+
+	/* Maximum progress toward a "most" goal */
+	int goal_most[MAX_GOAL];
 
 	/* Number of pending takeovers */
 	int num_takeover;
@@ -697,6 +717,7 @@ typedef struct game
  * External variables.
  */
 extern char *action_name[MAX_ACTION];
+extern char *goal_name[MAX_GOAL];
 extern interface ai_func;
 
 /*
@@ -743,6 +764,7 @@ extern int produce_action(game *g, int who);
 extern void phase_produce_end(game *g);
 extern void phase_produce(game *g);
 extern void phase_discard(game *g);
+extern int goal_minimum(int goal);
 extern void check_goals(game *g);
 extern int total_military(game *g, int who);
 extern void score_game(game *g);

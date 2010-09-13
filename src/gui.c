@@ -19,7 +19,46 @@
  */
 
 #include <gtk/gtk.h>
+#include <gdk/gdkkeysyms.h>
 #include "rftg.h"
+
+/*
+ * User options.
+ */
+typedef struct options
+{
+	/* Number of players */
+	int num_players;
+
+	/* Expansion level */
+	int expanded;
+
+	/* Two-player advanced game */
+	int advanced;
+
+	/* Disable goals */
+	int disable_goal;
+
+	/* Disable takeovers */
+	int disable_takeover;
+
+	/* Reduce/eliminate full-size card image */
+	int full_reduced;
+
+} options;
+
+/*
+ * Our options.
+ */
+options opt = 
+{
+	.num_players = 3
+};
+
+/*
+ * Keyfile with our preferences.
+ */
+static GKeyFile *pref_file;
 
 /*
  * AI verbosity.
@@ -139,6 +178,18 @@ static power *action_power;
 static int action_choice1, action_choice2;
 
 /*
+ * Number of icon images.
+ */
+#define MAX_ICON 12
+
+/*
+ * Special icon numbers.
+ */
+#define ICON_QUESTION  9
+#define ICON_HANDSIZE  10
+#define ICON_VP        11
+
+/*
  * Card images.
  */
 static GdkPixbuf *image_cache[MAX_DESIGN];
@@ -149,6 +200,11 @@ static GdkPixbuf *image_cache[MAX_DESIGN];
 static GdkPixbuf *goal_cache[MAX_GOAL];
 
 /*
+ * Icon images.
+ */
+static GdkPixbuf *icon_cache[MAX_ICON];
+
+/*
  * Card back image.
  */
 static GdkPixbuf *card_back;
@@ -157,14 +213,19 @@ static GdkPixbuf *card_back;
  * Widgets used in multiple functions.
  */
 static GtkWidget *full_image;
-static GtkWidget *hand_area, *our_area;
-static GtkWidget *opp_area[MAX_PLAYER], *orig_area[MAX_PLAYER];
-static GtkWidget *goal_area;
+static GtkWidget *hand_area;
+static GtkWidget *player_area[MAX_PLAYER], *orig_area[MAX_PLAYER];
 static GtkWidget *player_status[MAX_PLAYER], *orig_status[MAX_PLAYER];
-static GtkWidget *player_frame[MAX_PLAYER];
+static GtkWidget *player_box[MAX_PLAYER], *player_sep[MAX_PLAYER];
+static GtkWidget *goal_area;
 static GtkWidget *game_status;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box, *action_prompt, *action_button;
+
+/*
+ * Keyboard accelerator group for main window.
+ */
+static GtkAccelGroup *window_accel;
 
 /*
  * Text buffer for message area.
@@ -239,10 +300,20 @@ static void load_image_bundle(void)
 	int count, x;
 
 	/* Create bundle file handle */
-	bundle = g_file_new_for_path("images.data");
+	bundle = g_file_new_for_path(DATADIR "/images.data");
 
 	/* Open file for reading */
 	fs = G_INPUT_STREAM(g_file_read(bundle, NULL, NULL));
+
+	/* Check for error */
+	if (!fs)
+	{
+		/* Try reading from current directory instead */
+		bundle = g_file_new_for_path("images.data");
+
+		/* Open file for reading */
+		fs = G_INPUT_STREAM(g_file_read(bundle, NULL, NULL));
+	}
 
 	/* Check for error */
 	if (!fs)
@@ -303,6 +374,19 @@ static void load_image_bundle(void)
 
 			/* Get pointer to pixbuf holder */
 			pix_ptr = &goal_cache[x];
+		}
+
+		/* Check for icon image */
+		else if (buf[0] == 4)
+		{
+			/* Read card number */
+			count = g_input_stream_read(fs, buf, 3, NULL, NULL);
+
+			/* Convert to integer */
+			x = strtol(buf, NULL, 10);
+
+			/* Get pointer to pixbuf holder */
+			pix_ptr = &icon_cache[x];
 		}
 
 		/* Check for something else */
@@ -367,7 +451,7 @@ static void load_images(void)
 	char fn[1024];
 
 	/* Load card back image */
-	card_back = gdk_pixbuf_new_from_file("image/cardback.jpg", NULL);
+	card_back = gdk_pixbuf_new_from_file("image/cardback.jpg",NULL);
 
 	/* Check for failure */
 	if (!card_back)
@@ -407,7 +491,27 @@ static void load_images(void)
 		if (!goal_cache[i])
 		{
 			/* Print error */
-			printf("Cannot open goal image %s!|n", fn);
+			printf("Cannot open goal image %s!\n", fn);
+		}
+	}
+
+	/* Loop over actions */
+	for (i = 0; i < MAX_ICON; i++)
+	{
+		/* Skip second develop/settle action */
+		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
+
+		/* Construct image filename */
+		sprintf(fn, "image/icon%02d.png", i);
+
+		/* Load image */
+		icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+
+		/* Check for error */
+		if (!icon_cache[i])
+		{
+			/* Print error */
+			printf("Cannot open icon image %s!\n", fn);
 		}
 	}
 }
@@ -572,9 +676,6 @@ static gboolean action_check_takeover(void)
 		}
 	}
 
-	/* Check for no target */
-	if (target == -1) return 0;
-
 	/* Loop over cards on table */
 	for (i = 0; i < table_size[player_us]; i++)
 	{
@@ -591,7 +692,13 @@ static gboolean action_check_takeover(void)
 		special = i_ptr->index;
 	}
 
-	/* Check for no special card */
+	/* Check for no target or special card */
+	if (target == -1 && special == -1) return 1;
+
+	/* Check for only no target */
+	if (target == -1) return 0;
+
+	/* Check for only no special card */
 	if (special == -1) return 0;
 
 	/* Copy game */
@@ -659,18 +766,36 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
                             gpointer data)
 {
 	design *d_ptr = (design *)data;
+	GdkPixbuf *buf;
 
 	/* Check for no design */
 	if (!d_ptr)
 	{
 		/* Set image to card back */
-		gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), card_back);
+		buf = card_back;
 	}
 	else
 	{
-		/* Reset image */
-		gtk_image_set_from_pixbuf(GTK_IMAGE(full_image),
-		                          image_cache[d_ptr->index]);
+		/* Set image to card face */
+		buf = image_cache[d_ptr->index];
+	}
+
+	/* Check for halfsize image */
+	if (opt.full_reduced == 1)
+	{
+		/* Scale image */
+		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
+		                          CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
+	}
+
+	/* Set image */
+	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
+
+	/* Check for halfsize image */
+	if (opt.full_reduced == 1)
+	{
+		/* Remove our scaled buffer */
+		g_object_unref(G_OBJECT(buf));
 	}
 
 	/* Event handled */
@@ -819,6 +944,15 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 }
 
 /*
+ * Card selected by keypress.
+ */
+static void card_keyed(GtkWidget *widget, gpointer data)
+{
+	/* Call regular handler */
+	card_selected(widget, NULL, data);
+}
+
+/*
  * Callback to destroy child widgets so that new ones can take their place.
  */
 static void destroy_widget(GtkWidget *widget, gpointer data)
@@ -835,6 +969,7 @@ static void redraw_hand(void)
 	GtkWidget *box;
 	displayed *i_ptr;
 	int count = 0, gap = 0, n;
+	int key_count = 1, key_code;
 	int width, height;
 	int card_w, card_h;
 	int i;
@@ -910,6 +1045,37 @@ static void redraw_hand(void)
 			/* Connect "button released" signal */
 			g_signal_connect(G_OBJECT(box), "button-release-event",
 			                 G_CALLBACK(card_selected), i_ptr);
+
+			/* Check for enough keyboard numbers */
+			if (key_count < 10)
+			{
+				/* Compute keyboard code */
+				if (key_count <= 9)
+				{
+					/* Start with '1' */
+					key_code = GDK_1 + key_count - 1;
+				}
+				else
+				{
+					/* Use '0' for 10 */
+					key_code = GDK_0;
+				}
+
+				/* Add handler for keypresses */
+				gtk_widget_add_accelerator(box,
+				                           "key-signal",
+							   window_accel,
+							   key_code,
+							   0, 0);
+
+				/* Connect key-signal */
+				g_signal_connect(G_OBJECT(box), "key-signal",
+						 G_CALLBACK(card_keyed),
+				                 i_ptr);
+
+				/* Increment count */
+				key_count++;
+			}
 		}
 
 		/* Show image */
@@ -952,6 +1118,14 @@ static void redraw_table_area(int who, GtkWidget *area)
 		/* Six columns */
 		col = 6;
 	}
+
+	/* Check for narrow area */
+	else if (height > (3 * width) / 2)
+	{
+		/* Three columns */
+		col = 3;
+	}
+
 	else
 	{
 		/* Four columns */
@@ -1047,18 +1221,76 @@ static void redraw_table(void)
 {
 	int i;
 
-	/* First redraw our area */
-	redraw_table_area(player_us, our_area);
-
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
 	{
-		/* Skip ourself */
-		if (i == player_us) continue;
-
-		/* Redraw opponent area */
-		redraw_table_area(i, opp_area[i]);
+		/* Redraw player area */
+		redraw_table_area(i, player_area[i]);
 	}
+}
+
+/*
+ * Create a tooltip for a goal image.
+ */
+static void add_goal_tooltip(GtkWidget *image, int goal)
+{
+	player *p_ptr;
+	int i;
+	char msg[1024], text[1024];
+
+	/* Create tooltip text */
+	sprintf(msg, "%s", goal_name[goal]);
+
+	/* Check for first goal */
+	if (goal <= GOAL_FIRST_8_ACTIVE)
+	{
+		/* Check for claimed goal */
+		if (!real_game.goal_avail[goal])
+		{
+			/* Add text to tooltip */
+			strcat(msg, "\nClaimed by:");
+
+			/* Loop over players */
+			for (i = 0; i < real_game.num_players; i++)
+			{
+				/* Get player pointer */
+				p_ptr = &real_game.p[i];
+
+				/* Check for claim */
+				if (p_ptr->goal_claimed[goal])
+				{
+					/* Add name to tooltip */
+					strcat(msg, "\n  ");
+					strcat(msg, p_ptr->name);
+				}
+			}
+		}
+	}
+
+	/* Check for most goal */
+	if (goal >= GOAL_MOST_MILITARY)
+	{
+		/* Add text to tooltip */
+		strcat(msg, "\nProgress:");
+
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; i++)
+		{
+			/* Get player pointer */
+			p_ptr = &real_game.p[i];
+
+			/* Create progress string */
+			sprintf(text, "\n%c %s: %d",
+				p_ptr->goal_claimed[goal] ? '*' : ' ',
+				p_ptr->name, p_ptr->goal_progress[goal]);
+
+			/* Add progress string to tooltip */
+			strcat(msg, text);
+		}
+	}
+
+	/* Set tooltip */
+	gtk_widget_set_tooltip_text(image, msg);
 }
 
 /*
@@ -1066,12 +1298,10 @@ static void redraw_table(void)
  */
 static void redraw_goal(void)
 {
-	player *p_ptr;
 	GtkWidget *image;
 	GdkPixbuf *buf;
-	int i, j, n;
+	int i, n;
 	int width, height, goal_h, y = 0;
-	char msg[1024];
 
 	/* First destroy all pre-existing goal widgets */
 	gtk_container_foreach(GTK_CONTAINER(goal_area), destroy_widget, NULL);
@@ -1115,36 +1345,14 @@ static void redraw_goal(void)
 		/* Make image widget */
 		image = gtk_image_new_from_pixbuf(buf);
 
-		/* Check for claimed goal */
-		if (!real_game.goal_avail[i])
-		{
-			/* Create tooltip text */
-			sprintf(msg, "Claimed by:");
-
-			/* Loop over players */
-			for (j = 0; j < real_game.num_players; j++)
-			{
-				/* Get player pointer */
-				p_ptr = &real_game.p[j];
-
-				/* Check for claimed */
-				if (p_ptr->goal_claimed[i])
-				{
-					/* Add name to tooltip */
-					strcat(msg, " ");
-					strcat(msg, p_ptr->name);
-				}
-			}
-
-			/* Set tooltip */
-			gtk_widget_set_tooltip_text(image, msg);
-		}
-
 		/* Destroy local copy of the pixbuf */
 		g_object_unref(G_OBJECT(buf));
 
 		/* Place image */
 		gtk_fixed_put(GTK_FIXED(goal_area), image, 0, y * height / 100);
+
+		/* Add tooltip */
+		add_goal_tooltip(image, i);
 
 		/* Show image */
 		gtk_widget_show(image);
@@ -1164,66 +1372,274 @@ static void redraw_goal(void)
 }
 
 /*
- * Action name abbreviations.
- */
-static char *action_abbr[MAX_ACTION] =
-{
-	"E5",
-	"E1",
-	"D",
-	"D",
-	"S",
-	"S",
-	"CT",
-	"C2",
-	"P",
-};
-
-/*
  * Redraw a player's status information.
  */
-static void redraw_status_area(int who, GtkWidget *label)
+static void redraw_status_area(int who, GtkWidget *box)
 {
-	char buf[1024];
+	GtkWidget *image, *label;
+	GdkGC *gc;
+	GdkPixbuf *buf;
+	GdkPixmap *pixmap;
+	GdkBitmap *mask;
+	GdkColor white, black;
+	PangoLayout *layout;
+	PangoFontDescription *font;
 	char text[1024];
+	int width, height;
+	int tw, th, x, y;
+	int act0, act1;
+	int gray;
+	int i;
 
-	/* Clear label text */
-	strcpy(text, "");
+	/* First destroy all pre-existing widgets */
+	gtk_container_foreach(GTK_CONTAINER(box), destroy_widget, NULL);
 
-	/* Create card/VP text */
-	sprintf(buf, "Active: %d  Hand: %d  VP: %d/%d/%d",
-	        count_player_area(&real_game, who, WHERE_ACTIVE),
-	        count_player_area(&real_game, who, WHERE_HAND),
-	        real_game.p[who].vp, real_game.p[who].goal_vp,
-		real_game.p[who].end_vp);
+	/* Create blank label */
+	label = gtk_label_new("");
 
-	/* Append card/VP text to label */
-	strcat(text, buf);
+	/* Add label to box */
+	gtk_box_pack_start(GTK_BOX(box), label, TRUE, TRUE, 0);
+
+	/* Get status area height */
+	height = box->allocation.height;
 
 	/* Check for actions chosen */
 	if (real_game.cur_action >= ACT_EXPLORE_5_0)
 	{
-		/* Check for advanced game */
-		if (real_game.advanced)
+		/* Copy actions */
+		act0 = real_game.p[who].action[0];
+		act1 = real_game.p[who].action[1];
+	}
+	else
+	{
+		/* No actions */
+		act0 = act1 = ICON_QUESTION;
+	}
+
+	/* Check for second develop/settle */
+	if (act0 == ACT_DEVELOP2) act0 = ACT_DEVELOP;
+	if (act1 == ACT_DEVELOP2) act1 = ACT_DEVELOP;
+	if (act0 == ACT_SETTLE2) act0 = ACT_SETTLE;
+	if (act1 == ACT_SETTLE2) act1 = ACT_SETTLE;
+
+	/* Check for non-advanced game */
+	if (!real_game.advanced) act1 = -1;
+
+	/* Create first action icon image */
+	buf = gdk_pixbuf_scale_simple(icon_cache[act0], height, height,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Make image widget */
+	image = gtk_image_new_from_pixbuf(buf);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
+
+	/* Pack icon into status box */
+	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+
+	/* Check for second action */
+	if (act1 != -1)
+	{
+		/* Create first action icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[act1], height,
+		                              height, GDK_INTERP_BILINEAR);
+
+		/* Make image widget */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
+
+		/* Pack icon into status box */
+		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+	}
+
+	/* Create handsize icon image */
+	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], height, height,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Extract pixmap and bitmask from image buffer */
+	gdk_pixbuf_render_pixmap_and_mask(buf, &pixmap, &mask, 128);
+
+	/* Create graphics context */
+	gc = gdk_gc_new(pixmap);
+
+	/* Get white and black colors */
+	gdk_color_white(gdk_gc_get_colormap(gc), &white);
+	gdk_color_black(gdk_gc_get_colormap(gc), &black);
+
+	/* Create text for handsize */
+	sprintf(text, "<b>%d</b>", count_player_area(&real_game, who,
+	                                             WHERE_HAND));
+
+	/* Create pango layout */
+	layout = gtk_widget_create_pango_layout(box, NULL);
+
+	/* Set marked-up text */
+	pango_layout_set_markup(layout, text, -1);
+
+	/* Create font description for text */
+	font = pango_font_description_from_string("Sans 12");
+
+	/* Set layout's font */
+	pango_layout_set_font_description(layout, font);
+
+	/* Get size of text */
+	pango_layout_get_pixel_size(layout, &tw, &th);
+
+	/* Compute point to start drawing */
+	x = (height - tw) / 2;
+	y = (height - th) / 2;
+
+	/* Draw layout on top of icon */
+	gdk_draw_layout_with_colors(pixmap, gc, x - 1, y, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x + 1, y, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x, y - 1, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x, y + 1, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x, y, layout, &black, NULL);
+
+	/* Make image widget */
+	image = gtk_image_new_from_pixmap(pixmap, mask);
+
+	/* Free font description */
+	pango_font_description_free(font);
+
+	/* Destroy our copy of the icon and pixmap */
+	g_object_unref(G_OBJECT(buf));
+	g_object_unref(G_OBJECT(pixmap));
+	g_object_unref(G_OBJECT(mask));
+
+	/* Pack icon into status box */
+	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+
+	/* Create victory point icon image */
+	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], height, height,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Extract pixmap and bitmask from image buffer */
+	gdk_pixbuf_render_pixmap_and_mask(buf, &pixmap, &mask, 128);
+
+	/* Create text for victory points */
+	sprintf(text, "<b>%d\n%d</b>", real_game.p[who].vp,
+	                               real_game.p[who].end_vp);
+
+	/* Create pango layout */
+	layout = gtk_widget_create_pango_layout(box, text);
+
+	/* Set marked-up text */
+	pango_layout_set_markup(layout, text, -1);
+
+	/* Center text in layout */
+	pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
+
+	/* Create font description for text */
+	font = pango_font_description_from_string("Sans 10");
+
+	/* Set layout's font */
+	pango_layout_set_font_description(layout, font);
+
+	/* Get size of text */
+	pango_layout_get_pixel_size(layout, &tw, &th);
+
+	/* Compute point to start drawing */
+	x = (height - tw) / 2;
+	y = (height - th) / 2;
+
+	/* Draw layout on top of icon */
+	gdk_draw_layout_with_colors(pixmap, gc, x - 1, y, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x + 1, y, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x, y - 1, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x, y + 1, layout, &white, NULL);
+	gdk_draw_layout_with_colors(pixmap, gc, x, y, layout, &black, NULL);
+
+	/* Make image widget */
+	image = gtk_image_new_from_pixmap(pixmap, mask);
+
+	/* Free font description */
+	pango_font_description_free(font);
+
+	/* Destroy our copy of the icon and pixmap */
+	g_object_unref(G_OBJECT(buf));
+	g_object_unref(G_OBJECT(pixmap));
+	g_object_unref(G_OBJECT(mask));
+
+	/* Pack icon into status box */
+	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+
+	/* Destroy graphics context */
+	g_object_unref(gc);
+
+	/* Loop over goals */
+	for (i = 0; i < MAX_GOAL; i++)
+	{
+		/* Skip inactive goals */
+		if (!real_game.goal_active[i]) continue;
+
+		/* Assume goal is not grayed */
+		gray = 0;
+
+		/* Check for "first" goal */
+		if (i <= GOAL_FIRST_8_ACTIVE)
 		{
-			/* Show both actions */
-			sprintf(buf, "  %s/%s",
-			        action_abbr[real_game.p[who].action[0]],
-			        action_abbr[real_game.p[who].action[1]]);
+			/* Check for unclaimed by us */
+			if (!real_game.p[who].goal_claimed[i]) continue;
+
+			/* Compute width of "first" goal */
+			width = height * GOALF_WIDTH / GOALF_HEIGHT;
 		}
 		else
 		{
-			/* Show selected action */
-			sprintf(buf, "  %s",
-			        action_abbr[real_game.p[who].action[0]]);
+			/* Check for insufficient progress */
+			if (real_game.p[who].goal_progress[i] < goal_minimum(i))
+			{
+				/* Next goal */
+				continue;
+			}
+
+			/* Check for less progress than other players */
+			if (real_game.p[who].goal_progress[i] <
+			    real_game.goal_most[i]) continue;
+
+			/* Unclaimed goals should by grayed */
+			if (!real_game.p[who].goal_claimed[i]) gray = 1;
+
+			/* Compute width of "most" goal */
+			width = height * GOALM_WIDTH / GOALM_HEIGHT;
 		}
 
-		/* Append action text to label */
-		strcat(text, buf);
+		/* Create goal image */
+		buf = gdk_pixbuf_scale_simple(goal_cache[i], width, height,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Check for grayed goal */
+		if (gray)
+		{
+			/* Desaturate */
+			gdk_pixbuf_saturate_and_pixelate(buf, buf, 0, TRUE);
+		}
+
+		/* Make image widget */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
+
+		/* Add tooltip */
+		add_goal_tooltip(image, i);
+
+		/* Pack icon into status box */
+		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 	}
 
-	/* Set label */
-	gtk_label_set_text(GTK_LABEL(label), text);
+	/* Create blank label */
+	label = gtk_label_new("");
+
+	/* Add label to box */
+	gtk_box_pack_start(GTK_BOX(box), label, TRUE, TRUE, 0);
+
+	/* Show everything */
+	gtk_widget_show_all(box);
 }
 
 /*
@@ -1346,10 +1762,10 @@ static void redraw_phase(void)
 static void redraw_everything(void)
 {
 	/* Redraw hand, table, and status area */
+	redraw_status();
 	redraw_hand();
 	redraw_table();
 	redraw_goal();
-	redraw_status();
 	redraw_phase();
 }
 
@@ -2158,7 +2574,7 @@ int gui_choose_takeover(game *g, int who, int list[], int num,
 {
 	displayed *i_ptr;
 	char buf[1024];
-	int i, j, k;
+	int i, j, k, target = -1;
 
 	/* Create prompt */
 	sprintf(buf, "Choose world to takeover and power to use");
@@ -2172,8 +2588,8 @@ int gui_choose_takeover(game *g, int who, int list[], int num,
 	/* Set button restriction */
 	action_restrict = RESTRICT_TAKEOVER;
 
-	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, FALSE);
+	/* Activate action button */
+	gtk_widget_set_sensitive(action_button, TRUE);
 
 	/* Loop over cards in list */
 	for (i = 0; i < num; i++)
@@ -2257,14 +2673,14 @@ int gui_choose_takeover(game *g, int who, int list[], int num,
 			/* Check for selected */
 			if (i_ptr->selected)
 			{
-				/* Add to list */
-				list[0] = i_ptr->index;
+				/* Remember target */
+				target = i_ptr->index;
 			}
 		}
 	}
 
-	/* Return chosen world */
-	return list[0];
+	/* Return target */
+	return target;
 }
 
 /*
@@ -2443,6 +2859,75 @@ void gui_choose_trade(game *g, int who, int list[], int num, int no_bonus)
 }
 
 /*
+ * Return a "score" for sorting consume powers.
+ */
+static int score_consume(power *o_ptr)
+{
+	int vp = 0, card = 0, goods = 1;
+	int score;
+
+	/* Always discard from hand last */
+	if (o_ptr->code & P4_DISCARD_HAND) return 0;
+
+	/* Check for free card draw */
+	if (o_ptr->code & P4_DRAW) return o_ptr->value * 500;
+
+	/* Check for free VP */
+	if (o_ptr->code & P4_VP) return o_ptr->value * 1000;
+
+	/* Check for VP awarded */
+	if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
+
+	/* Check for card awarded */
+	if (o_ptr->code & P4_GET_CARD) card += o_ptr->value;
+
+	/* Check for cards awarded */
+	if (o_ptr->code & P4_GET_2_CARD) card += o_ptr->value * 2;
+
+	/* Assume trade will earn 4 cards */
+	if (o_ptr->code & P4_TRADE_ACTION) card += 4;
+
+	/* Assume trade without bonus will earn fewer cards */
+	if (o_ptr->code & P4_TRADE_NO_BONUS) card--;
+
+	/* Check for consuming two goods */
+	if (o_ptr->code & P4_CONSUME_TWO) goods = 2;
+
+	/* Check for consuming three goods */
+	if (o_ptr->code & P4_CONSUME_3_DIFF) goods = 3;
+
+	/* Check for consuming all goods */
+	if (o_ptr->code & P4_CONSUME_ALL) goods = 4;
+
+	/* Check for "Consume x2" chosen */
+	if (player_chose(&real_game, player_us, ACT_CONSUME_X2)) vp *= 2;
+
+	/* Compute score */
+	score = (vp * 100 + card * 50) / goods;
+
+	/* Use specific consume powers first */
+	if (!(o_ptr->code & P4_CONSUME_ANY)) score++;
+
+	/* Use multi-use powers later */
+	if (o_ptr->times > 1) score -= 5 * o_ptr->times;
+
+	/* Return score */
+	return score;
+}
+
+/*
+ * Compare two consume powers for sorting.
+ */
+static int cmp_consume(const void *o1, const void *o2)
+{
+	power *o_ptr1 = (power *)o1;
+	power *o_ptr2 = (power *)o2;
+
+	/* Compare consume powers */
+	return score_consume(o_ptr2) - score_consume(o_ptr1);
+}
+
+/*
  * Ask user which consume power to use.
  */
 void gui_choose_consume(game *g, int who, power olist[], int num)
@@ -2466,6 +2951,9 @@ void gui_choose_consume(game *g, int who, power olist[], int num)
 
 	/* Create simple combo box */
 	combo = gtk_combo_box_new_text();
+
+	/* Sort consume powers */
+	qsort(olist, num, sizeof(power), cmp_consume);
 
 	/* Loop over powers */
 	for (i = 0; i < num; i++)
@@ -3208,19 +3696,19 @@ static void gui_notify_rotation(game *g)
 	if (player_us < 0) player_us = real_game.num_players - 1;
 
 	/* Save first opponent area */
-	temp_area = opp_area[0];
+	temp_area = player_area[0];
 	temp_status = player_status[0];
 
 	/* Rotate opponent areas */
 	for (i = 0; i < real_game.num_players - 1; i++)
 	{
 		/* Copy area and status */
-		opp_area[i] = opp_area[i + 1];
+		player_area[i] = player_area[i + 1];
 		player_status[i] = player_status[i + 1];
 	}
 
 	/* Move first area to last spot */
-	opp_area[i] = temp_area;
+	player_area[i] = temp_area;
 	player_status[i] = temp_status;
 }
 
@@ -3267,7 +3755,7 @@ static void reset_game(void)
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
 		/* Restore table area */
-		opp_area[i] = orig_area[i];
+		player_area[i] = orig_area[i];
 
 		/* Restore status area */
 		player_status[i] = orig_status[i];
@@ -3375,7 +3863,7 @@ static void modify_gui(void)
 	int i;
 
 	/* Check for basic game */
-	if (!real_game.expanded)
+	if (!real_game.expanded || real_game.goal_disabled)
 	{
 		/* Hide goal area */
 		gtk_widget_hide(goal_area);
@@ -3390,24 +3878,148 @@ static void modify_gui(void)
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Show status */
-		gtk_widget_show(player_frame[i]);
-
-		/* Show opponent area */
-		if (orig_area[i]) gtk_widget_show(orig_area[i]);
+		gtk_widget_show_all(player_box[i]);
 	}
 
 	/* Loop over non-existant players */
 	for ( ; i < MAX_PLAYER; i++)
 	{
 		/* Hide status */
-		gtk_widget_hide(player_frame[i]);
-
-		/* Hide opponent area */
-		if (orig_area[i]) gtk_widget_hide(orig_area[i]);
+		gtk_widget_hide_all(player_box[i]);
 	}
+
+	/* Show/hide seperators */
+	for (i = 1; i < MAX_PLAYER; i++)
+	{
+		/* Do not show first or last seperators */
+		if (i < 2 || i >= real_game.num_players)
+		{
+			/* Hide seperator */
+			gtk_widget_hide(player_sep[i]);
+		}
+		else
+		{
+			/* Show seperator */
+			gtk_widget_show(player_sep[i]);
+		}
+	}
+
+	/* Check for no full-size image */
+	if (opt.full_reduced == 2)
+	{
+		/* Hide image */
+		gtk_widget_hide(full_image);
+	}
+	else
+	{
+		/* Show image */
+		gtk_widget_show(full_image);
+	}
+
+	/* Redraw full-size image */
+	redraw_full(NULL, NULL, NULL);
 
 	/* Handle pending events */
 	while (gtk_events_pending()) gtk_main_iteration();
+}
+
+/*
+ * Load user preferences file (if any).
+ */
+static void read_prefs(void)
+{
+	char *path;
+
+	/* Build user preference filename */
+	path = g_build_filename(g_get_user_config_dir(), "rftg", NULL);
+
+	/* Create keyfile structure */
+	pref_file = g_key_file_new();
+
+	/* Read config file */
+	if (!g_key_file_load_from_file(pref_file, path,
+	                               G_KEY_FILE_KEEP_COMMENTS, NULL))
+	{
+		/* No file to read */
+		return;
+	}
+
+	/* Read game options */
+	opt.num_players = g_key_file_get_integer(pref_file, "game",
+	                                         "num_players", NULL);
+	opt.expanded = g_key_file_get_integer(pref_file, "game", "expansion",
+	                                      NULL);
+	opt.advanced = g_key_file_get_boolean(pref_file, "game", "advanced",
+	                                           NULL);
+	opt.disable_goal = g_key_file_get_boolean(pref_file, "game", "no_goals",
+	                                           NULL);
+	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
+	                                              "no_takeover", NULL);
+
+	/* Read GUI options */
+	opt.full_reduced = g_key_file_get_integer(pref_file, "gui",
+	                                          "full_reduced", NULL);
+
+	/* Check range of values */
+	if (opt.num_players < 2) opt.num_players = 2;
+	if (opt.num_players > MAX_PLAYER) opt.num_players = MAX_PLAYER;
+	if (opt.expanded < 0) opt.expanded = 0;
+	if (opt.expanded > MAX_EXPANSION - 1) opt.expanded = MAX_EXPANSION - 1;
+}
+
+/*
+ * Save preferences to file.
+ */
+static void save_prefs(void)
+{
+	FILE *fff;
+	char *path;
+
+	/* Build user preference filename */
+	path = g_build_filename(g_get_user_config_dir(), "rftg", NULL);
+
+	/* Set game options */
+	g_key_file_set_integer(pref_file, "game", "num_players",
+	                       opt.num_players);
+	g_key_file_set_integer(pref_file, "game", "expansion", opt.expanded);
+	g_key_file_set_boolean(pref_file, "game", "advanced", opt.advanced);
+	g_key_file_set_boolean(pref_file, "game", "no_goals", opt.disable_goal);
+	g_key_file_set_boolean(pref_file, "game", "no_takeover",
+	                       opt.disable_takeover);
+
+	/* Set GUI options */
+	g_key_file_set_integer(pref_file, "gui", "full_reduced",
+	                       opt.full_reduced);
+
+	/* Open file for writing */
+	fff = fopen(path, "w");
+
+	/* Write keyfile contents */
+	fputs(g_key_file_to_data(pref_file, NULL, NULL), fff);
+
+	/* Close file */
+	fclose(fff);
+}
+
+/*
+ * Apply options to game structure.
+ */
+static void apply_options(void)
+{
+	/* Set number of players */
+	real_game.num_players = opt.num_players;
+
+	/* Set expansion level */
+	real_game.expanded = opt.expanded;
+
+	/* Set advanced flag */
+	real_game.advanced = opt.advanced;
+
+	/* Set goals disabled */
+	real_game.goal_disabled = opt.disable_goal;
+
+	/* Set takeover disabled */
+	real_game.takeover_disabled = opt.disable_takeover;
 }
 
 /*
@@ -3450,14 +4062,27 @@ static char *player_labels[] =
 };
 
 /*
- * Widget for two-player advanced game.
+ * Full-size image option names.
  */
-static GtkWidget *advanced_check;
+static char *reduce_names[] =
+{
+	"Original size",
+	"Half size",
+	"Hidden",
+	NULL
+};
 
 /*
- * Current selections for next game expansion level and number of players.
+ * Checkbox widgets for select dialog.
  */
-static int next_exp, next_player;
+static GtkWidget *advanced_check;
+static GtkWidget *disable_goal_check;
+static GtkWidget *disable_takeover_check;
+
+/*
+ * Current selections for next game options.
+ */
+static int next_exp, next_player, next_reduce;
 
 /*
  * React to an expansion level button being toggled.
@@ -3467,7 +4092,17 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 	int i = GPOINTER_TO_INT(data);
 
 	/* Check for button set */
-	if (gtk_toggle_button_get_active(button)) next_exp = i;
+	if (gtk_toggle_button_get_active(button))
+	{
+		/* Remember next expansion level */
+		next_exp = i;
+
+		/* Set goal disabled checkbox sensitivity */
+		gtk_widget_set_sensitive(disable_goal_check, i > 0);
+
+		/* Set takeover disabled checkbox sensitivity */
+		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
+	}
 }
 
 /*
@@ -3486,6 +4121,17 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 		/* Set advanced game checkbox sensitivity */
 		gtk_widget_set_sensitive(advanced_check, next_player == 2);
 	}
+}
+
+/*
+ * React to an full-size image option button being toggled.
+ */
+static void reduce_toggle(GtkToggleButton *button, gpointer data)
+{
+	int i = GPOINTER_TO_INT(data);
+
+	/* Check for button set */
+	if (gtk_toggle_button_get_active(button)) next_reduce = i;
 }
 
 /*
@@ -3597,7 +4243,7 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set checkbox status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(advanced_check),
-	                             real_game.advanced);
+	                             opt.advanced);
 
 	/* Add checkbox to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
@@ -3608,6 +4254,43 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	{
 		/* Disable checkbox */
 		gtk_widget_set_sensitive(advanced_check, FALSE);
+	}
+
+	/* Create check box for disabled goals */
+	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
+
+	/* Set checkbox status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_goal_check),
+	                             opt.disable_goal);
+
+	/* Add checkbox to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  disable_goal_check);
+
+	/* Disable goal checkbox if not expanded game */
+	if (opt.expanded < 1)
+	{
+		/* Disable checkbox */
+		gtk_widget_set_sensitive(disable_goal_check, FALSE);
+	}
+
+	/* Create check box for disabled takeovers */
+	disable_takeover_check =
+	                   gtk_check_button_new_with_label("Disable takeovers");
+
+	/* Set checkbox status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_takeover_check),
+	                             opt.disable_takeover);
+
+	/* Add checkbox to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  disable_takeover_check);
+
+	/* Disable takeover checkbox if not expanded game */
+	if (opt.expanded < 2)
+	{
+		/* Disable checkbox */
+		gtk_widget_set_sensitive(disable_takeover_check, FALSE);
 	}
 
 	/* Show all widgets */
@@ -3621,15 +4304,28 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		if (next_exp == 1 && next_player > 5) next_player = 5;
 
 		/* Set expansion level */
-		real_game.expanded = next_exp;
+		opt.expanded = next_exp;
 
 		/* Set number of players */
-		real_game.num_players = next_player;
+		opt.num_players = next_player;
 
 		/* Set advanced game flag */
-		real_game.advanced = (next_player == 2) &&
+		opt.advanced = (next_player == 2) &&
 		                gtk_toggle_button_get_active(
 		                             GTK_TOGGLE_BUTTON(advanced_check));
+
+		/* Set goals disabled flag */
+		opt.disable_goal = (opt.expanded >= 1) &&
+		                gtk_toggle_button_get_active(
+		                         GTK_TOGGLE_BUTTON(disable_goal_check));
+
+		/* Set takeover disabled flag */
+		opt.disable_takeover = (opt.expanded >= 2) &&
+		                gtk_toggle_button_get_active(
+		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
+
+		/* Apply options */
+		apply_options();
 
 		/* Recreate GUI elements for new number of players */
 		modify_gui();
@@ -3640,8 +4336,94 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		/* Start new game */
 		start_new = 1;
 
+		/* Save preferences */
+		save_prefs();
+
 		/* Quit waiting for events */
 		gtk_main_quit();
+	}
+
+	/* Destroy dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
+ * Modify GUI options.
+ */
+static void gui_options(GtkMenuItem *menu_item, gpointer data)
+{
+	GtkWidget *dialog;
+	GtkWidget *radio = NULL;
+	GtkWidget *reduce_box;
+	GtkWidget *reduce_frame;
+	int i;
+
+	/* Create dialog box */
+	dialog = gtk_dialog_new_with_buttons("GUI Options", NULL,
+	                                     GTK_DIALOG_MODAL,
+	                                     GTK_STOCK_OK,
+                                             GTK_RESPONSE_ACCEPT,
+	                                     GTK_STOCK_CANCEL,
+	                                     GTK_RESPONSE_REJECT, NULL);
+
+	/* Set window title */
+	gtk_window_set_title(GTK_WINDOW(dialog),
+	                     "Race for the Galaxy " VERSION);
+
+	/* Create vbox to hold full-size image option radio buttons */
+	reduce_box = gtk_vbox_new(FALSE, 0);
+
+	/* Loop over reduction levels */
+	for (i = 0; reduce_names[i]; i++)
+	{
+		/* Create radio button */
+		radio = gtk_radio_button_new_with_label_from_widget(
+		                                        GTK_RADIO_BUTTON(radio),
+		                                        reduce_names[i]);
+
+		/* Check for current reduction level */
+		if (opt.full_reduced == i)
+		{
+			/* Set button active */
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio),
+			                             TRUE);
+
+			/* Remember current reduction level */
+			next_reduce = i;
+		}
+
+		/* Add handler */
+		g_signal_connect(G_OBJECT(radio), "toggled",
+		                 G_CALLBACK(reduce_toggle), GINT_TO_POINTER(i));
+
+		/* Pack radio button into box */
+		gtk_box_pack_start(GTK_BOX(reduce_box), radio, FALSE, TRUE, 0);
+	}
+
+	/* Create frame around buttons */
+	reduce_frame = gtk_frame_new("Full-size image");
+
+	/* Pack radio button box into frame */
+	gtk_container_add(GTK_CONTAINER(reduce_frame), reduce_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  reduce_frame);
+
+	/* Show all widgets */
+	gtk_widget_show_all(dialog);
+
+	/* Run dialog */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Set full-size image option */
+		opt.full_reduced = next_reduce;
+
+		/* Handle new options */
+		modify_gui();
+
+		/* Save preferences */
+		save_prefs();
 	}
 
 	/* Destroy dialog */
@@ -4255,6 +5037,9 @@ Send bug reports to keldon@keldon.net");
  */
 static void action_pressed(GtkButton *button, gpointer data)
 {
+	/* Disable action button */
+	gtk_widget_set_sensitive(action_button, FALSE);
+
 	/* Quit innermost loop */
 	gtk_main_quit();
 }
@@ -4278,17 +5063,16 @@ int main(int argc, char *argv[])
 	GtkWidget *left_vbox, *right_vbox;
 	GtkWidget *menu_bar, *game_menu, *debug_menu, *help_menu;
 	GtkWidget *game_item, *debug_item, *help_item;
-	GtkWidget *new_item, *select_item, *quit_item;
+	GtkWidget *new_item, *select_item, *option_item, *quit_item;
 	GtkWidget *debug_card_item, *debug_ai_item, *about_item;
-	GtkWidget *h_sep, *v_sep;
+	GtkWidget *h_sep, *v_sep, *event;
 	GtkWidget *msg_scroll;
-	GtkWidget *table_box, *active_box, *opp_box, *area;
+	GtkWidget *table_box, *active_box, *top_box, *area;
 	GtkWidget *phase_box, *label;
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 	GdkColor color;
-	int i, num_players = 3, expansion = 0, advanced = 0;
-	unsigned int seed;
+	int i;
 
 	/* Set random seed */
 	real_game.random_seed = time(NULL);
@@ -4317,6 +5101,9 @@ int main(int argc, char *argv[])
 	/* Load card images */
 	load_images();
 
+	/* Read preference file */
+	read_prefs();
+
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
 	{
@@ -4324,21 +5111,21 @@ int main(int argc, char *argv[])
 		if (!strcmp(argv[i], "-p"))
 		{
 			/* Set number of players */
-			num_players = atoi(argv[++i]);
+			opt.num_players = atoi(argv[++i]);
 		}
 
 		/* Check for expansion level */
 		else if (!strcmp(argv[i], "-e"))
 		{
 			/* Set expansion level */
-			expansion = atoi(argv[++i]);
+			opt.expanded = atoi(argv[++i]);
 		}
 
 		/* Check for advanced game */
 		else if (!strcmp(argv[i], "-a"))
 		{
 			/* Set advanced */
-			advanced = 1;
+			opt.advanced = 1;
 		}
 
 		/* Check for random seed */
@@ -4349,17 +5136,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* Set number of players */
-	real_game.num_players = num_players;
-
-	/* Set expansion level */
-	real_game.expanded = expansion;
-
-	/* Set advanced flag */
-	real_game.advanced = advanced;
-
-	/* Copy random seed */
-	seed = real_game.random_seed;
+	/* Apply options */
+	apply_options();
 
 	/* Reset game's player structures */
 	reset_game();
@@ -4377,6 +5155,17 @@ int main(int argc, char *argv[])
 	/* Handle main window destruction */
 	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(destroy),
 	                 NULL);
+
+	/* Create keyboard accelerator group for main window */
+	window_accel = gtk_accel_group_new();
+
+	/* Associate accelerator group with main window */;
+	gtk_window_add_accel_group(GTK_WINDOW(window), window_accel);
+
+	/* Create "selected by keypress" signal */
+	g_signal_new("key-signal", gtk_event_box_get_type(), G_SIGNAL_ACTION,
+                     0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
 
 	/* Create main vbox to hold menu bar, then rest of game area */
 	main_vbox = gtk_vbox_new(FALSE, 0);
@@ -4407,12 +5196,14 @@ int main(int argc, char *argv[])
 
 	/* Create game menu items */
 	new_item = gtk_menu_item_new_with_label("New"); 
-	select_item = gtk_menu_item_new_with_label("Select parameters...");
+	select_item = gtk_menu_item_new_with_label("Select Parameters...");
+	option_item = gtk_menu_item_new_with_label("GUI Options...");
 	quit_item = gtk_menu_item_new_with_label("Quit"); 
 
 	/* Add items to game menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), select_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
 	/* Create debug menu */
@@ -4440,6 +5231,8 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(new_game), NULL);
 	g_signal_connect(G_OBJECT(select_item), "activate",
 	                 G_CALLBACK(select_parameters), NULL);
+	g_signal_connect(G_OBJECT(option_item), "activate",
+	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
 	                 G_CALLBACK(quit_game), NULL);
 	g_signal_connect(G_OBJECT(debug_card_item), "activate",
@@ -4461,7 +5254,7 @@ int main(int argc, char *argv[])
 	left_vbox = gtk_vbox_new(FALSE, 0);
 
 	/* Create "card view" image */
-	full_image = gtk_image_new_from_pixbuf(card_back);
+	full_image = gtk_image_new();
 
 	/* Create separator for status info */
 	h_sep = gtk_hseparator_new();
@@ -4473,36 +5266,11 @@ int main(int argc, char *argv[])
 	/* Create game status label */
 	game_status = gtk_label_new("");
 
+	/* Have game status request minimum width */
+	gtk_widget_set_size_request(game_status, CARD_WIDTH, -1);
+
 	/* Add status to status vbox */
 	gtk_box_pack_start(GTK_BOX(left_vbox), game_status, FALSE, FALSE, 0);
-
-	/* Start with opponent on left */
-	i = (player_us + 1) % MAX_PLAYER;
-
-	/* Loop over players */
-	while (1)
-	{
-		/* Create status frame */
-		player_frame[i] = gtk_frame_new(real_game.p[i].name);
-
-		/* Create status label */
-		player_status[i] = gtk_label_new("");
-		orig_status[i] = player_status[i];
-
-		/* Add status to frame */
-		gtk_container_add(GTK_CONTAINER(player_frame[i]),
-		                  player_status[i]);
-
-		/* Pack frame into status vbox */
-		gtk_box_pack_start(GTK_BOX(left_vbox), player_frame[i], FALSE,
-		                   FALSE, 0);
-
-		/* Check for last player (us) */
-		if (i == player_us) break;
-
-		/* Advance to next player */
-		i = (i + 1) % MAX_PLAYER;
-	}
 
 	/* Create text view for message area */
 	message_view = gtk_text_view_new();
@@ -4559,19 +5327,34 @@ int main(int argc, char *argv[])
 	active_box = gtk_vbox_new(FALSE, 0);
 
 	/* Create area for opponents */
-	opp_box = gtk_hbox_new(FALSE, 0);
+	top_box = gtk_hbox_new(FALSE, 0);
 
-	/* Start with left opponent */
-	i = (player_us + 1) % MAX_PLAYER;
-
-	/* Loop over opponents */
-	while (1)
+	/* Loop over players */
+	for (i = 0; i < MAX_PLAYER; i++)
 	{
-		/* Create area for opponent */
+		/* Create box to hold status and table area for this player */
+		player_box[i] = gtk_vbox_new(FALSE, 0);
+
+		/* Create box to hold player status information */
+		player_status[i] = gtk_hbox_new(FALSE, 0);
+
+		/* Create event box to put status in window */
+		event = gtk_event_box_new();
+
+		/* Add player status box to event box */
+		gtk_container_add(GTK_CONTAINER(event), player_status[i]);
+
+		/* Save status area pointer */
+		orig_status[i] = player_status[i];
+
+		/* Request minimum height */
+		gtk_widget_set_size_request(player_status[i], 0, 40);
+
+		/* Create area for active cards */
 		area = gtk_fixed_new();
 
 		/* Save area pointer */
-		opp_area[i] = area;
+		player_area[i] = area;
 		orig_area[i] = area;
 
 		/* Give widget its own window */
@@ -4587,49 +5370,37 @@ int main(int argc, char *argv[])
 		g_signal_connect(G_OBJECT(area), "size-request",
 				 G_CALLBACK(table_request), NULL);
 
-		/* Pack area into opponent box */
-		gtk_box_pack_start(GTK_BOX(opp_box), area, TRUE, TRUE, 0);
+		/* Pack status box and table area into hbox */
+		gtk_box_pack_start(GTK_BOX(player_box[i]), area, TRUE, TRUE, 0);
+		gtk_box_pack_start(GTK_BOX(player_box[i]), event,
+		                   FALSE, FALSE, 0);
 
-		/* Next player */
-		i = (i + 1) % MAX_PLAYER;
+		/* Check for opponent */
+		if (i != player_us)
+		{
+			/* Create seperator */
+			player_sep[i] = gtk_vseparator_new();
 
-		/* Stop at ourself */
-		if (i == player_us) break;
+			/* Pack seperator between opponent boxes */
+			gtk_box_pack_start(GTK_BOX(top_box), player_sep[i],
+			                   FALSE, FALSE, 0);
 
-#if 0
-		/* Make vertical separator */
-		v_sep = gtk_vseparator_new();
-
-		/* Add to opponent box */
-		gtk_box_pack_start(GTK_BOX(opp_box), v_sep, FALSE, TRUE, 0);
-#endif
+			/* Pack player's box into top (opponent) box */
+			gtk_box_pack_start(GTK_BOX(top_box), player_box[i],
+			                   TRUE, TRUE, 0);
+		}
 	}
 
-	/* Create area for our played cards */
-	our_area = gtk_fixed_new();
-
-	/* Give widget its own window */
-	gtk_fixed_set_has_window(GTK_FIXED(our_area), TRUE);
-
-	/* Lookup our color */
-	gdk_color_parse(player_colors[player_us], &color);
-
-	/* Set area's background color */
-	gtk_widget_modify_bg(our_area, GTK_STATE_NORMAL, &color);
-
-	/* Have area negotiate new size when needed */
-	g_signal_connect(G_OBJECT(our_area), "size-request",
-			 G_CALLBACK(table_request), NULL);
-
 	/* Pack active card vbox */
-	gtk_box_pack_start(GTK_BOX(active_box), opp_box, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(active_box), top_box, TRUE, TRUE, 0);
 
 	/* Create separator between opponent and our area */
 	h_sep = gtk_hseparator_new();
 
 	/* Pack separator and our table area */
 	gtk_box_pack_start(GTK_BOX(active_box), h_sep, FALSE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(active_box), our_area, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(active_box), player_box[player_us], TRUE,
+	                   TRUE, 0);
 
 	/* Create seperator between goal area and active area */
 	v_sep = gtk_vseparator_new();
@@ -4685,6 +5456,12 @@ int main(int argc, char *argv[])
 	/* Attach event */
 	g_signal_connect(G_OBJECT(action_button), "clicked",
 	                 G_CALLBACK(action_pressed), NULL);
+
+	/* Set CAN_DEFAULT flag on action button */
+	GTK_WIDGET_SET_FLAGS(action_button, GTK_CAN_DEFAULT);
+
+	/* Set action button as default widget */
+	gtk_window_set_default(GTK_WINDOW(window), action_button);
 
 	/* Pack laben and button into action box */
 	gtk_box_pack_start(GTK_BOX(action_box), action_prompt, TRUE, TRUE, 0);

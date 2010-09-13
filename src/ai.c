@@ -96,7 +96,7 @@ static void ai_initialize(game *g, int who, double factor)
 #endif
 
 	/* Create evaluator filename */
-	sprintf(fname, "network/rftg.eval.%d.%d%s.net", g->expanded,
+	sprintf(fname, DATADIR "/network/rftg.eval.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
 	/* Attempt to load network weights from disk */
@@ -122,7 +122,7 @@ static void ai_initialize(game *g, int who, double factor)
 #endif
 
 	/* Create predictor filename */
-	sprintf(fname, "network/rftg.role.%d.%d%s.net", g->expanded,
+	sprintf(fname, DATADIR "/network/rftg.role.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
 	/* Attempt to load network weights from disk */
@@ -1496,14 +1496,14 @@ static void ai_choose_action(game *g, int who, int action[2])
 	}
 
 	/* Reduce threshold to check similar events */
-	threshold /= 4;
+	threshold /= 8;
 
 	/* Always check everything with two players */
 	if (g->num_players == 2) threshold = 0;
 
 	/* Increase threshold with large numbers of players */
-	if (g->num_players == 4) threshold *= 2;
-	if (g->num_players >= 5) threshold *= 3;
+	if (g->num_players == 4) threshold *= 3;
+	if (g->num_players >= 5) threshold *= 6;
 
 #ifdef DEBUG
 	printf("----- Threshold %.2f\n", threshold);
@@ -3758,14 +3758,14 @@ static void ai_shutdown(game *g, int who)
 	if (saved) return;
 
 	/* Create evaluator filename */
-	sprintf(fname, "network/rftg.eval.%d.%d%s.net", g->expanded,
+	sprintf(fname, DATADIR "/network/rftg.eval.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
 	/* Save weights to disk */
 	save_net(&eval, fname);
 
 	/* Create predictor filename */
-	sprintf(fname, "network/rftg.role.%d.%d%s.net", g->expanded,
+	sprintf(fname, DATADIR "/network/rftg.role.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
 	/* Save weights to disk */

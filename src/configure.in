@@ -1,5 +1,5 @@
 AC_PREREQ(2.61)
-AC_INIT([rftg], [0.5.2], [keldon@keldon.net])
+AC_INIT([rftg], [0.5.3], [keldon@keldon.net])
 AC_CONFIG_SRCDIR([engine.c])
 AC_CONFIG_HEADER(config.h)
 
@@ -12,7 +12,7 @@ AC_CHECK_LIB([m], [exp])
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdio.h])
 
-AM_PATH_GTK_2_0(2.12.0)
+AM_PATH_GTK_2_0(2.16.0)
 
 #AC_FUNC_MALLOC
 AC_FUNC_MEMCMP

@@ -9,7 +9,7 @@ dumprole_SOURCES = net.c engine.c dumprole.c init.c rftg.h net.h
 
 dist_pkgdata_DATA = cards.txt images.data
 
-rftg_CFLAGS = -Wall @GTK_CFLAGS@
+rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DDATADIR=\"$(pkgdatadir)\"
 rftg_LDADD = @GTK_LIBS@
 
 SUBDIRS = network

@@ -1883,7 +1883,7 @@ static void pay_settle(game *g, int who, int world)
 	card *c_ptr;
 	power *o_ptr, o_list[100];
 	int list[MAX_DECK], special[MAX_DECK];
-	int conquer, good, military, cost, takeover;
+	int conquer, good, military, cost, takeover, flags;
 	int n = 0, num_special = 0;
 	int i, j;
 	char msg[1024];
@@ -1905,6 +1905,9 @@ static void pay_settle(game *g, int who, int world)
 
 	/* Get cost or defense of world */
 	cost = c_ptr->d_ptr->cost;
+
+	/* Get flags for world to be settled */
+	flags = c_ptr->d_ptr->flags;
 
 	/* Assume player has 0 military strength */
 	military = 0;
@@ -2005,7 +2008,7 @@ static void pay_settle(game *g, int who, int world)
 				if (o_ptr->code & P3_AGAINST_REBEL)
 				{
 					/* Check for non-Rebel world */
-					if (!(c_ptr->d_ptr->flags & FLAG_REBEL))
+					if (!(flags & FLAG_REBEL))
 					{
 						/* Skip power */
 						continue;
@@ -2171,6 +2174,9 @@ int settle_check_takeover(game *g, int who)
 
 	/* Don't ask opponents in simulated game */
 	if (g->simulation && g->sim_who != who) return 0;
+
+	/* Don't ask if takeovers disabled */
+	if (g->takeover_disabled) return 0;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -3201,6 +3207,9 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 
 	/* Draw cards */
 	draw_cards(g, who, value);
+
+	/* Count reward */
+	p_ptr->phase_cards += value;
 }
 
 /*
@@ -3414,6 +3423,9 @@ int good_chosen(game *g, int who, power *o_ptr, int g_list[], int num)
 
 			/* Remove from pool */
 			g->vp_pool -= vp;
+
+			/* Count reward */
+			p_ptr->phase_vp += vp;
 		}
 
 		/* Check for card award */
@@ -3421,6 +3433,9 @@ int good_chosen(game *g, int who, power *o_ptr, int g_list[], int num)
 		{
 			/* Award cards */
 			draw_cards(g, who, o_ptr->value);
+
+			/* Count reward */
+			p_ptr->phase_cards += o_ptr->value;
 		}
 
 		/* XXX Check for multiple card award */
@@ -3428,6 +3443,9 @@ int good_chosen(game *g, int who, power *o_ptr, int g_list[], int num)
 		{
 			/* Award cards */
 			draw_cards(g, who, o_ptr->value * 2);
+
+			/* Count reward */
+			p_ptr->phase_cards += o_ptr->value * 2;
 		}
 	}
 
@@ -3680,6 +3698,9 @@ int consume_hand_chosen(game *g, int who, power *o_ptr, int list[], int n)
 
 			/* Remove from pool */
 			g->vp_pool -= o_ptr->value;
+
+			/* Count reward */
+			p_ptr->phase_vp += o_ptr->value;
 		}
 		
 		/* Give card rewards */
@@ -3687,6 +3708,9 @@ int consume_hand_chosen(game *g, int who, power *o_ptr, int list[], int n)
 		{
 			/* Draw cards */
 			draw_cards(g, who, o_ptr->value);
+
+			/* Count reward */
+			p_ptr->phase_cards += o_ptr->value;
 		}
 
 		/* Get card pointer */
@@ -3800,6 +3824,9 @@ void consume_chosen(game *g, int who, power *o_ptr)
 		/* Draw cards */
 		draw_cards(g, who, o_ptr->value);
 
+		/* Count reward */
+		p_ptr->phase_cards += o_ptr->value;
+
 		/* Done */
 		return;
 	}
@@ -3838,6 +3865,9 @@ void consume_chosen(game *g, int who, power *o_ptr)
 
 		/* Remove from pool */
 		g->vp_pool -= vp;
+
+		/* Count reward */
+		p_ptr->phase_vp += vp;
 
 		/* Done */
 		return;
@@ -4112,6 +4142,7 @@ void phase_consume(game *g)
 {
 	player *p_ptr;
 	int i;
+	char msg[1024], text[1024];
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -4122,6 +4153,9 @@ void phase_consume(game *g)
 		/* Set turn */
 		g->turn = i;
 
+		/* Clear count of earned rewards */
+		p_ptr->phase_cards = p_ptr->phase_vp = 0;
+
 		/* Check for consume-trade action chosen */
 		if (player_chose(g, i, ACT_CONSUME_TRADE))
 		{
@@ -4131,6 +4165,54 @@ void phase_consume(game *g)
 
 		/* Use consume powers until none are usable */
 		while (consume_action(g, i));
+	}
+	
+	/* Loop over players */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Get player pointer */
+		p_ptr = &g->p[i];
+
+		/* Check for earned rewards */
+		if (!g->simulation && (p_ptr->phase_cards || p_ptr->phase_vp))
+		{
+			/* Begin message */
+			sprintf(msg, "%s receives ", p_ptr->name);
+			
+			/* Check for cards received */
+			if (p_ptr->phase_cards)
+			{
+				/* Create card string */
+				sprintf(text, "%d card%s ", p_ptr->phase_cards,
+				        p_ptr->phase_cards > 1 ? "s" : "");
+
+				/* Add text to message */
+				strcat(msg, text);
+
+				/* Check for points as well */
+				if (p_ptr->phase_vp)
+				{
+					/* Add conjuction */
+					strcat(msg, "and ");
+				}
+			}
+
+			/* Check for VP received */
+			if (p_ptr->phase_vp)
+			{
+				/* Create VP string */
+				sprintf(text, "%d VP ", p_ptr->phase_vp);
+
+				/* Add text to message */
+				strcat(msg, text);
+			}
+
+			/* Add conclusion */
+			strcat(msg, "for Consume phase.\n");
+
+			/* Send message */
+			message_add(msg);
+		}
 	}
 
 	/* Clear any temp flags on cards */
@@ -4188,6 +4270,9 @@ void produce_world(game *g, int who, int which)
 		{
 			/* Draw cards */
 			draw_cards(g, who, o_ptr->value);
+
+			/* Count reward */
+			p_ptr->phase_cards += o_ptr->value;
 		}
 	}
 }
@@ -4445,6 +4530,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 		/* Draw cards */
 		draw_cards(g, who, o_ptr->value);
 
+		/* Count reward */
+		p_ptr->phase_cards += o_ptr->value;
+
 		/* Done */
 		return;
 	}
@@ -4474,6 +4562,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value);
 
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
 		/* Done */
 		return;
 	}
@@ -4486,6 +4577,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
 
 		/* Done */
 		return;
@@ -4519,6 +4613,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value);
 
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
 		/* Done */
 		return;
 	}
@@ -4531,6 +4628,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
 
 		/* Done */
 		return;
@@ -4576,6 +4676,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 		/* Award cards */
 		draw_cards(g, who, produced[GOOD_NOVELTY]);
 
+		/* Count reward */
+		p_ptr->phase_cards += produced[GOOD_NOVELTY];
+
 		/* Done */
 		return;
 	}
@@ -4585,6 +4688,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 	{
 		/* Award cards */
 		draw_cards(g, who, produced[GOOD_RARE]);
+
+		/* Count reward */
+		p_ptr->phase_cards += produced[GOOD_RARE];
 
 		/* Done */
 		return;
@@ -4596,6 +4702,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 		/* Award cards */
 		draw_cards(g, who, produced[GOOD_GENE]);
 
+		/* Count reward */
+		p_ptr->phase_cards += produced[GOOD_GENE];
+
 		/* Done */
 		return;
 	}
@@ -4605,6 +4714,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 	{
 		/* Award cards */
 		draw_cards(g, who, produced[GOOD_ALIEN]);
+
+		/* Count reward */
+		p_ptr->phase_cards += produced[GOOD_ALIEN];
 
 		/* Done */
 		return;
@@ -4625,6 +4737,9 @@ void produce_chosen(game *g, int who, power *o_ptr)
 
 		/* Award cards */
 		draw_cards(g, who, count);
+
+		/* Count reward */
+		p_ptr->phase_cards += count;
 
 		/* Done */
 		return;
@@ -4779,6 +4894,7 @@ int produce_action(game *g, int who)
  */
 void phase_produce_end(game *g)
 {
+	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr, o_list[100];
 	int rare[MAX_PLAYER], most;
@@ -4813,6 +4929,9 @@ void phase_produce_end(game *g)
 	/* Loop over players again */
 	for (i = 0; i < g->num_players; i++)
 	{
+		/* Get player pointer */
+		p_ptr = &g->p[i];
+
 		/* Assume player created most */
 		most = 1;
 
@@ -4843,6 +4962,9 @@ void phase_produce_end(game *g)
 			{
 				/* Draw cards */
 				draw_cards(g, i, o_ptr->value);
+
+				/* Count reward */
+				p_ptr->phase_cards += o_ptr->value;
 			}
 		}
 	}
@@ -4853,11 +4975,19 @@ void phase_produce_end(game *g)
  */
 void phase_produce(game *g)
 {
+	player *p_ptr;
 	int i;
+	char msg[1024];
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
+		/* Get player pointer */
+		p_ptr = &g->p[i];
+
+		/* Clear phase rewards */
+		p_ptr->phase_cards = 0;
+
 		/* Set current player */
 		g->turn = i;
 
@@ -4867,6 +4997,26 @@ void phase_produce(game *g)
 
 	/* Handle end of phase powers */
 	phase_produce_end(g);
+
+	/* Loop over players */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Get player pointer */
+		p_ptr = &g->p[i];
+
+		/* Check for earned rewards */
+		if (!g->simulation && p_ptr->phase_cards)
+		{
+			/* Format message */
+			sprintf(msg,
+			        "%s receives %d card%s for Produce phase.\n",
+			        p_ptr->name, p_ptr->phase_cards,
+			        p_ptr->phase_cards > 1 ? "s" : "");
+
+			/* Send message */
+			message_add(msg);
+		}
+	}
 
 	/* Clear any temp flags on cards */
 	clear_temp(g);
@@ -4956,6 +5106,26 @@ void phase_discard(game *g)
 		/* Ask player to discard remaining */
 		p_ptr->control->choose_discard(g, i, list, n, n - target);
 	}
+}
+
+/*
+ * Return the minimum amount of progress needed to claim a "most" goal.
+ */
+int goal_minimum(int goal)
+{
+	/* Switch on goal type */
+	switch (goal)
+	{
+		case GOAL_MOST_MILITARY: return 6;
+		case GOAL_MOST_BLUE_BROWN: return 3;
+		case GOAL_MOST_DEVEL: return 4;
+		case GOAL_MOST_PRODUCTION: return 4;
+		case GOAL_MOST_EXPLORE: return 3;
+		case GOAL_MOST_REBEL: return 3;
+	}
+
+	/* XXX */
+	return -1;
 }
 
 /*
@@ -5167,13 +5337,7 @@ static int check_goal_player(game *g, int goal, int who)
 		case GOAL_MOST_MILITARY:
 
 			/* Get military strength */
-			count = total_military(g, who);
-
-			/* Check for minimum */
-			if (count >= 6) return count;
-
-			/* Does not meet minimum */
-			return 0;
+			return total_military(g, who);
 
 		/* Most blue/brown worlds (minimum 3) */
 		case GOAL_MOST_BLUE_BROWN:
@@ -5202,11 +5366,8 @@ static int check_goal_player(game *g, int goal, int who)
 				}
 			}
 
-			/* Check for minimum */
-			if (count >= 3) return count;
-
-			/* Does not meet minimum */
-			return 0;
+			/* Return count */
+			return count;
 
 		/* Most developments (minimum 4) */
 		case GOAL_MOST_DEVEL:
@@ -5230,11 +5391,8 @@ static int check_goal_player(game *g, int goal, int who)
 				count++;
 			}
 
-			/* Check for minimum */
-			if (count >= 4) return count;
-
-			/* Does not meet minimum */
-			return 0;
+			/* Return count */
+			return count;
 
 		/* Most production worlds (minimum 4) */
 		case GOAL_MOST_PRODUCTION:
@@ -5265,11 +5423,8 @@ static int check_goal_player(game *g, int goal, int who)
 				count++;
 			}
 
-			/* Check for minimum */
-			if (count >= 4) return count;
-
-			/* Does not meet minimum */
-			return 0;
+			/* Return count */
+			return count;
 
 		/* Most explore powers (minimum 3) */
 		case GOAL_MOST_EXPLORE:
@@ -5304,24 +5459,15 @@ static int check_goal_player(game *g, int goal, int who)
 				}
 			}
 
-			/* Check for minimum */
-			if (count >= 3) return count;
-
-			/* Does not meet minimum */
-			return 0;
+			/* Return count */
+			return count;
 
 		/* Most Rebel military worlds (minimum 3) */
 		case GOAL_MOST_REBEL:
 
 			/* Count military Rebel worlds */
-			count = count_active_flags(g, who, FLAG_REBEL |
-			                                   FLAG_MILITARY);
-
-			/* Check for minimum */
-			if (count >= 3) return count;
-
-			/* Does not meet minimum */
-			return 0;
+			return count_active_flags(g, who, FLAG_REBEL |
+			                                  FLAG_MILITARY);
 	}
 
 	/* XXX */
@@ -5331,7 +5477,7 @@ static int check_goal_player(game *g, int goal, int who)
 /*
  * Goal names.
  */
-static char *goal_name[MAX_GOAL] =
+char *goal_name[MAX_GOAL] =
 {
 	"Galactic Standard of Living",
 	"System Diversity",
@@ -5465,14 +5611,6 @@ void check_goals(game *g)
 		/* Do not check goals that cannot happen yet */
 		switch (i)
 		{
-			/* Develop phase only */
-			case GOAL_MOST_DEVEL:
-
-				/* Only check after develop */
-				if (g->cur_action != ACT_DEVELOP &&
-				    g->cur_action != ACT_DEVELOP2) continue;
-				break;
-
 			/* Settle phase only */
 			case GOAL_MOST_BLUE_BROWN:
 			case GOAL_MOST_PRODUCTION:
@@ -5486,6 +5624,7 @@ void check_goals(game *g)
 			/* Develop/Settle phases only */
 			case GOAL_MOST_MILITARY:
 			case GOAL_MOST_EXPLORE:
+			case GOAL_MOST_DEVEL:
 
 				/* Only check after develop/settle */
 				if (g->cur_action != ACT_DEVELOP &&
@@ -5495,6 +5634,9 @@ void check_goals(game *g)
 				break;
 		}
 
+		/* Clear most progress */
+		g->goal_most[i] = 0;
+
 		/* Loop over each player */
 		for (j = 0; j < g->num_players; j++)
 		{
@@ -5503,6 +5645,16 @@ void check_goals(game *g)
 
 			/* Save progress */
 			g->p[j].goal_progress[i] = count[j];
+
+			/* Check for more than most */
+			if (count[j] > g->goal_most[i])
+			{
+				/* Remember most */
+				g->goal_most[i] = count[j];
+			}
+
+			/* Check for insufficient progress */
+			if (count[j] < goal_minimum(i)) count[j] = 0;
 		}
 
 		/* Check for losing goal */
@@ -6134,7 +6286,7 @@ void score_game(game *g)
 {
 	player *p_ptr;
 	card *c_ptr;
-	int count[MAX_PLAYER], most;
+	int count[MAX_PLAYER];
 	int i, j;
 
 	/* Loop over players */
@@ -6201,16 +6353,9 @@ void score_game(game *g)
 		{
 			/* Get progress toward goal */
 			count[j] = g->p[j].goal_progress[i];
-		}
 
-		/* Assume no progress */
-		most = 0;
-
-		/* Loop over players */
-		for (j = 0; j < g->num_players; j++)
-		{
-			/* Check for more */
-			if (count[j] > most) most = count[j];
+			/* Check for insufficient progress */
+			if (count[j] < goal_minimum(i)) count[j] = 0;
 		}
 
 		/* Loop over players */
@@ -6231,7 +6376,11 @@ void score_game(game *g)
 			else
 			{
 				/* Check for as much as most */
-				if (count[j] == most) p_ptr->goal_vp += 3;
+				if (count[j] == g->goal_most[i])
+				{
+					/* Award tie points */
+					p_ptr->goal_vp += 3;
+				}
 			}
 		}
 	}

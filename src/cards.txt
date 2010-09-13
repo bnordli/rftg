@@ -499,6 +499,7 @@ N:Imperium Armaments World
 T:1:4:2
 E:1:1:1
 G:RARE
+F:IMPERIUM
 P:3:EXTRA_MILITARY:1:0
 P:5:PRODUCE:0:0
 
