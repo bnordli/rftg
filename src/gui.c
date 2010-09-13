@@ -1368,6 +1368,9 @@ static void table_request(GtkWidget *widget, GtkRequisition *requisition,
 	/* Request height to match width */
 	gtk_widget_set_size_request(widget, 0, req_height);
 #endif
+
+	/* Request smallest size possible */
+	gtk_widget_set_size_request(widget, 0, 0);
 }
 
 /*
