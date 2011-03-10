@@ -6400,7 +6400,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Check for specific good needed */
-		if ((o_ptr->code & P4_CONSUME_THIS) && c_idx != i)
+		if ((o_ptr->code & P4_CONSUME_THIS) && c_idx != x)
 		{
 			/* Skip good */
 			continue;

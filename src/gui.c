@@ -8441,7 +8441,7 @@ int main(int argc, char *argv[])
 
 	/* Add items to debug menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_card_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_ai_item);
+	/* gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_ai_item); */
 
 	/* Create help menu */
 	help_menu = gtk_menu_new();

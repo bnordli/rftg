@@ -2577,7 +2577,7 @@ static void handle_login(int cid, char *ptr)
 	printf("Login attempt from %s\n", user);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.7.5") < 0)
+	if (strcmp(version, "0.8.1") < 0)
 	{
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
