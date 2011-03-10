@@ -4,6 +4,15 @@
 #include <pthread.h>
 
 /*
+ * Server settings.
+ */
+#ifndef WELCOME
+#define WELCOME "Welcome to the Race for the Galaxy cygwin server!"
+#endif
+
+#define FORCE_MYSQL_TCP_CONNECTION
+
+/*
  * Session status types.
  */
 #define SS_EMPTY     0
@@ -210,8 +219,8 @@ MYSQL *mysql;
  */
 static int db_user(char *user, char *pass)
 {
-	MYSQL_RES *res;
-	MYSQL_ROW row;
+	MYSQL_RES *res1, *res2;
+	MYSQL_ROW row1, row2;
 	char query[1024];
 	char euser[1024], epass[1024];
 	int uid;
@@ -227,17 +236,17 @@ static int db_user(char *user, char *pass)
 	mysql_query(mysql, query);
 
 	/* Fetch results */
-	res = mysql_store_result(mysql);
+	res1 = mysql_store_result(mysql);
 
 	/* Check for no rows returned */
-	if (!(row = mysql_fetch_row(res)))
+	if (!(row1 = mysql_fetch_row(res1)))
 	{
 		/* Free old results */
-		mysql_free_result(res);
+		mysql_free_result(res1);
 
 		/* Create insertion query */
 		sprintf(query, "INSERT INTO users (user, pass) VALUES \
-		        ('%s', '%s')", euser, epass);
+		        ('%s', SHA1('%s'))", euser, epass);
 
 		/* Send query */
 		mysql_query(mysql, query);
@@ -249,36 +258,50 @@ static int db_user(char *user, char *pass)
 		mysql_query(mysql, query);
 
 		/* Fetch results */
-		res = mysql_store_result(mysql);
+		res1 = mysql_store_result(mysql);
 
 		/* Get row */
-		row = mysql_fetch_row(res);
+		row1 = mysql_fetch_row(res1);
 
 		/* Get user ID */
-		uid = strtol(row[0], NULL, 0);
+		uid = strtol(row1[0], NULL, 0);
 
 		/* Free result */
-		mysql_free_result(res);
+		mysql_free_result(res1);
 
 		/* Return ID */
 		return uid;
 	}
+
+	/* Create password hash query */
+	sprintf(query, "SELECT SHA1('%s')", epass);
+
+	/* Send query */
+	mysql_query(mysql, query);
+
+	/* Fetch results */
+	res2 = mysql_store_result(mysql);
+
+	/* Get row */
+	row2 = mysql_fetch_row(res2);
 
 	/* Check for matching password */
-	if (!strcmp(pass, row[0]))
+	if (!strcmp(row2[0], row1[0]))
 	{
 		/* Get ID */
-		uid = strtol(row[1], NULL, 0);
+		uid = strtol(row1[1], NULL, 0);
 
-		/* Free result */
-		mysql_free_result(res);
+		/* Free results */
+		mysql_free_result(res1);
+		mysql_free_result(res2);
 
 		/* Return ID */
 		return uid;
 	}
 
-	/* Free result */
-	mysql_free_result(res);
+	/* Free results */
+	mysql_free_result(res1);
+	mysql_free_result(res2);
 
 	/* Bad password */
 	return -1;
@@ -801,7 +824,7 @@ void send_msg(int cid, char *msg)
 		/* Reallocate buffer */
 		c->out_buf = (char *)realloc(c->out_buf, c->out_len + size);
 	}
-	
+
 	/* Copy current message to end of buffer */
 	memcpy(c->out_buf + c->out_len, msg, size);
 
@@ -2092,18 +2115,21 @@ static void kick_player(int cid, char *reason)
 
 	/* Send goodbye message */
 	send_msgf(cid, MSG_GOODBYE, "s", reason);
+	printf("Goodbye message sent\n");
 
 	/* Set state to disconnected */
 	c_list[cid].state = CS_DISCONN;
 
 	/* Close connection */
 	close(c_list[cid].fd);
+	printf("Connection closed\n");
 
 	/* Clear file descriptor */
 	c_list[cid].fd = -1;
 
 	/* Send disconnect to everyone */
 	send_player(cid);
+	printf("Disconnect sent\n");
 
 	/* Check for no session joined */
 	if (c_list[cid].sid < 0) return;
@@ -2128,6 +2154,7 @@ static void kick_player(int cid, char *reason)
 
 	/* Send session details */
 	send_session(sid);
+	printf("Sessions sent\n");
 
 	/* Check for active session */
 	if (s_list[sid].state == SS_STARTED)
@@ -2573,8 +2600,7 @@ static void handle_login(int cid, char *ptr)
 	send_msgf(cid, MSG_HELLO, "");
 
 	/* Send welcome chat to client */
-	send_msgf(cid, MSG_CHAT, "ss", "",
-	          "Welcome to the Race for the Galaxy server!");
+	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
 
 	/* Clear session ID */
 	c_list[cid].sid = -1;
@@ -3414,6 +3440,7 @@ static void handle_data(int cid)
 	{
 		/* Client closed connection */
 		kick_player(cid, "Client closed connection");
+		printf("Connection now closed\n");
 		return;
 	}
 
@@ -3700,6 +3727,12 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+#ifdef FORCE_MYSQL_TCP_CONNECTION
+	/* Force TCP connection to local MySQL installation (needed for Cygwin) */
+	unsigned int tcp = MYSQL_PROTOCOL_TCP;
+	mysql_options(mysql, MYSQL_OPT_PROTOCOL, &tcp);
+#endif
+
 	/* Attempt to connect to database server */
 	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, db, 0, NULL, 0))
 	{
@@ -3710,7 +3743,7 @@ int main(int argc, char *argv[])
 
 	/* Reconnect automatically when connection to database is lost */
 	mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
- 
+
 	/* Read game states from database */
 	db_load_sessions();
 	db_load_attendance();
@@ -3754,9 +3787,14 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	/* Print ready message */
+	printf("Server ready. Waiting for connections...\n");
+
 	/* Loop forever */
 	while (1)
 	{
+		printf("Looping...\n");
+
 		/* Clear set of connections to listen on */
 		FD_ZERO(&readfds);
 
@@ -3813,6 +3851,7 @@ int main(int argc, char *argv[])
 		/* Loop over active connections */
 		for (i = 0; i < num_conn; i++)
 		{
+			printf("Checking connection %d\n", i);
 			/* Check for still active */
 			if (c_list[i].fd > 0)
 			{
@@ -3821,6 +3860,7 @@ int main(int argc, char *argv[])
 				{
 					/* Handle incoming data */
 					handle_data(i);
+					printf("Data handled\n");
 				}
 
 				/* Check for unsent data ready to send */
@@ -3828,6 +3868,7 @@ int main(int argc, char *argv[])
 				{
 					/* Send ping to flush buffer */
 					send_msgf(i, MSG_PING, "");
+					printf("Sent ping to %d\n", i);
 				}
 			}
 		}
@@ -3835,6 +3876,7 @@ int main(int argc, char *argv[])
 		/* Check time since last housekeeping */
 		if (time(NULL) - last_housekeep >= 10)
 		{
+			printf("Housekeeping...\n");
 			/* Perform housekeeping */
 			do_housekeeping();
 
@@ -3842,4 +3884,5 @@ int main(int argc, char *argv[])
 			last_housekeep = time(NULL);
 		}
 	}
+	printf("Main exited...\n");
 }
