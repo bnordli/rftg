@@ -17,6 +17,7 @@ rm -f rftg.$name.out
 
 for i in `seq 1 200`
 do
+	date
 	if [ "$advanced" = a ]
 	then
 		./learner -e $1 -p $2 -f 100 -a >> rftg.$name.out

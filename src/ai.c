@@ -1,7 +1,7 @@
 /*
  * Race for the Galaxy AI
  * 
- * Copyright (C) 2009 Keldon Jones
+ * Copyright (C) 2009-2011 Keldon Jones
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -66,6 +66,13 @@ static double role_avg;
 #define ROLE_OUT_ADV      23
 #define ROLE_OUT_EXP3     15
 #define ROLE_OUT_ADV_EXP3 76
+
+/*
+ * Amount of current turn to complete simulation of.
+ */
+#define COMPLETE_ROUND    0
+#define COMPLETE_PHASE    1
+#define COMPLETE_DEVSET   2
 
 /*
  * Forward declaration.
@@ -179,6 +186,13 @@ static void simulate_game(game *sim, game *orig, int who)
 	/* Copy game */
 	memcpy(sim, orig, sizeof(game));
 
+	/* Loop over players */
+	for (i = 0; i < sim->num_players; i++)
+	{
+		/* Move choice log position to end */
+		sim->p[i].choice_pos = sim->p[i].choice_size;
+	}
+
 	/* Check for first-level simulation */
 	if (!sim->simulation)
 	{
@@ -196,9 +210,6 @@ static void simulate_game(game *sim, game *orig, int who)
 		{
 			/* Set action functions to AI  */
 			sim->p[i].control = &ai_func;
-
-			/* Move choice log position to end */
-			sim->p[i].choice_pos = sim->p[i].choice_size;
 		}
 	}
 }
@@ -208,8 +219,6 @@ static void simulate_game(game *sim, game *orig, int who)
  *
  * We call this before evaluating a game state, to attempt to foresee
  * consequences of chosen actions.
- *
- * If the partial flag is set, we merely complete the current phase.
  */
 static void complete_turn(game *g, int partial)
 {
@@ -266,7 +275,7 @@ static void complete_turn(game *g, int partial)
 	if (g->cur_action == ACT_PRODUCE) phase_produce_end(g);
 
 	/* Check for partial completion request */
-	if (partial) return;
+	if (partial == COMPLETE_PHASE) return;
 
 	/* Clear temp flags from just-finished phase */
 	clear_temp(g);
@@ -303,6 +312,13 @@ static void complete_turn(game *g, int partial)
 	/* Loop over remaining phases */
 	for (i = g->cur_action + 1; i <= ACT_PRODUCE; i++)
 	{
+		/* Check for stop after develop/settle */
+		if (partial == COMPLETE_DEVSET && i >= ACT_CONSUME_TRADE)
+		{
+			/* Stop simulation */
+			return;
+		}
+
 		/* Set game phase */
 		g->cur_action = i;
 
@@ -348,9 +364,7 @@ static void complete_turn(game *g, int partial)
 		if (count_active_flags(g, i, FLAG_GAME_END_14)) target = 14;
 
 		/* Check for enough cards */
-		if (count_player_area(g, i, WHERE_ACTIVE) +
-		    p_ptr->fake_played_dev +
-		    p_ptr->fake_played_world >= target)
+		if (count_player_area(g, i, WHERE_ACTIVE) >= target)
 		{
 			/* Game over */
 			g->game_over = 1;
@@ -393,7 +407,7 @@ static void setup_nets(game *g)
 	for (i = 0; i < MAX_DESIGN; i++)
 	{
 		/* Clear input mapping */
-		card_input[i] = good_input[i] = 0;
+		card_input[i] = good_input[i] = -1;
 
 		/* Get design pointer */
 		d_ptr = &library[i];
@@ -846,8 +860,6 @@ static eval_cache *lookup_eval(game *g, int who)
 		value[len++] = (unsigned char)p_ptr->prestige;
 		value[len++] = (unsigned char)p_ptr->total_fake;
 		value[len++] = (unsigned char)p_ptr->fake_hand;
-		value[len++] = (unsigned char)p_ptr->fake_played_dev;
-		value[len++] = (unsigned char)p_ptr->fake_played_world;
 		value[len++] = (unsigned char)p_ptr->fake_discards;
 	}
 
@@ -922,8 +934,7 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
-	int i, j, count, good[6], explore_mix = 0;
-	int active[MAX_DECK], num_active = 0;
+	int i, x, count, good[6], explore_mix = 0;
 
 	/* Clear good type array */
 	for (i = 0; i <= GOOD_ALIEN; i++) good[i] = 0;
@@ -931,29 +942,23 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	/* Set player pointer */
 	p_ptr = &g->p[who];
 
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
 	/* Loop over our active cards */
-	for (i = 0; i < g->deck_size; i++)
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->where != WHERE_ACTIVE) continue;
-
-		/* Add to list of active cards */
-		active[num_active++] = i;
+		c_ptr = &g->deck[x];
 
 		/* Set input for active card */
 		eval.input_value[n + card_input[c_ptr->d_ptr->index]] = 1;
 
 		/* Loop over powers on card */
-		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
+		for (i = 0; i < c_ptr->d_ptr->num_power; i++)
 		{
 			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[j];
+			o_ptr = &c_ptr->d_ptr->powers[i];
 
 			/* Skip non-Explore powers */
 			if (o_ptr->phase != PHASE_EXPLORE) continue;
@@ -969,17 +974,17 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	/* Clear good count */
 	count = 0;
 
-	/* Loop over active cards */
-	for (i = 0; i < num_active; i++)
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
+	/* Loop over our active cards */
+	for ( ; x != -1; x = g->deck[x].next)
 	{
+		/* Do not check for goods when game is over */
+		if (g->game_over) break;
+
 		/* Get card pointer */
-		c_ptr = &g->deck[active[i]];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->where != WHERE_ACTIVE) continue;
+		c_ptr = &g->deck[x];
 
 		/* Skip cards without goods */
 		if (c_ptr->covered == -1) continue;
@@ -1013,8 +1018,10 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 
 	/* Get count of cards in hand */
 	count = count_player_area(g, who, WHERE_HAND) + p_ptr->fake_hand -
-	        p_ptr->fake_discards - p_ptr->fake_played_dev -
-	        p_ptr->fake_played_world;
+	        p_ptr->fake_discards;
+
+	/* Do not count cards in hand if game over */
+	if (g->game_over) count = 0;
 
 	/* Set inputs for cards in hand */
 	for (i = 0; i < 12; i++)
@@ -1024,19 +1031,16 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	}
 
 	/* Clear count of developments */
-	count = p_ptr->fake_played_dev;
+	count = 0;
+
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
 
 	/* Loop over our active cards */
-	for (i = 0; i < num_active; i++)
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[active[i]];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->where != WHERE_ACTIVE) continue;
+		c_ptr = &g->deck[x];
 
 		/* Skip non-developments */
 		if (c_ptr->d_ptr->type != TYPE_DEVELOPMENT) continue;
@@ -1053,19 +1057,16 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	}
 
 	/* Clear count of worlds */
-	count = p_ptr->fake_played_world;
+	count = 0;
+
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
 
 	/* Loop over our active cards */
-	for (i = 0; i < num_active; i++)
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[active[i]];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->where != WHERE_ACTIVE) continue;
+		c_ptr = &g->deck[x];
 
 		/* Skip non-worlds */
 		if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
@@ -1081,64 +1082,8 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 		eval.input_value[n++] = count > i;
 	}
 
-	/* Clear count */
-	count = 0;
-
-	/*
-	 * The following loop is basically total_military(), but since we
-	 * already have a list of active cards, it should be a bit faster.
-	 */
-
-	/* Loop over active cards */
-	for (i = 0; i < num_active; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[active[i]];
-
-		/* Loop over card powers */
-		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
-		{
-			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[j];
-
-			/* Skip non-Settle power */
-			if (o_ptr->phase != PHASE_SETTLE) continue;
-
-			/* Check for non-specific military */
-			if (o_ptr->code == P3_EXTRA_MILITARY)
-			{
-				/* Add to military */
-				count += o_ptr->value;
-			}
-
-			/* Check for military per military world */
-			if (o_ptr->code ==(P3_EXTRA_MILITARY | P3_PER_MILITARY))
-			{
-				/* Add to military */
-				count += count_active_flags(g, who,
-				                            FLAG_MILITARY);
-			}
-
-			/* Check for military per chromosome flag */
-			if (o_ptr->code == (P3_EXTRA_MILITARY | P3_PER_CHROMO))
-			{
-				/* Add to military */
-				count += count_active_flags(g, who,
-				                            FLAG_CHROMO);
-			}
-
-			/* Check for military if Imperium flag */
-			if (o_ptr->code == (P3_EXTRA_MILITARY | P3_IF_IMPERIUM))
-			{
-				/* Check for Imperium flag */
-				if (count_active_flags(g, who, FLAG_IMPERIUM))
-				{
-					/* Add to military */
-					count += o_ptr->value;
-				}
-			}
-		}
-	}
+	/* Get total military strength */
+	count = total_military(g, who);
 
 	/* Set inputs for military strength */
 	for (i = 0; i < 15; i++)
@@ -1158,7 +1103,7 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	}
 
 	/* Set input if player has used prestige/search action */
-	eval.input_value[n++] = p_ptr->prestige_action_used;
+	eval.input_value[n++] = p_ptr->prestige_action_used || g->game_over;
 
 	/* Set inputs for prestige */
 	for (i = 0; i < 15; i++)
@@ -1197,7 +1142,7 @@ static double eval_game(game *g, int who)
 	player *p_ptr;
 	card *c_ptr;
 	eval_cache *e_ptr;
-	int i, count, n = 0, hand = 0;
+	int i, x, count, n = 0, hand = 0;
 	int max = 0, max_prestige, clock;
 
 	/* Lookup game state in cached results */
@@ -1232,8 +1177,7 @@ static double eval_game(game *g, int who)
 		p_ptr = &g->p[i];
 
 		/* Count number of active cards */
-		count = count_player_area(g, i, WHERE_ACTIVE) +
-		        p_ptr->fake_played_dev + p_ptr->fake_played_world;
+		count = count_player_area(g, i, WHERE_ACTIVE);
 
 		/* Track most cards played */
 		if (count > max) max = count;
@@ -1280,17 +1224,17 @@ static double eval_game(game *g, int who)
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
+	/* Start at first card in hand */
+	x = p_ptr->head[WHERE_HAND];
+
+	/* Skip cards in hand if game over */
+	if (g->game_over) x = -1;
+
 	/* Loop over cards in hand */
-	for (i = 0; i < g->deck_size; i++)
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip cards not in hand */
-		if (c_ptr->where != WHERE_HAND) continue;
+		c_ptr = &g->deck[x];
 
 		/* Count cards in hand */
 		hand++;
@@ -1300,7 +1244,7 @@ static double eval_game(game *g, int who)
 	}
 
 	/* Add simulated drawn cards to handsize */
-	hand += g->p[who].fake_hand;
+	hand += g->game_over ? 0 : g->p[who].fake_hand;
 
 	/* Clear count of unknown cards */
 	count = 0;
@@ -1323,6 +1267,9 @@ static double eval_game(game *g, int who)
 	{
 		/* Get card pointer */
 		c_ptr = &g->deck[i];
+
+		/* Do not scan cards if game over */
+		if (g->game_over) break;
 
 		/* Skip cards where we know the location */
 		if (c_ptr->known & (1 << who)) continue;
@@ -1454,7 +1401,7 @@ static int predict_action_player(game *g, int who, int n)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
-	int i, j, good[6], count, count_dev, count_world, explore_mix = 0;
+	int i, x, good[6], count, count_dev, count_world, explore_mix = 0;
 
 	/* Clear good types */
 	for (i = 0; i <= GOOD_ALIEN; i++) good[i] = 0;
@@ -1465,17 +1412,14 @@ static int predict_action_player(game *g, int who, int n)
 	/* Assume no active cards */
 	count = count_dev = count_world = 0;
 
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
 	/* Loop over player's active cards */
-	for (i = 0; i < g->deck_size; i++)
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->where != WHERE_ACTIVE) continue;
+		c_ptr = &g->deck[x];
 
 		/* Set input for active card */
 		role.input_value[n + card_input[c_ptr->d_ptr->index]] = 1;
@@ -1493,10 +1437,10 @@ static int predict_action_player(game *g, int who, int n)
 		}
 
 		/* Loop over powers on card */
-		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
+		for (i = 0; i < c_ptr->d_ptr->num_power; i++)
 		{
 			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[j];
+			o_ptr = &c_ptr->d_ptr->powers[i];
 
 			/* Skip non-Explore powers */
 			if (o_ptr->phase != PHASE_EXPLORE) continue;
@@ -1526,17 +1470,14 @@ static int predict_action_player(game *g, int who, int n)
 	/* Assume no goods */
 	count = 0;
 
-	/* Loop over cards with goods */
-	for (i = 0; i < g->deck_size; i++)
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
+	/* Loop over player's active cards */
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->where != WHERE_ACTIVE) continue;
+		c_ptr = &g->deck[x];
 
 		/* Skip cards without goods */
 		if (c_ptr->covered == -1) continue;
@@ -1667,8 +1608,7 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION])
 		p_ptr = &g->p[i];
 
 		/* Count number of active cards */
-		count = count_player_area(g, i, WHERE_ACTIVE) +
-		        p_ptr->fake_played_dev + p_ptr->fake_played_world;
+		count = count_player_area(g, i, WHERE_ACTIVE);
 
 		/* Track most cards played */
 		if (count > max) max = count;
@@ -1720,6 +1660,156 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION])
 	{
 		/* Copy scores for action */
 		prob[i] = role.win_prob[i];
+	}
+}
+
+/*
+ * Structure holding a score with associated sample cards.
+ */
+struct sample_score
+{
+	/* Entry is valid */
+	int valid;
+
+#if 0
+	/* Player sample is for */
+	int who;
+
+	/* Current action phase */
+	int cur_action;
+
+	/* Actions player chose */
+	int act[2];
+
+	/* Actions chosen for this round */
+	int action_selected[MAX_ACTION];
+#endif
+
+	/* Number of cards drawn */
+	int drawn;
+
+	/* Number of cards kept */
+	int keep;
+
+	/* Player gets to discard any from hand */
+	int discard_any;
+
+	/* Score for this sample */
+	double score;
+
+	/* Cards drawn or placed */
+	int list[MAX_DECK];
+
+	/* Cards discarded */
+	int discards[MAX_DECK];
+};
+
+/*
+ * Compare two scores for explored cards.
+ */
+static int cmp_sample_score(const void *p1, const void *p2)
+{
+	struct sample_score *s1 = (struct sample_score *)p1;
+	struct sample_score *s2 = (struct sample_score *)p2;
+
+	/* Compare scores */
+	if (s1->score > s2->score) return 1;
+	if (s1->score < s2->score) return -1;
+	return 0;
+}
+
+/*
+ * Claim a card for ourself.
+ *
+ * The card may be in an opponent's hard or used as a good.  If so, find
+ * a card to replace it.
+ *
+ * XXX This entire function is nasty.
+ */
+static void claim_card(game *g, int who, int which)
+{
+	card *c_ptr;
+	int i, replace;
+
+	/* Get card pointer */
+	c_ptr = &g->deck[which];
+
+	/* Check for card in use */
+	if (c_ptr->owner != -1)
+	{
+		/* Get replacement card */
+		replace = random_draw(g);
+
+		/* Check for failure to draw */
+		if (replace == -1) return;
+
+		/* Check for card used as good */
+		if (c_ptr->where == WHERE_GOOD)
+		{
+			/* Find covered card */
+			for (i = 0; i < g->deck_size; i++)
+			{
+				/* Check for covered */
+				if (g->deck[i].covered == which)
+				{
+					/* Switch to replacement card */
+					g->deck[i].covered = replace;
+
+					/* Done looking */
+					break;
+				}
+			}
+		}
+
+		/* Replace claimed card */
+		move_card(g, replace, c_ptr->owner, c_ptr->where);
+	}
+
+	/* Put card in hand */
+	move_card(g, which, who, WHERE_HAND);
+
+	/* Assume old location was draw deck */
+	move_start(g, which, -1, WHERE_DECK);
+
+	/* Owner knows location of card */
+	c_ptr->known = (1 << who);
+}
+
+/*
+ * Number of explore samples to keep.
+ */
+#define MAX_EXPLORE_SAMPLE 10
+#define MAX_PLACE_SAMPLE   80
+
+/*
+ * Explore samples we've seen this turn.
+ */
+static struct sample_score explore_seen[MAX_EXPLORE_SAMPLE];
+
+/*
+ * Card placement samples we've seen this turn.
+ */
+static struct sample_score place_seen[MAX_PLACE_SAMPLE];
+
+/*
+ * Clear sample results.
+ */
+static void ai_sample_clear(void)
+{
+	int i;
+
+	/* Clear Explore samples */
+	for (i = 0; i < MAX_EXPLORE_SAMPLE; i++)
+	{
+		/* Mark invalid */
+		explore_seen[i].valid = 0;
+	}
+
+	/* Clear place samples */
+	for (i = 0; i < MAX_PLACE_SAMPLE; i++)
+	{
+		/* Mark invalid */
+		place_seen[i].valid = 0;
 	}
 }
 
@@ -1930,17 +2020,17 @@ static void ai_choose_action_advanced_aux(game *g, int who, int oa,
 #endif
 
 		/* Complete turn */
-		complete_turn(&sim2, 0);
+		complete_turn(&sim2, COMPLETE_ROUND);
 
 		/* Evaluate state after turn */
 		score = eval_game(&sim2, who);
 
 #ifdef DEBUG
 #if 0
-		printf("Trying %s/%s:\nactive %d, goods %d, hand %d, VP %d: score %f\n", action_name[a1], action_name[a2], count_player_area(&sim2, who, WHERE_ACTIVE) + sim2.p[who].fake_played_dev + sim2.p[who].fake_played_world, count_player_area(&sim2, who, WHERE_GOOD), count_player_area(&sim2, who, WHERE_HAND) + sim2.p[who].fake_hand - sim2.p[who].fake_discards - sim2.p[who].fake_played_dev - sim2.p[who].fake_played_world, sim2.p[who].end_vp, score);
+		printf("Trying %s/%s:\nactive %d, goods %d, hand %d, VP %d: score %f\n", action_name[a1], action_name[a2], count_player_area(&sim2, who, WHERE_ACTIVE), count_player_area(&sim2, who, WHERE_GOOD), count_player_area(&sim2, who, WHERE_HAND) + sim2.p[who].fake_hand - sim2.p[who].fake_discards, sim2.p[who].end_vp, score);
 		dump_active(&sim2, who);
 #endif
-		printf("Trying %s/%s: %d (%f)\n", action_name[adv_combo[act][0]], action_name[adv_combo[act][1]], num_computes - old_computes, score);
+		printf("Trying %s/%s: %d (%f)\n", action_name(adv_combo[act][0]), action_name(adv_combo[act][1]), num_computes - old_computes, score);
 #endif
 
 		/* Add score to actions */
@@ -2057,7 +2147,7 @@ static void ai_choose_action_advanced(game *g, int who, int action[2], int one)
 
 #ifdef DEBUG
 			taken++;
-			printf("Investigating opponent %s/%s (prob %f)\n", action_name[adv_combo[oa][0]], action_name[adv_combo[oa][1]], prob);
+			printf("Investigating opponent %s/%s (prob %f)\n", action_name(adv_combo[oa][0]), action_name(adv_combo[oa][1]), prob);
 #endif
 
 			/* Check our action scores against this combo */
@@ -2292,7 +2382,7 @@ static void ai_choose_action_aux(game *g, int who, int current, double prob,
 			sim.cur_action = -1;
 
 			/* Complete turn */
-			complete_turn(&sim, 0);
+			complete_turn(&sim, COMPLETE_ROUND);
 
 #ifdef DEBUG
 			printf("%d\n", num_computes - old_computes);
@@ -2346,6 +2436,9 @@ static void ai_choose_action(game *g, int who, int action[2], int one)
 
 	/* Perform training at beginning of each round */
 	perform_training(g, who, NULL);
+
+	/* Clear sample results */
+	ai_sample_clear();
 
 	/* Handle "advanced" game differently */
 	if (g->advanced) return ai_choose_action_advanced(g, who, action, one);
@@ -2621,8 +2714,8 @@ static void ai_choose_discard_aux(game *g, int who, int list[], int n, int c,
 		/* Check for explore phase */
 		if (sim.cur_action == ACT_EXPLORE_5_0)
 		{
-			/* Simulate rest of turn */
-			complete_turn(&sim, 0);
+			/* Simulate most rest of turn */
+			complete_turn(&sim, COMPLETE_DEVSET);
 		}
 
 		/* Evaluate result */
@@ -2656,9 +2749,9 @@ static void ai_choose_discard(game *g, int who, int list[], int *num,
 {
 	game sim;
 	player *p_ptr;
-	double b_s = -1, score;
+	double b_s = -1, score, percard[MAX_DECK];
 	int discards[MAX_DECK], n = 0;
-	int best, i, b_i;
+	int best, i, j, b_i;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -2676,10 +2769,52 @@ static void ai_choose_discard(game *g, int who, int list[], int *num,
 		return;
 	}
 
-	/* XXX - Check for more than 30 cards to choose from */
-	if (*num > 30)
+	/* XXX - Check for more than 20 cards to choose from */
+	if (*num > 20)
 	{
-		/* XXX - Just discard first cards */
+		/* Get score of discarding each card */
+		for (i = 0; i < *num; i++)
+		{
+			/* Simulate game */
+			simulate_game(&sim, g, who);
+
+			/* Discard one */
+			discard_callback(&sim, who, &list[i], 1);
+
+			/* Evaluate game */
+			percard[i] = eval_game(&sim, who);
+		}
+
+		/* Loop over number of cards to discard */
+		for (i = 0; i < discard; i++)
+		{
+			/* Clear best score */
+			b_s = b_i = -1;
+
+			/* Loop over per-card scores */
+			for (j = 0; j < *num; j++)
+			{
+				/* Check for better than other score */
+				if (percard[j] > b_s)
+				{
+					/* Track best */
+					b_s = percard[j];
+					b_i = j;
+				}
+			}
+
+			/* Add card to list */
+			discards[i] = list[b_i];
+
+			/* Move last card into spot */
+			list[b_i] = list[--(*num)];
+			percard[b_i] = percard[*num];
+		}
+
+		/* Copy discards into list */
+		for (i = 0; i < discard; i++) list[i] = discards[i];
+
+		/* Set number of cards discarded */
 		*num = discard;
 
 		/* Done */
@@ -2687,7 +2822,7 @@ static void ai_choose_discard(game *g, int who, int list[], int *num,
 	}
 
 	/* XXX - Check for lots of cards and discards */
-	while (*num > 12 && discard > 3 && *num - discard > 3)
+	while (*num > 10 && discard > 3 && *num - discard > 3)
 	{
 		/* Clear best score */
 		b_s = b_i = -1;
@@ -2775,11 +2910,10 @@ static void ai_choose_save(game *g, int who, int list[], int *num)
 		simulate_game(&sim, g, who);
 
 		/* Save card */
-		sim.deck[list[i]].owner = who;
-		sim.deck[list[i]].where = WHERE_SAVED;
+		move_card(&sim, list[i], who, WHERE_SAVED);
 
 		/* Simulate rest of turn */
-		complete_turn(&sim, 0);
+		complete_turn(&sim, COMPLETE_ROUND);
 
 		/* Get score */
 		score = eval_game(&sim, who);
@@ -2810,7 +2944,7 @@ static void ai_choose_discard_prestige(game *g, int who, int list[], int *num)
 	simulate_game(&sim, g, who);
 
 	/* Finish turn without discarding anything */
-	complete_turn(&sim, 0);
+	complete_turn(&sim, COMPLETE_ROUND);
 
 	/* Get score */
 	b_s = eval_game(&sim, who);
@@ -2828,7 +2962,7 @@ static void ai_choose_discard_prestige(game *g, int who, int list[], int *num)
 		sim.p[who].prestige++;
 
 		/* Finish turn */
-		complete_turn(&sim, 0);
+		complete_turn(&sim, COMPLETE_ROUND);
 
 		/* Get score */
 		score = eval_game(&sim, who);
@@ -2855,14 +2989,13 @@ static void ai_choose_discard_prestige(game *g, int who, int list[], int *num)
 		simulate_game(&sim, g, who);
 
 		/* Discard chosen card */
-		sim.deck[list[i]].owner = -1;
-		sim.deck[list[i]].where = WHERE_DISCARD;
+		move_card(&sim, list[i], -1, WHERE_DISCARD);
 
 		/* Gain prestige */
 		sim.p[who].prestige++;
 
 		/* Finish turn */
-		complete_turn(&sim, 0);
+		complete_turn(&sim, COMPLETE_ROUND);
 
 		/* Get score */
 		score = eval_game(&sim, who);
@@ -2891,129 +3024,54 @@ static void ai_choose_discard_prestige(game *g, int who, int list[], int *num)
 }
 
 /*
- * Structure holding a score with associated sample Explore cards.
- */
-struct explore_score
-{
-	double score;
-	int list[MAX_DECK];
-};
-
-/*
- * Compare two scores for explored cards.
- */
-static int cmp_explore_score(const void *p1, const void *p2)
-{
-	struct explore_score *e1 = (struct explore_score *)p1;
-	struct explore_score *e2 = (struct explore_score *)p2;
-
-	/* Compare scores */
-	if (e1->score > e2->score) return 1;
-	if (e1->score < e2->score) return -1;
-	return 0;
-}
-
-/*
- * Claim a card for ourself.
- *
- * The card may be in an opponent's hard or used as a good.  If so, find
- * a card to replace it.
- *
- * XXX This entire function is nasty.
- */
-static void claim_card(game *g, int who, int which)
-{
-	card *c_ptr, *replace;
-	int i;
-
-	/* Get card pointer */
-	c_ptr = &g->deck[which];
-
-	/* Check for card in use */
-	if (c_ptr->owner != -1)
-	{
-		/* Get replacement card */
-		replace = random_draw(g);
-
-		/* Check for failure to draw */
-		if (!replace) return;
-
-		/* Check for card used as good */
-		if (c_ptr->where == WHERE_GOOD)
-		{
-			/* Find covered card */
-			for (i = 0; i < g->deck_size; i++)
-			{
-				/* Check for covered */
-				if (g->deck[i].covered == which)
-				{
-					/* Switch to replacement card */
-					g->deck[i].covered = replace - g->deck;
-
-					/* Done looking */
-					break;
-				}
-			}
-		}
-
-		/* Replace claimed card */
-		replace->owner = c_ptr->owner;
-		replace->where = c_ptr->where;
-	}
-
-	/* Put card in hand */
-	c_ptr->owner = who;
-	c_ptr->where = WHERE_HAND;
-
-	/* Assume old location was draw deck */
-	c_ptr->start_owner = -1;
-	c_ptr->start_where = WHERE_DECK;
-}
-
-/*
  * Discard worst cards when checking for likely Explore results.
  */
 static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
-                                  int discard_any)
+                                  int discard_any, int discards[MAX_DECK])
 {
-	game sim;
+	game sim, sim2;
 	card *c_ptr;
-	int list[MAX_DECK], discards[MAX_DECK], num = 0, n = 0;
-	int i, b_i, discard;
-	int old_action, best;
+	int list[MAX_DECK], num = 0, n = 0;
+	int i, x, b_i, discard;
+	int best;
 	double score, b_s;
 
 	/* Compute number of cards to discard */
 	discard = draw - keep;
 
+	/* Start at first card in hand */
+	x = g->p[who].head[WHERE_HAND];
+
 	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip unowned cards */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip cards not in hand */
-		if (c_ptr->where != WHERE_HAND) continue;
+		c_ptr = &g->deck[x];
 
 		/* Skip old cards if they can't be discarded */
-		if (c_ptr->start_where == WHERE_HAND && !discard_any) continue;
+		if (c_ptr->start_where == WHERE_HAND &&
+		    c_ptr->start_owner == who && !discard_any) continue;
 
 		/* Add card to list */
-		list[num++] = i;
+		list[num++] = x;
 	}
 
 	/* Check for too many cards in hand */
 	if (num > 30)
 	{
 		/* Just discard first cards */
-		discard_callback(g, who, list, discard);
+		for (i = 0; i < discard; i++)
+		{
+			/* Copy first cards */
+			discards[i] = list[i];
+		}
 
 		/* Done */
 		return;
 	}
+
+	/* Simulate game */
+	simulate_game(&sim, g, who);
 
 	/* XXX - Check for lots of cards and discards */
 	while (num > 8 && discard > 2 && (num - discard) > 2)
@@ -3025,13 +3083,13 @@ static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
 		for (i = 0; i < num; i++)
 		{
 			/* Simulate game */
-			simulate_game(&sim, g, who);
+			simulate_game(&sim2, &sim, who);
 
 			/* Discard one */
-			discard_callback(&sim, who, &list[i], 1);
+			discard_callback(&sim2, who, &list[i], 1);
 
 			/* Evaluate game */
-			score = eval_game(&sim, who);
+			score = eval_game(&sim2, who);
 
 			/* Check for better score */
 			if (score_better(score, b_s))
@@ -3043,7 +3101,10 @@ static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
 		}
 
 		/* Discard worst card */
-		discard_callback(g, who, &list[b_i], 1);
+		discard_callback(&sim, who, &list[b_i], 1);
+
+		/* Remember worst card */
+		discards[discard - 1] = list[b_i];
 
 		/* Move last card into given spot */
 		list[b_i] = list[--num];
@@ -3056,11 +3117,10 @@ static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
 	b_s = -1;
 
 	/* XXX Change action so that we don't simulate rest of turn */
-	old_action = g->cur_action;
-	g->cur_action = -1;
+	sim.cur_action = -1;
 
 	/* Find best set of cards */
-	ai_choose_discard_aux(g, who, list, num, discard, 0, &best, &b_s);
+	ai_choose_discard_aux(&sim, who, list, num, discard, 0, &best, &b_s);
 
 	/* Loop over set of chosen cards */
 	for (i = 0; (1 << i) <= best; i++)
@@ -3072,12 +3132,30 @@ static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
 			discards[n++] = list[i];
 		}
 	}
+}
 
-	/* Apply best choice */
-	discard_callback(g, who, discards, discard);
+/*
+ * Apply the results from an Explore sample.
+ */
+static void ai_explore_sample_apply(game *g, int who, int draw, int keep,
+                                    struct sample_score *s_ptr)
+{
+	int i;
 
-	/* XXX Reset action */
-	g->cur_action = old_action;
+	/* Claim cards */
+	for (i = 0; i < draw; i++)
+	{
+		/* Claim card */
+		claim_card(g, who, s_ptr->list[i]);
+	}
+
+	/* Discard worst */
+	discard_callback(g, who, s_ptr->discards, draw - keep);
+
+	/* Clear fake drawn card counters */
+	g->p[who].total_fake = 0;
+	g->p[who].fake_hand = 0;
+	g->p[who].fake_discards = 0;
 }
 
 /*
@@ -3090,9 +3168,27 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
 	game sim;
 	card *c_ptr;
 	int unknown[MAX_DECK], num_unknown = 0;
-	struct explore_score scores[5];
+	struct sample_score scores[5];
 	int i, j, k;
 	unsigned int seed;
+
+	/* Loop over previous results */
+	for (i = 0; i < MAX_EXPLORE_SAMPLE; i++)
+	{
+		/* Skip invalid results */
+		if (!explore_seen[i].valid) break;
+
+		/* Skip results that don't match */
+		if (explore_seen[i].drawn != draw) continue;
+		if (explore_seen[i].keep != keep) continue;
+		if (explore_seen[i].discard_any != discard_any) continue;
+
+		/* Apply result */
+		ai_explore_sample_apply(g, who, draw, keep, &explore_seen[i]);
+
+		/* Done */
+		return;
+	}
 
 	/* Loop over deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -3133,8 +3229,17 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
 			unknown[k] = unknown[--num_unknown];
 		}
 
-		/* Discard worst cards */
-		ai_explore_sample_aux(&sim, who, draw, keep, discard_any);
+		/* Find worst cards */
+		ai_explore_sample_aux(&sim, who, draw, keep, discard_any,
+		                      scores[i].discards);
+
+		/* Discard worst */
+		discard_callback(&sim, who, scores[i].discards, draw - keep);
+
+		/* Clear fake card counts */
+		sim.p[who].total_fake = 0;
+		sim.p[who].fake_hand = 0;
+		sim.p[who].fake_discards = 0;
 
 		/* Score game */
 		scores[i].score = eval_game(&sim, who);
@@ -3148,22 +3253,36 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
 	}
 
 	/* Sort list of scores */
-	qsort(scores, 5, sizeof(struct explore_score), cmp_explore_score);
+	qsort(scores, 5, sizeof(struct sample_score), cmp_sample_score);
 
-	/* Claim cards from median score */
-	for (j = 0; j < draw; j++)
+	/* Loop over previous explore sample results */
+	for (i = 0; i < MAX_EXPLORE_SAMPLE; i++)
 	{
-		/* Claim card */
-		claim_card(g, who, scores[2].list[j]);
+		/* Skip already valid results */
+		if (explore_seen[i].valid) continue;
+
+		/* Copy results */
+		memcpy(&explore_seen[i], &scores[1],
+		       sizeof(struct sample_score));
+
+		/* Mark as valid */
+		explore_seen[i].valid = 1;
+
+		/* Copy parameters */
+		explore_seen[i].drawn = draw;
+		explore_seen[i].keep = keep;
+		explore_seen[i].discard_any = discard_any;
+
+		/* Apply result */
+		ai_explore_sample_apply(g, who, draw, keep, &explore_seen[i]);
+
+		/* Done */
+		return;
 	}
 
-	/* Discard worst cards */
-	ai_explore_sample_aux(g, who, draw, keep, discard_any);
-
-	/* Clear fake drawn card counters */
-	g->p[who].total_fake = 0;
-	g->p[who].fake_hand = 0;
-	g->p[who].fake_discards = 0;
+	/* XXX */
+	printf("Ran out of explore sample result entries!\n");
+	exit(1);
 }
 
 /*
@@ -3226,13 +3345,191 @@ static void ai_choose_start(game *g, int who, int list[], int *num,
 }
 
 /*
+ * Simulate placing and paying for the given card (as an opponent).
+ */
+static double ai_choose_place_opp_aux(game *g, int who, int which, int phase)
+{
+	game sim;
+
+	/* Simulate game */
+	simulate_game(&sim, g, who);
+
+	/* Place given card */
+	sim.p[who].placing = which;
+
+	/* Check for card to place */
+	if (which != -1)
+	{
+		/* Claim card */
+		claim_card(&sim, who, which);
+
+		/* Place card */
+		place_card(&sim, who, which);
+
+		/* Add one discard to make up for free card */
+		sim.p[who].fake_discards++;
+	}
+
+	/* Check for Develop phase */
+	if (phase == PHASE_DEVELOP && which != -1)
+	{
+		/* Develop choice */
+		develop_action(&sim, who, which);
+	}
+
+	/* Check for Settle phase */
+	if (phase == PHASE_SETTLE)
+	{
+		/* Check for takeovers or placement */
+		if (which != -1 || settle_check_takeover(&sim, who))
+		{
+			/* Take no-place action */
+			settle_action(&sim, who, which);
+
+			/* Resolve takeovers */
+			resolve_takeovers(&sim);
+		}
+	}
+
+	/* Determine score for placing this card */
+	return eval_game(&sim, g->sim_who);
+}
+
+/*
+ * Choose a card to play for an opponent.
+ */
+static int ai_choose_place_opp(game *g, int who, int phase, int arg3)
+{
+	game sim;
+	card *c_ptr;
+	int i, j,  type;
+	unsigned int seed;
+	int hand_size;
+	int unknown[MAX_DECK], num_unknown = 0;
+	double score, no_place;
+	struct sample_score scores[MAX_DECK];
+
+	/* Determine type of card to look for */
+	if (phase == PHASE_DEVELOP) type = TYPE_DEVELOPMENT;
+	if (phase == PHASE_SETTLE) type = TYPE_WORLD;
+
+	/* Loop over cards in deck */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Skip cards with known locations */
+		if (c_ptr->known & (1 << g->sim_who)) continue;
+
+		/* Add card to unknown list */
+		unknown[num_unknown++] = i;
+	}
+
+	/* Compute number of cards seen by this player this turn */
+	hand_size = count_player_area(g, who, WHERE_HAND) +
+	            g->p[who].total_fake;
+
+	/* Check for no cards to play */
+	if (hand_size == 0) return -1;
+
+	/* Cap maximum hand size */
+	if (hand_size > 20) hand_size = 20;
+
+	/* Use fake random seed */
+	seed = 0;
+
+	/* Get score for placing no card */
+	no_place = ai_choose_place_opp_aux(g, who, -1, phase);
+
+	/* Loop over number of cards seen */
+	for (i = 0; i < hand_size; i++)
+	{
+		/* Assume no card will be played */
+		scores[i].list[0] = -1;
+		scores[i].score = no_place;
+
+		/* Choose card at random */
+		j = simple_rand(&seed) % num_unknown;
+
+		/* Get card pointer */
+		c_ptr = &g->deck[unknown[j]];
+
+		/* Check for incorrect type */
+		if (c_ptr->d_ptr->type != type) continue;
+
+		/* Check for too-expensive development */
+		if (phase == PHASE_DEVELOP &&
+		    c_ptr->d_ptr->cost > arg3) continue;
+
+		/* Check for world */
+		if (phase == PHASE_SETTLE)
+		{
+			/* Simulate game */
+			simulate_game(&sim, g, who);
+
+			/* Claim world */
+			claim_card(&sim, who, unknown[j]);
+
+			/* Add a discard to make up for taken card */
+			sim.p[who].fake_discards++;
+			
+			/* Check for illegal world */
+			if (!settle_legal(&sim, who, unknown[j], 0, arg3))
+				continue;
+		}
+
+		/* Get score for playing this card */
+		score = ai_choose_place_opp_aux(g, who, unknown[j], phase);
+
+		/* Remember card played and resulting score */
+		scores[i].list[0] = unknown[j];
+		scores[i].score = score;
+	}
+
+	/* Add entry for placing no card */
+	scores[i].list[0] = -1;
+	scores[i].score = no_place;
+
+	/* Sort list of scores */
+	qsort(scores, i + 1, sizeof(struct sample_score), cmp_sample_score);
+
+	/* Determine score to use */
+	i = 0;
+
+	/* Check for card to play */
+	if (scores[i].list[0] != -1)
+	{
+		/* Claim card for ourself */
+		claim_card(g, who, scores[i].list[0]);
+
+		/* Discard one card to make up for taken card */
+		g->p[who].fake_discards++;
+
+		/* Mark card as known to everyone */
+		g->deck[scores[i].list[0]].known = ~0;
+	}
+
+	/* Return card played */
+	return scores[i].list[0];
+}
+
+/*
  * Choose card to play (develop or settle).
  */
-static int ai_choose_place(game *g, int who, int list[], int num, int phase)
+static int ai_choose_place(game *g, int who, int list[], int num, int phase,
+                           int max)
 {
 	game sim;
 	int i, best = -1;
 	double score, b_s;
+
+	/* Check for simulated game for opponent */
+	if (g->simulation && g->sim_who != who)
+	{
+		/* Choose for opponent */
+		return ai_choose_place_opp(g, who, phase, max);
+	}
 
 	/* Simulate game */
 	simulate_game(&sim, g, who);
@@ -3252,7 +3549,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase)
 	}
 
 	/* Finish turn without placing */
-	complete_turn(&sim, 0);
+	complete_turn(&sim, COMPLETE_ROUND);
 
 	/* Get score for doing nothing */
 	b_s = eval_game(&sim, who);
@@ -3282,7 +3579,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase)
 		}
 
 		/* Simulate rest of turn */
-		complete_turn(&sim, 0);
+		complete_turn(&sim, COMPLETE_ROUND);
 
 		/* Get score */
 		score = eval_game(&sim, who);
@@ -3306,69 +3603,21 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase)
  * Here we try different combinations of discards to pay the remaining cost
  * of a played card.
  */
-static void ai_choose_pay_aux2(game *g, int who, int which, int list[], int num,
+static void ai_choose_pay_aux2(game *g, int who, int which, int list[],
                                int special[], int num_special, int mil_only,
-                               int next, int chosen, int chosen_special,
+                               int n, int c, int chosen, int chosen_special,
                                int *best, int *best_special, double *b_s)
 {
 	game sim;
-	int payment[MAX_DECK], used[MAX_DECK], n = 0, n_used = 0;
+	int payment[MAX_DECK], num_payment = 0, used[MAX_DECK], n_used = 0;
 	double score;
 	int i;
 
-	/* Check for simulated game */
-	if (g->simulation)
-	{
-		/* Fill payment array with fake cards */
-		for (i = 0; i < num; i++) payment[i] = -1;
-
-		/* Loop over chosen special cards */
-		for (i = 0; i < num_special; i++)
-		{
-			/* Check for bit set */
-			if (chosen_special & (1 << i))
-			{
-				/* Add card to list */
-				used[n_used++] = special[i];
-			}
-		}
-
-		/* Try varying number of payment cards */
-		for (i = 0; i <= num; i++)
-		{
-			/* Simulate game */
-			simulate_game(&sim, g, who);
-
-			/* Attempt to pay */
-			if (!payment_callback(&sim, who, which, payment, i,
-			                      used, n_used, mil_only))
-			{
-				/* Skip */
-				continue;
-			}
-
-			/* Simulate rest of current phase only */
-			complete_turn(&sim, 1);
-
-			/* Evaluate result */
-			score = eval_game(&sim, who);
-
-			/* Check for better */
-			if (score_better(score, *b_s))
-			{
-				/* Save best */
-				*b_s = score;
-				*best = (1 << i) - 1;
-				*best_special = chosen_special;
-			}
-		}
-
-		/* Done */
-		return;
-	}
+	/* Check for too few choices */
+	if (c > n) return;
 
 	/* Check for no more cards to try */
-	if (next == num)
+	if (!n)
 	{
 		/* Loop over chosen special cards */
 		for (i = 0; i < num_special; i++)
@@ -3382,13 +3631,13 @@ static void ai_choose_pay_aux2(game *g, int who, int which, int list[], int num,
 		}
 
 		/* Loop over chosen payment cards */
-		for (i = 0; i < num; i++)
+		for (i = 0; (1 << i) <= chosen; i++)
 		{
 			/* Check for bit set */
 			if (chosen & (1 << i))
 			{
 				/* Add card to list */
-				payment[n++] = list[i];
+				payment[num_payment++] = list[i];
 			}
 		}
 
@@ -3396,15 +3645,15 @@ static void ai_choose_pay_aux2(game *g, int who, int which, int list[], int num,
 		simulate_game(&sim, g, who);
 
 		/* Attempt to pay */
-		if (!payment_callback(&sim, who, which, payment, n, used,
-		                      n_used, mil_only))
+		if (!payment_callback(&sim, who, which, payment, num_payment,
+		                      used, n_used, mil_only))
 		{
 			/* Illegal payment */
 			return;
 		}
 
-		/* Simulate rest of turn */
-		complete_turn(&sim, 0);
+		/* Simulate most of rest of turn */
+		complete_turn(&sim, COMPLETE_DEVSET);
 
 		/* Evaluate result */
 		score = eval_game(&sim, who);
@@ -3423,14 +3672,15 @@ static void ai_choose_pay_aux2(game *g, int who, int which, int list[], int num,
 	}
 
 	/* Try without current card */
-	ai_choose_pay_aux2(g, who, which, list, num, special, num_special,
-	                   mil_only, next + 1, chosen, chosen_special,
+	ai_choose_pay_aux2(g, who, which, list, special, num_special,
+	                   mil_only, n - 1, c, chosen << 1, chosen_special,
 	                   best, best_special, b_s);
 
 	/* Try with current card */
-	ai_choose_pay_aux2(g, who, which, list, num, special, num_special,
-	                   mil_only, next + 1, chosen | (1 << next),
-	                   chosen_special, best, best_special, b_s);
+	if (c) ai_choose_pay_aux2(g, who, which, list, special,
+	                          num_special, mil_only, n - 1, c - 1,
+	                          (chosen << 1) + 1, chosen_special, best,
+	                          best_special, b_s);
 }
 
 /*
@@ -3444,13 +3694,71 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
                                int next, int chosen_special,
                                int *best, int *best_special, double *b_s)
 {
+	game sim;
+	int payment[MAX_DECK], used[MAX_DECK], n_used = 0;
+	int i, need;
+	double score;
+
 	/* Check for no more special abilities to try */
 	if (next == num_special)
 	{
+		/* Fill payment array with fake cards */
+		for (i = 0; i < num; i++) payment[i] = -1;
+
+		/* Loop over chosen special cards */
+		for (i = 0; i < num_special; i++)
+		{
+			/* Check for bit set */
+			if (chosen_special & (1 << i))
+			{
+				/* Add card to list */
+				used[n_used++] = special[i];
+			}
+		}
+
+		/* Loop over number of cards available */
+		for (need = 0; need <= num; need++)
+		{
+			/* Simulate game */
+			simulate_game(&sim, g, who);
+
+			/* Attempt to pay */
+			if (!payment_callback(&sim, who, which, payment, need,
+			                      used, n_used, mil_only))
+			{
+				/* Try more cards */
+				continue;
+			}
+
+			/* Check for real game */
+			if (!g->simulation) break;
+
+			/* Simulate rest of current phase only */
+			complete_turn(&sim, COMPLETE_PHASE);
+
+			/* Evaluate result */
+			score = eval_game(&sim, who);
+
+			/* Check for better */
+			if (score_better(score, *b_s))
+			{
+				/* Save best */
+				*b_s = score;
+				*best = (1 << need) - 1;
+				*best_special = chosen_special;
+			}
+
+			/* Done with simulated game */
+			return;
+		}
+
+		/* Check for no number of cards legal */
+		if (need == num + 1) return;
+
 		/* Try payment with different card combinations */
-		ai_choose_pay_aux2(g, who, which, list, num, special,
-		                   num_special, mil_only, 0, 0, chosen_special,
-		                   best, best_special, b_s);
+		ai_choose_pay_aux2(g, who, which, list, special, num_special,
+				   mil_only, num, need, 0, chosen_special,
+				   best, best_special, b_s);
 
 		/* Done */
 		return;
@@ -3481,8 +3789,8 @@ static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
-	/* XXX Don't look at more than 30 cards to pay with */
-	if (*num > 30) *num = 30;
+	/* XXX Don't look at more than 15 cards to pay with */
+	if (*num > 15) *num = 15;
 
 	/* Find best set of special abilities */
 	ai_choose_pay_aux1(g, who, which, list, *num, special, *num_special,
@@ -3576,7 +3884,7 @@ static int ai_choose_takeover(game *g, int who, int list[], int *num,
 			settle_action(&sim, who, -1);
 
 			/* Complete turn */
-			complete_turn(&sim, 0);
+			complete_turn(&sim, COMPLETE_ROUND);
 
 			/* Score game */
 			score = eval_game(&sim, who);
@@ -4149,7 +4457,7 @@ static void ai_choose_trade(game *g, int who, int list[], int *num,
 			while (consume_action(&sim, who));
 
 			/* Simulate rest of turn */
-			complete_turn(&sim, 0);
+			complete_turn(&sim, COMPLETE_ROUND);
 #endif
 
 			/* Get score */
@@ -4440,7 +4748,7 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 		/* while (consume_action(&sim, who)); */
 
 		/* Simulate rest of turn */
-		/* complete_turn(&sim, 0); */
+		/* complete_turn(&sim, COMPLETE_ROUND); */
 
 		/* Evaluate end state */
 		score = eval_game(&sim, who);
@@ -4606,8 +4914,7 @@ static void ai_choose_consume_hand(game *g, int who, int c_idx, int o_idx,
 	{
 		/* Compute hand size */
 		n = count_player_area(g, who, WHERE_HAND) +
-		    p_ptr->fake_hand - p_ptr->fake_played_dev -
-		    p_ptr->fake_played_world - p_ptr->fake_discards;
+		    p_ptr->fake_hand - p_ptr->fake_discards;
 
 		/* Maximum number of discards */
 		if (n > o_ptr->times) n = o_ptr->times;
@@ -4861,8 +5168,7 @@ static int ai_choose_lucky(game *g, int who)
 			simulate_game(&sim, g, who);
 
 			/* Add card to hand */
-			sim.deck[j].owner = who;
-			sim.deck[j].where = WHERE_HAND;
+			move_card(&sim, j, who, WHERE_HAND);
 
 			/* Add score */
 			score += eval_game(&sim, who) / count;
@@ -4966,8 +5272,7 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 		simulate_game(&sim, g, who);
 
 		/* Assume we lose the card */
-		sim.deck[list[i]].owner = -1;
-		sim.deck[list[i]].where = WHERE_DISCARD;
+		move_card(&sim, list[i], -1, WHERE_DISCARD);
 
 		/* Start with losing chance */
 		score = chance * eval_game(&sim, who);
@@ -5014,8 +5319,7 @@ static int ai_choose_keep(game *g, int who, int list[], int num)
 		c_ptr = &sim.deck[list[i]];
 
 		/* Take card and put it in hand */
-		c_ptr->owner = who;
-		c_ptr->where = WHERE_HAND;
+		move_card(&sim, list[i], who, WHERE_HAND);
 
 		/* Score game */
 		score = eval_game(&sim, who);
@@ -5066,7 +5370,7 @@ static void ai_choose_windfall(game *g, int who, int list[], int *num,
 		while (produce_action(&sim, who));
 
 		/* Simulate rest of turn */
-		complete_turn(&sim, 0);
+		complete_turn(&sim, COMPLETE_ROUND);
 
 		/* Get score */
 		score = eval_game(&sim, who);
@@ -5174,7 +5478,7 @@ static void ai_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		while (produce_action(&sim, who));
 
 		/* Simulate rest of turn */
-		complete_turn(&sim, 0);
+		complete_turn(&sim, COMPLETE_ROUND);
 
 		/* Evaluate end state */
 		score = eval_game(&sim, who);
@@ -5217,7 +5521,7 @@ static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
 	while (produce_action(&sim, who));
 
 	/* Simulate rest of turn */
-	complete_turn(&sim, 0);
+	complete_turn(&sim, COMPLETE_ROUND);
 
 	/* Get score without doing anything */
 	b_s = eval_game(&sim, who);
@@ -5230,8 +5534,7 @@ static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
 	{
 		/* Check for at no cards in hand */
 		if (count_player_area(g, who, WHERE_HAND) +
-		    p_ptr->fake_hand - p_ptr->fake_played_dev -
-		    p_ptr->fake_played_world - p_ptr->fake_discards == 0)
+		    p_ptr->fake_hand - p_ptr->fake_discards == 0)
 		{
 			/* Do nothing */
 			*num = 0;
@@ -5251,7 +5554,7 @@ static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
 			produce_world(&sim, who, special[i], c_idx, o_idx);
 
 			/* Simulate rest of turn */
-			complete_turn(&sim, 0);
+			complete_turn(&sim, COMPLETE_ROUND);
 
 			/* Get score */
 			score = eval_game(&sim, who);
@@ -5303,7 +5606,7 @@ static void ai_choose_discard_produce(game *g, int who, int list[], int *num,
 			while (produce_action(&sim, who));
 
 			/* Simulate rest of turn */
-			complete_turn(&sim, 0);
+			complete_turn(&sim, COMPLETE_ROUND);
 
 			/* Get score */
 			score = eval_game(&sim, who);
@@ -5425,7 +5728,7 @@ static int ai_choose_search_keep(game *g, int who, int which, int category)
 	claim_card(&sim, who, which);
 
 	/* Finish turn with card */
-	complete_turn(&sim, 0);
+	complete_turn(&sim, COMPLETE_ROUND);
 
 	/* Score game */
 	b_s = eval_game(&sim, who);
@@ -5449,7 +5752,7 @@ static int ai_choose_search_keep(game *g, int who, int which, int category)
 		claim_card(&sim, who, i);
 
 		/* Finish turn */
-		complete_turn(&sim, 0);
+		complete_turn(&sim, COMPLETE_ROUND);
 
 		/* Score game */
 		score += eval_game(&sim, who);
@@ -5542,7 +5845,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 		case CHOICE_PLACE:
 
 			/* Choose card to place */
-			rv = ai_choose_place(g, who, list, *nl, arg1);
+			rv = ai_choose_place(g, who, list, *nl, arg1, arg3);
 			break;
 
 		/* Pay for a development/world */
@@ -5922,14 +6225,14 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 		{
 			/* Create role row */
 			role[i] = (double *)malloc(sizeof(double) *
-			                           ROLE_OUT_ADV);
+			                           ROLE_OUT_ADV_EXP3);
 
 			/* Create action score row */
 			action_score[i] = (double *)malloc(sizeof(double) *
-			                                   ROLE_OUT_ADV);
+			                                   ROLE_OUT_ADV_EXP3);
 
 			/* Set number of action columns */
-			*num_action = ROLE_OUT_ADV;
+			*num_action = ROLE_OUT_ADV_EXP3;
 		}
 	}
 	else
@@ -5938,14 +6241,14 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Create role row */
-			role[i] = (double *)malloc(sizeof(double) * ROLE_OUT);
+			role[i] = (double *)malloc(sizeof(double) * ROLE_OUT_EXP3);
 
 			/* Create action score row */
 			action_score[i] = (double *)malloc(sizeof(double) *
-			                                   ROLE_OUT);
+			                                   ROLE_OUT_EXP3);
 
 			/* Set number of action columns */
-			*num_action = ROLE_OUT;
+			*num_action = ROLE_OUT_EXP3;
 		}
 	}
 
@@ -5963,7 +6266,7 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 		for (who = 0; who < g->num_players; who++)
 		{
 			/* Clear scores */
-			for (i = 0; i < ROLE_OUT_ADV; i++)
+			for (i = 0; i < ROLE_OUT_ADV_EXP3; i++)
 				action_score[who][i] = 0.0;
 
 			/* Simulate game */
@@ -5980,7 +6283,7 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 			while (used < 0.8)
 			{
 				/* Loop over opponent's actions */
-				for (oa = 0; oa < ROLE_OUT_ADV; oa++)
+				for (oa = 0; oa < ROLE_OUT_ADV_EXP3; oa++)
 				{
 					/* Get probability of this combo */
 					prob = role[!who][oa];
@@ -6033,7 +6336,7 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 			most_prob = 0;
 
 			/* Loop over actions */
-			for (j = 0; j < ROLE_OUT; j++)
+			for (j = 0; j < ROLE_OUT_EXP3; j++)
 			{
 				/* Check for bigger */
 				if (role[i][j] > most_prob)
@@ -6058,7 +6361,7 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 		if (g->num_players >= 5) threshold *= 6;
 
 		/* Clear scores */
-		for (i = 0; i < ROLE_OUT; i++) action_score[who][i] = 0.0;
+		for (i = 0; i < ROLE_OUT_EXP3; i++) action_score[who][i] = 0.0;
 
 		/* Clear active actions */
 		for (i = 0; i < MAX_ACTION; i++) sim.action_selected[i] = 0;
@@ -6068,7 +6371,7 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 		                     action_score[who], role, threshold);
 
 		/* Normalize action scores */
-		for (i = 0; i < ROLE_OUT; i++)
+		for (i = 0; i < ROLE_OUT_EXP3; i++)
 		{
 			/* Normalize score */
 			action_score[who][i] /= used;
@@ -6088,7 +6391,7 @@ void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 static void initial_training(game *g)
 {
 	game sim;
-	int i, n, most;
+	int i, j, n, most;
 
 	/* Increase learning rate */
 	eval.alpha *= 10;
@@ -6109,11 +6412,14 @@ static void initial_training(game *g)
 		g->p[i].fake_hand = 0;
 		g->p[i].total_fake = 0;
 		g->p[i].fake_discards = 0;
-		g->p[i].fake_played_dev = 0;
-		g->p[i].fake_played_world = 0;
 		g->p[i].winner = 0;
 		g->p[i].vp = 0;
 		g->p[i].prestige = 0;
+		g->p[i].prestige_action_used = 0;
+
+		/* Clear player's card stacks */
+		for (j = 0; j < MAX_WHERE; j++) g->p[i].head[j] = -1;
+		for (j = 0; j < MAX_WHERE; j++) g->p[i].start_head[j] = -1;
 	}
 
 	/* Perform several training iterations */
