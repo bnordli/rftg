@@ -35,7 +35,8 @@
  */
 options opt = 
 {
-	.num_players = 3,
+	// .num_players = 3
+	3
 };
 
 /*

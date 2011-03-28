@@ -1,18 +1,19 @@
 #ifdef WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <io.h>
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 #endif
 
 #include <stdarg.h>
 #include <sys/types.h>
 #include <errno.h>
 #include <time.h>
-#include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
 

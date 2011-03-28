@@ -1,6 +1,6 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009 Keldon Jones
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,11 +21,17 @@
 /*
  * Standard headers.
  */
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#ifndef VERSION
+#define VERSION "0.8.1"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include "stdint.h"
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
