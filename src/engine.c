@@ -10309,6 +10309,7 @@ void declare_winner(game *g)
 			sprintf(msg, "(The seed for this game was %d.)\n", g->start_seed);
 
 			/* Send message */
-			message_add(g, msg);		}
+			message_add(g, msg);
+		}
 	}
 }
