@@ -29,6 +29,8 @@
 #define VERSION "0.8.1"
 #endif
 
+#define RELEASE VERSION "b"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "stdint.h"
@@ -473,6 +475,11 @@
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
 
+
+/*
+ * GUI: Text formatting
+ */
+#define TAG_BOLD "bold"
 
 /*
  * Forward declaration.

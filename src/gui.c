@@ -6489,12 +6489,8 @@ static void gui_auto_save(game *g, int who)
 	if (client_state != CS_DISCONN || !opt.auto_save) return;
 
 	/* Build autosave filename */
-#ifdef __APPLE__
-	fname = g_build_filename(g_get_home_dir(),
-	                        "Library/Preferences/autosave.sav", NULL);
-#else
-	fname = g_build_filename(g_get_user_config_dir(), "autosave.sav", NULL);
-#endif
+	fname = g_build_filename(RFTGDIR, "autosave.sav", NULL);
+	printf("%s", fname);
 
 	/* Save to file */
 	if (save_game(g, fname, who) < 0)
@@ -6520,7 +6516,7 @@ decisions gui_func =
 	NULL,
 	NULL,
 	NULL,
-	gui_auto_save
+	gui_auto_save,
 };
 
 /*
@@ -7294,7 +7290,7 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " VERSION);
+	                     "Race for the Galaxy " RELEASE);
 
 	/* Create vbox to hold expansion selection radio buttons */
 	exp_box = gtk_vbox_new(FALSE, 0);
@@ -7509,7 +7505,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " VERSION);
+	                     "Race for the Galaxy " RELEASE);
 
 	/* Create vbox to hold full-size image option radio buttons */
 	reduce_box = gtk_vbox_new(FALSE, 0);
@@ -7869,7 +7865,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " VERSION);
+	                     "Race for the Galaxy " RELEASE);
 
 	/* Set default height */
 	gtk_window_set_default_size(GTK_WINDOW(dialog), -1, 600);
@@ -8090,7 +8086,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " VERSION);
+	                     "Race for the Galaxy " RELEASE);
 
 	/* Get debug information from AI */
 	ai_debug(&real_game, win_prob, role, action_score, &num_action);
@@ -8288,16 +8284,18 @@ static void about_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Create dialog */
 	dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_DESTROY_WITH_PARENT,
 	                                GTK_MESSAGE_INFO, GTK_BUTTONS_CLOSE,
-	                                "Race for the Galaxy " VERSION);
+	                                "Race for the Galaxy " RELEASE);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " VERSION);
+	                     "Race for the Galaxy " RELEASE);
 
-	/* Set secondary txet */
+	/* Set secondary text */
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
 "This program is written by Keldon Jones, and the source code is licensed \
 under the GNU General Public License.\n\n\
+The release " RELEASE " is modified from the original version " VERSION " \
+by Borge Nordli, and it only consists of interface changes.\n\n\
 Race for the Galaxy was designed by Tom Lehmann and published by Rio Grande \
 Games.  All card and other art is copyrighted by Rio Grande Games.\n\n\
 Send bug reports to keldon@keldon.net");
@@ -8524,7 +8522,7 @@ int main(int argc, char *argv[])
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(window),
-	                     "Race for the Galaxy " VERSION);
+	                     "Race for the Galaxy " RELEASE);
 
 	/* Handle main window destruction */
 	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(destroy),
@@ -8707,7 +8705,7 @@ int main(int argc, char *argv[])
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
 	/* Create "bold" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, "bold", "weight", "bold",
+	gtk_text_buffer_create_tag(message_buffer, TAG_BOLD, "weight", "bold",
 	                           NULL);
 
 	/* Create "red" tag for message buffer */
@@ -9140,7 +9138,7 @@ int main(int argc, char *argv[])
 	chat_buffer = gtk_text_buffer_new(NULL);
 
 	/* Create "bold" tag for usernames */
-	gtk_text_buffer_create_tag(chat_buffer, "bold", "weight", "bold", NULL);
+	gtk_text_buffer_create_tag(chat_buffer, TAG_BOLD, "weight", "bold", NULL);
 
 	/* Get end of buffer */
 	gtk_text_buffer_get_end_iter(chat_buffer, &end_iter);

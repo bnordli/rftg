@@ -9403,7 +9403,7 @@ int game_round(game *g)
 		sprintf(msg, "--- Round %d begins ---\n", g->round);
 
 		/* Send message */
-		message_add_formatted(g, msg, "bold");
+		message_add_formatted(g, msg, TAG_BOLD);
 
 		/* Loop over players YYY */
 		for (i = 0; i < g->num_players; i++)
