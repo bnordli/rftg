@@ -6372,7 +6372,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Add one undo position to list */
 	num_undo++;
-	printf("num_undo is %d\n", num_undo);
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -6429,6 +6428,34 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 }
 
 /*
+ * Auto save the game.
+ */
+static void gui_auto_save(game *g, int who)
+{
+	char *fname;
+
+	/* Check for connected to server and auto_save enabled */
+	if (client_state != CS_DISCONN || !opt.auto_save) return;
+
+	/* Build autosave filename */
+#ifdef __APPLE__
+	fname = g_build_filename(g_get_home_dir(),
+	                        "Library/Preferences/autosave.sav", NULL);
+#else
+	fname = g_build_filename(g_get_user_config_dir(), "autosave.sav", NULL);
+#endif
+
+	/* Save to file */
+	if (save_game(g, fname, who) < 0)
+	{
+		/* Error */
+	}
+
+	/* Destroy filename */
+	g_free(fname);
+}
+
+/*
  * Interface to GUI decision functions.
  */
 decisions gui_func =
@@ -6441,7 +6468,8 @@ decisions gui_func =
 	NULL,
 	NULL,
 	NULL,
-	NULL
+	NULL,
+	gui_auto_save
 };
 
 /*
@@ -6914,9 +6942,6 @@ static void apply_options(void)
 		/* Clear advanced mode */
 		real_game.advanced = 0;
 	}
-
-	/* Set auto_save flag */
-	real_game.auto_save = opt.auto_save;
 }
 
 /*
@@ -7020,44 +7045,6 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
  * Save game.
  */
 static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
-{
-	GtkWidget *dialog;
-	char *fname;
-
-	/* Check for connected to server */
-	if (client_state != CS_DISCONN) return;
-
-	/* Create file chooser dialog box */
-	dialog = gtk_file_chooser_dialog_new("Save game", NULL,
-	                                  GTK_FILE_CHOOSER_ACTION_SAVE,
-	                                  GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-	                                  GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
-                                          NULL);
-
-	/* Run dialog and check response */
-	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
-	{
-		/* Get filename */
-		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-
-		/* Save to file */
-		if (save_game(&real_game, fname, player_us) < 0)
-		{
-			/* Error */
-		}
-
-		/* Destroy filename */
-		g_free(fname);
-	}
-
-	/* Destroy file chooser dialog */
-	gtk_widget_destroy(dialog);
-}
-
-/*
- * Save game.
- */
-static void gui_auto_save()
 {
 	GtkWidget *dialog;
 	char *fname;

@@ -661,6 +661,9 @@ typedef struct decisions
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
 
+	/* Autosave */
+	void (*auto_save)(struct game *g, int who);
+
 } decisions;
 
 /*
@@ -848,9 +851,6 @@ typedef struct game
 
 	/* Game is over */
 	int game_over;
-
-	/* Autosave flag */
-	int auto_save;
 
 } game;
 

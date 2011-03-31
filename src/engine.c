@@ -9402,17 +9402,22 @@ int game_round(game *g)
 		/* Format message */
 		sprintf(msg, "--- Round %d begins ---\n", g->round);
 
-		/* Send messag e*/
+		/* Send message */
 		message_add(g, msg);
 
-		if (g->auto_save == 1) {
-			/* Format message */
-			sprintf(msg, "(Autosaving)\n");
+		/* Loop over players YYY */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Get player pointer */
+			p_ptr = &g->p[i];
 
-			/* Send messag e*/
-			message_add(g, msg);
+			/* Check for auto_save function */
+			if (p_ptr->control->auto_save)
+			{
+				/* Call auto_save callback */
+				p_ptr->control->auto_save(g, i);
+			}
 		}
-
 	}
 
 	/* Award prestige bonuses */
