@@ -389,6 +389,32 @@ void message_add(game *g, char *msg)
 }
 
 /*
+ * Add formatted text to the message buffer.
+ */
+void message_add_formatted(game *g, char *msg, char *tag)
+{
+	GtkTextIter end_iter;
+	GtkTextBuffer *message_buffer;
+
+	/* Get message buffer */
+	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Get end mark */
+	gtk_text_buffer_get_iter_at_mark(message_buffer, &end_iter,
+	                                 message_end);
+
+	/* Add formatted message */
+	gtk_text_buffer_insert_with_tags_by_name(message_buffer,
+			                                 &end_iter,
+			                                 msg, -1, tag,
+			                                 NULL);
+
+	/* Scroll to end mark */
+	gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(message_view),
+	                                   message_end);
+}
+
+/*
  * Use simple random number generator.
  */
 int game_rand(game *g)
@@ -8530,7 +8556,7 @@ int main(int argc, char *argv[])
 	new_item = gtk_menu_item_new_with_label("New"); 
 	load_item = gtk_menu_item_new_with_label("Load Game..."); 
 	save_item = gtk_menu_item_new_with_label("Save Game..."); 
-	undo_item = gtk_menu_item_new_with_label("Undo Choice");
+	undo_item = gtk_menu_item_new_with_label("Undo");
 	undo_round_item = gtk_menu_item_new_with_label("Undo Round");
 	select_item = gtk_menu_item_new_with_label("Select Parameters...");
 	option_item = gtk_menu_item_new_with_label("GUI Options...");
@@ -8655,8 +8681,12 @@ int main(int argc, char *argv[])
 	/* Get message buffer */
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
-	/* Create "bold" tag for chat messages */
+	/* Create "bold" tag for message buffer */
 	gtk_text_buffer_create_tag(message_buffer, "bold", "weight", "bold",
+	                           NULL);
+
+	/* Create "red" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, "red", "foreground", "#FF0000",
 	                           NULL);
 
 	/* Get iterator for end of buffer */

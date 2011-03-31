@@ -868,6 +868,7 @@ extern decisions gui_func;
  * External functions.
  */
 extern void message_add(game *g, char *msg);
+extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);
