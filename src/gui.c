@@ -414,6 +414,31 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	                                   message_end);
 }
 
+void dump_log() {
+	GtkTextIter start_iter;
+	GtkTextIter end_iter;
+	GtkTextBuffer *message_buffer;
+	gchar *all_text;
+
+	/* Get message buffer */
+	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Get start mark */
+	gtk_text_buffer_get_start_iter(message_buffer, &start_iter);
+ 
+	/* Get end mark */
+	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);
+
+	/* Get the buffer text */
+	all_text = gtk_text_buffer_get_text(message_buffer, &start_iter, &end_iter, 0);
+
+	/* Dump the text */
+	printf("%s", all_text);
+
+	/* Destroy text */
+	g_free(all_text);
+}
+
 /*
  * Use simple random number generator.
  */

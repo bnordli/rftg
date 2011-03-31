@@ -10315,6 +10315,9 @@ void declare_winner(game *g)
 
 			/* Send message */
 			message_add(g, msg);
+
+			/* Dump log */
+			dump_log();
 		}
 	}
 }
