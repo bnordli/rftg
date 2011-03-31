@@ -3062,9 +3062,6 @@ void reset_cards(game *g, int color_hand, int color_table)
 
 	/* Get chips in VP pool */
 	display_pool = g->vp_pool;
-
-	/* Do not display negative numbers */
-	if (display_pool < 0) display_pool = 0;
 }
 
 /*
@@ -5703,7 +5700,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		else if (o_ptr->code & P5_DRAW_DIFFERENT)
 		{
 			/* Make string */
-			sprintf(buf, "Draw per type produced");
+			sprintf(buf, "Draw per kind produced");
 		}
 
 		/* Check for discard required */
@@ -5734,6 +5731,12 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		{
 			/* Add to string */
 			strcat(buf, "produce on Rare windfall");
+		}
+		else if ((o_ptr->code & P5_WINDFALL_GENE) &&
+		         (o_ptr->code & P5_NOT_THIS))
+		{
+			/* Add to string */
+			strcat(buf, "produce on other Genes windfall");
 		}
 		else if (o_ptr->code & P5_WINDFALL_GENE)
 		{
@@ -8406,7 +8409,7 @@ int main(int argc, char *argv[])
 	new_item = gtk_menu_item_new_with_label("New"); 
 	load_item = gtk_menu_item_new_with_label("Load Game..."); 
 	save_item = gtk_menu_item_new_with_label("Save Game..."); 
-	undo_item = gtk_menu_item_new_with_label("Undo Turn");
+	undo_item = gtk_menu_item_new_with_label("Undo Decision");
 	select_item = gtk_menu_item_new_with_label("Select Parameters...");
 	option_item = gtk_menu_item_new_with_label("GUI Options...");
 	quit_item = gtk_menu_item_new_with_label("Quit"); 

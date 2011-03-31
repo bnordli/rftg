@@ -1156,7 +1156,7 @@ char *search_name[MAX_SEARCH] =
 	"world producing or coming with Alien good",
 	"card consuming two or more goods",
 	"military world with 5 or more defense",
-	"6-cost development",
+	"6-cost development giving ? VP",
 	"card with takeover power"
 };
 
@@ -10295,6 +10295,11 @@ void declare_winner(game *g)
 
 			/* Send message */
 			message_add(g, msg);
-		}
+
+			/* Format message */
+			sprintf(msg, "(The seed for this game was %d.)\n", g->start_seed);
+
+			/* Send message */
+			message_add(g, msg);		}
 	}
 }
