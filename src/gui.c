@@ -414,7 +414,15 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	                                   message_end);
 }
 
-void dump_log() {
+void dump_log()
+{
+	FILE *fff;
+	char filename[30];
+	char *full_filename;
+
+	time_t raw_time;
+	struct tm* timeinfo;
+
 	GtkTextIter start_iter;
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
@@ -432,11 +440,33 @@ void dump_log() {
 	/* Get the buffer text */
 	all_text = gtk_text_buffer_get_text(message_buffer, &start_iter, &end_iter, 0);
 
-	/* Dump the text */
-	printf("%s", all_text);
+	/* Get the time */
+	time(&raw_time);
+
+	/* Get the local time */
+	timeinfo = localtime(&raw_time);
+
+	/* Generate file name */
+	strftime(filename, 30, "game_%y%m%d_%H%M.txt", timeinfo);
+	full_filename = g_build_filename(RFTGDIR, filename, NULL);
+
+	/* Open file for writing */
+	fff = fopen(full_filename, "w");
+
+	/* Check for failure */
+	if (!fff) return;
+
+	/* Write log */
+	fprintf(fff, "%s", all_text);
+
+	/* Close file */
+	fclose(fff);
 
 	/* Destroy text */
 	g_free(all_text);
+
+	/* Destroy filename */
+	g_free(full_filename);
 }
 
 /*
