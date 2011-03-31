@@ -38,7 +38,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 bin_PROGRAMS = rftg$(EXEEXT)
 noinst_PROGRAMS = learner$(EXEEXT) dumpnet$(EXEEXT) $(am__EXEEXT_1)
-@BUILD_SERVER_TRUE@am__append_1 = server
+@BUILD_SERVER_TRUE@am__append_1 = server ai_client
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(dist_bin_SCRIPTS) \
 	$(dist_pkgdata_DATA) $(srcdir)/Makefile.am \
@@ -58,8 +58,12 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)" \
 	"$(DESTDIR)$(pkgdatadir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
-@BUILD_SERVER_TRUE@am__EXEEXT_1 = server$(EXEEXT)
+@BUILD_SERVER_TRUE@am__EXEEXT_1 = server$(EXEEXT) ai_client$(EXEEXT)
 PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
+am_ai_client_OBJECTS = ai_client.$(OBJEXT) engine.$(OBJEXT) \
+	init.$(OBJEXT) ai.$(OBJEXT) net.$(OBJEXT) comm.$(OBJEXT)
+ai_client_OBJECTS = $(am_ai_client_OBJECTS)
+ai_client_LDADD = $(LDADD)
 am_dumpnet_OBJECTS = net.$(OBJEXT) dumpnet.$(OBJEXT)
 dumpnet_OBJECTS = $(am_dumpnet_OBJECTS)
 dumpnet_LDADD = $(LDADD)
@@ -85,10 +89,10 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(dumpnet_SOURCES) $(learner_SOURCES) $(rftg_SOURCES) \
-	$(server_SOURCES)
-DIST_SOURCES = $(dumpnet_SOURCES) $(learner_SOURCES) $(rftg_SOURCES) \
-	$(server_SOURCES)
+SOURCES = $(ai_client_SOURCES) $(dumpnet_SOURCES) $(learner_SOURCES) \
+	$(rftg_SOURCES) $(server_SOURCES)
+DIST_SOURCES = $(ai_client_SOURCES) $(dumpnet_SOURCES) \
+	$(learner_SOURCES) $(rftg_SOURCES) $(server_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	html-recursive info-recursive install-data-recursive \
 	install-exec-recursive install-info-recursive \
@@ -210,11 +214,14 @@ dumpnet_SOURCES = net.c dumpnet.c net.h
 server_SOURCES = server.c engine.c init.c ai.c loadsave.c net.c net.h rftg.h \
 		 comm.c comm.h
 
+ai_client_SOURCES = ai_client.c engine.c init.c ai.c net.c net.h rftg.h comm.c \
+			comm.h
+
 dist_pkgdata_DATA = cards.txt images.data
 AM_CFLAGS = -Wall
 rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DRFTGDIR=\"$(pkgdatadir)\"
 rftg_LDADD = @GTK_LIBS@
-server_LDADD = -lmysqlclient
+server_LDADD = -lmysqlclient -lpthread
 SUBDIRS = network
 ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST = config.rpath m4/ChangeLog osx
@@ -299,6 +306,9 @@ clean-binPROGRAMS:
 
 clean-noinstPROGRAMS:
 	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
+ai_client$(EXEEXT): $(ai_client_OBJECTS) $(ai_client_DEPENDENCIES) 
+	@rm -f ai_client$(EXEEXT)
+	$(LINK) $(ai_client_LDFLAGS) $(ai_client_OBJECTS) $(ai_client_LDADD) $(LIBS)
 dumpnet$(EXEEXT): $(dumpnet_OBJECTS) $(dumpnet_DEPENDENCIES) 
 	@rm -f dumpnet$(EXEEXT)
 	$(LINK) $(dumpnet_LDFLAGS) $(dumpnet_OBJECTS) $(dumpnet_LDADD) $(LIBS)
@@ -338,6 +348,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ai.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ai_client.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/comm.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dumpnet.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/engine.Po@am__quote@

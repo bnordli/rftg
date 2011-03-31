@@ -1,7 +1,7 @@
 /*
  * Race for the Galaxy AI
  * 
- * Copyright (C) 2009 Keldon Jones
+ * Copyright (C) 2009-2011 Keldon Jones
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -567,6 +567,9 @@ void init_game(game *g)
 	g->cur_action = -1;
 	g->turn = 0;
 
+	/* Clear selected actions */
+	for (i = 0; i < MAX_ACTION; i++) g->action_selected[i] = 0;
+
 	/* Game is not over */
 	g->game_over = 0;
 
@@ -585,6 +588,9 @@ void init_game(game *g)
 
 	/* Clear number of pending takeovers */
 	g->num_takeover = 0;
+
+	/* Set Oort Cloud kind to "any" */
+	g->oort_kind = GOOD_ANY;
 
 	/* Loop over card designs */
 	for (i = 0; i < MAX_DESIGN; i++)
@@ -624,6 +630,9 @@ void init_game(game *g)
 
 			/* Card is not covered by a good */
 			c_ptr->covered = -1;
+
+			/* Card is not followed by any other */
+			c_ptr->next = -1;
 		}
 	}
 
@@ -752,6 +761,14 @@ void init_game(game *g)
 		/* Player has no card to be placed */
 		p_ptr->placing = -1;
 
+		/* Player has no cards in any area */
+		for (j = 0; j < MAX_WHERE; j++)
+		{
+			/* Clear list head */
+			p_ptr->head[j] = -1;
+			p_ptr->start_head[j] = -1;
+		}
+
 		/* Player has no bonus military accrued */
 		p_ptr->bonus_military = 0;
 
@@ -779,7 +796,6 @@ void init_game(game *g)
 
 		/* Player has no fake cards */
 		p_ptr->fake_hand = p_ptr->total_fake = 0;
-		p_ptr->fake_played_dev = p_ptr->fake_played_world = 0;
 	       	p_ptr->fake_discards = 0;
 	}
 }

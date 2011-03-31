@@ -1,3 +1,23 @@
+/*
+ * Race for the Galaxy AI
+ * 
+ * Copyright (C) 2009-2011 Keldon Jones
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #include "rftg.h"
 #include "comm.h"
 #include <mysql/mysql.h>
@@ -34,6 +54,9 @@ typedef struct conn
 {
 	/* File descriptor of socket */
 	int fd;
+
+	/* Connection is to a local AI client */
+	int ai;
 
 	/* Data buffer for incoming bytes */
 	char buf[2048];
@@ -198,11 +221,6 @@ static int num_conn;
  */
 static session s_list[1024];
 static int num_session;
-
-/*
- * Mutex preventing more than one game from calling the AI at once.
- */
-static pthread_mutex_t ai_mutex;
 
 
 /*
@@ -864,6 +882,97 @@ void send_msg(int cid, char *msg)
 }
 
 /*
+ * Create a new AI client connection.
+ */
+static int new_ai_client(int sid)
+{
+	int fds[2];
+	int i;
+
+	/* Loop through current list looking for an empty spot */
+	for (i = 0; i < num_conn; i++)
+	{
+		/* Stop at empty connection */
+		if (c_list[i].state == CS_EMPTY ||
+		    c_list[i].state == CS_DISCONN) break;
+	}
+
+	/* Check for end of list reached */
+	if (i == num_conn)
+	{
+		/* Increase count of active connections */
+		num_conn++;
+	}
+
+	/* Set connection state */
+	c_list[i].state = CS_PLAYING;
+
+	/* Create a socket pair to communicate with AI client */
+	socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
+
+	/* Fork a child process */
+	switch (fork())
+	{
+		/* Error */
+		case -1:
+
+			/* Print error */
+			perror("fork");
+			exit(1);
+
+		/* Child */
+		case 0:
+
+			/* Close our copy of one end of socket */
+			close(fds[0]);
+
+			/* Close standard input */
+			close(0);
+
+			/* Move socket to FD zero */
+			dup2(fds[1], 0);
+
+			/* Execute AI client program */
+			execl("./ai_client", "ai_client", NULL);
+
+			/* XXX */
+			perror("execlp");
+			exit(1);
+
+		/* Server */
+		default:
+
+			/* Close our copy of one end of socket */
+			close(fds[1]);
+
+			/* Remember socket */
+			c_list[i].fd = fds[0];
+			break;
+	}
+
+	/* Mark connection as AI */
+	c_list[i].ai = 1;
+
+	/* Mark session ID of connection */
+	c_list[i].sid = sid;
+
+	/* Reset timeout information */
+	c_list[i].last_active = c_list[i].last_seen = time(NULL);
+
+	/* Clear buffer length */
+	c_list[i].buf_full = 0;
+
+	/* Clear outgoing buffer length */
+	c_list[i].out_len = 0;
+
+	/* Clear username */
+	strcpy(c_list[i].user, "AI client");
+
+	/* Return connection index */
+	return i;
+}
+
+/*
  * Send information about a player to all clients.
  */
 static void send_player_one(int dest, int who)
@@ -896,6 +1005,9 @@ static void send_player(int who)
 		if (c_list[i].state != CS_LOBBY &&
 		    c_list[i].state != CS_PLAYING) continue;
 
+		/* Skip AI connections */
+		if (c_list[i].ai) continue;
+
 		/* Send information */
 		send_player_one(i, who);
 	}
@@ -914,6 +1026,9 @@ static void send_all_players(int dest)
 		/* Skip non-active connections */
 		if (c_list[i].state != CS_LOBBY &&
 		    c_list[i].state != CS_PLAYING) continue;
+
+		/* Skip AI connections */
+		if (c_list[i].ai) continue;
 
 		/* Send to player */
 		send_player_one(dest, i);
@@ -988,6 +1103,9 @@ static void send_session(int sid)
 		/* Skip non-active connections */
 		if (c_list[cid].state != CS_LOBBY &&
 		    c_list[cid].state != CS_PLAYING) continue;
+
+		/* Skip AI connections */
+		if (c_list[cid].ai) continue;
 
 		/* Send game state */
 		send_session_one(sid, cid);
@@ -1243,6 +1361,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 	{
 		/* Check for active card (known to all) */
 		if (g->deck[i].where == WHERE_ACTIVE) continue;
+		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
 
 		/* Check for card owned by player (but not a good) */
 		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
@@ -1264,6 +1383,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 
 		/* Skip active cards */
 		if (g->deck[i].where == WHERE_ACTIVE) continue;
+		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
 
 		/* Skip cards known by owner */
 		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
@@ -1634,6 +1754,9 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	/* Don't ask players who aren't connected */
 	if (s_ptr->cids[who] < 0) return;
 
+	/* Don't ask AI players to prepare */
+	if (s_ptr->ai_control[who]) return;
+
 	/* Don't ask players who already have choices in log */
 	if (g->p[who].choice_size > g->p[who].choice_pos) return;
 
@@ -1679,37 +1802,6 @@ static void ask_client(int sid, int who)
 		return;
 	}
 
-	/* Check for AI control */
-	if (s_ptr->ai_control[who])
-	{
-		/* Grab AI mutex */
-		pthread_mutex_lock(&ai_mutex);
-
-		/* Initialize AI neural nets for this game */
-		ai_func.init(&s_ptr->g, who, 0);
-
-		/* Ask AI to make choice */
-		ai_func.make_choice(&s_ptr->g, who, o_ptr->type,
-		                    o_ptr->list, &o_ptr->num,
-		                    o_ptr->special, &o_ptr->num_special,
-		                    o_ptr->arg1, o_ptr->arg2, o_ptr->arg3);
-
-		/* Release AI mutex */
-		pthread_mutex_unlock(&ai_mutex);
-
-		/* Mark player as no longer waiting */
-		s_ptr->waiting[who] = WAIT_READY;
-
-		/* Signal game thread to continue */
-		pthread_cond_signal(&s_ptr->wait_cond);
-
-		/* Update waiting status */
-		update_waiting(sid);
-
-		/* Done */
-		return;
-	}
-
 	/* Check for no player */
 	if (cid < 0) return;
 
@@ -1723,7 +1815,7 @@ static void ask_client(int sid, int who)
 		return;
 	}
 
-	printf("S:%d Asking %d for choice (type %d) at %d\n", sid, cid, o_ptr->type, s_ptr->g.p[who].choice_size);
+	printf("S:%d Asking %d (%s) for choice (type %d) at %d\n", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
 
 	/* Start choice message */
 	start_msg(&ptr, MSG_CHOOSE);
@@ -2040,6 +2132,9 @@ static void accept_conn(int listen_fd)
 	/* Accept connection */
 	c_list[i].fd = accept(listen_fd, (struct sockaddr *)&peer_addr, &size);
 
+	/* Connection is not local AI */
+	c_list[i].ai = 0;
+
 	/* Check for failure */
 	if (c_list[i].fd < 0)
 	{
@@ -2278,9 +2373,25 @@ static void switch_ai(int sid, int who)
 {
 	session *s_ptr = &s_list[sid];
 	char text[1024];
+	int cid;
 
 	/* Acquire session mutex */
 	pthread_mutex_lock(&s_ptr->session_mutex);
+
+	/* Create a new AI connection */
+	cid = new_ai_client(sid);
+
+	/* Save client ID in session */
+	s_ptr->cids[who] = cid;
+
+	/* Client is playing */
+	c_list[cid].state = CS_PLAYING;
+
+	/* Tell client about game state */
+	update_meta(sid);
+
+	/* Give player a seat number */
+	send_msgf(cid, MSG_SEAT, "d", who);
 
 	/* Mark player as AI */
 	s_ptr->ai_control[who] = 1;
@@ -2421,6 +2532,13 @@ static void start_session(int sid)
 
 		/* Clear waiting amount */
 		s_ptr->wait_ticks[i] = 0;
+
+		/* Check for AI-controlled player */
+		if (s_ptr->ai_control[i])
+		{
+			/* Create AI client connection */
+			s_ptr->cids[i] = new_ai_client(sid);
+		}
 	}
 
 	/* Load game state from database, if able */
@@ -2486,7 +2604,7 @@ static void handle_login(int cid, char *ptr)
 	printf("Login attempt from %s\n", user);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.7.5") < 0)
+	if (strcmp(version, "0.8.1") < 0)
 	{
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
@@ -2918,6 +3036,9 @@ static void handle_leave(int cid, char *ptr)
 
 	/* Get session pointer */
 	s_ptr = &s_list[c_list[cid].sid];
+
+	/* Check for session started */
+	if (s_ptr->state == SS_STARTED) return;
 
 	/* Loop over users in session */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -3537,6 +3658,9 @@ static void do_housekeeping(void)
 		if (c_list[i].state == CS_EMPTY ||
 		    c_list[i].state == CS_DISCONN) continue;
 
+		/* Skip AI clients */
+		if (c_list[i].ai) continue;
+
 		/* Check for no data from client in quite some time */
 		if (c_list[i].ping_sent && cur_time - c_list[i].last_seen > 60)
 		{
@@ -3604,6 +3728,9 @@ static void do_housekeeping(void)
 		/* Loop over users in session */
 		for (j = 0; j < s_ptr->num_users; j++)
 		{
+			/* Skip AI connections */
+			if (s_ptr->ai_control[j]) continue;
+
 			/* Check for connected user */
 			if (s_ptr->cids[j] >= 0) num++;
 		}
@@ -3620,6 +3747,9 @@ static void do_housekeeping(void)
 		/* Loop over users in session */
 		for (j = 0; j < s_ptr->num_users; j++)
 		{
+			/* Skip AI users */
+			if (s_ptr->ai_control[j]) continue;
+
 			/* Skip users who we are not waiting on */
 			if (s_ptr->waiting[j] != WAIT_BLOCKED) continue;
 
@@ -3753,6 +3883,9 @@ int main(int argc, char *argv[])
 
 	/* Ignore SIGPIPE when writing to a closed socket */
 	signal(SIGPIPE, SIG_IGN);
+
+	/* Do not wait for forked children processes */
+	signal(SIGCHLD, SIG_IGN);
 
 	/* Create main socket for new connections */
 	listen_fd = socket(AF_INET, SOCK_STREAM, 0);

@@ -1,3 +1,23 @@
+/*
+ * Race for the Galaxy AI
+ * 
+ * Copyright (C) 2009-2011 Keldon Jones
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 #include <gtk/gtk.h>
 #include "rftg.h"
 #include "comm.h"
@@ -610,6 +630,7 @@ static void handle_status_card(char *ptr)
 {
 	card *c_ptr;
 	int x;
+	int owner, where, start_owner, start_where;
 
 	/* Read card index */
 	x = get_integer(&ptr);
@@ -618,12 +639,18 @@ static void handle_status_card(char *ptr)
 	c_ptr = &real_game.deck[x];
 
 	/* Read card owner */
-	c_ptr->owner = get_integer(&ptr);
-	c_ptr->start_owner = get_integer(&ptr);
+	owner = get_integer(&ptr);
+	start_owner = get_integer(&ptr);
 
 	/* Read card location */
-	c_ptr->where = get_integer(&ptr);
-	c_ptr->start_where = get_integer(&ptr);
+	where = get_integer(&ptr);
+	start_where = get_integer(&ptr);
+
+	/* Move card to current location */
+	move_card(&real_game, x, owner, where);
+
+	/* Move "start of phase" location */
+	move_start(&real_game, x, start_owner, start_where);
 
 	/* Read unpaid good flag */
 	c_ptr->unpaid = get_integer(&ptr);
@@ -2392,6 +2419,9 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Leave current session */
 	client_sid = -1;
+
+	/* Clear game played flag */
+	playing_game = 0;
 
 	/* Switch back to lobby view */
 	switch_view(1, 1);

@@ -92,6 +92,11 @@
  */
 #define MAX_SEARCH 9
 
+/*
+ * Number of card locations.
+ */
+#define MAX_WHERE 7
+
 
 /*
  * Round phases.
@@ -605,6 +610,12 @@ typedef struct card
 	/* Order played on the table */
 	int order;
 
+	/* Next card index if belonging to player */
+	int next;
+
+	/* Next card index as of start of phase */
+	int start_next;
+
 } card;
 
 /*
@@ -672,6 +683,12 @@ typedef struct player
 	/* Player's start world */
 	int start;
 
+	/* Player's first card of each location */
+	int head[MAX_WHERE];
+
+	/* Player's first card of each location as of the start of the phase */
+	int start_head[MAX_WHERE];
+
 	/* Card chosen in Develop or Settle phase */
 	int placing;
 
@@ -713,12 +730,6 @@ typedef struct player
 
 	/* Total number of "fake" cards seen this turn */
 	int total_fake;
-
-	/* Number of "fake" developments played this turn */
-	int fake_played_dev;
-
-	/* Number of "fake" worlds played this turn */
-	int fake_played_world;
 
 	/* Number of cards discarded this turn but not removed from hand */
 	int fake_discards;
@@ -855,7 +866,9 @@ extern int simple_rand(unsigned int *seed);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
-extern card *random_draw(game *g);
+extern int random_draw(game *g);
+extern void move_card(game *g, int which, int who, int where);
+extern void move_start(game *g, int which, int who, int where);
 extern void draw_card(game *g, int who);
 extern void draw_cards(game *g, int who, int num);
 extern void start_prestige(game *g);
@@ -871,6 +884,8 @@ extern void develop_action(game *g, int who, int placing);
 extern void phase_develop(game *g);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
                             int special[], int num_special, int mil_only);
+extern int settle_legal(game *g, int who, int which, int mil_bonus,
+                        int mil_only);
 extern int takeover_callback(game *g, int special, int world);
 extern int settle_check_takeover(game *g, int who);
 extern int upgrade_chosen(game *g, int who, int replacement, int old);
@@ -900,6 +915,7 @@ extern void produce_player(game *g, int who);
 extern void phase_produce(game *g);
 extern void phase_discard(game *g);
 extern int goal_minimum(int goal);
+extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
 extern int total_military(game *g, int who);
 extern void score_game(game *g);

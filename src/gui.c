@@ -1,7 +1,7 @@
 /*
  * Race for the Galaxy AI
  * 
- * Copyright (C) 2009 Keldon Jones
+ * Copyright (C) 2009-2011 Keldon Jones
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -3817,7 +3817,8 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 				i_ptr->push = 1;
 
 				/* Check for new card */
-				if (c_ptr->start_where != WHERE_HAND)
+				if (c_ptr->start_where != WHERE_HAND ||
+				    c_ptr->start_owner != who)
 				{
 					/* Put gap before card */
 					i_ptr->gapped = 1;
@@ -5527,9 +5528,11 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 		/* Card is eligible */
 		i_ptr->eligible = 1;
 		i_ptr->gapped = 1;
+		i_ptr->greedy = 1;
 
 		/* Highlight card when selected */
 		i_ptr->highlight = HIGH_YELLOW;
+		i_ptr->highlight_else = HIGH_RED;
 	}
 
 	/* Redraw everything */
@@ -7611,8 +7614,8 @@ static void player_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 		/* Check for matching name */
 		if (!strcmp(text, real_game.p[i].name))
 		{
-			/* Set owner */
-			c_ptr->owner = i;
+			/* Move card */
+			move_card(&real_game, c, i, c_ptr->where);
 		}
 	}
 
@@ -7633,7 +7636,7 @@ static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	GtkTreePath *path;
 	GtkTreeIter iter;
 	card *c_ptr;
-	int c, old_where;
+	int c, old_where, new_where;
 
 	/* Create path from path string */
 	path = gtk_tree_path_new_from_string(path_str);
@@ -7651,11 +7654,14 @@ static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	old_where = c_ptr->where;
 
 	/* Set location based on string */
-	if (!strcmp(text, "Deck")) c_ptr->where = WHERE_DECK;
-	else if (!strcmp(text, "Discard")) c_ptr->where = WHERE_DISCARD;
-	else if (!strcmp(text, "Hand")) c_ptr->where = WHERE_HAND;
-	else if (!strcmp(text, "Active")) c_ptr->where = WHERE_ACTIVE;
-	else if (!strcmp(text, "Good")) c_ptr->where = WHERE_GOOD;
+	if (!strcmp(text, "Deck")) new_where = WHERE_DECK;
+	else if (!strcmp(text, "Discard")) new_where = WHERE_DISCARD;
+	else if (!strcmp(text, "Hand")) new_where = WHERE_HAND;
+	else if (!strcmp(text, "Active")) new_where = WHERE_ACTIVE;
+	else if (!strcmp(text, "Good")) new_where = WHERE_GOOD;
+
+	/* Move card */
+	move_card(&real_game, c, c_ptr->owner, new_where);
 
 	/* Store new location in model */
 	gtk_list_store_set(GTK_LIST_STORE(model), &iter, 3, c_ptr->where, -1);
@@ -7849,7 +7855,15 @@ static char *ai_debug_action[2][23] =
 		"Settle",
 		"Consume-Trade",
 		"Consume-x2",
-		"Produce"
+		"Produce",
+		"Search",
+		"Prestige Explore +5",
+		"Prestige Explore +1,+1",
+		"Prestige Develop",
+		"Prestige Settle",
+		"Prestige Consume-Trade",
+		"Prestige Consume-x2",
+		"Prestige Produce",
 	},
 
 	{
@@ -7875,7 +7889,7 @@ static char *ai_debug_action[2][23] =
 		"S/P",
 		"CT/C2",
 		"CT/P",
-		"C2/P"
+		"C2/P",
 	}
 };
 
