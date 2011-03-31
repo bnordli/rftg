@@ -5,6 +5,7 @@
 #define RESTART_LOAD 2
 #define RESTART_UNDO 3
 #define RESTART_NONE 4
+#define RESTART_UNDO_ROUND 5
 
 /*
  * User options.
@@ -53,6 +54,9 @@ typedef struct options
 	/* Number of players in multiplayer */
 	int multi_min;
 	int multi_max;
+
+	/* Autosave */
+	int auto_save;
 
 } options;
 

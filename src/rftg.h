@@ -849,6 +849,9 @@ typedef struct game
 	/* Game is over */
 	int game_over;
 
+	/* Autosave flag */
+	int auto_save;
+
 } game;
 
 

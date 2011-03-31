@@ -9404,6 +9404,15 @@ int game_round(game *g)
 
 		/* Send messag e*/
 		message_add(g, msg);
+
+		if (g->auto_save == 1) {
+			/* Format message */
+			sprintf(msg, "(Autosaving)\n");
+
+			/* Send messag e*/
+			message_add(g, msg);
+		}
+
 	}
 
 	/* Award prestige bonuses */
