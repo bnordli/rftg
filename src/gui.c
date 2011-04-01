@@ -2701,7 +2701,7 @@ static void redraw_status_area(int who, GtkWidget *box)
  */
 void redraw_status(void)
 {
-	char buf[1024];
+	char* markup;
 	int i;
 
 	/* Loop over players */
@@ -2711,12 +2711,24 @@ void redraw_status(void)
 		redraw_status_area(i, player_status[i]);
 	}
 
-	/* Create status label */
-	sprintf(buf, "Draw: %d  Discard: %d  Pool: %d", display_deck,
-	        display_discard, display_pool);
+	if (display_pool > 10)
+	{
+		/* Do not highlight remaining VPs */
+		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  Pool: %d", 
+		                                 display_deck, display_discard, display_pool);
+	}
+	else
+	{
+		/* Highlight remaining VPs */
+		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  Pool: <b>%d</b>", 
+		                                 display_deck, display_discard, display_pool);
+	}
 
-	/* Set label */
-	gtk_label_set_text(GTK_LABEL(game_status), buf);
+	/* Set status label */
+	gtk_label_set_markup(GTK_LABEL(game_status), markup);
+
+	/* Destroy markup */
+	g_free(markup);
 }
 
 /*
