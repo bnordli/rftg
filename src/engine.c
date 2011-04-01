@@ -9076,7 +9076,7 @@ void begin_game(game *g)
 		message_add(g, "Takeovers disabled.\n");
 	}
 
-	/* Send start message */
+	/* Send start of game message */
 	message_add_formatted(g, "--- Start of game ---\n", TAG_BOLD);
 
 	/* Loop over cards in deck */
@@ -10320,6 +10320,13 @@ void declare_winner(game *g)
 	player *p_ptr;
 	int i, t, b_s = -1, b_t = -1;
 	char msg[1024];
+
+	/* Check for simulation */
+	if (!g->simulation)
+	{
+		/* Send end of game message */
+		message_add_formatted(g, "--- End of game ---\n", TAG_BOLD);
+	}
 
 	/* Score game */
 	score_game(g);
