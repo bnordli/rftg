@@ -435,6 +435,9 @@ void save_log()
 	GtkTextBuffer *message_buffer;
 	gchar *all_text;
 
+	/* Check for save log option */
+	if (!opt.save_log) return;
+
 	/* Get message buffer */
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
@@ -6894,6 +6897,8 @@ static void read_prefs(void)
 	                                             "shrink_opponent", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
+	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
+	                                       "save_log", NULL);
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "colored_log", NULL);
 
@@ -6956,6 +6961,8 @@ void save_prefs(void)
 	                       opt.shrink_opponent);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
+	g_key_file_set_boolean(pref_file, "gui", "save_log",
+		                   opt.save_log);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
 		                   opt.colored_log);
 
@@ -7547,6 +7554,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *reduce_frame;
 	GtkWidget *shrink_button;
 	GtkWidget *autosave_button;
+	GtkWidget *save_log_button;
 	GtkWidget *colored_log_button;
 	int i;
 
@@ -7624,6 +7632,17 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                 autosave_button);
 
+	/* Create toggle button for log saving */
+	save_log_button = gtk_check_button_new_with_label("Save log at end of game");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(save_log_button),
+	                             opt.save_log);
+
+	/* Add button to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                 save_log_button);
+
 	/* Create toggle button for colored log */
 	colored_log_button = gtk_check_button_new_with_label("Colored log");
 
@@ -7651,6 +7670,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set autosave option */
 		opt.auto_save =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autosave_button));
+
+		/* Set save_log option */
+		opt.save_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(save_log_button));
 
 		/* Set colored log option */
 		opt.colored_log =

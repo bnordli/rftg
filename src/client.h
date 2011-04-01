@@ -58,6 +58,9 @@ typedef struct options
 	/* Autosave */
 	int auto_save;
 
+	/* Save log at end of game */
+	int save_log;
+
 	/* Colored log */
 	int colored_log;
 } options;
