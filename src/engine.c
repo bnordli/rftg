@@ -9041,6 +9041,44 @@ void begin_game(game *g)
 	int num_start = 0, num_start_red = 0, num_start_blue = 0;
 	char msg[1024];
 
+	/* Format message */
+	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n", exp_names[g->expanded]);
+
+	/* Send message */
+	message_add(g, msg);
+
+	/* Format num players and advanced message */
+	if (!g->advanced) 
+	{
+		sprintf(msg, "%s.\n", player_labels[g->num_players - 2]);
+	} 
+	else 
+	{
+		sprintf(msg, "%s, advanced game.\n", player_labels[g->num_players - 2]);
+	}
+
+	/* Send message */
+	message_add(g, msg);
+
+	if (g->goal_disabled && g-> takeover_disabled) 
+	{
+		/* Send message */
+		message_add(g, "Goals and takeovers disabled.\n");
+	} 
+	else if (g->goal_disabled)
+	{
+		/* Send message */
+		message_add(g, "Goals disabled.\n");
+	}
+	else if (g->takeover_disabled)
+	{
+		/* Send message */
+		message_add(g, "Takeovers disabled.\n");
+	}
+
+	/* Send start message */
+	message_add_formatted(g, "--- Start of game ---\n", TAG_BOLD);
+
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
 	{
@@ -10317,7 +10355,7 @@ void declare_winner(game *g)
 			message_add(g, msg);
 
 			/* Dump log */
-			dump_log();
+			save_log();
 		}
 	}
 }

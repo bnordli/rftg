@@ -868,6 +868,8 @@ typedef struct game
 extern design library[MAX_DESIGN];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
+extern char *exp_names[MAX_EXPANSION + 1];
+extern char *player_labels[MAX_PLAYER];
 extern decisions ai_func;
 extern decisions gui_func;
 
@@ -876,7 +878,7 @@ extern decisions gui_func;
  */
 extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
-extern void dump_log();
+extern void save_log();
 extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);

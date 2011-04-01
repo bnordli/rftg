@@ -414,7 +414,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	                                   message_end);
 }
 
-void dump_log()
+void save_log()
 {
 	FILE *fff;
 	char filename[30];
@@ -438,7 +438,8 @@ void dump_log()
 	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);
 
 	/* Get the buffer text */
-	all_text = gtk_text_buffer_get_text(message_buffer, &start_iter, &end_iter, 0);
+	all_text = gtk_text_buffer_get_text(message_buffer, &start_iter, &end_iter,
+	                                    FALSE);
 
 	/* Get the time */
 	time(&raw_time);
@@ -447,7 +448,7 @@ void dump_log()
 	timeinfo = localtime(&raw_time);
 
 	/* Generate file name */
-	strftime(filename, 30, "game_%y%m%d_%H%M.txt", timeinfo);
+	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
 	full_filename = g_build_filename(RFTGDIR, filename, NULL);
 
 	/* Open file for writing */
@@ -7201,7 +7202,7 @@ static void gui_undo_round(GtkMenuItem *menu_item, gpointer data)
 /*
  * Expansion level names.
  */
-char *exp_names[] =
+char *exp_names[MAX_EXPANSION + 1] =
 {
 	"Base game only",
 	"The Gathering Storm",
@@ -7213,7 +7214,7 @@ char *exp_names[] =
 /*
  * Labels for number of players.
  */
-static char *player_labels[] =
+char *player_labels[MAX_PLAYER] =
 {
 	"Two players",
 	"Three players",
