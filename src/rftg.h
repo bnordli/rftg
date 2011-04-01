@@ -480,6 +480,9 @@
  * GUI: Text formatting
  */
 #define TAG_BOLD "bold"
+#define TAG_TAKEOVER "takeover"
+#define TAG_GOAL "goal"
+#define TAG_PRESTIGE "prestige"
 
 /*
  * Forward declaration.

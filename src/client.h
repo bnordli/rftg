@@ -58,6 +58,8 @@ typedef struct options
 	/* Autosave */
 	int auto_save;
 
+	/* Colored log */
+	int colored_log;
 } options;
 
 extern options opt;

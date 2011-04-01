@@ -396,6 +396,13 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
+	if (strcmp(tag, TAG_BOLD) != 0 && !opt.colored_log)
+	{
+		/* Skip coloring when colored log is off */
+		message_add(g, msg);
+		return;
+	}
+
 	/* Get message buffer */
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
@@ -6887,6 +6894,8 @@ static void read_prefs(void)
 	                                             "shrink_opponent", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
+	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
+	                                         "colored_log", NULL);
 
 	/* Read multiplayer options */
 	opt.server_name = g_key_file_get_string(pref_file, "multiplayer",
@@ -6947,6 +6956,8 @@ void save_prefs(void)
 	                       opt.shrink_opponent);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
+	g_key_file_set_boolean(pref_file, "gui", "colored_log",
+		                   opt.colored_log);
 
 	/* Set multiplayer options */
 	g_key_file_set_string(pref_file, "multiplayer", "server_name",
@@ -7536,6 +7547,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *reduce_frame;
 	GtkWidget *shrink_button;
 	GtkWidget *autosave_button;
+	GtkWidget *colored_log_button;
 	int i;
 
 	/* Create dialog box */
@@ -7612,6 +7624,17 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                 autosave_button);
 
+	/* Create toggle button for colored log */
+	colored_log_button = gtk_check_button_new_with_label("Colored log");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(colored_log_button),
+	                             opt.colored_log);
+
+	/* Add button to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                 colored_log_button);
+
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
 
@@ -7628,6 +7651,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set autosave option */
 		opt.auto_save =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autosave_button));
+
+		/* Set colored log option */
+		opt.colored_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
 
 		/* Handle new options */
 		modify_gui();
@@ -8751,8 +8778,16 @@ int main(int argc, char *argv[])
 	gtk_text_buffer_create_tag(message_buffer, TAG_BOLD, "weight", "bold",
 	                           NULL);
 
-	/* Create "red" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, "red", "foreground", "#FF0000",
+	/* Create "takeover" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, TAG_TAKEOVER, "foreground", "#ff0000",
+	                           NULL);
+
+	/* Create "goal" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, TAG_GOAL, "foreground", "#eebb00",
+	                           NULL);
+
+	/* Create "prestige" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, TAG_PRESTIGE, "foreground", "#8800bb",
 	                           NULL);
 
 	/* Get iterator for end of buffer */

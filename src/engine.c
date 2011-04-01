@@ -698,7 +698,7 @@ void start_prestige(game *g)
 				strcat(msg, " for Prestige Leader.\n");
 
 				/* Send message */
-				message_add(g, msg);
+				message_add_formatted(g, msg, TAG_PRESTIGE);
 			}
 		}
 
@@ -1619,7 +1619,7 @@ void phase_explore(game *g)
 					g->p[i].name);
 
 				/* Send message */
-				message_add(g, msg);
+				message_add_formatted(g, msg, TAG_PRESTIGE);
 			}
 		}
 	}
@@ -3120,7 +3120,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 					        p_ptr->name);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, TAG_PRESTIGE);
 				}
 			}
 		}
@@ -3964,7 +3964,7 @@ int settle_check_takeover(game *g, int who)
 		        g->deck[target].d_ptr->name);
 
 		/* Send message */
-		message_add(g, msg);
+		message_add_formatted(g, msg, TAG_TAKEOVER);
 	}
 
 	/* Discard card used, if needed */
@@ -4624,7 +4624,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 					        p_ptr->name);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, TAG_PRESTIGE);
 				}
 			}
 		}
@@ -4948,7 +4948,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			        c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, TAG_TAKEOVER);
 		}
 
 		/* Failure */
@@ -4969,7 +4969,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 				c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, TAG_TAKEOVER);
 		}
 
 		/* Discard card */
@@ -5021,7 +5021,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			c_ptr->d_ptr->name);
 
 		/* Send message */
-		message_add(g, msg);
+		message_add_formatted(g, msg, TAG_TAKEOVER);
 	}
 
 	/* Check for good on world */
@@ -5141,7 +5141,7 @@ void resolve_takeovers(game *g)
 					g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				message_add(g, msg);
+				message_add_formatted(g, msg, TAG_TAKEOVER);
 			}
 		}
 	}
@@ -6178,7 +6178,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 		        p_ptr->name, c_ptr->d_ptr->name);
 
 		/* Send message */
-		message_add(g, msg);
+		message_add_formatted(g, msg, TAG_PRESTIGE);
 	}
 
 	/* Spend prestige */
@@ -8672,7 +8672,7 @@ void check_goal_loss(game *g, int who, int goal)
 			        goal_name[goal]);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, TAG_GOAL);
 		}
 	}
 }
@@ -8783,7 +8783,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, TAG_GOAL);
 				}
 			}
 		}
@@ -8877,7 +8877,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, TAG_GOAL);
 				}
 			}
 		}
@@ -8928,7 +8928,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, TAG_GOAL);
 				}
 			}
 		}
@@ -9513,8 +9513,16 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (strstr(msg, "Prestige"))
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, TAG_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 
 		/* Check for real advanced game */
@@ -9525,8 +9533,16 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (strstr(msg, "Prestige"))
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, TAG_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 	}
 
@@ -9569,8 +9585,16 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (strstr(msg, "Prestige"))
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, TAG_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 
 		/* Check for real game */
@@ -9581,8 +9605,16 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (strstr(msg, "Prestige"))
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, TAG_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 	}
 
@@ -10325,6 +10357,17 @@ void declare_winner(game *g)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
+		/* Check for simulation */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s ends with %d.\n", g->p[i].name,
+			                                   g->p[i].end_vp);
+
+			/* Send message */
+			message_add(g, msg);
+		}
+
 		/* Skip players who do not have best score */
 		if (p_ptr->end_vp < b_s) continue;
 
@@ -10337,25 +10380,36 @@ void declare_winner(game *g)
 
 		/* Set winner flag */
 		p_ptr->winner = 1;
+	}
 
-		/* Check for simulation */
-		if (!g->simulation)
+	/* Check for simulation */
+	if (!g->simulation)
+	{
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
 		{
-			/* Format message */
-			sprintf(msg, "%s wins with %d.\n", g->p[i].name,
+			/* Get player pointer */
+			p_ptr = &g->p[i];
+
+			/* Check for winner */
+			if (p_ptr->winner)
+			{
+				/* Format message */
+				sprintf(msg, "%s wins with %d.\n", g->p[i].name,
 			                                   g->p[i].end_vp);
 
-			/* Send message */
-			message_add(g, msg);
-
-			/* Format message */
-			sprintf(msg, "(The seed for this game was %d.)\n", g->start_seed);
-
-			/* Send message */
-			message_add(g, msg);
-
-			/* Dump log */
-			save_log();
+				/* Send message */
+				message_add_formatted(g, msg, TAG_BOLD);
+			}
 		}
+
+		/* Format message */
+		sprintf(msg, "(The seed for this game was %d.)\n", g->start_seed);
+
+		/* Send message */
+		message_add(g, msg);
+
+		/* Dump log */
+		save_log();
 	}
 }
