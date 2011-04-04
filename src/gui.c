@@ -3141,8 +3141,15 @@ static void reset_status(game *g, int who)
 	strcpy(status_player[who].name, g->p[who].name);
 
 	/* Check for actions known */
-	if (g->cur_action >= ACT_SEARCH ||
+	if (g->advanced && g->cur_action < ACT_SEARCH && who == player_us &&
 	    count_active_flags(g, player_us, FLAG_SELECT_LAST))
+	{
+		/* Copy first action only */
+		status_player[who].action[0] = g->p[who].action[0];
+		status_player[who].action[1] = ICON_NO_ACT;
+	}
+	else if (g->cur_action >= ACT_SEARCH ||
+	         count_active_flags(g, player_us, FLAG_SELECT_LAST))
 	{
 		/* Copy actions */
 		status_player[who].action[0] = g->p[who].action[0];
