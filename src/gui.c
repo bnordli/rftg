@@ -2314,6 +2314,15 @@ static char *get_military_tooltip(game *g, int who)
 		strcat(msg, text);
 	}
 
+	/* Add temporary military */
+	if (g->p[who].bonus_military > 0)
+	{
+		/* Create text */
+		sprintf(text, "\nTemporary military (current): %d",
+		              g->p[who].bonus_military);
+		strcat(msg, text);
+	}
+
 	/* Check for active Imperium card */
 	if (count_active_flags(g, who, FLAG_IMPERIUM))
 	{
@@ -3866,7 +3875,7 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 		/* Check for prestige action */
 		if (prestige_action != -1)
 		{
-			/* Mark prestige as chosen */
+			/* Add prestige flag to action */
 			action[0] |= ACT_PRESTIGE;
 		}
 		/* Destroy prestige button */
@@ -6667,7 +6676,6 @@ static void gui_auto_save(game *g, int who)
 
 	/* Build autosave filename */
 	fname = g_build_filename(RFTGDIR, "autosave.sav", NULL);
-	printf("%s", fname);
 
 	/* Save to file */
 	if (save_game(g, fname, who) < 0)
@@ -8631,6 +8639,9 @@ int main(int argc, char *argv[])
 	GtkCellRenderer *render, *toggle_render;
 	GtkTreeViewColumn *desc_column;
 	GdkColor color;
+
+	game load_state;
+	char *fname = NULL;
 	int i;
 
 #ifdef __APPLE__        
@@ -8705,6 +8716,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set random seed */
 			real_game.random_seed = atoi(argv[++i]);
+		}
+
+		/* Check for saved game */
+		else if (!strcmp(argv[i], "-s"))
+		{
+			/* Set file name */
+			fname = argv[++i];
 		}
 	}
 
@@ -9467,8 +9485,42 @@ int main(int argc, char *argv[])
 	/* Modify GUI for current setup */
 	modify_gui();
 
-	/* Start new game */
-	restart_loop = RESTART_NEW;
+	if (!fname)
+	{
+		/* Start new game */
+		restart_loop = RESTART_NEW;
+	}
+	else
+	{
+		/* Loop over players */
+		for (i = 0; i < MAX_PLAYER; i++)
+		{
+			/* Set choice log pointer */
+			load_state.p[i].choice_log = orig_log[i];
+		}
+
+		/* Try to load savefile into load state */
+		if (load_game(&load_state, fname) < 0)
+		{
+			/* Error */
+			printf("Failed to load game from file %s\n", fname);
+
+			/* Give up */
+			return;
+		}
+
+		/* Copy loaded state to real */
+		real_game = load_state;
+
+		/* Force current game over */
+		real_game.game_over = 1;
+
+		/* Switch to loaded state when able */
+		restart_loop = RESTART_LOAD;
+
+		/* Load from file */
+		restart_loop = RESTART_LOAD;
+	}
 
 	/* Run games */
 	run_game();

@@ -4906,6 +4906,17 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Takeover fails */
 		defeated = 1;
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "Takeover of %s is defeated because the world has been moved.\n",
+			              c_ptr->d_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
+		}
 	}
 
 	/* Compute current owner's defense */
@@ -4935,6 +4946,28 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* XXX Increase prestige award */
 		prestige += 2;
+	}
+
+	/* Message */
+	if (!g->simulation && !defeated)
+	{
+		/* Format attack message */
+		sprintf(msg, "%s attacks %s with %d military.\n",
+		             g->p[who].name,
+		             c_ptr->d_ptr->name,
+		             attack);
+
+		/* Send attack message */
+		message_add(g, msg);
+
+		/* Format defense message */
+		sprintf(msg, "%s defends %s with %d military.\n",
+		             g->p[c_ptr->owner].name,
+		             c_ptr->d_ptr->name,
+		             defense);
+
+		/* Send defense message */
+		message_add(g, msg);
 	}
 
 	/* Check for insufficient attack strength */
@@ -5153,7 +5186,7 @@ void resolve_takeovers(game *g)
 		if (!resolve_takeover(g, g->takeover_who[i],
 		                         g->takeover_target[i],
 		                         g->takeover_power[i],
-					 g->takeover_defeated[i]))
+		                         g->takeover_defeated[i]))
 		{
 			/* Fail future declarations if one fails */
 			for (j = i + 1; j < g->num_takeover; j++)
@@ -5163,6 +5196,18 @@ void resolve_takeovers(game *g)
 				{
 					/* Defeat takeover */
 					g->takeover_defeated[j] = 1;
+				}
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "Takeover of %s is defeated because takeover of %s failed.\n",
+					             g->deck[list[j]].d_ptr->name,
+					             g->deck[list[i]].d_ptr->name);
+
+					/* Send message */
+					message_add_formatted(g, msg, FORMAT_TAKEOVER);
 				}
 			}
 		}
@@ -10416,7 +10461,7 @@ void declare_winner(game *g)
 		}
 
 		/* Format message */
-		sprintf(msg, "(The seed for this game was %d.)\n", g->start_seed);
+		sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
 
 		/* Send message */
 		message_add(g, msg);
