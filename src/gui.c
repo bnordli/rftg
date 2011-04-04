@@ -8640,6 +8640,8 @@ int main(int argc, char *argv[])
 	GtkWidget *table_box, *active_box;
 	GtkWidget *top_box, *top_view, *top_scroll, *area;
 	GtkWidget *phase_box, *label;
+	guint accel_key;
+	GdkModifierType accel_mods;
 	GtkSizeGroup *top_size_group;
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer, *chat_buffer;
@@ -8791,25 +8793,25 @@ int main(int argc, char *argv[])
 	menu_bar = gtk_menu_bar_new();
 
 	/* Create menu item for 'game' menu */
-	game_item = gtk_menu_item_new_with_label("Game");
+	game_item = gtk_menu_item_new_with_mnemonic("_Game");
 
 	/* Add game item to menu bar */
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu_bar), game_item);
 
 	/* Create menu item for 'network' menu */
-	network_item = gtk_menu_item_new_with_label("Network");
+	network_item = gtk_menu_item_new_with_mnemonic("_Network");
 
 	/* Add network item to menu bar */
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu_bar), network_item);
 
 	/* Create menu item for 'debug' menu */
-	debug_item = gtk_menu_item_new_with_label("Debug");
+	debug_item = gtk_menu_item_new_with_mnemonic("_Debug");
 
 	/* Add debug item to menu bar */
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu_bar), debug_item);
 
 	/* Create menu item for 'help' menu */
-	help_item = gtk_menu_item_new_with_label("Help");
+	help_item = gtk_menu_item_new_with_mnemonic("_Help");
 
 	/* Add help item to menu bar */
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu_bar), help_item);
@@ -8818,14 +8820,30 @@ int main(int argc, char *argv[])
 	game_menu = gtk_menu_new();
 
 	/* Create game menu items */
-	new_item = gtk_menu_item_new_with_label("New"); 
-	load_item = gtk_menu_item_new_with_label("Load Game..."); 
-	save_item = gtk_menu_item_new_with_label("Save Game..."); 
-	undo_item = gtk_menu_item_new_with_label("Undo");
-	undo_round_item = gtk_menu_item_new_with_label("Undo Round");
-	select_item = gtk_menu_item_new_with_label("Select Parameters...");
-	option_item = gtk_menu_item_new_with_label("GUI Options...");
-	quit_item = gtk_menu_item_new_with_label("Quit"); 
+	new_item = gtk_menu_item_new_with_mnemonic("_New"); 
+	load_item = gtk_menu_item_new_with_mnemonic("_Load Game..."); 
+	save_item = gtk_menu_item_new_with_mnemonic("_Save Game..."); 
+	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
+	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
+	select_item = gtk_menu_item_new_with_mnemonic("Select _Parameters...");
+	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
+	quit_item = gtk_menu_item_new_with_mnemonic("_Quit"); 
+
+	/* Add accelerators for game menu items */
+	gtk_widget_add_accelerator(new_item, "activate", window_accel,
+	                           'N', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(load_item, "activate", window_accel,
+	                           'L', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(save_item, "activate", window_accel,
+	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(undo_item, "activate", window_accel,
+	                           'Z', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(select_item, "activate", window_accel,
+	                           'P', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(option_item, "activate", window_accel,
+	                           'O', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
+	                           'Q', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 
 	/* Add items to game menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_item);
@@ -8841,9 +8859,13 @@ int main(int argc, char *argv[])
 	network_menu = gtk_menu_new();
 
 	/* Create network menu items */
-	connect_item = gtk_menu_item_new_with_label("Connect to server...");
-	disconnect_item = gtk_menu_item_new_with_label("Disconnect");
-	resign_item = gtk_menu_item_new_with_label("Resign from game");
+	connect_item = gtk_menu_item_new_with_mnemonic("_Connect to server...");
+	disconnect_item = gtk_menu_item_new_with_mnemonic("_Disconnect");
+	resign_item = gtk_menu_item_new_with_mnemonic("_Resign from game");
+
+	/* Add accelerators for network menu items */
+	gtk_widget_add_accelerator(connect_item, "activate", window_accel,
+	                           'C', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 
 	/* Add items to network menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(network_menu), connect_item);
@@ -8854,8 +8876,12 @@ int main(int argc, char *argv[])
 	debug_menu = gtk_menu_new();
 
 	/* Create debug menu items */
-	debug_card_item = gtk_menu_item_new_with_label("Debug cards...");
-	debug_ai_item = gtk_menu_item_new_with_label("Debug AI...");
+	debug_card_item = gtk_menu_item_new_with_mnemonic("Debug _cards...");
+	debug_ai_item = gtk_menu_item_new_with_mnemonic("Debug _AI...");
+
+	/* Add accelerators for debug menu items */
+	gtk_widget_add_accelerator(debug_card_item, "activate", window_accel,
+	                           'D', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 
 	/* Add items to debug menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_card_item);
@@ -8865,7 +8891,14 @@ int main(int argc, char *argv[])
 	help_menu = gtk_menu_new();
 
 	/* Create about menu item */
-	about_item = gtk_menu_item_new_with_label("About...");
+	about_item = gtk_menu_item_new_with_mnemonic("_About...");
+
+	/* Parse the F1 key */
+	gtk_accelerator_parse("F1", &accel_key, &accel_mods);
+
+	/* Add accelerators for about menu items */
+	gtk_widget_add_accelerator(about_item, "activate", window_accel,
+	                           accel_key, accel_mods, GTK_ACCEL_VISIBLE);
 
 	/* Add item to help menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), about_item);
@@ -8875,6 +8908,7 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_new_game), NULL);
 	g_signal_connect(G_OBJECT(load_item), "activate",
 	                 G_CALLBACK(gui_load_game), NULL);
+	
 	g_signal_connect(G_OBJECT(save_item), "activate",
 	                 G_CALLBACK(gui_save_game), NULL);
 	g_signal_connect(G_OBJECT(undo_item), "activate",
