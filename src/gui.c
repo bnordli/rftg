@@ -2337,8 +2337,8 @@ static char *get_military_tooltip(game *g, int who)
  */
 static char *get_prestige_tooltip(game *g, int who)
 {
-	player *who_ptr;
 	static char msg[1024];
+	player *who_ptr;
 	int i, prestige_on_tile = TRUE;
 
 	/* Do nothing unless third expansion is present */
@@ -2388,49 +2388,64 @@ static char *display_card_tooltip(game *g, int who, int which)
 {
 	char text[1024];
 	card *c_ptr, *b_ptr;
-	int i, count = 0;
+	int i, vp, count = 0;
 
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
 	/* Check for nothing to display */
-	if (!(c_ptr->d_ptr->flags & FLAG_START_SAVE)) return NULL;
-
-	/* Loop over cards in deck */
-	for (i = 0; i < g->deck_size; i++)
+	if (c_ptr->d_ptr->flags & FLAG_START_SAVE)
 	{
-		/* Get card pointer */
-		b_ptr = &g->deck[i];
+		/* Loop over cards in deck */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Get card pointer */
+			b_ptr = &g->deck[i];
 
-		/* Count cards saved */
-		if (b_ptr->where == WHERE_SAVED) count++;
+			/* Count cards saved */
+			if (b_ptr->where == WHERE_SAVED) count++;
+		}
+
+		/* Start tooltip text */
+		sprintf(text, "%d card%s saved", count, (count == 1) ? "" : "s");
+
+		/* Check for card not owned by player showing */
+		if (count == 0 || c_ptr->owner != who) return strdup(text);
+
+		/* Add list of cards saved */
+		strcat(text, ":\n");
+
+		/* Loop over cards in deck */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Get card pointer */
+			b_ptr = &g->deck[i];
+
+			/* Skip cards that aren't saved */
+			if (b_ptr->where != WHERE_SAVED) continue;
+
+			/* Add card name to tooltip */
+			strcat(text, "\n\t");
+			strcat(text, b_ptr->d_ptr->name);
+		}
+
+		/* Return tooltip */
+		return strdup(text);
+	}
+	else if (c_ptr->d_ptr->num_vp_bonus > 0) 
+	{
+		/* Compute VPs */
+		vp = compute_card_vp(g, c_ptr->owner, which);
+
+		/* Format tooltip text */
+		sprintf(text, "%d VP%s", vp, (vp == 1 || vp == -1) ? "" : "s");
+		
+		/* Return tooltip */
+		return strdup(text);
 	}
 
-	/* Start tooltip text */
-	sprintf(text, "%d card%s saved", count, (count == 1) ? "" : "s");
-
-	/* Check for card not owned by player showing */
-	if (count == 0 || c_ptr->owner != who) return strdup(text);
-
-	/* Add list of cards saved */
-	strcat(text, ":\n");
-
-	/* Loop over cards in deck */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		b_ptr = &g->deck[i];
-
-		/* Skip cards that aren't saved */
-		if (b_ptr->where != WHERE_SAVED) continue;
-
-		/* Add card name to tooltip */
-		strcat(text, "\n\t");
-		strcat(text, b_ptr->d_ptr->name);
-	}
-
-	/* Return tooltip */
-	return strdup(text);
+	/* Nothing to display */
+	return NULL;
 }
 
 /*

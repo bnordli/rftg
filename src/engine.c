@@ -10044,14 +10044,14 @@ static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 }
 
 /*
- * Add bonuses to score from given card.
+ * Compute VPs from a given card.
  */
-static void add_score_bonus(game *g, int who, int which)
+int compute_card_vp(game *g, int who, int which)
 {
 	player *p_ptr;
 	card *c_ptr, *score;
 	vp_bonus *v_ptr;
-	int i, j, x, count = 0, types[6];
+	int i, j, x, vp = 0, count = 0, types[6];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -10069,22 +10069,22 @@ static void add_score_bonus(game *g, int who, int which)
 		if (v_ptr->type == VP_THREE_VP)
 		{
 			/* Add bonus for VP chips */
-			p_ptr->end_vp += p_ptr->vp / 3;
+			vp += p_ptr->vp / 3;
 		}
 		else if (v_ptr->type == VP_TOTAL_MILITARY)
 		{
 			/* Add bonus for military strength */
-			p_ptr->end_vp += total_military(g, who);
+			vp += total_military(g, who);
 		}
 		else if (v_ptr->type == VP_NEGATIVE_MILITARY)
 		{
 			/* Add bonus for negative military strength */
-			p_ptr->end_vp -= total_military(g, who);
+			vp -= total_military(g, who);
 		}
 		else if (v_ptr->type == VP_PRESTIGE)
 		{
 			/* Add bonus for prestige */
-			p_ptr->end_vp += p_ptr->prestige;
+			vp += p_ptr->prestige;
 		}
 		else if (v_ptr->type == VP_KIND_GOOD)
 		{
@@ -10127,10 +10127,10 @@ static void add_score_bonus(game *g, int who, int which)
 			/* Award points based on number of types */
 			switch (count)
 			{
-				case 1: p_ptr->end_vp += 1; break;
-				case 2: p_ptr->end_vp += 3; break;
-				case 3: p_ptr->end_vp += 6; break;
-				case 4: p_ptr->end_vp += 10; break;
+				case 1: vp += 1; break;
+				case 2: vp += 3; break;
+				case 3: vp += 6; break;
+				case 4: vp += 10; break;
 			}
 		}
 	}
@@ -10154,13 +10154,16 @@ static void add_score_bonus(game *g, int who, int which)
 			if (bonus_match(g, v_ptr, c_ptr->d_ptr))
 			{
 				/* Add score */
-				p_ptr->end_vp += v_ptr->point;
+				vp += v_ptr->point;
 
 				/* Skip remaining bonuses */
 				break;
 			}
 		}
 	}
+
+	/* Return the score */
+	return vp;
 }
 
 /*
@@ -10191,7 +10194,7 @@ static void score_game_player(game *g, int who)
 		if (c_ptr->d_ptr->num_vp_bonus)
 		{
 			/* Add in bonuses */
-			add_score_bonus(g, who, x);
+			p_ptr->end_vp += compute_card_vp(g, who, x);
 		}
 	}
 
