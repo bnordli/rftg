@@ -698,7 +698,7 @@ void start_prestige(game *g)
 				strcat(msg, " for Prestige Leader.\n");
 
 				/* Send message */
-				message_add_formatted(g, msg, TAG_PRESTIGE);
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
 		}
 
@@ -1619,7 +1619,7 @@ void phase_explore(game *g)
 					g->p[i].name);
 
 				/* Send message */
-				message_add_formatted(g, msg, TAG_PRESTIGE);
+				message_add(g, msg);
 			}
 		}
 	}
@@ -3120,7 +3120,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 					        p_ptr->name);
 
 					/* Send message */
-					message_add_formatted(g, msg, TAG_PRESTIGE);
+					message_add(g, msg);
 				}
 			}
 		}
@@ -3964,7 +3964,7 @@ int settle_check_takeover(game *g, int who)
 		        g->deck[target].d_ptr->name);
 
 		/* Send message */
-		message_add_formatted(g, msg, TAG_TAKEOVER);
+		message_add_formatted(g, msg, FORMAT_TAKEOVER);
 	}
 
 	/* Discard card used, if needed */
@@ -4624,7 +4624,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 					        p_ptr->name);
 
 					/* Send message */
-					message_add_formatted(g, msg, TAG_PRESTIGE);
+					message_add(g, msg);
 				}
 			}
 		}
@@ -4948,7 +4948,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			        c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add_formatted(g, msg, TAG_TAKEOVER);
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
 		}
 
 		/* Failure */
@@ -4969,7 +4969,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 				c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add_formatted(g, msg, TAG_TAKEOVER);
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
 		}
 
 		/* Discard card */
@@ -5021,7 +5021,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			c_ptr->d_ptr->name);
 
 		/* Send message */
-		message_add_formatted(g, msg, TAG_TAKEOVER);
+		message_add_formatted(g, msg, FORMAT_TAKEOVER);
 	}
 
 	/* Check for good on world */
@@ -5141,7 +5141,7 @@ void resolve_takeovers(game *g)
 					g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				message_add_formatted(g, msg, TAG_TAKEOVER);
+				message_add_formatted(g, msg, FORMAT_TAKEOVER);
 			}
 		}
 	}
@@ -6178,7 +6178,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 		        p_ptr->name, c_ptr->d_ptr->name);
 
 		/* Send message */
-		message_add_formatted(g, msg, TAG_PRESTIGE);
+		message_add(g, msg);
 	}
 
 	/* Spend prestige */
@@ -8672,7 +8672,7 @@ void check_goal_loss(game *g, int who, int goal)
 			        goal_name[goal]);
 
 			/* Send message */
-			message_add_formatted(g, msg, TAG_GOAL);
+			message_add_formatted(g, msg, FORMAT_GOAL);
 		}
 	}
 }
@@ -8783,7 +8783,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add_formatted(g, msg, TAG_GOAL);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -8877,7 +8877,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add_formatted(g, msg, TAG_GOAL);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -8928,7 +8928,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add_formatted(g, msg, TAG_GOAL);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -9077,7 +9077,7 @@ void begin_game(game *g)
 	}
 
 	/* Send start of game message */
-	message_add_formatted(g, "--- Start of game ---\n", TAG_BOLD);
+	message_add_formatted(g, "--- Start of game ---\n", FORMAT_BOLD);
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -9441,7 +9441,7 @@ int game_round(game *g)
 		sprintf(msg, "--- Round %d begins ---\n", g->round);
 
 		/* Send message */
-		message_add_formatted(g, msg, TAG_BOLD);
+		message_add_formatted(g, msg, FORMAT_BOLD);
 
 		/* Loop over players YYY */
 		for (i = 0; i < g->num_players; i++)
@@ -9513,10 +9513,10 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			if (strstr(msg, "Prestige"))
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
 			{
 				/* Send colored message */
-				message_add_formatted(g, msg, TAG_PRESTIGE);
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
 			else
 			{
@@ -9533,10 +9533,11 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			if (strstr(msg, "Prestige"))
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE ||
+			    p_ptr->action[1] == ACT_SEARCH || p_ptr->action[1] & ACT_PRESTIGE)
 			{
 				/* Send colored message */
-				message_add_formatted(g, msg, TAG_PRESTIGE);
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
 			else
 			{
@@ -9585,10 +9586,10 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			if (strstr(msg, "Prestige"))
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
 			{
 				/* Send colored message */
-				message_add_formatted(g, msg, TAG_PRESTIGE);
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
 			else
 			{
@@ -9605,10 +9606,11 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			if (strstr(msg, "Prestige"))
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE ||
+			    p_ptr->action[1] == ACT_SEARCH || p_ptr->action[1] & ACT_PRESTIGE)
 			{
 				/* Send colored message */
-				message_add_formatted(g, msg, TAG_PRESTIGE);
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
 			else
 			{
@@ -10325,7 +10327,7 @@ void declare_winner(game *g)
 	if (!g->simulation)
 	{
 		/* Send end of game message */
-		message_add_formatted(g, "--- End of game ---\n", TAG_BOLD);
+		message_add_formatted(g, "--- End of game ---\n", FORMAT_BOLD);
 	}
 
 	/* Score game */
@@ -10406,7 +10408,7 @@ void declare_winner(game *g)
 			                                   g->p[i].end_vp);
 
 				/* Send message */
-				message_add_formatted(g, msg, TAG_BOLD);
+				message_add_formatted(g, msg, FORMAT_BOLD);
 			}
 		}
 

@@ -222,6 +222,9 @@ typedef struct status_display
 	/* Text of military strength tooltip */
 	char military_tip[1024];
 
+	/* Text of prestige tooltip */
+	char prestige_tip[1024];
+
 	/* Array of goals to display */
 	int goal_display[MAX_GOAL];
 
@@ -396,7 +399,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	if (strcmp(tag, TAG_BOLD) != 0 && !opt.colored_log)
+	if (strcmp(tag, FORMAT_BOLD) != 0 && !opt.colored_log)
 	{
 		/* Skip coloring when colored log is off */
 		message_add(g, msg);
@@ -2330,6 +2333,55 @@ static char *get_military_tooltip(game *g, int who)
 }
 
 /*
+ * Create a tooltip for the Prestige icon.
+ */
+static char *get_prestige_tooltip(game *g, int who)
+{
+	player *who_ptr;
+	static char msg[1024];
+	int i, prestige_on_tile = TRUE;
+
+	/* Do nothing unless third expansion is present */
+	if (g->expanded < 3) return "";
+
+	/* Create text */
+	sprintf(msg, "Prestige/Search action used: <b>%s</b> ",
+	             (g->p[who].prestige_action_used ? "YES" : "NO"));
+
+	/* Get current player pointer */
+	who_ptr = &g->p[who];
+
+	if (who_ptr->prestige == 0 || !who_ptr->prestige_turn)
+	{
+		/* Definitively no prestige on the tile */
+		prestige_on_tile = FALSE;
+	}
+	else
+	{
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Check if another player has more or equal prestige */
+			if (i != who && g->p[i].prestige >= who_ptr->prestige)
+			{
+				/* Not Prestige leader */
+				prestige_on_tile = FALSE;
+				break;
+			}
+		}
+	}
+
+	if (prestige_on_tile)
+	{
+		/* Append to message */
+		strcat(msg, "\nPrestige is on the tile");
+	}
+
+	/* Return tooltip text */
+	return msg;
+}
+
+/*
  * Create a tooltip for a displayed card.
  */
 static char *display_card_tooltip(game *g, int who, int which)
@@ -2616,6 +2668,9 @@ static void redraw_status_area(int who, GtkWidget *box)
 
 		/* Destroy our copy of the icon */
 		g_object_unref(G_OBJECT(buf));
+
+		/* Add Prestige tooltip */
+		gtk_widget_set_tooltip_markup(image, s_ptr->prestige_tip);
 
 		/* Pack icon into status box */
 		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
@@ -3091,6 +3146,9 @@ static void reset_status(game *g, int who)
 
 	/* Get text of military tooltip */
 	strcpy(status_player[who].military_tip, get_military_tooltip(g, who));
+
+	/* Get text of prestige tooltip */
+	strcpy(status_player[who].prestige_tip, get_prestige_tooltip(g, who));
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
@@ -8798,19 +8856,19 @@ int main(int argc, char *argv[])
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
 	/* Create "bold" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, TAG_BOLD, "weight", "bold",
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_BOLD, "weight", "bold",
 	                           NULL);
 
 	/* Create "takeover" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, TAG_TAKEOVER, "foreground", "#ff0000",
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_TAKEOVER, "foreground", "#ff0000",
 	                           NULL);
 
 	/* Create "goal" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, TAG_GOAL, "foreground", "#eebb00",
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_GOAL, "foreground", "#eebb00",
 	                           NULL);
 
 	/* Create "prestige" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, TAG_PRESTIGE, "foreground", "#8800bb",
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_PRESTIGE, "foreground", "#8800bb",
 	                           NULL);
 
 	/* Get iterator for end of buffer */
@@ -9239,7 +9297,7 @@ int main(int argc, char *argv[])
 	chat_buffer = gtk_text_buffer_new(NULL);
 
 	/* Create "bold" tag for usernames */
-	gtk_text_buffer_create_tag(chat_buffer, TAG_BOLD, "weight", "bold", NULL);
+	gtk_text_buffer_create_tag(chat_buffer, FORMAT_BOLD, "weight", "bold", NULL);
 
 	/* Get end of buffer */
 	gtk_text_buffer_get_end_iter(chat_buffer, &end_iter);

@@ -479,10 +479,10 @@
 /*
  * GUI: Text formatting
  */
-#define TAG_BOLD "bold"
-#define TAG_TAKEOVER "takeover"
-#define TAG_GOAL "goal"
-#define TAG_PRESTIGE "prestige"
+#define FORMAT_BOLD "bold"
+#define FORMAT_TAKEOVER "takeover"
+#define FORMAT_GOAL "goal"
+#define FORMAT_PRESTIGE "prestige"
 
 /*
  * Forward declaration.
