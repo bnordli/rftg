@@ -24,6 +24,13 @@
 #include <pthread.h>
 
 /*
+ * Server settings
+ */
+#ifndef WELCOME
+#define WELCOME "Welcome to the Race for the Galaxy " RELEASE " server!"
+#endif
+
+/*
  * Session status types.
  */
 #define SS_EMPTY     0
@@ -2714,8 +2721,7 @@ static void handle_login(int cid, char *ptr)
 	send_msgf(cid, MSG_HELLO, "");
 
 	/* Send welcome chat to client */
-	send_msgf(cid, MSG_CHAT, "ss", "",
-	          "Welcome to the Race for the Galaxy server!");
+	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
 
 	/* Clear session ID */
 	c_list[cid].sid = -1;
