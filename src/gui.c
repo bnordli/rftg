@@ -8526,8 +8526,7 @@ static void about_dialog(GtkMenuItem *menu_item, gpointer data)
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
 "This program is written by Keldon Jones, and the source code is licensed \
 under the GNU General Public License.\n\n\
-The release " RELEASE " is modified from the original version " VERSION " \
-by Borge Nordli, and it only consists of interface changes.\n\n\
+The interface enhancement release " RELEASE " is written by B. Nordli.\n\n \
 Race for the Galaxy was designed by Tom Lehmann and published by Rio Grande \
 Games.  All card and other art is copyrighted by Rio Grande Games.\n\n\
 Send bug reports to keldon@keldon.net");
