@@ -60,6 +60,16 @@ game real_game;
 static int num_undo;
 
 /*
+ * Maximum number of undo positions saved.
+ */
+static int max_undo;
+
+/*
+ * Whether the game is replaying or not
+ */
+static int game_replaying;
+
+/*
  * Undo number of start of rounds.
  */
 static int *num_undo_rounds[50];
@@ -329,7 +339,6 @@ static GtkWidget *game_status;
 static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
-static GtkWidget *undo_item, *undo_round_item, *save_item;
 static GtkWidget *entry_hbox;
 
 /*
@@ -6393,7 +6402,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	player *p_ptr;
 	int i, rv;
 	int *l_ptr;
-	int save_round = 0;
+	int save_round = FALSE;
 
 	/* Determine type of choice */
 	switch (type)
@@ -6406,7 +6415,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			rv = 0;
 
 			/* Save undo point for current round */
-			save_round = 1;
+			save_round = TRUE;
 			break;
 
 		/* Start world */
@@ -6417,7 +6426,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			rv = 0;
 
 			/* Save undo point for current round */
-			save_round = 1;
+			save_round = TRUE;
 			break;
 
 		/* Discard */
@@ -6610,12 +6619,19 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	}
 
 	/* Save undo round positions */
-	if (save_round == 1) {
+	if (save_round)
+	{
 		num_undo_rounds[num_undo_rounds_size++] = num_undo;
 	}
 
 	/* Add one undo position to list */
 	num_undo++;
+
+	/* Clear redo possibility */
+	max_undo = num_undo;
+
+	/* Stop game replaying */
+	game_replaying = FALSE;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -6678,8 +6694,8 @@ static void gui_auto_save(game *g, int who)
 {
 	char *fname;
 
-	/* Check for connected to server and auto_save enabled */
-	if (client_state != CS_DISCONN || !opt.auto_save) return;
+	/* Check for connected to server, auto_save enabled, and not replaying game */
+	if (client_state != CS_DISCONN || !opt.auto_save || game_replaying) return;
 
 	/* Build autosave filename */
 	fname = g_build_filename(RFTGDIR, "autosave.sav", NULL);
@@ -6857,7 +6873,11 @@ static void run_game(void)
 
 			/* Clear undos */
 			num_undo = 0;
+			max_undo = 0;
 			num_undo_rounds_size = 1;
+
+			/* Unset the replaying flag */
+			game_replaying = FALSE;
 
 			/* Initialize game */
 			init_game(&real_game);
@@ -6887,8 +6907,21 @@ static void run_game(void)
 			/* Initialize game */
 			init_game(&real_game);
 
-			/* Remove one state from undo list */
-			if (num_undo > 0) num_undo--;
+			if (num_undo > 0)
+			{
+				/* Remove one state from undo list */
+				num_undo--;
+
+				/* Check if we undid past a round boundary */
+				if (num_undo <= num_undo_rounds[num_undo_rounds_size - 1])
+				{
+					/* Also remove one round from undo list */
+					num_undo_rounds_size--;
+				}
+
+				/* Set the replaying flag */
+				game_replaying = TRUE;
+			}
 
 			/* Reset our position and GUI elements */
 			reset_gui();
@@ -6914,8 +6947,14 @@ static void run_game(void)
 			/* Initialize game */
 			init_game(&real_game);
 
-			/* Remove one round from undo list */
-			num_undo = num_undo_rounds[--num_undo_rounds_size];
+			if (num_undo_rounds_size > 1)
+			{
+				/* Remove one round from undo list */
+				num_undo = num_undo_rounds[--num_undo_rounds_size];
+
+				/* Set the replay flag */
+				game_replaying = TRUE;
+			}
 
 			/* Reset our position and GUI elements */
 			reset_gui();
@@ -6932,6 +6971,47 @@ static void run_game(void)
 			}
 		}
 
+		/* Redo previous choice */
+		else if (restart_loop == RESTART_REDO)
+		{
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
+
+			/* Initialize game */
+			init_game(&real_game);
+
+			if (num_undo < max_undo)
+			{
+				/* Add one state to undo list */
+				num_undo++;
+
+				/* Check if we redid past a round boundary */
+				if (num_undo > num_undo_rounds[num_undo_rounds_size - 1])
+				{
+					/* Add one round to the undo list */
+					num_undo_rounds_size++;
+				}
+			}
+
+			/* Set the replay flag */
+			game_replaying = TRUE;
+
+			/* Reset our position and GUI elements */
+			reset_gui();
+
+			/* Loop over players */
+			for (i = 0; i < real_game.num_players; i++)
+			{
+				/* Start at beginning of log */
+				real_game.p[i].choice_pos = 0;
+
+				/* Set end of choice log */
+				real_game.p[i].choice_size =
+				        real_game.p[i].choice_history[num_undo];
+			}
+
+		}
+
 		/* Load a new game */
 		else if (restart_loop == RESTART_LOAD)
 		{
@@ -6940,7 +7020,11 @@ static void run_game(void)
 
 			/* Clear undos */
 			num_undo = 0;
+			max_undo = 0;
 			num_undo_rounds_size = 1;
+
+			/* Set the replay flag */
+			game_replaying = TRUE;
 
 			/* Initialize game */
 			init_game(&real_game);
@@ -7331,15 +7415,27 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
  */
 static void gui_undo_choice(GtkMenuItem *menu_item, gpointer data)
 {
+	int i;
+
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for nothing to undo */
 	if (num_undo == 0) return;
 
+	/* Save undo positions */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Save last log size history */
+		real_game.p[i].choice_history[num_undo] = real_game.p[i].choice_size;
+	}
+
+	/* Save last round undo position */
+	num_undo_rounds[num_undo_rounds_size] = num_undo;
+
 	/* Force game over */
 	real_game.game_over = 1;
-	
+
 	/* Switch to undo state when able */
 	restart_loop = RESTART_UNDO;
 
@@ -7352,17 +7448,50 @@ static void gui_undo_choice(GtkMenuItem *menu_item, gpointer data)
  */
 static void gui_undo_round(GtkMenuItem *menu_item, gpointer data)
 {
+	int i;
+
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for nothing to undo */
 	if (num_undo_rounds_size <= 1) return;
 
+	/* Save undo positions */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Save last log size history */
+		real_game.p[i].choice_history[num_undo] = real_game.p[i].choice_size;
+	}
+
+	/* Save last round undo position */
+	num_undo_rounds[num_undo_rounds_size] = num_undo;
+
 	/* Force game over */
 	real_game.game_over = 1;
 	
 	/* Switch to undo state when able */
 	restart_loop = RESTART_UNDO_ROUND;
+
+	/* Quit waiting for events */
+	gtk_main_quit();
+}
+
+/*
+ * Redo choice.
+ */
+static void gui_redo_choice(GtkMenuItem *menu_item, gpointer data)
+{
+	/* Check for connected to server */
+	if (client_state != CS_DISCONN) return;
+
+	/* Check for nothing to redo */
+	if (num_undo == max_undo) return;
+
+	/* Force game over */
+	real_game.game_over = 1;
+	
+	/* Switch to redo state when able */
+	restart_loop = RESTART_REDO;
 
 	/* Quit waiting for events */
 	gtk_main_quit();
@@ -8631,7 +8760,8 @@ int main(int argc, char *argv[])
 	GtkWidget *games_scroll;
 	GtkWidget *menu_bar, *game_menu, *debug_menu, *help_menu, *network_menu;
 	GtkWidget *game_item, *network_item, *debug_item, *help_item;
-	GtkWidget *new_item, *load_item, *select_item, *option_item, *quit_item;
+	GtkWidget *new_item, *load_item, *save_item, *undo_item, *undo_round_item;
+	GtkWidget *redo_item, *select_item, *option_item, *quit_item;
 	GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 	GtkWidget *connect_item, *disconnect_item, *resign_item;
 	GtkWidget *h_sep, *v_sep, *event;
@@ -8824,6 +8954,7 @@ int main(int argc, char *argv[])
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game..."); 
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
+	redo_item = gtk_menu_item_new_with_mnemonic("_Redo");
 	select_item = gtk_menu_item_new_with_mnemonic("Select _Parameters...");
 	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit"); 
@@ -8837,6 +8968,10 @@ int main(int argc, char *argv[])
 	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(undo_item, "activate", window_accel,
 	                           'Z', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(undo_round_item, "activate", window_accel,
+	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
+	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(select_item, "activate", window_accel,
 	                           'P', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
@@ -8850,6 +8985,7 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_round_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), redo_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), select_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
@@ -8907,13 +9043,14 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_new_game), NULL);
 	g_signal_connect(G_OBJECT(load_item), "activate",
 	                 G_CALLBACK(gui_load_game), NULL);
-	
 	g_signal_connect(G_OBJECT(save_item), "activate",
 	                 G_CALLBACK(gui_save_game), NULL);
 	g_signal_connect(G_OBJECT(undo_item), "activate",
 	                 G_CALLBACK(gui_undo_choice), NULL);
 	g_signal_connect(G_OBJECT(undo_round_item), "activate",
 	                 G_CALLBACK(gui_undo_round), NULL);
+	g_signal_connect(G_OBJECT(redo_item), "activate",
+	                 G_CALLBACK(gui_redo_choice), NULL);
 	g_signal_connect(G_OBJECT(select_item), "activate",
 	                 G_CALLBACK(select_parameters), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",

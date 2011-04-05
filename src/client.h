@@ -6,6 +6,7 @@
 #define RESTART_UNDO 3
 #define RESTART_NONE 4
 #define RESTART_UNDO_ROUND 5
+#define RESTART_REDO 6
 
 /*
  * User options.
