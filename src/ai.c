@@ -6182,7 +6182,8 @@ decisions ai_func =
 	ai_explore_sample,
 	NULL,
 	ai_game_over,
-	ai_shutdown
+	ai_shutdown,
+	NULL,
 };
 
 /*

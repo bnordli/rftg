@@ -5,6 +5,8 @@
 #define RESTART_LOAD 2
 #define RESTART_UNDO 3
 #define RESTART_NONE 4
+#define RESTART_UNDO_ROUND 5
+#define RESTART_REDO 6
 
 /*
  * User options.
@@ -54,6 +56,14 @@ typedef struct options
 	int multi_min;
 	int multi_max;
 
+	/* Autosave */
+	int auto_save;
+
+	/* Save log at end of game */
+	int save_log;
+
+	/* Colored log */
+	int colored_log;
 } options;
 
 extern options opt;
@@ -85,6 +95,7 @@ extern void redraw_everything(void);
 extern void modify_gui(void);
 extern void reset_gui(void);
 extern void switch_view(int lobby, int chat);
+extern void gui_client_state_changed(int playing_game);
 
 extern void game_view_changed(GtkTreeView *view, gpointer data);
 extern void send_chat(GtkEntry *entry, gpointer data);

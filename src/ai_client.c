@@ -517,6 +517,13 @@ void message_add(game *g, char *msg)
 }
 
 /*
+ * Handle a formatted message.
+ */
+void message_add_formatted(game *g, char *msg, char *tag)
+{
+}
+
+/*
  * Use simple random number generator.
  */
 int game_rand(game *g)

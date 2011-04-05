@@ -954,6 +954,7 @@ static decisions prepare_func =
 	NULL,
 	NULL,
 	NULL,
+	NULL,
 };
 
 /*
@@ -1073,7 +1074,7 @@ static gboolean message_read(gpointer data)
 {
 	char *ptr = data;
 	int type, size;
-	char text[1024], username[1024];
+	char text[1024], format[1024], username[1024];
 	GtkTreeIter list_iter;
 	GtkTextIter end_iter;
 	GtkTextMark *end_mark;
@@ -1093,6 +1094,9 @@ static gboolean message_read(gpointer data)
 
 			/* Set state */
 			client_state = CS_LOBBY;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1118,6 +1122,9 @@ static gboolean message_read(gpointer data)
 
 			/* Set login status */
 			gtk_label_set_text(GTK_LABEL(login_status), text);
+
+			/* Disconnect from server */
+			disconnect();
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1270,6 +1277,10 @@ static gboolean message_read(gpointer data)
 
 			/* Mark game as being played */
 			playing_game = 1;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
+
 			break;
 
 		/* We have been removed from a game */
@@ -1288,8 +1299,20 @@ static gboolean message_read(gpointer data)
 			/* Read message */
 			get_string(text, &ptr);
 
-			/* Add message to log */
-			message_add(&real_game, text);
+			/* Check for additional format string */
+			if (size > strlen(text) + 1 + 8)
+			{
+				/* Read format tag */
+				get_string(format, &ptr);
+
+				/* Add formatted message to log */
+				message_add_formatted(&real_game, text, format);
+			}
+			else
+			{
+				/* Add message to log */
+				message_add(&real_game, text);
+			}
 			break;
 
 		/* Received in-game chat message */
@@ -1318,7 +1341,7 @@ static gboolean message_read(gpointer data)
 			/* Add username */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_BOLD,
 			                                 NULL);
 
 			/* Get end mark */
@@ -1331,10 +1354,10 @@ static gboolean message_read(gpointer data)
 				/* Add text (bolded) */
 				gtk_text_buffer_insert_with_tags_by_name(
 				                                 chat_buffer,
-								 &end_iter,
-								 text, -1,
-				                                 "bold",
-								 NULL);
+				                                 &end_iter,
+				                                 text, -1,
+				                                 FORMAT_BOLD,
+				                                 NULL);
 			}
 			else
 			{
@@ -1374,7 +1397,7 @@ static gboolean message_read(gpointer data)
 			/* Add username to chat window */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_BOLD,
 			                                 NULL);
 
 			/* Get end of buffer */
@@ -1475,6 +1498,9 @@ static gboolean message_read(gpointer data)
 			/* Clear game played flag */
 			playing_game = 0;
 
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
+			
 			/* Reset displayed cards */
 			reset_cards(&real_game, TRUE, TRUE);
 
@@ -1912,6 +1938,9 @@ with the password you enter.");
 		/* Set client state */
 		client_state = CS_INIT;
 
+		/* Notify gui */
+		gui_client_state_changed(playing_game);
+
 		/* Freeze server name/port once connection is established */
 		gtk_widget_set_sensitive(server, FALSE);
 		gtk_widget_set_sensitive(port, FALSE);
@@ -2042,6 +2071,9 @@ static void disconnect(void)
 
 	/* Not playing in a game */
 	playing_game = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game);
 
 	/* Quit from all nested main loops */
 	g_timeout_add(0, quit_from_main, NULL);
@@ -2422,6 +2454,9 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Clear game played flag */
 	playing_game = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game);
 
 	/* Switch back to lobby view */
 	switch_view(1, 1);

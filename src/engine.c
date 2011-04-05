@@ -698,7 +698,7 @@ void start_prestige(game *g)
 				strcat(msg, " for Prestige Leader.\n");
 
 				/* Send message */
-				message_add(g, msg);
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
 		}
 
@@ -1143,22 +1143,6 @@ void add_good(game *g, card *c_ptr)
 	/* Mark covered card */
 	c_ptr->covered = which;
 }
-
-/*
- * Names of Search categories.
- */
-char *search_name[MAX_SEARCH] =
-{
-	"development providing +1 or +2 Military",
-	"military windfall with 1 or 2 defense",
-	"peaceful windfall with 1 or 2 cost",
-	"world with Chromosome symbol",
-	"world producing or coming with Alien good",
-	"card consuming two or more goods",
-	"military world with 5 or more defense",
-	"6-cost development",
-	"card with takeover power"
-};
 
 /*
  * Check if a card matches a Search category.
@@ -3964,7 +3948,7 @@ int settle_check_takeover(game *g, int who)
 		        g->deck[target].d_ptr->name);
 
 		/* Send message */
-		message_add(g, msg);
+		message_add_formatted(g, msg, FORMAT_TAKEOVER);
 	}
 
 	/* Discard card used, if needed */
@@ -4906,6 +4890,17 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Takeover fails */
 		defeated = 1;
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "Takeover of %s is defeated because the world has been moved.\n",
+			              c_ptr->d_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
+		}
 	}
 
 	/* Compute current owner's defense */
@@ -4937,6 +4932,28 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		prestige += 2;
 	}
 
+	/* Message */
+	if (!g->simulation && !defeated)
+	{
+		/* Format attack message */
+		sprintf(msg, "%s attacks %s with %d military.\n",
+		             g->p[who].name,
+		             c_ptr->d_ptr->name,
+		             attack);
+
+		/* Send attack message */
+		message_add(g, msg);
+
+		/* Format defense message */
+		sprintf(msg, "%s defends %s with %d military.\n",
+		             g->p[c_ptr->owner].name,
+		             c_ptr->d_ptr->name,
+		             defense);
+
+		/* Send defense message */
+		message_add(g, msg);
+	}
+
 	/* Check for insufficient attack strength */
 	if (defeated || attack < defense)
 	{
@@ -4948,7 +4965,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			        c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
 		}
 
 		/* Failure */
@@ -4969,7 +4986,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 				c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
 		}
 
 		/* Discard card */
@@ -5021,7 +5038,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			c_ptr->d_ptr->name);
 
 		/* Send message */
-		message_add(g, msg);
+		message_add_formatted(g, msg, FORMAT_TAKEOVER);
 	}
 
 	/* Check for good on world */
@@ -5141,7 +5158,7 @@ void resolve_takeovers(game *g)
 					g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				message_add(g, msg);
+				message_add_formatted(g, msg, FORMAT_TAKEOVER);
 			}
 		}
 	}
@@ -5153,7 +5170,7 @@ void resolve_takeovers(game *g)
 		if (!resolve_takeover(g, g->takeover_who[i],
 		                         g->takeover_target[i],
 		                         g->takeover_power[i],
-					 g->takeover_defeated[i]))
+		                         g->takeover_defeated[i]))
 		{
 			/* Fail future declarations if one fails */
 			for (j = i + 1; j < g->num_takeover; j++)
@@ -5163,6 +5180,18 @@ void resolve_takeovers(game *g)
 				{
 					/* Defeat takeover */
 					g->takeover_defeated[j] = 1;
+				}
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "Takeover of %s is defeated because takeover of %s failed.\n",
+					             g->deck[list[j]].d_ptr->name,
+					             g->deck[list[i]].d_ptr->name);
+
+					/* Send message */
+					message_add_formatted(g, msg, FORMAT_TAKEOVER);
 				}
 			}
 		}
@@ -8590,34 +8619,6 @@ static int check_goal_player(game *g, int goal, int who)
 }
 
 /*
- * Goal names.
- */
-char *goal_name[MAX_GOAL] =
-{
-	"Galactic Standard of Living",
-	"System Diversity",
-	"Overlord Discoveries",
-	"Budget Surplus",
-	"Innovation Leader",
-	"Galactic Status",
-	"Uplift Knowledge",
-	"Galactic Riches",
-	"Expansion Leader",
-	"Peace/War Leader",
-	"Galactic Standing",
-	"Military Influence",
-
-	"Greatest Military",
-	"Largest Industry",
-	"Greatest Infrastructure",
-	"Production Leader",
-	"Research Leader",
-	"Propaganda Edge",
-	"Galactic Prestige",
-	"Prosperity Lead",
-};
-
-/*
  * Check for loss of a "most" goal.  These goals can be lost at any time
  * by discarding active cards, for example.
  */
@@ -8672,7 +8673,7 @@ void check_goal_loss(game *g, int who, int goal)
 			        goal_name[goal]);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, FORMAT_GOAL);
 		}
 	}
 }
@@ -8783,7 +8784,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -8877,7 +8878,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -8928,7 +8929,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -9040,6 +9041,44 @@ void begin_game(game *g)
 	int lowest = MAX_DECK, low_i = -1;
 	int num_start = 0, num_start_red = 0, num_start_blue = 0;
 	char msg[1024];
+
+	/* Format message */
+	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n", exp_names[g->expanded]);
+
+	/* Send message */
+	message_add(g, msg);
+
+	/* Format num players and advanced message */
+	if (!g->advanced) 
+	{
+		sprintf(msg, "%s.\n", player_labels[g->num_players - 2]);
+	} 
+	else 
+	{
+		sprintf(msg, "%s, advanced game.\n", player_labels[g->num_players - 2]);
+	}
+
+	/* Send message */
+	message_add(g, msg);
+
+	if (g->goal_disabled && g-> takeover_disabled) 
+	{
+		/* Send message */
+		message_add(g, "Goals and takeovers disabled.\n");
+	} 
+	else if (g->goal_disabled)
+	{
+		/* Send message */
+		message_add(g, "Goals disabled.\n");
+	}
+	else if (g->takeover_disabled)
+	{
+		/* Send message */
+		message_add(g, "Takeovers disabled.\n");
+	}
+
+	/* Send start of game message */
+	message_add_formatted(g, "--- Start of game ---\n", FORMAT_BOLD);
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -9328,32 +9367,6 @@ void begin_game(game *g)
 }
 
 /*
- * Action names.
- */
-static char *actname[19] =
-{
-	"Search",
-	"Explore +5",
-	"Explore +1,+1",
-	"Develop",
-	"Develop",
-	"Settle",
-	"Settle",
-	"Consume-Trade",
-	"Consume-x2",
-	"Produce",
-	"Prestige Explore +5",
-	"Prestige Explore +1,+1",
-	"Prestige Develop",
-	"Prestige Develop",
-	"Prestige Settle",
-	"Prestige Settle",
-	"Prestige Consume-Trade",
-	"Prestige Consume-x2",
-	"Prestige Produce",
-};
-
-/*
  * Return an action name.
  */
 char *action_name(int act)
@@ -9402,8 +9415,22 @@ int game_round(game *g)
 		/* Format message */
 		sprintf(msg, "--- Round %d begins ---\n", g->round);
 
-		/* Send messag e*/
-		message_add(g, msg);
+		/* Send message */
+		message_add_formatted(g, msg, FORMAT_BOLD);
+
+		/* Loop over players YYY */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Get player pointer */
+			p_ptr = &g->p[i];
+
+			/* Check for auto_save function */
+			if (p_ptr->control->auto_save)
+			{
+				/* Call auto_save callback */
+				p_ptr->control->auto_save(g, i);
+			}
+		}
 	}
 
 	/* Award prestige bonuses */
@@ -9461,8 +9488,16 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 
 		/* Check for real advanced game */
@@ -9473,8 +9508,17 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE ||
+			    p_ptr->action[1] == ACT_SEARCH || p_ptr->action[1] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 	}
 
@@ -9517,8 +9561,16 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 
 		/* Check for real game */
@@ -9529,8 +9581,17 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE ||
+			    p_ptr->action[1] == ACT_SEARCH || p_ptr->action[1] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 	}
 
@@ -9958,14 +10019,14 @@ static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 }
 
 /*
- * Add bonuses to score from given card.
+ * Compute VPs from a given card.
  */
-static void add_score_bonus(game *g, int who, int which)
+int compute_card_vp(game *g, int who, int which)
 {
 	player *p_ptr;
 	card *c_ptr, *score;
 	vp_bonus *v_ptr;
-	int i, j, x, count = 0, types[6];
+	int i, j, x, vp = 0, count = 0, types[6];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -9983,22 +10044,22 @@ static void add_score_bonus(game *g, int who, int which)
 		if (v_ptr->type == VP_THREE_VP)
 		{
 			/* Add bonus for VP chips */
-			p_ptr->end_vp += p_ptr->vp / 3;
+			vp += p_ptr->vp / 3;
 		}
 		else if (v_ptr->type == VP_TOTAL_MILITARY)
 		{
 			/* Add bonus for military strength */
-			p_ptr->end_vp += total_military(g, who);
+			vp += total_military(g, who);
 		}
 		else if (v_ptr->type == VP_NEGATIVE_MILITARY)
 		{
 			/* Add bonus for negative military strength */
-			p_ptr->end_vp -= total_military(g, who);
+			vp -= total_military(g, who);
 		}
 		else if (v_ptr->type == VP_PRESTIGE)
 		{
 			/* Add bonus for prestige */
-			p_ptr->end_vp += p_ptr->prestige;
+			vp += p_ptr->prestige;
 		}
 		else if (v_ptr->type == VP_KIND_GOOD)
 		{
@@ -10041,10 +10102,10 @@ static void add_score_bonus(game *g, int who, int which)
 			/* Award points based on number of types */
 			switch (count)
 			{
-				case 1: p_ptr->end_vp += 1; break;
-				case 2: p_ptr->end_vp += 3; break;
-				case 3: p_ptr->end_vp += 6; break;
-				case 4: p_ptr->end_vp += 10; break;
+				case 1: vp += 1; break;
+				case 2: vp += 3; break;
+				case 3: vp += 6; break;
+				case 4: vp += 10; break;
 			}
 		}
 	}
@@ -10068,13 +10129,16 @@ static void add_score_bonus(game *g, int who, int which)
 			if (bonus_match(g, v_ptr, c_ptr->d_ptr))
 			{
 				/* Add score */
-				p_ptr->end_vp += v_ptr->point;
+				vp += v_ptr->point;
 
 				/* Skip remaining bonuses */
 				break;
 			}
 		}
 	}
+
+	/* Return the score */
+	return vp;
 }
 
 /*
@@ -10105,7 +10169,7 @@ static void score_game_player(game *g, int who)
 		if (c_ptr->d_ptr->num_vp_bonus)
 		{
 			/* Add in bonuses */
-			add_score_bonus(g, who, x);
+			p_ptr->end_vp += compute_card_vp(g, who, x);
 		}
 	}
 
@@ -10237,6 +10301,13 @@ void declare_winner(game *g)
 	int i, t, b_s = -1, b_t = -1;
 	char msg[1024];
 
+	/* Check for simulation */
+	if (!g->simulation)
+	{
+		/* Send end of game message */
+		message_add_formatted(g, "--- End of game ---\n", FORMAT_BOLD);
+	}
+
 	/* Score game */
 	score_game(g);
 
@@ -10273,6 +10344,17 @@ void declare_winner(game *g)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
+		/* Check for simulation */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s ends with %d.\n", g->p[i].name,
+			                                   g->p[i].end_vp);
+
+			/* Send message */
+			message_add(g, msg);
+		}
+
 		/* Skip players who do not have best score */
 		if (p_ptr->end_vp < b_s) continue;
 
@@ -10285,16 +10367,33 @@ void declare_winner(game *g)
 
 		/* Set winner flag */
 		p_ptr->winner = 1;
+	}
 
-		/* Check for simulation */
-		if (!g->simulation)
+	/* Check for simulation */
+	if (!g->simulation)
+	{
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
 		{
-			/* Format message */
-			sprintf(msg, "%s wins with %d.\n", g->p[i].name,
+			/* Get player pointer */
+			p_ptr = &g->p[i];
+
+			/* Check for winner */
+			if (p_ptr->winner)
+			{
+				/* Format message */
+				sprintf(msg, "%s wins with %d.\n", g->p[i].name,
 			                                   g->p[i].end_vp);
 
-			/* Send message */
-			message_add(g, msg);
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_BOLD);
+			}
 		}
+
+		/* Format message */
+		sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
+
+		/* Send message */
+		message_add(g, msg);
 	}
 }

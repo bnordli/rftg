@@ -23,6 +23,8 @@
  */
 #include "config.h"
 
+#define RELEASE VERSION "b"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -469,6 +471,14 @@
 
 
 /*
+ * GUI: Text formatting
+ */
+#define FORMAT_BOLD "bold"
+#define FORMAT_TAKEOVER "takeover"
+#define FORMAT_GOAL "goal"
+#define FORMAT_PRESTIGE "prestige"
+
+/*
  * Forward declaration.
  */
 struct game;
@@ -654,6 +664,9 @@ typedef struct decisions
 
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
+
+	/* Autosave */
+	void (*auto_save)(struct game *g, int who);
 
 } decisions;
 
@@ -850,8 +863,11 @@ typedef struct game
  * External variables.
  */
 extern design library[MAX_DESIGN];
+extern char *actname[MAX_ACTION * 2 - 1];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
+extern char *exp_names[MAX_EXPANSION + 1];
+extern char *player_labels[MAX_PLAYER];
 extern decisions ai_func;
 extern decisions gui_func;
 
@@ -859,6 +875,7 @@ extern decisions gui_func;
  * External functions.
  */
 extern void message_add(game *g, char *msg);
+extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);
@@ -918,6 +935,7 @@ extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
 extern int total_military(game *g, int who);
+extern int compute_card_vp(game *g, int who, int which);
 extern void score_game(game *g);
 extern char *action_name(int act);
 extern int start_callback(game *g, int who, int list[], int n, int special[],
