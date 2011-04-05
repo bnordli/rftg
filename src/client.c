@@ -1300,6 +1300,7 @@ static gboolean message_read(gpointer data)
 			get_string(text, &ptr);
 
 			/* Check for additional format string */
+			/* TODO: This should become a separate message in a new version */
 			if (size > strlen(text) + 1 + 8)
 			{
 				/* Read format tag */
@@ -1500,7 +1501,7 @@ static gboolean message_read(gpointer data)
 
 			/* Notify gui */
 			gui_client_state_changed(playing_game);
-			
+
 			/* Reset displayed cards */
 			reset_cards(&real_game, TRUE, TRUE);
 

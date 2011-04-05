@@ -1187,6 +1187,7 @@ void message_add(game *g, char *txt)
  */
 void message_add_formatted(game *g, char *txt, char *tag)
 {
+	/* TODO: This should become a separate message in a new version */
 	char msg[1024], *ptr = msg;
 
 	/* Create log message */
@@ -1194,7 +1195,7 @@ void message_add_formatted(game *g, char *txt, char *tag)
 
 	/* Add text of message */
 	put_string(txt, &ptr);
-	
+
 	/* Add format of message */
 	put_string(tag, &ptr);
 

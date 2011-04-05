@@ -9118,11 +9118,11 @@ void begin_game(game *g)
 	message_add(g, msg);
 
 	/* Format num players and advanced message */
-	if (!g->advanced) 
+	if (!g->advanced)
 	{
 		sprintf(msg, "%s.\n", player_labels[g->num_players - 2]);
-	} 
-	else 
+	}
+	else
 	{
 		sprintf(msg, "%s, advanced game.\n", player_labels[g->num_players - 2]);
 	}
@@ -9130,11 +9130,11 @@ void begin_game(game *g)
 	/* Send message */
 	message_add(g, msg);
 
-	if (g->goal_disabled && g-> takeover_disabled) 
+	if (g->goal_disabled && g-> takeover_disabled)
 	{
 		/* Send message */
 		message_add(g, "Goals and takeovers disabled.\n");
-	} 
+	}
 	else if (g->goal_disabled)
 	{
 		/* Send message */

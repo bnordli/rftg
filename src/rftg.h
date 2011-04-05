@@ -1,6 +1,6 @@
 /*
  * Race for the Galaxy AI
- *
+ * 
  * Copyright (C) 2009 Keldon Jones
  *
  * This program is free software; you can redistribute it and/or modify
