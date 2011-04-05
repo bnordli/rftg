@@ -15,12 +15,14 @@ RUNNING
 Run with "./rftg".  You may specify number of players, expansion level,
 etc with some command line options:
 
+	-r <num>       -- A seed to pick when initiating the random pool
 	-p <num>       -- Number of players (including yourself)
 	-a             -- Play a two-player advanced game
 	-e <expansion> -- Expansion level to play:
 				0: Base game only
 				1: The Gathering Storm
 				2: Rebel vs Imperium
+				3: The Brink of War
 
 You may also change these setting once the game is running with the
 "Select Parameters" option under the Game menu.

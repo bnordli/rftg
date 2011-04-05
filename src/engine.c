@@ -20,6 +20,31 @@
 
 #include "rftg.h"
 
+/*
+ * Expansion level names.
+ */
+char *exp_names[MAX_EXPANSION + 1] =
+{
+	"Base game only",
+	"The Gathering Storm",
+	"Rebel vs Imperium",
+	"The Brink of War",
+	NULL
+};
+
+/*
+ * Labels for number of players.
+ */
+char *player_labels[MAX_PLAYER] =
+{
+	"Two players",
+	"Three players",
+	"Four players",
+	"Five players",
+	"Six players",
+	NULL
+};
+
 void dump_hand(game *g, int who)
 {
 	card *c_ptr;
@@ -1143,6 +1168,22 @@ void add_good(game *g, card *c_ptr)
 	/* Mark covered card */
 	c_ptr->covered = which;
 }
+
+/*
+ * Names of Search categories.
+ */
+char *search_name[MAX_SEARCH] =
+{
+	"development providing +1 or +2 Military",
+	"military windfall with 1 or 2 defense",
+	"peaceful windfall with 1 or 2 cost",
+	"world with Chromosome symbol",
+	"world producing or coming with Alien good",
+	"card consuming two or more goods",
+	"military world with 5 or more defense",
+	"6-cost development giving ? VP",
+	"card with takeover power"
+};
 
 /*
  * Check if a card matches a Search category.
@@ -8619,6 +8660,34 @@ static int check_goal_player(game *g, int goal, int who)
 }
 
 /*
+ * Goal names.
+ */
+char *goal_name[MAX_GOAL] =
+{
+	"Galactic Standard of Living",
+	"System Diversity",
+	"Overlord Discoveries",
+	"Budget Surplus",
+	"Innovation Leader",
+	"Galactic Status",
+	"Uplift Knowledge",
+	"Galactic Riches",
+	"Expansion Leader",
+	"Peace/War Leader",
+	"Galactic Standing",
+	"Military Influence",
+
+	"Greatest Military",
+	"Largest Industry",
+	"Greatest Infrastructure",
+	"Production Leader",
+	"Research Leader",
+	"Propaganda Edge",
+	"Galactic Prestige",
+	"Prosperity Lead",
+};
+
+/*
  * Check for loss of a "most" goal.  These goals can be lost at any time
  * by discarding active cards, for example.
  */
@@ -9049,11 +9118,11 @@ void begin_game(game *g)
 	message_add(g, msg);
 
 	/* Format num players and advanced message */
-	if (!g->advanced) 
+	if (!g->advanced)
 	{
 		sprintf(msg, "%s.\n", player_labels[g->num_players - 2]);
-	} 
-	else 
+	}
+	else
 	{
 		sprintf(msg, "%s, advanced game.\n", player_labels[g->num_players - 2]);
 	}
@@ -9061,11 +9130,11 @@ void begin_game(game *g)
 	/* Send message */
 	message_add(g, msg);
 
-	if (g->goal_disabled && g-> takeover_disabled) 
+	if (g->goal_disabled && g-> takeover_disabled)
 	{
 		/* Send message */
 		message_add(g, "Goals and takeovers disabled.\n");
-	} 
+	}
 	else if (g->goal_disabled)
 	{
 		/* Send message */
@@ -9365,6 +9434,32 @@ void begin_game(game *g)
 	check_goals(g);
 	g->cur_action = -1;
 }
+
+/*
+ * Action names.
+ */
+char *actname[MAX_ACTION * 2 - 1] =
+{
+	"Search",
+	"Explore +5",
+	"Explore +1,+1",
+	"Develop",
+	"Develop",
+	"Settle",
+	"Settle",
+	"Consume-Trade",
+	"Consume-x2",
+	"Produce",
+	"Prestige Explore +5",
+	"Prestige Explore +1,+1",
+	"Prestige Develop",
+	"Prestige Develop",
+	"Prestige Settle",
+	"Prestige Settle",
+	"Prestige Consume-Trade",
+	"Prestige Consume-x2",
+	"Prestige Produce",
+};
 
 /*
  * Return an action name.
@@ -10390,10 +10485,14 @@ void declare_winner(game *g)
 			}
 		}
 
-		/* Format message */
-		sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
+		/* Print seed if the game was local */
+		if (g->start_seed != 0)
+		{
+			/* Format message */
+			sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
 
-		/* Send message */
-		message_add(g, msg);
+			/* Send message */
+			message_add(g, msg);
+		}
 	}
 }

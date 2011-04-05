@@ -5,14 +5,14 @@ noinst_PROGRAMS += server ai_client
 endif
 dist_bin_SCRIPTS = do_train
 
-rftg_SOURCES = constants.c engine.c init.c ai.c loadsave.c gui.c net.c net.h rftg.h \
+rftg_SOURCES = engine.c init.c ai.c loadsave.c gui.c net.c net.h rftg.h \
                client.c client.h comm.c comm.h
 learner_SOURCES = engine.c init.c ai.c learner.c net.c net.h rftg.h
 dumpnet_SOURCES = net.c dumpnet.c net.h
-server_SOURCES = constants.c server.c engine.c init.c ai.c loadsave.c net.c net.h rftg.h \
-		  comm.c comm.h
-ai_client_SOURCES = constants.c ai_client.c engine.c init.c ai.c net.c net.h rftg.h \
-			comm.c comm.h
+server_SOURCES = server.c engine.c init.c ai.c loadsave.c net.c net.h rftg.h \
+		 comm.c comm.h
+ai_client_SOURCES = ai_client.c engine.c init.c ai.c net.c net.h rftg.h comm.c \
+			comm.h
 
 dist_pkgdata_DATA = cards.txt images.data
 

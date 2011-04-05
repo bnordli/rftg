@@ -458,7 +458,7 @@ void save_log(void)
 
 	/* Get start mark */
 	gtk_text_buffer_get_start_iter(message_buffer, &start_iter);
- 
+
 	/* Get end mark */
 	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);
 
@@ -2453,14 +2453,14 @@ static char *display_card_tooltip(game *g, int who, int which)
 		/* Return tooltip */
 		return strdup(text);
 	}
-	else if (c_ptr->d_ptr->num_vp_bonus > 0) 
+	else if (c_ptr->d_ptr->num_vp_bonus > 0)
 	{
 		/* Compute VPs */
 		vp = compute_card_vp(g, c_ptr->owner, which);
 
 		/* Format tooltip text */
 		sprintf(text, "%d VP%s", vp, (vp == 1 || vp == -1) ? "" : "s");
-		
+
 		/* Return tooltip */
 		return strdup(text);
 	}
@@ -7528,7 +7528,7 @@ static void gui_undo_round(GtkMenuItem *menu_item, gpointer data)
 
 	/* Force game over */
 	real_game.game_over = 1;
-	
+
 	/* Switch to undo state when able */
 	restart_loop = RESTART_UNDO_ROUND;
 
@@ -7549,7 +7549,7 @@ static void gui_redo_choice(GtkMenuItem *menu_item, gpointer data)
 
 	/* Force game over */
 	real_game.game_over = 1;
-	
+
 	/* Switch to redo state when able */
 	restart_loop = RESTART_REDO;
 
@@ -8980,15 +8980,15 @@ int main(int argc, char *argv[])
 	game_menu = gtk_menu_new();
 
 	/* Create game menu items */
-	new_item = gtk_menu_item_new_with_mnemonic("_New"); 
-	load_item = gtk_menu_item_new_with_mnemonic("_Load Game..."); 
-	save_item = gtk_menu_item_new_with_mnemonic("_Save Game..."); 
+	new_item = gtk_menu_item_new_with_mnemonic("_New");
+	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
+	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
 	redo_item = gtk_menu_item_new_with_mnemonic("_Redo");
 	select_item = gtk_menu_item_new_with_mnemonic("Select _Parameters...");
 	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
-	quit_item = gtk_menu_item_new_with_mnemonic("_Quit"); 
+	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
 	/* Add accelerators for game menu items */
 	gtk_widget_add_accelerator(new_item, "activate", window_accel,
