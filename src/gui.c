@@ -2327,7 +2327,7 @@ static char *get_military_tooltip(game *g, int who)
 	if (g->p[who].bonus_military > 0)
 	{
 		/* Create text */
-		sprintf(text, "\nTemporary military (current): %d",
+		sprintf(text, "\nActivated temporary military: %d",
 		              g->p[who].bonus_military);
 		strcat(msg, text);
 	}
@@ -3433,7 +3433,7 @@ static void action_choice_changed_advanced(GtkToggleButton *button, gpointer dat
 }
 
 /*
- * Callback when action choice changes in advanced game.
+ * Callback when action choice changes.
  */
 static void action_choice_changed(GtkToggleButton *button, gpointer data)
 {
@@ -6618,7 +6618,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 		g->p[i].choice_history[num_undo] = g->p[i].choice_size;
 	}
 
-	/* Save undo round positions */
+	/* Save undo round position */
 	if (save_round)
 	{
 		num_undo_rounds[num_undo_rounds_size++] = num_undo;
