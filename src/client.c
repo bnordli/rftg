@@ -1326,7 +1326,7 @@ static gboolean message_read(gpointer data)
 			/* Add username */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_BOLD,
 			                                 NULL);
 
 			/* Get end mark */
@@ -1339,10 +1339,10 @@ static gboolean message_read(gpointer data)
 				/* Add text (bolded) */
 				gtk_text_buffer_insert_with_tags_by_name(
 				                                 chat_buffer,
-								 &end_iter,
-								 text, -1,
-				                                 "bold",
-								 NULL);
+				                                 &end_iter,
+				                                 text, -1,
+				                                 FORMAT_BOLD,
+				                                 NULL);
 			}
 			else
 			{
@@ -1382,7 +1382,7 @@ static gboolean message_read(gpointer data)
 			/* Add username to chat window */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_BOLD,
 			                                 NULL);
 
 			/* Get end of buffer */
