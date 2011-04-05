@@ -35,6 +35,15 @@ void message_add(game *g, char *msg)
 }
 
 /*
+ * Print messages to standard output.
+ */
+void message_add_formatted(game *g, char *msg, char *tag)
+{
+	/* Print without formatting */
+	message_add(g, msg);
+}
+
+/*
  * Use simple random number generator.
  */
 int game_rand(game *g)

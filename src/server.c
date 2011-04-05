@@ -1176,6 +1176,29 @@ void message_add(game *g, char *txt)
 }
 
 /*
+ * Handle a formatted game message.
+ */
+void message_add_formatted(game *g, char *txt, char *tag)
+{
+	char msg[1024], *ptr = msg;
+
+	/* Create log message */
+	start_msg(&ptr, MSG_LOG);
+
+	/* Add text of message */
+	put_string(txt, &ptr);
+	
+	/* Add format of message */
+	put_string(tag, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send message to all clients in game */
+	send_to_session(g->session_id, msg);
+}
+
+/*
  * Wait for player to have an answer ready.
  */
 static void server_wait(game *g, int who)

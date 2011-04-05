@@ -1074,7 +1074,7 @@ static gboolean message_read(gpointer data)
 {
 	char *ptr = data;
 	int type, size;
-	char text[1024], username[1024];
+	char text[1024], format[1024], username[1024];
 	GtkTreeIter list_iter;
 	GtkTextIter end_iter;
 	GtkTextMark *end_mark;
@@ -1296,8 +1296,20 @@ static gboolean message_read(gpointer data)
 			/* Read message */
 			get_string(text, &ptr);
 
-			/* Add message to log */
-			message_add(&real_game, text);
+			/* Check for additional format string */
+			if (size > strlen(text) + 1 + 8)
+			{
+				/* Read format tag */
+				get_string(format, &ptr);
+
+				/* Add formatted message to log */
+				message_add_formatted(&real_game, text, format);
+			}
+			else
+			{
+				/* Add message to log */
+				message_add(&real_game, text);
+			}
 			break;
 
 		/* Received in-game chat message */

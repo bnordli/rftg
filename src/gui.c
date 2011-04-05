@@ -7062,6 +7062,9 @@ static void run_game(void)
 		/* Declare winner */
 		declare_winner(&real_game);
 
+		/* Dump log */
+		save_log();
+
 		/* Reset displayed cards */
 		reset_cards(&real_game, TRUE, TRUE);
 
@@ -7554,31 +7557,6 @@ static void gui_redo_choice(GtkMenuItem *menu_item, gpointer data)
 	/* Quit waiting for events */
 	gtk_main_quit();
 }
-
-/*
- * Expansion level names.
- */
-char *exp_names[MAX_EXPANSION + 1] =
-{
-	"Base game only",
-	"The Gathering Storm",
-	"Rebel vs Imperium",
-	"The Brink of War",
-	NULL
-};
-
-/*
- * Labels for number of players.
- */
-char *player_labels[MAX_PLAYER] =
-{
-	"Two players",
-	"Three players",
-	"Four players",
-	"Five players",
-	"Six players",
-	NULL
-};
 
 /*
  * Full-size image option names.
