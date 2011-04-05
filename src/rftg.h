@@ -31,6 +31,8 @@
 
 #define RELEASE VERSION "b"
 
+#define RELEASE VERSION "b"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "stdint.h"
