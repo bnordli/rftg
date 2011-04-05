@@ -95,6 +95,7 @@ extern void redraw_everything(void);
 extern void modify_gui(void);
 extern void reset_gui(void);
 extern void switch_view(int lobby, int chat);
+extern void gui_client_state_changed(int playing_game);
 
 extern void game_view_changed(GtkTreeView *view, gpointer data);
 extern void send_chat(GtkEntry *entry, gpointer data);

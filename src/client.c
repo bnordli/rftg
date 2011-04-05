@@ -1095,6 +1095,9 @@ static gboolean message_read(gpointer data)
 			/* Set state */
 			client_state = CS_LOBBY;
 
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
+
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
 
@@ -1271,6 +1274,10 @@ static gboolean message_read(gpointer data)
 
 			/* Mark game as being played */
 			playing_game = 1;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
+
 			break;
 
 		/* We have been removed from a game */
@@ -1476,6 +1483,9 @@ static gboolean message_read(gpointer data)
 			/* Clear game played flag */
 			playing_game = 0;
 
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
+			
 			/* Reset displayed cards */
 			reset_cards(&real_game, TRUE, TRUE);
 
@@ -1913,6 +1923,9 @@ with the password you enter.");
 		/* Set client state */
 		client_state = CS_INIT;
 
+		/* Notify gui */
+		gui_client_state_changed(playing_game);
+
 		/* Freeze server name/port once connection is established */
 		gtk_widget_set_sensitive(server, FALSE);
 		gtk_widget_set_sensitive(port, FALSE);
@@ -2043,6 +2056,9 @@ static void disconnect(void)
 
 	/* Not playing in a game */
 	playing_game = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game);
 
 	/* Quit from all nested main loops */
 	g_timeout_add(0, quit_from_main, NULL);
@@ -2423,6 +2439,9 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Clear game played flag */
 	playing_game = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game);
 
 	/* Switch back to lobby view */
 	switch_view(1, 1);

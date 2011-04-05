@@ -339,6 +339,10 @@ static GtkWidget *game_status;
 static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
+static GtkWidget *new_item, *load_item, *save_item, *undo_item, *undo_round_item;
+static GtkWidget *redo_item, *select_item, *option_item, *quit_item;
+static GtkWidget *debug_card_item, *debug_ai_item, *about_item;
+static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *entry_hbox;
 
 /*
@@ -433,7 +437,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	                                   message_end);
 }
 
-void save_log()
+void save_log(void)
 {
 	FILE *fff;
 	char filename[30];
@@ -7276,6 +7280,60 @@ static void apply_options(void)
 }
 
 /*
+ * Set sensitivity of menu items based on client state.
+ */
+void gui_client_state_changed(int playing_game)
+{
+	/* Check if client is disconnected */
+	if (client_state == CS_DISCONN)
+	{
+		/* Activate local game menu items */
+		gtk_widget_set_sensitive(new_item, TRUE);
+		gtk_widget_set_sensitive(load_item, TRUE);
+		gtk_widget_set_sensitive(save_item, TRUE);
+		gtk_widget_set_sensitive(undo_item, TRUE);
+		gtk_widget_set_sensitive(undo_round_item, TRUE);
+		gtk_widget_set_sensitive(redo_item, TRUE);
+		gtk_widget_set_sensitive(select_item, TRUE);
+		gtk_widget_set_sensitive(debug_card_item, TRUE);
+		gtk_widget_set_sensitive(debug_ai_item, TRUE);
+		gtk_widget_set_sensitive(connect_item, TRUE);
+
+		/* Deactivate disconnect menu item */
+		gtk_widget_set_sensitive(disconnect_item, FALSE);
+	}
+	else
+	{
+		/* Deactivate local game menu items */
+		gtk_widget_set_sensitive(new_item, FALSE);
+		gtk_widget_set_sensitive(load_item, FALSE);
+		gtk_widget_set_sensitive(save_item, FALSE);
+		gtk_widget_set_sensitive(undo_item, FALSE);
+		gtk_widget_set_sensitive(undo_round_item, FALSE);
+		gtk_widget_set_sensitive(redo_item, FALSE);
+		gtk_widget_set_sensitive(select_item, FALSE);
+		gtk_widget_set_sensitive(debug_card_item, FALSE);
+		gtk_widget_set_sensitive(debug_ai_item, FALSE);
+		gtk_widget_set_sensitive(connect_item, FALSE);
+
+		/* Activate disconnect menu item */
+		gtk_widget_set_sensitive(disconnect_item, TRUE);
+	}
+
+	/* Check if client is playing a game */
+	if (playing_game)
+	{
+		/* Activate the resign menu item */
+		gtk_widget_set_sensitive(resign_item, TRUE);
+	}
+	else
+	{
+		/* Deactivate the resign meny item */
+		gtk_widget_set_sensitive(resign_item, FALSE);
+	}
+}
+
+/*
  * New game.
  */
 static void gui_new_game(GtkMenuItem *menu_item, gpointer data)
@@ -8760,10 +8818,6 @@ int main(int argc, char *argv[])
 	GtkWidget *games_scroll;
 	GtkWidget *menu_bar, *game_menu, *debug_menu, *help_menu, *network_menu;
 	GtkWidget *game_item, *network_item, *debug_item, *help_item;
-	GtkWidget *new_item, *load_item, *save_item, *undo_item, *undo_round_item;
-	GtkWidget *redo_item, *select_item, *option_item, *quit_item;
-	GtkWidget *debug_card_item, *debug_ai_item, *about_item;
-	GtkWidget *connect_item, *disconnect_item, *resign_item;
 	GtkWidget *h_sep, *v_sep, *event;
 	GtkWidget *msg_scroll;
 	GtkWidget *table_box, *active_box;
@@ -9632,6 +9686,9 @@ int main(int argc, char *argv[])
 
 	/* Add main hbox to main window */
 	gtk_container_add(GTK_CONTAINER(window), main_vbox);
+
+	/* Simulate client state changed */
+	gui_client_state_changed(FALSE);
 
 	/* Show all widgets */
 	gtk_widget_show_all(window);
