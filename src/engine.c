@@ -9438,7 +9438,7 @@ void begin_game(game *g)
 /*
  * Action names.
  */
-static char *actname[MAX_ACTION * 2 - 1] =
+char *actname[MAX_ACTION * 2 - 1] =
 {
 	"Search",
 	"Explore +5",
@@ -10485,10 +10485,14 @@ void declare_winner(game *g)
 			}
 		}
 
-		/* Format message */
-		sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
+		/* Print seed if the game was local */
+		if (g->start_seed != 0)
+		{
+			/* Format message */
+			sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
 
-		/* Send message */
-		message_add(g, msg);
+			/* Send message */
+			message_add(g, msg);
+		}
 	}
 }
