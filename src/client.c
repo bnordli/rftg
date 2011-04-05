@@ -1123,6 +1123,9 @@ static gboolean message_read(gpointer data)
 			/* Set login status */
 			gtk_label_set_text(GTK_LABEL(login_status), text);
 
+			/* Disconnect from server */
+			disconnect();
+
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
 			break;
