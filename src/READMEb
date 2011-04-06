@@ -8,6 +8,8 @@ These source files replaces the corresponding files from the 0.8.1 version.
 This patch introduces the following additional command line option:
 
 	-s <savegame>  -- A save game to load when starting the program.
+	-g, -nog       -- Enable or disable goals
+	-t, -not       -- Enable or disable takeovers
 
 Else the instructions and notes are equivalent to the original version and can
 be found in the file README.

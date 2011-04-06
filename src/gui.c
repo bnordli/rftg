@@ -3,6 +3,8 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file patched to *b version by B. Nordli, April 2011.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -7273,6 +7275,13 @@ static void apply_options(void)
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
 
+	/* Check for custom seed value */
+	if (opt.customize_seed)
+	{
+		/* Set start seed */
+		real_game.random_seed = opt.seed;
+	}
+
 	/* Sanity check advanced mode */
 	if (real_game.num_players > 2)
 	{
@@ -7574,6 +7583,8 @@ static char *reduce_names[] =
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
+static GtkWidget *custom_seed_check;
+static GtkWidget *seed_spin_button;
 
 /*
  * Current selections for next game options.
@@ -7620,6 +7631,15 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 }
 
 /*
+ * React to specify custom seed button being toggled.
+ */
+static void seed_toggle(GtkToggleButton *button, gpointer data)
+{
+	/* Toggle the sensitivity of the seed spin button */
+	gtk_widget_set_sensitive(seed_spin_button, gtk_toggle_button_get_active(button));
+}
+
+/*
  * React to an full-size image option button being toggled.
  */
 static void reduce_toggle(GtkToggleButton *button, gpointer data)
@@ -7637,8 +7657,9 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *exp_box, *player_box;
-	GtkWidget *exp_frame, *player_frame;
+	GtkWidget *exp_box, *player_box, *seed_box, *seed_value_box;
+	GtkWidget *exp_frame, *player_frame, *seed_frame;
+	GtkWidget *seed_label;
 	int i;
 
 	/* Check for connected to server */
@@ -7647,8 +7668,8 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Select Parameters", NULL,
 	                                     GTK_DIALOG_MODAL,
-	                                     GTK_STOCK_OK,
-                                             GTK_RESPONSE_ACCEPT,
+	                                     "Start New Game",
+                                         GTK_RESPONSE_ACCEPT,
 	                                     GTK_STOCK_CANCEL,
 	                                     GTK_RESPONSE_REJECT, NULL);
 
@@ -7701,7 +7722,7 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Clear current radio button widget */
 	radio = NULL;
 
-	/* Loop over expansion levels */
+	/* Loop over number of players */
 	for (i = 0; player_labels[i]; i++)
 	{
 		/* Create radio button */
@@ -7716,7 +7737,7 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio),
 			                             TRUE);
 
-			/* Remember current expansion */
+			/* Remember current number of players */
 			next_player = i + 2;
 		}
 
@@ -7735,7 +7756,7 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(player_frame), player_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),player_frame);
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), player_frame);
 
 	/* Create check box for two-player advanced game */
 	advanced_check = gtk_check_button_new_with_label("Two-player advanced");
@@ -7792,6 +7813,52 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		gtk_widget_set_sensitive(disable_takeover_check, FALSE);
 	}
 
+	/* Create vbox to hold seed specification widgets */
+	seed_box = gtk_vbox_new(FALSE, 0);
+
+	/* Create checkbox for specifying custom seed */
+	custom_seed_check = gtk_check_button_new_with_label("Specify custom seed");
+
+	/* Add handler */
+	g_signal_connect(G_OBJECT(custom_seed_check), "toggled",
+	                 G_CALLBACK(seed_toggle), NULL);
+
+	/* Pack checkbox into seed box */
+	gtk_box_pack_start(GTK_BOX(seed_box), custom_seed_check, FALSE, TRUE, 0);
+
+	/* Create hbox to hold seed label and spin box */
+	seed_value_box = gtk_hbox_new(FALSE, 0);
+
+	/* Create seed label */
+	seed_label = gtk_label_new("Value:");
+
+	/* Pack seed label into seed value box */
+	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_label, FALSE, TRUE, 10);
+
+	/* Create spin button for seed */
+	seed_spin_button = gtk_spin_button_new_with_range(0, UINT_MAX, 1);
+
+	/* Set wrap behaviour */
+	gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(seed_spin_button), TRUE);
+
+	/* Disable seed spin box */
+	gtk_widget_set_sensitive(seed_spin_button, FALSE);
+
+	/* Pack seed spin button into seed value box */
+	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_spin_button, FALSE, TRUE, 0);
+
+	/* Pack seed value box into seed box */
+	gtk_box_pack_start(GTK_BOX(seed_box), seed_value_box, FALSE, TRUE, 0);
+
+	/* Create frame around seed widgets */
+	seed_frame = gtk_frame_new("Random seed");
+
+	/* Pack seed widgets into seed frame */
+	gtk_container_add(GTK_CONTAINER(seed_frame), seed_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), seed_frame);
+
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
 
@@ -7822,6 +7889,14 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		opt.disable_takeover = (opt.expanded >= 2) &&
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
+
+		/* Set custom seed flag */
+		opt.customize_seed = gtk_toggle_button_get_active(
+		                          GTK_TOGGLE_BUTTON(custom_seed_check));
+
+		/* Set seed */
+		opt.seed = (unsigned int) gtk_spin_button_get_value(
+		                 GTK_SPIN_BUTTON(seed_spin_button));
 
 		/* Apply options */
 		apply_options();
@@ -7865,7 +7940,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	dialog = gtk_dialog_new_with_buttons("GUI Options", NULL,
 	                                     GTK_DIALOG_MODAL,
 	                                     GTK_STOCK_OK,
-                                             GTK_RESPONSE_ACCEPT,
+                                         GTK_RESPONSE_ACCEPT,
 	                                     GTK_STOCK_CANCEL,
 	                                     GTK_RESPONSE_REJECT, NULL);
 
@@ -8256,8 +8331,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
-					     GTK_STOCK_OK,
-                                             GTK_RESPONSE_ACCEPT, NULL);
+					                     GTK_STOCK_OK,
+                                         GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
@@ -8477,8 +8552,8 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
-					     GTK_STOCK_OK,
-                                             GTK_RESPONSE_ACCEPT, NULL);
+					                     GTK_STOCK_OK,
+                                         GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
@@ -8885,6 +8960,34 @@ int main(int argc, char *argv[])
 		{
 			/* Set random seed */
 			real_game.random_seed = atoi(argv[++i]);
+		}
+
+		/* Check for goals on */
+		else if (!strcmp(argv[i], "-g"))
+		{
+			/* Set goals on */
+			opt.disable_goal = FALSE;
+		}
+
+		/* Check for goals off */
+		else if (!strcmp(argv[i], "-nog"))
+		{
+			/* Set goals on */
+			opt.disable_goal = TRUE;
+		}
+
+		/* Check for takeovers on */
+		else if (!strcmp(argv[i], "-t"))
+		{
+			/* Set goals on */
+			opt.disable_takeover = FALSE;
+		}
+
+		/* Check for takeovers off */
+		else if (!strcmp(argv[i], "-not"))
+		{
+			/* Set goals on */
+			opt.disable_takeover = TRUE;
 		}
 
 		/* Check for saved game */

@@ -28,6 +28,12 @@ typedef struct options
 	/* Disable takeovers */
 	int disable_takeover;
 
+	/* Customize seed */
+	int customize_seed;
+
+	/* Seed value */
+	unsigned int seed;
+
 	/* Reduce/eliminate full-size card image */
 	int full_reduced;
 
