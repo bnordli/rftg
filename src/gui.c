@@ -74,7 +74,7 @@ static int game_replaying;
 /*
  * Undo number of start of rounds.
  */
-static int *num_undo_rounds[50];
+static int num_undo_rounds[50];
 
 /*
  * Current size of num_undo_rounds
@@ -573,8 +573,6 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 	GtkTextIter iter_start, iter_end;
 	GdkPixbuf *buf;
 	char *line;
-	char *start, *end;
-	char card[1024];
 
 	/* Check for hint event */
 	if (event->is_hint)
@@ -585,8 +583,8 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 	else
 	{
 		/* Take coordinates directly */
-		x = event->x;
-		y = event->y;
+		x = (int) event->x;
+		y = (int) event->y;
 	}
 
 	/* Convert window coordinates to buffer coordinates */
@@ -607,11 +605,8 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 	/* Loop over designs */
 	for (i = 0; i < MAX_DESIGN; i++)
 	{
-		/* Find position of card name */
-		start = strstr(line, library[i].name);
-
 		/* Check if card name is found */
-		if (start)
+		if (strstr(line, library[i].name))
 		{
 			/* Set image to card face */
 			buf = image_cache[library[i].index];
@@ -6760,6 +6755,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Save undo round position */
 	if (save_round)
 	{
+		/* Add round position */
 		num_undo_rounds[num_undo_rounds_size++] = num_undo;
 	}
 
