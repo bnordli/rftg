@@ -9165,13 +9165,13 @@ int main(int argc, char *argv[])
 	network_menu = gtk_menu_new();
 
 	/* Create network menu items */
-	connect_item = gtk_menu_item_new_with_mnemonic("_Connect to server...");
+	connect_item = gtk_menu_item_new_with_mnemonic("Connect to se_rver...");
 	disconnect_item = gtk_menu_item_new_with_mnemonic("_Disconnect");
 	resign_item = gtk_menu_item_new_with_mnemonic("_Resign from game");
 
 	/* Add accelerators for network menu items */
 	gtk_widget_add_accelerator(connect_item, "activate", window_accel,
-	                           'C', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'R', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 
 	/* Add items to network menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(network_menu), connect_item);
