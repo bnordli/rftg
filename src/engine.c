@@ -2041,6 +2041,18 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				consume_special[0] = special[i];
 				consume_special[1] = j;
 				num_consume_special = 2;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Rare good to "
+					        "reduce cost.\n",
+					        p_ptr->name);
+
+					/* Send message */
+					message_add_formatted(g, msg, FORMAT_VERBOSE);
+				}
 			}
 		}
 	}
@@ -3176,6 +3188,18 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 				/* Remember discount for later settles */
 				p_ptr->bonus_reduce += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Genes good to "
+					        "reduce cost.\n",
+					        p_ptr->name);
+
+					/* Send message */
+					message_add_formatted(g, msg, FORMAT_VERBOSE);
+				}
 			}
 
 			/* Check for consume to increase military */
@@ -3192,6 +3216,18 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 				/* Remember bonus for later */
 				p_ptr->bonus_military += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Rare good for "
+					        "extra military.\n",
+					        p_ptr->name);
+
+					/* Send message */
+					message_add_formatted(g, msg, FORMAT_VERBOSE);
+				}
 
 				/* Need one more rare good */
 				goods_needed[GOOD_RARE]++;
@@ -4730,6 +4766,18 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 
 				/* Remember bonus for later */
 				p_ptr->bonus_military += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Rare good for "
+					        "extra military.\n",
+					        p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 			}
 
 			/* Check for prestige to increase military */
@@ -9499,6 +9547,12 @@ void begin_game(game *g)
 		/* Send message */
 		message_add(g, msg);
 	}
+
+	/* Format message */
+	sprintf(msg, "%s is the first player.\n", g->p[0].name);
+
+	/* Send message */
+	message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
