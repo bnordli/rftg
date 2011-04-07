@@ -2232,7 +2232,7 @@ static char *get_military_tooltip(game *g, int who)
 	card *c_ptr;
 	power *o_ptr;
 	int i, j;
-	int base, rebel, blue, brown, green, yellow;
+	int base, rebel, blue, brown, green, yellow, defense, attack_imperium;
 
 	/* Begin with base military strength */
 	base = total_military(g, who);
@@ -2240,8 +2240,8 @@ static char *get_military_tooltip(game *g, int who)
 	/* Create text */
 	sprintf(msg, "Base strength: %+d", base);
 
-	/* Start other strengths at base */
-	rebel = blue = brown = green = yellow = base;
+	/* Start strengths at 0 */
+	rebel = blue = brown = green = yellow = defense = attack_imperium = 0;
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -2263,6 +2263,26 @@ static char *get_military_tooltip(game *g, int who)
 
 			/* Skip incorrect phase */
 			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for defense power */
+			if (o_ptr->code & P3_TAKEOVER_DEFENSE)
+			{
+				/* Add defense for military worlds */
+				defense += count_active_flags(g, who,
+				                              FLAG_MILITARY);
+
+				/* Add extra defense for Rebel military worlds */
+				defense += count_active_flags(g, who,
+				                              (FLAG_REBEL | FLAG_MILITARY));
+			}
+
+			/* Check for takeover imperium power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
+			{
+				/* Set imperium attack */
+				attack_imperium = 2 * count_active_flags(g, who, FLAG_REBEL |
+				                                                 FLAG_MILITARY);
+			}
 
 			/* Skip non-military powers */
 			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
@@ -2289,52 +2309,68 @@ static char *get_military_tooltip(game *g, int who)
 		}
 	}
 
-	/* Add rebel strength if different than base */
-	if (rebel != base)
+	/* Add temporary military */
+	if (g->p[who].bonus_military)
+	{
+		/* Create text */
+		sprintf(text, "\nActivated temporary military: %+d",
+		              g->p[who].bonus_military);
+		strcat(msg, text);
+	}
+
+	/* Add rebel strength */
+	if (rebel)
 	{
 		/* Create rebel text */
-		sprintf(text, "\nAgainst Rebel: %+d", rebel);
+		sprintf(text, "\nAdditional Rebel strength: %+d", rebel);
 		strcat(msg, text);
 	}
 
-	/* Add Novelty strength if different than base */
-	if (blue != base)
+	/* Add Novelty strength */
+	if (blue)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Novelty: %+d", blue);
+		sprintf(text, "\nAdditional Novelty strength: %+d", blue);
 		strcat(msg, text);
 	}
 
-	/* Add Rare strength if different than base */
-	if (brown != base)
+	/* Add Rare strength */
+	if (brown)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Rare: %+d", brown);
+		sprintf(text, "\nAdditional Rare strength: %+d", brown);
 		strcat(msg, text);
 	}
 
-	/* Add Gene strength if different than base */
-	if (green != base)
+	/* Add Gene strength */
+	if (green)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Gene: %+d", green);
+		sprintf(text, "\nAdditional Gene strength: %+d", green);
 		strcat(msg, text);
 	}
 
-	/* Add Alien strength if different than base */
-	if (yellow != base)
+	/* Add Alien strength */
+	if (yellow)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Alien: %+d", yellow);
+		sprintf(text, "\nAdditional Alien strength: %+d", yellow);
 		strcat(msg, text);
 	}
 
-	/* Add temporary military */
-	if (g->p[who].bonus_military > 0)
+	/* Add defense strength */
+	if (defense)
 	{
 		/* Create text */
-		sprintf(text, "\nActivated temporary military: %d",
-		              g->p[who].bonus_military);
+		sprintf(text, "\nAdditional takeover defense: %+d", defense);
+		strcat(msg, text);
+	}
+
+	/* Add attack imperium */
+	if (attack_imperium)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional attack against IMPERIUM: %+d", attack_imperium);
 		strcat(msg, text);
 	}
 
