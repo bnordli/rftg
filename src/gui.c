@@ -414,7 +414,22 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	if (strcmp(tag, FORMAT_BOLD) != 0 && !opt.colored_log)
+	/* Check for verbosity disabled */
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose)
+	{
+		/* Disregard message */
+		return;
+	}
+	/* Check for verbose message */
+	else if (!strcmp(tag, FORMAT_VERBOSE))
+	{
+		/* Add message as normal */
+		message_add(g, msg);
+		return;
+	}
+
+	/* Check for bold formatting */
+	if (!strcmp(tag, FORMAT_BOLD) && !opt.colored_log)
 	{
 		/* Skip coloring when colored log is off */
 		message_add(g, msg);
@@ -2444,7 +2459,7 @@ static char *get_military_tooltip(game *g, int who)
 	if (defense)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional takeover defense: %+d", defense);
+		sprintf(text, "\nAdditional Takeover defense: %+d", defense);
 		strcat(msg, text);
 	}
 
@@ -7248,9 +7263,11 @@ static void read_prefs(void)
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
-	                                       "save_log", NULL);
+	                                      "save_log", NULL);
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "colored_log", NULL);
+	opt.verbose = g_key_file_get_boolean(pref_file, "gui",
+	                                     "verbose", NULL);
 
 	/* Read multiplayer options */
 	opt.server_name = g_key_file_get_string(pref_file, "multiplayer",
@@ -7315,6 +7332,8 @@ void save_prefs(void)
 		                   opt.save_log);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
 		                   opt.colored_log);
+	g_key_file_set_boolean(pref_file, "gui", "verbose",
+		                   opt.verbose);
 
 	/* Set multiplayer options */
 	g_key_file_set_string(pref_file, "multiplayer", "server_name",
@@ -8053,6 +8072,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *autosave_button;
 	GtkWidget *save_log_button;
 	GtkWidget *colored_log_button;
+	GtkWidget *verbose_button;
 	int i;
 
 	/* Create dialog box */
@@ -8149,7 +8169,18 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Add button to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                 colored_log_button);
+	                  colored_log_button);
+
+	/* Create toggle button for verbose log */
+	verbose_button = gtk_check_button_new_with_label("Verbose log");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(verbose_button),
+	                             opt.verbose);
+
+	/* Add button to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  verbose_button);
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
@@ -8175,6 +8206,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set colored log option */
 		opt.colored_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
+
+		/* Set verbose option */
+		opt.verbose =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
 		/* Handle new options */
 		modify_gui();
@@ -9207,7 +9242,7 @@ int main(int argc, char *argv[])
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
-	redo_item = gtk_menu_item_new_with_mnemonic("_Redo");
+	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
 	select_item = gtk_menu_item_new_with_mnemonic("Select _Parameters...");
 	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");

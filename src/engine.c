@@ -251,7 +251,7 @@ static void refresh_draw(game *g)
 	if (!g->simulation)
 	{
 		/* Send message */
-		message_add(g, "Refreshing draw deck.\n");
+		message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_BOLD);
 	}
 
 	/* Loop over cards */
@@ -507,10 +507,11 @@ void move_start(game *g, int which, int owner, int where)
 /*
  * Draw a card from the deck.
  */
-void draw_card(game *g, int who)
+void draw_card(game *g, int who, char *reason)
 {
 	player *p_ptr;
 	card *c_ptr;
+	char msg[1024];
 	int which;
 
 	/* Get player pointer */
@@ -555,31 +556,76 @@ void draw_card(game *g, int who)
 
 	/* Card's location is known to player */
 	c_ptr->known |= 1 << who;
+
+	/* Check for real game and reason */
+	if (!g->simulation && reason)
+	{
+		/* Format message */
+		sprintf(msg, "%s gains a card from %s.\n",
+		        p_ptr->name, reason);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_VERBOSE);
+	}
 }
 
 /*
  * Draw a number of cards, as in draw_card() above.
  */
-void draw_cards(game *g, int who, int num)
+void draw_cards(game *g, int who, int num, char *reason)
 {
 	int i;
+	char msg[1024];
 
 	/* Draw required number */
-	for (i = 0; i < num; i++) draw_card(g, who);
+	for (i = 0; i < num; i++) draw_card(g, who, NULL);
+
+	/* Check for real game and reason */
+	if (!g->simulation && reason)
+	{
+		/* Check for one card */
+		if (num == 1)
+		{
+			/* Format singular message */
+			sprintf(msg, "%s gains a card from %s.\n",
+			        g->p[who].name, reason);
+		}
+		else
+		{
+			/* Format plural message */
+			sprintf(msg, "%s gains %d cards from %s.\n",
+			        g->p[who].name, num, reason);
+		}
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_VERBOSE);
+	}
 }
 
 /*
  * Give a player some prestige.
  */
-static void gain_prestige(game *g, int who, int num)
+static void gain_prestige(game *g, int who, int num, char *reason)
 {
 	player *p_ptr;
+	char msg[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
 	/* Add to prestige */
 	p_ptr->prestige += num;
+
+	/* Check for real game and reason */
+	if (!g->simulation && reason)
+	{
+		/* Format message */
+		sprintf(msg, "%s gains %d prestige from %s.\n",
+		              p_ptr->name, num, reason);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_VERBOSE);
+	}
 
 	/* Mark prestige earned this turn */
 	p_ptr->prestige_turn = 1;
@@ -708,7 +754,7 @@ void start_prestige(game *g)
 			if (num == 1 && p_ptr->prestige_turn)
 			{
 				/* Draw a card as well */
-				draw_card(g, i);
+				draw_card(g, i, NULL);
 
 				/* Message */
 				if (!g->simulation)
@@ -1413,7 +1459,7 @@ void phase_search(game *g)
 		if (g->simulation)
 		{
 			/* Just give player a card */
-			draw_card(g, i);
+			draw_card(g, i, NULL);
 			continue;
 		}
 
@@ -1636,14 +1682,14 @@ void phase_explore(game *g)
 			discard_callback(g, i, list, num);
 
 			/* Gain prestige */
-			gain_prestige(g, i, o_ptr->value);
+			gain_prestige(g, i, o_ptr->value, NULL);
 
 			/* Message */
 			if (!g->simulation)
 			{
 				/* Format message */
-				sprintf(msg, "%s discards for prestige.\n",
-					g->p[i].name);
+				sprintf(msg, "%s discards to gain prestige from %s.\n",
+				        g->p[i].name, g->deck[w_list[j].c_idx].d_ptr->name);
 
 				/* Send message */
 				message_add(g, msg);
@@ -1691,7 +1737,7 @@ void phase_explore(game *g)
 		}
 
 		/* Draw cards */
-		draw_cards(g, i, draw);
+		draw_cards(g, i, draw, NULL);
 
 		/* Remember cards drawn */
 		drawn[i] = draw;
@@ -1858,6 +1904,7 @@ void place_card(game *g, int who, int which)
 {
 	player *p_ptr;
 	card *c_ptr;
+	char reason[64];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -1883,8 +1930,11 @@ void place_card(game *g, int who, int which)
 		/* Check for prestige from card */
 		if (c_ptr->d_ptr->flags & FLAG_PRESTIGE)
 		{
+			/* Format reason */
+			sprintf(reason, "placing %s", c_ptr->d_ptr->name);
+
 			/* Add prestige to player */
-			gain_prestige(g, who, 1);
+			gain_prestige(g, who, 1, reason);
 		}
 	}
 
@@ -2171,6 +2221,7 @@ void develop_action(game *g, int who, int placing)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char* name;
 	int i, n, cost;
 	char msg[1024];
 
@@ -2225,11 +2276,14 @@ void develop_action(game *g, int who, int placing)
 		/* Get power pointer */
 		o_ptr = w_list[i].o_ptr;
 
+		/* Get name of card with power */
+		name = g->deck[w_list[i].c_idx].d_ptr->name;
+
 		/* Check for "draw after developing" power */
 		if (o_ptr->code & P2_DRAW_AFTER)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 		}
 
 		/* Check for "earn prestige after Rebel" power */
@@ -2239,7 +2293,7 @@ void develop_action(game *g, int who, int placing)
 			if (c_ptr->d_ptr->flags & FLAG_REBEL)
 			{
 				/* Reward prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -2250,7 +2304,7 @@ void develop_action(game *g, int who, int placing)
 			if (c_ptr->d_ptr->cost == 6)
 			{
 				/* Reward prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -2258,7 +2312,7 @@ void develop_action(game *g, int who, int placing)
 		if (o_ptr->code & P2_PRESTIGE)
 		{
 			/* Reward prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, name);
 		}
 	}
 }
@@ -2274,6 +2328,8 @@ void phase_develop(game *g)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char *name;
+	char msg[1024];
 	int list[MAX_DECK];
 	int g_list[MAX_DECK], num_goods;
 	int i, j, x, n, reduce, max, explore;
@@ -2300,11 +2356,14 @@ void phase_develop(game *g)
 			/* Get power pointer */
 			o_ptr = w_list[j].o_ptr;
 
+			/* Get name of card with power */
+			name = g->deck[w_list[j].c_idx].d_ptr->name;
+
 			/* Check for draw */
 			if (o_ptr->code & P2_DRAW)
 			{
 				/* Draw cards */
-				draw_cards(g, i, o_ptr->value);
+				draw_cards(g, i, o_ptr->value, name);
 
 				/* Done */
 				continue;
@@ -2314,7 +2373,7 @@ void phase_develop(game *g)
 			if (o_ptr->code & P2_EXPLORE)
 			{
 				/* Draw cards */
-				draw_cards(g, i, o_ptr->value);
+				draw_cards(g, i, o_ptr->value, name);
 
 				/* Discard one later */
 				explore++;
@@ -2327,6 +2386,17 @@ void phase_develop(game *g)
 		/* Check for unfinished "explore" power */
 		if (explore)
 		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %d card%s.\n", g->p[i].name,
+				        explore, explore == 1 ? "" : "s");
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
 			/* Ask player to discard one per explore */
 			player_discard(g, i, explore);
 		}
@@ -2908,6 +2978,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	card *c_ptr, *t_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char *name;
 	int conquer, pay_military = 0, military, cost, good;
 	int hand_military = 0, conquer_peaceful = 0;
 	int discard_zero = 0, takeover = 0;
@@ -2962,6 +3033,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		{
 			/* Get power pointer */
 			o_ptr = &c_ptr->d_ptr->powers[j];
+
+			/* Get name of card with power */
+			name = c_ptr->d_ptr->name;
 
 			/* Skip non-settle phase power */
 			if (o_ptr->phase != PHASE_SETTLE) continue;
@@ -3061,7 +3135,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 					    !takeover)
 					{
 						/* Award prestige */
-						gain_prestige(g, who, 2);
+						gain_prestige(g, who, 2, name);
 					}
 				}
 
@@ -3200,6 +3274,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Get power pointer */
 		o_ptr = w_list[i].o_ptr;
 
+		/* Get name of card with power */
+		name = g->deck[w_list[i].c_idx].d_ptr->name;
+
 		/* Check for reduce cost power */
 		if (o_ptr->code & P3_REDUCE)
 		{
@@ -3258,7 +3335,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		if (pay_military && (o_ptr->code & P3_PAY_PRESTIGE))
 		{
 			/* Gain prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, name);
 		}
 	}
 
@@ -3700,6 +3777,7 @@ int takeover_callback(game *g, int special, int world)
 {
 	card *c_ptr;
 	power *o_ptr;
+	char msg[1024];
 	int i, owner, rebel;
 
 	/* Get world being targetted */
@@ -3771,6 +3849,17 @@ int takeover_callback(game *g, int special, int world)
 		{
 			/* Spend prestige */
 			spend_prestige(g, c_ptr->owner, 1);
+
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s spends 1 prestige on %s.\n",
+				             g->p[c_ptr->owner].name, c_ptr->d_ptr->name);
+
+				/* Send message */
+				message_add(g, msg);
+			}
 
 			/* Always successful */
 			return 1;
@@ -4105,7 +4194,7 @@ int upgrade_chosen(game *g, int who, int replacement, int old)
 	place_card(g, who, replacement);
 
 	/* Award prestige for upgrade */
-	gain_prestige(g, who, 1);
+	gain_prestige(g, who, 1, "Terraforming Engineers");
 
 	/* Success */
 	return 1;
@@ -4217,6 +4306,8 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char *name;
+	char msg[1024];
 	int i, n, explore = 0;
 
 	/* Get player pointer */
@@ -4232,7 +4323,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 	if (player_chose(g, who, g->cur_action) && !p_ptr->phase_bonus_used)
 	{
 		/* Draw card */
-		draw_card(g, who);
+		draw_card(g, who, "his Settle bonus");
 
 		/* Mark bonus as used */
 		p_ptr->phase_bonus_used = 1;
@@ -4244,11 +4335,14 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 		/* Get power pointer */
 		o_ptr = w_list[i].o_ptr;
 
+		/* Get name of card with power */
+		name = g->deck[w_list[i].c_idx].d_ptr->name;
+
 		/* Check for draw power */
 		if (o_ptr->code & P3_DRAW_AFTER)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 		}
 
 		/* Check for prestige after rebel power */
@@ -4259,7 +4353,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 			    (c_ptr->d_ptr->flags & FLAG_MILITARY))
 			{
 				/* Award prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -4271,7 +4365,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 			    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
 			{
 				/* Award prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -4279,7 +4373,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 		if (o_ptr->code & P3_EXPLORE_AFTER)
 		{
 			/* Draw given number of cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 
 			/* Count cards to discard later */
 			explore++;
@@ -4301,6 +4395,17 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 	/* Check for need to discard */
 	if (explore)
 	{
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %d card%s.\n", g->p[i].name,
+			        explore, explore == 1 ? "" : "s");
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
+
 		/* Have player discard */
 		player_discard(g, who, explore);
 	}
@@ -4872,8 +4977,10 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr = NULL;
+	char *name;
 	int defense;
 	int prestige = 0;
+	char prestige_reason[64];
 	char msg[1024];
 	int bonus = 0, attack;
 	int i;
@@ -4889,6 +4996,9 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Get power pointer */
 		o_ptr = &c_ptr->d_ptr->powers[i];
+
+		/* Get name of card with power */
+		name = c_ptr->d_ptr->name;
 
 		/* Skip non-Settle powers */
 		if (o_ptr->phase != PHASE_SETTLE) continue;
@@ -4910,6 +5020,10 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		{
 			/* Remember prestige award */
 			prestige += o_ptr->value;
+
+			/* Remember card name */
+			strcpy(prestige_reason, name);
+
 			break;
 		}
 
@@ -4917,7 +5031,14 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		if (o_ptr->code & (P3_TAKEOVER_REBEL | P3_TAKEOVER_MILITARY))
 		{
 			/* Destruction awards prestige */
-			if (o_ptr->code & P3_DESTROY) prestige += 2;
+			if (o_ptr->code & P3_DESTROY)
+			{
+				/* Add prestige */
+				prestige += 2;
+
+				/* Remember card name */
+				strcpy(prestige_reason, name);
+			}
 
 			/* Found takeover power */
 			break;
@@ -4971,6 +5092,18 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	/* Check for non-military target */
 	if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
 	{
+		/* Check for previously awarded prestige */
+		if (prestige)
+		{
+			/* Append card name */
+			strcat(prestige_reason, " and Imperium Invasion Fleet");
+		}
+		else
+		{
+			/* Remember card name */
+			strcpy(prestige_reason, "Imperium Invasion Fleet");
+		}
+
 		/* XXX Increase prestige award */
 		prestige += 2;
 	}
@@ -5016,7 +5149,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Award prestige for success */
-	if (prestige) gain_prestige(g, who, prestige);
+	if (prestige) gain_prestige(g, who, prestige, prestige_reason);
 
 	/* Check for destruction instead of normal takeover */
 	if (o_ptr->code & P3_DESTROY)
@@ -5556,7 +5689,7 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 	}
 
 	/* Draw cards */
-	draw_cards(g, who, value);
+	draw_cards(g, who, value, NULL);
 
 	/* Count reward */
 	p_ptr->phase_cards += value;
@@ -5635,6 +5768,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char *name;
 	int i, types[6], num_types, times, vp, vp_mult;
 	char msg[1024];
 	
@@ -5646,6 +5780,9 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 
 	/* Get power pointer */
 	o_ptr = &c_ptr->d_ptr->powers[o_idx];
+
+	/* Get name of card with power */
+	name = g->deck[c_idx].d_ptr->name;
 
 	/* Check for consume phase power used */
 	if (o_ptr->phase == PHASE_CONSUME)
@@ -5762,8 +5899,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		{
 			/* Format message */
 			sprintf(msg, "%s consumes good from %s using %s.\n",
-			        p_ptr->name, c_ptr->d_ptr->name,
-			        g->deck[c_idx].d_ptr->name);
+			        p_ptr->name, c_ptr->d_ptr->name, name);
 
 			/* Send message */
 			message_add(g, msg);
@@ -5827,7 +5963,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_CARD)
 		{
 			/* Award cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, NULL);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value;
@@ -5837,7 +5973,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_2_CARD)
 		{
 			/* Award cards */
-			draw_cards(g, who, o_ptr->value * 2);
+			draw_cards(g, who, o_ptr->value * 2, NULL);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value * 2;
@@ -5847,7 +5983,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_PRESTIGE)
 		{
 			/* Award prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, NULL);
 
 			/* Count reward */
 			p_ptr->phase_prestige += o_ptr->value;
@@ -6110,7 +6246,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 		prestige_bonus.times = 2;
 
 		/* Use bonus name */
-		power_name = "Prestige Trade bonus";
+		power_name = "his Prestige Trade bonus";
 
 		/* Use fake power */
 		o_ptr = &prestige_bonus;
@@ -6176,7 +6312,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 		if (o_ptr->code & P4_GET_CARD)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, power_name);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value;
@@ -6186,7 +6322,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 		if (o_ptr->code & P4_GET_PRESTIGE)
 		{
 			/* Award prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, power_name);
 
 			/* Count reward */
 			p_ptr->phase_prestige += o_ptr->value;
@@ -6260,7 +6396,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P4_GET_CARD)
 	{
 		/* Award cards */
-		draw_cards(g, who, o_ptr->value);
+		draw_cards(g, who, o_ptr->value, NULL);
 
 		/* Remember reward */
 		p_ptr->phase_cards += o_ptr->value;
@@ -6309,6 +6445,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char *name;
 	int i, x, min, max, vp, vp_mult;
 	int types[6], num_types = 0;
 	int good, g_list[MAX_DECK], num_goods = 0;
@@ -6333,6 +6470,9 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	/* Get card of chosen power */
 	c_ptr = &g->deck[c_idx];
 
+	/* Get name of card with power */
+	name = c_ptr->d_ptr->name;
+
 	/* Mark power as used */
 	c_ptr->used[o_idx] = 1;
 
@@ -6353,7 +6493,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P4_DRAW)
 	{
 		/* Draw cards */
-		draw_cards(g, who, o_ptr->value);
+		draw_cards(g, who, o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += o_ptr->value;
@@ -6919,6 +7059,7 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr, produce_bonus;
+	char *name;
 	int i;
 	char msg[1024];
 
@@ -6997,6 +7138,9 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 		/* Get power pointer */
 		o_ptr = &c_ptr->d_ptr->powers[i];
 
+		/* Get name of card with power */
+		name = c_ptr->d_ptr->name;
+
 		/* Skip non-produce powers */
 		if (o_ptr->phase != PHASE_PRODUCE) continue;
 
@@ -7004,7 +7148,7 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 		if (o_ptr->code & P5_DRAW_IF)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value;
@@ -7014,7 +7158,7 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 		if (o_ptr->code & P5_PRESTIGE_IF)
 		{
 			/* Gain prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, name);
 
 			/* Count reward */
 			p_ptr->phase_prestige += o_ptr->value;
@@ -7256,6 +7400,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char *name;
 	int i, x, count, produced[6];
 	int list[MAX_DECK];
 	char msg[1024];
@@ -7286,7 +7431,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		else
 		{
 			/* Draw 3 cards */
-			draw_cards(g, who, 3);
+			draw_cards(g, who, 3, "Prestige Produce bonus");
 
 			/* Count reward */
 			p_ptr->phase_cards += 3;
@@ -7298,6 +7443,9 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 
 	/* Mark power used */
 	c_ptr->used[o_idx] = 1;
+
+	/* Get name of card with power */
+	name = c_ptr->d_ptr->name;
 
 	/* Check for regular produce */
 	if (o_ptr->code == P5_PRODUCE)
@@ -7323,7 +7471,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW)
 	{
 		/* Draw cards */
-		draw_cards(g, who, o_ptr->value);
+		draw_cards(g, who, o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += o_ptr->value;
@@ -7353,7 +7501,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -7369,7 +7517,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = count_active_flags(g, who, FLAG_MILITARY);
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -7401,7 +7549,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -7417,7 +7565,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = count_active_flags(g, who, FLAG_CHROMO);
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -7445,7 +7593,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Award prestige */
-		gain_prestige(g, who, o_ptr->value);
+		gain_prestige(g, who, o_ptr->value, name);
 
 		/* Track rewards */
 		p_ptr->phase_prestige += o_ptr->value;
@@ -7531,7 +7679,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_NOVELTY)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_NOVELTY]);
+		draw_cards(g, who, produced[GOOD_NOVELTY], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_NOVELTY];
@@ -7544,7 +7692,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_RARE)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_RARE]);
+		draw_cards(g, who, produced[GOOD_RARE], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_RARE];
@@ -7557,7 +7705,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_GENE)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_GENE]);
+		draw_cards(g, who, produced[GOOD_GENE], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_GENE];
@@ -7570,7 +7718,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_ALIEN)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_ALIEN]);
+		draw_cards(g, who, produced[GOOD_ALIEN], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_ALIEN];
@@ -7593,7 +7741,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Award cards */
-		draw_cards(g, who, count);
+		draw_cards(g, who, count, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count;
@@ -7894,7 +8042,8 @@ void phase_produce_end(game *g)
 			if (o_ptr->code & P5_DRAW_MOST_RARE)
 			{
 				/* Draw cards */
-				draw_cards(g, i, o_ptr->value);
+				draw_cards(g, i, o_ptr->value,
+					       g->deck[w_list[j].c_idx].d_ptr->name);
 
 				/* Count reward */
 				p_ptr->phase_cards += o_ptr->value;
@@ -7937,7 +8086,8 @@ void phase_produce_end(game *g)
 			if (o_ptr->code & P5_DRAW_MOST_PRODUCED)
 			{
 				/* Draw cards */
-				draw_cards(g, i, o_ptr->value);
+				draw_cards(g, i, o_ptr->value,
+					       g->deck[w_list[j].c_idx].d_ptr->name);
 
 				/* Count reward */
 				p_ptr->phase_cards += o_ptr->value;
@@ -8108,8 +8258,8 @@ void phase_discard(game *g)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s discards %d at end of turn.\n",
-			        p_ptr->name, n - target);
+			sprintf(msg, "%s discards %d card%s at end of turn.\n",
+			        p_ptr->name, n - target, n - target == 1 ? "" : "s");
 
 			/* Send message */
 			message_add(g, msg);
@@ -9223,7 +9373,7 @@ void begin_game(game *g)
 			p_ptr = &g->p[i];
 
 			/* Give player six cards */
-			draw_cards(g, i, 6);
+			draw_cards(g, i, 6, NULL);
 
 			/* Reset list of cards in hand */
 			n = 0;
@@ -9314,7 +9464,7 @@ void begin_game(game *g)
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Give player six cards */
-			draw_cards(g, i, 6);
+			draw_cards(g, i, 6, NULL);
 		}
 	}
 

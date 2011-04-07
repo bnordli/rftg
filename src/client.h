@@ -70,6 +70,9 @@ typedef struct options
 
 	/* Colored log */
 	int colored_log;
+
+	/* Verbose log */
+	int verbose;
 } options;
 
 extern options opt;
