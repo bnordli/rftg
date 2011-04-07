@@ -551,6 +551,88 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 	return FALSE;
 }
 
+static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
+                               gpointer data)
+{
+	int x, y, buffer_x, buffer_y, i;
+	GtkTextIter iter_start, iter_end;
+	GdkPixbuf *buf;
+	char *line;
+	char *start, *end;
+	char card[1024];
+
+	/* Check for hint event */
+	if (event->is_hint)
+	{
+		/* Extract coordinates */
+		gdk_window_get_pointer(event->window, &x, &y, NULL);
+	}
+	else
+	{
+		/* Take coordinates directly */
+		x = event->x;
+		y = event->y;
+	}
+
+	/* Convert window coordinates to buffer coordinates */
+	gtk_text_view_window_to_buffer_coords(GTK_TEXT_VIEW(message_view),
+	                                      GTK_TEXT_WINDOW_WIDGET,
+	                                      x, y, &buffer_x, &buffer_y);
+
+	/* Get start of line */
+	gtk_text_view_get_line_at_y(GTK_TEXT_VIEW(message_view), &iter_start, buffer_y, NULL);
+
+	/* Get end of line */
+	iter_end = iter_start;
+	gtk_text_iter_forward_line(&iter_end);
+
+	/* Get line contents */
+	line = gtk_text_iter_get_text(&iter_start, &iter_end);
+
+	/* Loop over designs */
+	for (i = 0; i < MAX_DESIGN; i++)
+	{
+		/* Find position of card name */
+		start = strstr(line, library[i].name);
+
+		/* Check if card name is found */
+		if (start)
+		{
+			/* Set image to card face */
+			buf = image_cache[library[i].index];
+
+			/* Check for halfsize image */
+			if (opt.full_reduced == 1)
+			{
+				/* Scale image */
+				buf = gdk_pixbuf_scale_simple(buf,
+				                              CARD_WIDTH / 2,
+				                              CARD_HEIGHT / 2,
+				                              GDK_INTERP_BILINEAR);
+			}
+
+			/* Set image */
+			gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
+
+			/* Check for halfsize image */
+			if (opt.full_reduced == 1)
+			{
+				/* Remove our scaled buffer */
+				g_object_unref(G_OBJECT(buf));
+			}
+
+			/* Card is found */
+			break;
+		}
+	}
+
+	/* Destroy line */
+	g_free(line);
+
+	/* Continue handling event */
+	return FALSE;
+}
+
 /*
  * Add a separator at the end of all previously seen text.
  */
@@ -9313,6 +9395,15 @@ int main(int argc, char *argv[])
 	/* Connect "expose-event" */
 	g_signal_connect_after(G_OBJECT(message_view), "expose-event",
 	                       G_CALLBACK(message_view_expose), NULL);
+
+
+	/* Connect "motion-notify-event" */
+	g_signal_connect_after(G_OBJECT(message_view), "motion-notify-event",
+	                       G_CALLBACK(message_motion), NULL);
+
+	/* Enalble motion event mask */
+	gtk_widget_set_events(message_view, GDK_POINTER_MOTION_MASK |
+	                                    GDK_POINTER_MOTION_HINT_MASK);
 
 	/* Make scrolled window for message buffer */
 	msg_scroll = gtk_scrolled_window_new(NULL, NULL);
