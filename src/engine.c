@@ -561,7 +561,7 @@ void draw_card(game *g, int who, char *reason)
 	if (!g->simulation && reason)
 	{
 		/* Format message */
-		sprintf(msg, "%s gains a card from %s.\n",
+		sprintf(msg, "%s receives a card from %s.\n",
 		        p_ptr->name, reason);
 
 		/* Add message */
@@ -587,13 +587,13 @@ void draw_cards(game *g, int who, int num, char *reason)
 		if (num == 1)
 		{
 			/* Format singular message */
-			sprintf(msg, "%s gains a card from %s.\n",
+			sprintf(msg, "%s receives a card from %s.\n",
 			        g->p[who].name, reason);
 		}
 		else
 		{
 			/* Format plural message */
-			sprintf(msg, "%s gains %d cards from %s.\n",
+			sprintf(msg, "%s receives %d cards from %s.\n",
 			        g->p[who].name, num, reason);
 		}
 
@@ -620,7 +620,7 @@ static void gain_prestige(game *g, int who, int num, char *reason)
 	if (!g->simulation && reason)
 	{
 		/* Format message */
-		sprintf(msg, "%s gains %d prestige from %s.\n",
+		sprintf(msg, "%s receives %d prestige from %s.\n",
 		              p_ptr->name, num, reason);
 
 		/* Add message */
