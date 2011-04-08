@@ -2946,13 +2946,13 @@ void redraw_status(void)
 	if (display_pool > 10)
 	{
 		/* Do not highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  Pool: %d", 
+		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: %d", 
 		                                 display_deck, display_discard, display_pool);
 	}
 	else
 	{
 		/* Highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  Pool: <b>%d</b>", 
+		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: <b>%d</b>", 
 		                                 display_deck, display_discard, display_pool);
 	}
 
@@ -7802,8 +7802,8 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Select Parameters", NULL,
 	                                     GTK_DIALOG_MODAL,
-	                                     "Start New Game",
-                                         GTK_RESPONSE_ACCEPT,
+	                                     "New Game",
+	                                     GTK_RESPONSE_ACCEPT,
 	                                     GTK_STOCK_CANCEL,
 	                                     GTK_RESPONSE_REJECT, NULL);
 
@@ -8702,8 +8702,8 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
-					                     GTK_STOCK_OK,
-                                         GTK_RESPONSE_ACCEPT, NULL);
+	                                     GTK_STOCK_OK,
+	                                     GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
@@ -9109,7 +9109,10 @@ int main(int argc, char *argv[])
 		else if (!strcmp(argv[i], "-r"))
 		{
 			/* Set random seed */
-			real_game.random_seed = atoi(argv[++i]);
+			opt.customize_seed = TRUE;
+
+			/* Set start seed */
+			opt.seed = (unsigned int) atof(argv[++i]);
 		}
 
 		/* Check for goals on */
