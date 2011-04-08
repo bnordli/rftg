@@ -282,7 +282,7 @@ static int action_cidx, action_oidx;
 /*
  * Number of icon images.
  */
-#define MAX_ICON 19
+#define MAX_ICON 20
 
 /*
  * Special icon numbers.
@@ -296,6 +296,7 @@ static int action_cidx, action_oidx;
 #define ICON_READY     16
 #define ICON_OPTION    17
 #define ICON_DISCARD   18
+#define ICON_VP2       19
 
 /*
  * Number of action card images.
@@ -865,6 +866,24 @@ static void load_images(void)
 	{
 		/* Try to load image data from bundle instead */
 		load_image_bundle();
+
+		/* Check for missing icon */
+		/* TODO: Pack icon into images.data */
+		if (!icon_cache[ICON_VP2])
+		{
+			/* Construct image filename */
+			sprintf(fn, "icon019.png");
+
+			/* Load image */
+			icon_cache[ICON_VP2] = gdk_pixbuf_new_from_file(fn, NULL);
+
+			/* Check for error */
+			if (!icon_cache[ICON_VP2])
+			{
+				/* Print error */
+				printf("Cannot open icon image %s!\n", fn);
+			}
+		}
 		return;
 	}
 
@@ -2255,7 +2274,7 @@ struct extra_info
 /*
  * Set of "extra info" structures.
  */
-static struct extra_info status_extra_info[MAX_PLAYER][4];
+static struct extra_info status_extra_info[MAX_PLAYER + 1][4];
 
 /*
  * Draw extra text on top of a GtkImage's window.
@@ -2929,12 +2948,17 @@ static void redraw_status_area(int who, GtkWidget *box)
 }
 
 /*
- * Redraw all player's status information.
+ * Redraw game's and all player's status information.
  */
 void redraw_status(void)
 {
-	char* markup;
+	GtkWidget *label, *image;
+	GdkPixbuf *buf;
 	int i;
+	double fill_ratio, height_scale, width_scale;
+	char msg[1024];
+	struct extra_info *ei;
+	const double size = 48;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
@@ -2943,24 +2967,67 @@ void redraw_status(void)
 		redraw_status_area(i, player_status[i]);
 	}
 
-	if (display_pool > 10)
+	/* First destroy all pre-existing status widgets */
+	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
+
+	/* Format text */
+	sprintf(msg, "Draw pile: %d  Discard pile: %d", 
+	             display_deck, display_discard);
+
+	/* Create label */
+	label = gtk_label_new(msg);
+
+	/* Add label to box */
+	gtk_box_pack_start(GTK_BOX(game_status), label, TRUE, TRUE, 0);
+
+	/* Create victory point icon image */
+	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], size, size,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Compute fill_ratio */
+	fill_ratio = (double) (display_pool) /
+	             (real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
+
+	/* Check if we need to overlay */
+	if (fill_ratio > 0)
 	{
-		/* Do not highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: %d", 
-		                                 display_deck, display_discard, display_pool);
+		/* Compute scale ratios */
+		height_scale = size / gdk_pixbuf_get_height(icon_cache[ICON_VP2]);
+		width_scale = size / gdk_pixbuf_get_width(icon_cache[ICON_VP2]);
+
+		/* Overlay the alternative vp image */
+		gdk_pixbuf_composite(icon_cache[ICON_VP2], buf,
+		                     0, size * (1 - fill_ratio), size, size * fill_ratio,
+		                     0, 0, height_scale, width_scale, GDK_INTERP_BILINEAR, 255);
 	}
-	else
-	{
-		/* Highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: <b>%d</b>", 
-		                                 display_deck, display_discard, display_pool);
-	}
+
+	/* Make image widget */
+	image = gtk_image_new_from_pixbuf(buf);
+
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[MAX_PLAYER][0];
+
+	/* Create text for VPs */
+	sprintf(ei->text, "<b>%d</b>", display_pool);
+
+	/* Set font */
+	ei->fontstr = "Sans 12";
+
+	/* Draw text a border */
+	ei->border = 1;
+
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
 
 	/* Set status label */
-	gtk_label_set_markup(GTK_LABEL(game_status), markup);
+	gtk_box_pack_start(GTK_BOX(game_status), image, TRUE, TRUE, 0);
 
-	/* Destroy markup */
-	g_free(markup);
+	/* Show everything */
+	gtk_widget_show_all(game_status);
 }
 
 /*
@@ -9380,12 +9447,12 @@ int main(int argc, char *argv[])
 	gtk_box_pack_start(GTK_BOX(left_vbox), h_sep, FALSE, FALSE, 0);
 
 	/* Create game status label */
-	game_status = gtk_label_new("");
+	game_status = gtk_hbox_new(FALSE, 0);
 
 	/* Have game status request minimum width */
 	gtk_widget_set_size_request(game_status, CARD_WIDTH, -1);
 
-	/* Add status to status vbox */
+	/* Add game status to status vbox */
 	gtk_box_pack_start(GTK_BOX(left_vbox), game_status, FALSE, FALSE, 0);
 
 	/* Create text view for message area */
