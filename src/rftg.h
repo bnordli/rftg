@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file patched to *b version by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, April 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -940,6 +940,7 @@ extern void phase_discard(game *g);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
+extern int total_discount(game *g, int who);
 extern int total_military(game *g, int who);
 extern int compute_card_vp(game *g, int who, int which);
 extern void score_game(game *g);

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file patched to *b version by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, April 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -227,8 +227,14 @@ typedef struct status_display
 	/* Prestige */
 	int prestige;
 
+	/* Settle discount */
+	int discount;
+
 	/* Military strength */
 	int military;
+
+	/* Text of discount tooltip */
+	char discount_tip[1024];
 
 	/* Text of military strength tooltip */
 	char military_tip[1024];
@@ -281,7 +287,7 @@ static int action_cidx, action_oidx;
 /*
  * Number of icon images.
  */
-#define MAX_ICON 19
+#define MAX_ICON 21
 
 /*
  * Special icon numbers.
@@ -295,6 +301,8 @@ static int action_cidx, action_oidx;
 #define ICON_READY     16
 #define ICON_OPTION    17
 #define ICON_DISCARD   18
+#define ICON_VP_EMPTY  19
+#define ICON_DISCOUNT  20
 
 /*
  * Number of action card images.
@@ -864,6 +872,41 @@ static void load_images(void)
 	{
 		/* Try to load image data from bundle instead */
 		load_image_bundle();
+
+		/* TODO: Pack icon into images.data */
+		/* Check for missing icon */
+		if (!icon_cache[ICON_VP_EMPTY])
+		{
+			/* Construct image filename */
+			sprintf(fn, "icon019.png");
+
+			/* Load image */
+			icon_cache[ICON_VP_EMPTY] = gdk_pixbuf_new_from_file(fn, NULL);
+
+			/* Check for error */
+			if (!icon_cache[ICON_VP_EMPTY])
+			{
+				/* Print error */
+				printf("Cannot open icon image %s!\n", fn);
+			}
+		}
+
+		/* Check for missing icon */
+		if (!icon_cache[ICON_DISCOUNT])
+		{
+			/* Construct image filename */
+			sprintf(fn, "icon020.png");
+
+			/* Load image */
+			icon_cache[ICON_DISCOUNT] = gdk_pixbuf_new_from_file(fn, NULL);
+
+			/* Check for error */
+			if (!icon_cache[ICON_DISCOUNT])
+			{
+				/* Print error */
+				printf("Cannot open icon image %s!\n", fn);
+			}
+		}
 		return;
 	}
 
@@ -2254,7 +2297,7 @@ struct extra_info
 /*
  * Set of "extra info" structures.
  */
-static struct extra_info status_extra_info[MAX_PLAYER][4];
+static struct extra_info status_extra_info[MAX_PLAYER + 1][5];
 
 /*
  * Draw extra text on top of a GtkImage's window.
@@ -2314,6 +2357,125 @@ static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
 }
 
 /*
+ * Create a tooltip for a discount icon.
+ */
+static char *get_discount_tooltip(game *g, int who)
+{
+	static char msg[1024];
+	char text[1024];
+	card *c_ptr;
+	power *o_ptr;
+	int i, j;
+	int base, blue, brown, green, yellow, zero;
+
+	/* Start discounts at 0 */
+	base = zero = blue = brown = green = yellow = 0;
+
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Skip cards not belonging to current player */
+		if (c_ptr->owner != who) continue;
+
+		/* Skip inactive cards */
+		if (c_ptr->start_where != WHERE_ACTIVE) continue;
+
+		/* Loop over card's powers */
+		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
+		{
+			/* Get power pointer */
+			o_ptr = &c_ptr->d_ptr->powers[j];
+
+			/* Skip incorrect phase */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check discard for 0 */
+			if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
+				zero += 1;
+
+			/* Skip non-reduce power */
+			if (!(o_ptr->code & P3_REDUCE)) continue;
+
+			/* Check for general discount */
+			if (o_ptr->code == P3_REDUCE)
+				base += o_ptr->value;
+
+			/* Check for discount against Novelty worlds */
+			if (o_ptr->code & P3_NOVELTY)
+				blue += o_ptr->value;
+
+			/* Check for discount against Rare worlds */
+			if (o_ptr->code & P3_RARE)
+				brown += o_ptr->value;
+
+			/* Check for discount against Gene worlds */
+			if (o_ptr->code & P3_GENE)
+				green += o_ptr->value;
+
+			/* Check for discount against Alien worlds */
+			if (o_ptr->code & P3_ALIEN)
+				yellow += o_ptr->value;
+		}
+	}
+
+	/* Start with empty message */
+	strcpy(msg, "");
+
+	/* Add general discount */
+	if (base || blue || brown || green || yellow || zero)
+	{
+		/* Create text */
+		sprintf(text, "Base discount: -%d", base);
+		strcat(msg, text);
+	}
+
+	/* Add discard to zero */
+	if (zero)
+	{
+		/* Create text */
+		strcat(msg, "\nMay discard to place at 0 cost");
+	}
+
+	/* Add Novelty discount */
+	if (blue)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional Novelty discount: %d", -blue);
+		strcat(msg, text);
+	}
+
+	/* Add Rare discount */
+	if (brown)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional Rare discount: %d", -brown);
+		strcat(msg, text);
+	}
+
+	/* Add Gene discount */
+	if (green)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional Gene discount: %d", -green);
+		strcat(msg, text);
+	}
+
+	/* Add Alien discount */
+	if (yellow)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional Alien discount: %d", -yellow);
+		strcat(msg, text);
+	}
+
+	/* Return tooltip text */
+	return msg;
+}
+
+/*
  * Create a tooltip for a military strength icon.
  */
 static char *get_military_tooltip(game *g, int who)
@@ -2324,12 +2486,10 @@ static char *get_military_tooltip(game *g, int who)
 	power *o_ptr;
 	int i, j;
 	int base, rebel, blue, brown, green, yellow, defense, attack_imperium;
+	int imperium, military_rebel;
 
 	/* Begin with base military strength */
 	base = total_military(g, who);
-
-	/* Create text */
-	sprintf(msg, "Base strength: %+d", base);
 
 	/* Start strengths at 0 */
 	rebel = blue = brown = green = yellow = defense = attack_imperium = 0;
@@ -2400,6 +2560,24 @@ static char *get_military_tooltip(game *g, int who)
 		}
 	}
 
+	/* Check for imperium card played */
+	imperium = count_active_flags(g, who, FLAG_IMPERIUM);
+
+	/* Check for rebel military world played */
+	military_rebel = count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
+
+	/* Set empty text */
+	strcpy(msg, "");
+
+	/* Check for any modifiers */
+	if (base || g->p[who].bonus_military || rebel || blue || brown || green ||
+		yellow || defense || attack_imperium || imperium || military_rebel)
+	{
+		/* Create text */
+		sprintf(text, "Base strength: %+d", base);
+		strcat(msg, text);
+	}
+
 	/* Add temporary military */
 	if (g->p[who].bonus_military)
 	{
@@ -2466,14 +2644,14 @@ static char *get_military_tooltip(game *g, int who)
 	}
 
 	/* Check for active Imperium card */
-	if (count_active_flags(g, who, FLAG_IMPERIUM))
+	if (imperium)
 	{
 		/* Add vulnerability text */
 		strcat(msg, "\nIMPERIUM card played");
 	}
 
 	/* Check for active Rebel military world */
-	if (count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL))
+	if (military_rebel)
 	{
 		/* Add vulnerability text */
 		strcat(msg, "\nREBEL Military world played");
@@ -2842,38 +3020,77 @@ static void redraw_status_area(int who, GtkWidget *box)
 		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 	}
 
-	/* Create military icon image */
-	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_MILITARY], height, height,
-	                              GDK_INTERP_BILINEAR);
+	/* Check for discount tip */
+	if (strlen(s_ptr->discount_tip))
+	{
+		/* Create discount icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_DISCOUNT], height, height,
+									  GDK_INTERP_BILINEAR);
 
-	/* Create image from pixbuf */
-	image = gtk_image_new_from_pixbuf(buf);
+		/* Create image from pixbuf */
+		image = gtk_image_new_from_pixbuf(buf);
 
-	/* Pointer to extra info structure */
-	ei = &status_extra_info[who][3];
+		/* Pointer to extra info structure */
+		ei = &status_extra_info[who][4];
 
-	/* Create text for military strength */
-	sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
-	        s_ptr->military);
+		/* Create text for general discount */
+		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount);
 
-	/* Set font */
-	ei->fontstr = "Sans 10";
+		/* Set font */
+		ei->fontstr = "Sans 10";
 
-	/* No border */
-	ei->border = 0;
+		/* No border */
+		ei->border = 0;
 
-	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(image), "expose-event",
-	                       G_CALLBACK(draw_extra_text), ei);
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(image), "expose-event",
+							   G_CALLBACK(draw_extra_text), ei);
 
-	/* Destroy our copy of the icon */
-	g_object_unref(G_OBJECT(buf));
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
-	/* Add military strength tooltip */
-	gtk_widget_set_tooltip_text(image, s_ptr->military_tip);
+		/* Add discount tooltip */
+		gtk_widget_set_tooltip_text(image, s_ptr->discount_tip);
 
-	/* Pack icon into status box */
-	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+		/* Pack icon into status box */
+		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+	}
+
+	if (strlen(s_ptr->military_tip))
+	{
+		/* Create military icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_MILITARY], height, height,
+									  GDK_INTERP_BILINEAR);
+
+		/* Create image from pixbuf */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Pointer to extra info structure */
+		ei = &status_extra_info[who][3];
+
+		/* Create text for military strength */
+		sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
+				s_ptr->military);
+
+		/* Set font */
+		ei->fontstr = "Sans 10";
+
+		/* No border */
+		ei->border = 0;
+
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(image), "expose-event",
+							   G_CALLBACK(draw_extra_text), ei);
+
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
+
+		/* Add military strength tooltip */
+		gtk_widget_set_tooltip_text(image, s_ptr->military_tip);
+
+		/* Pack icon into status box */
+		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+	}
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
@@ -2928,12 +3145,17 @@ static void redraw_status_area(int who, GtkWidget *box)
 }
 
 /*
- * Redraw all player's status information.
+ * Redraw game's and all player's status information.
  */
 void redraw_status(void)
 {
-	char* markup;
+	GtkWidget *label1, *label2, *image;
+	GdkPixbuf *buf;
 	int i;
+	double fill_ratio, height_scale, width_scale;
+	char msg[1024];
+	struct extra_info *ei;
+	const double size = 48;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
@@ -2942,24 +3164,103 @@ void redraw_status(void)
 		redraw_status_area(i, player_status[i]);
 	}
 
-	if (display_pool > 10)
+	/* First destroy all pre-existing status widgets */
+	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
+
+	/* Format text */
+	sprintf(msg, "<b><big>Draw pile: %d</big></b>", display_deck);
+
+	/* Create first label */
+	label1 = gtk_label_new(msg);
+
+	/* Set markup flag for first label */
+	gtk_label_set_use_markup(GTK_LABEL(label1), TRUE);
+
+	/* Add first label to box */
+	gtk_box_pack_start(GTK_BOX(game_status), label1, TRUE, TRUE, 0);
+
+	/* Request size for first label */
+	gtk_widget_set_size_request(label1, CARD_WIDTH * 3 / 8, -1);
+
+	/* Format text */
+	sprintf(msg, "<b><big>Discard pile: %d</big></b>", display_discard);
+
+	/* Create second label */
+	label2 = gtk_label_new(msg);
+
+	/* Set markup flag for second label */
+	gtk_label_set_use_markup(GTK_LABEL(label2), TRUE);
+
+	/* Add second label to box */
+	gtk_box_pack_start(GTK_BOX(game_status), label2, TRUE, TRUE, 0);
+
+	/* Request size for second label */
+	gtk_widget_set_size_request(label2, CARD_WIDTH * 3 / 8, -1);
+
+	/* Compute fill_ratio for VP pool */
+	fill_ratio = (double) (display_pool) /
+	             (real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
+
+	/* Check if pool is empty */
+	if (fill_ratio <= 0)
 	{
-		/* Do not highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: %d", 
-		                                 display_deck, display_discard, display_pool);
+		/* Create alternate victory point icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP_EMPTY], (int) size, (int) size,
+	                                  GDK_INTERP_BILINEAR);
 	}
 	else
 	{
-		/* Highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: <b>%d</b>", 
-		                                 display_deck, display_discard, display_pool);
+		/* Create victory point icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], (int) size, (int) size,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Check if pool is less than full */
+		if (fill_ratio < 1)
+		{
+			/* Compute scale ratios */
+			height_scale = size / gdk_pixbuf_get_height(icon_cache[ICON_VP_EMPTY]);
+			width_scale = size / gdk_pixbuf_get_width(icon_cache[ICON_VP_EMPTY]);
+
+			/* Overlay the alternative vp image */
+			gdk_pixbuf_composite(icon_cache[ICON_VP_EMPTY], buf,
+									0, 0,
+									(int) size, (int) (size * (1 - fill_ratio)),
+									0, 0,
+			                        height_scale, width_scale,
+									GDK_INTERP_BILINEAR, 255);
+		}
 	}
 
-	/* Set status label */
-	gtk_label_set_markup(GTK_LABEL(game_status), markup);
+	/* Make image widget */
+	image = gtk_image_new_from_pixbuf(buf);
 
-	/* Destroy markup */
-	g_free(markup);
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[MAX_PLAYER][0];
+
+	/* Create text for VPs */
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
+
+	/* Set font */
+	ei->fontstr = "Sans 12";
+
+	/* Draw text a border */
+	ei->border = 1;
+
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
+
+	/* Set status label */
+	gtk_box_pack_start(GTK_BOX(game_status), image, TRUE, TRUE, 0);
+
+	/* Request size for image */
+	gtk_widget_set_size_request(image, CARD_WIDTH / 4, -1);
+
+	/* Show everything */
+	gtk_widget_show_all(game_status);
 }
 
 /*
@@ -3314,8 +3615,14 @@ static void reset_status(game *g, int who)
 	/* Copy prestige */
 	status_player[who].prestige = g->p[who].prestige;
 
+	/* Count general discount */
+	status_player[who].discount = total_discount(g, who);
+
 	/* Count military strength */
 	status_player[who].military = total_military(g, who);
+
+	/* Get text of discount tooltip */
+	strcpy(status_player[who].discount_tip, get_discount_tooltip(g, who));
 
 	/* Get text of military tooltip */
 	strcpy(status_player[who].military_tip, get_military_tooltip(g, who));
@@ -7717,7 +8024,7 @@ static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
 static GtkWidget *custom_seed_check;
-static GtkWidget *seed_spin_button;
+static GtkWidget *seed_entry;
 
 /*
  * Current selections for next game options.
@@ -7769,7 +8076,7 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 static void seed_toggle(GtkToggleButton *button, gpointer data)
 {
 	/* Toggle the sensitivity of the seed spin button */
-	gtk_widget_set_sensitive(seed_spin_button, gtk_toggle_button_get_active(button));
+	gtk_widget_set_sensitive(seed_entry, gtk_toggle_button_get_active(button));
 }
 
 /*
@@ -7968,17 +8275,17 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Pack seed label into seed value box */
 	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_label, FALSE, TRUE, 10);
 
-	/* Create spin button for seed */
-	seed_spin_button = gtk_spin_button_new_with_range(0, UINT_MAX, 1);
+	/* Create text entry for seed */
+	seed_entry = gtk_entry_new();
 
-	/* Set wrap behaviour */
-	gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(seed_spin_button), TRUE);
+	/* Set max length */
+	gtk_entry_set_max_length(GTK_ENTRY(seed_entry), 10);
 
-	/* Disable seed spin box */
-	gtk_widget_set_sensitive(seed_spin_button, FALSE);
+	/* Disable seed entry box */
+	gtk_widget_set_sensitive(seed_entry, FALSE);
 
 	/* Pack seed spin button into seed value box */
-	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_spin_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_entry, FALSE, TRUE, 0);
 
 	/* Pack seed value box into seed box */
 	gtk_box_pack_start(GTK_BOX(seed_box), seed_value_box, FALSE, TRUE, 0);
@@ -8028,8 +8335,8 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		                          GTK_TOGGLE_BUTTON(custom_seed_check));
 
 		/* Set seed */
-		opt.seed = (unsigned int) gtk_spin_button_get_value(
-		                 GTK_SPIN_BUTTON(seed_spin_button));
+		opt.seed = (unsigned int) atof(gtk_entry_get_text(
+		                               GTK_ENTRY(seed_entry)));
 
 		/* Apply options */
 		apply_options();
@@ -9379,12 +9686,12 @@ int main(int argc, char *argv[])
 	gtk_box_pack_start(GTK_BOX(left_vbox), h_sep, FALSE, FALSE, 0);
 
 	/* Create game status label */
-	game_status = gtk_label_new("");
+	game_status = gtk_hbox_new(FALSE, 0);
 
 	/* Have game status request minimum width */
 	gtk_widget_set_size_request(game_status, CARD_WIDTH, -1);
 
-	/* Add status to status vbox */
+	/* Add game status to status vbox */
 	gtk_box_pack_start(GTK_BOX(left_vbox), game_status, FALSE, FALSE, 0);
 
 	/* Create text view for message area */

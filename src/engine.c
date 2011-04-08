@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file patched to *b version by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, April 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -561,7 +561,7 @@ void draw_card(game *g, int who, char *reason)
 	if (!g->simulation && reason)
 	{
 		/* Format message */
-		sprintf(msg, "%s gains a card from %s.\n",
+		sprintf(msg, "%s receives a card from %s.\n",
 		        p_ptr->name, reason);
 
 		/* Add message */
@@ -587,13 +587,13 @@ void draw_cards(game *g, int who, int num, char *reason)
 		if (num == 1)
 		{
 			/* Format singular message */
-			sprintf(msg, "%s gains a card from %s.\n",
+			sprintf(msg, "%s receives a card from %s.\n",
 			        g->p[who].name, reason);
 		}
 		else
 		{
 			/* Format plural message */
-			sprintf(msg, "%s gains %d cards from %s.\n",
+			sprintf(msg, "%s receives %d cards from %s.\n",
 			        g->p[who].name, num, reason);
 		}
 
@@ -620,7 +620,7 @@ static void gain_prestige(game *g, int who, int num, char *reason)
 	if (!g->simulation && reason)
 	{
 		/* Format message */
-		sprintf(msg, "%s gains %d prestige from %s.\n",
+		sprintf(msg, "%s receives %d prestige from %s.\n",
 		              p_ptr->name, num, reason);
 
 		/* Add message */
@@ -6493,6 +6493,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char msg[1024];
 	char *name;
 	int i, x, min, max, vp, vp_mult;
 	int types[6], num_types = 0;
@@ -6594,14 +6595,27 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 			vp_mult = 3;
 		}
 
+		/* Multiply vp */
+		vp *= vp_mult;
+
 		/* Award VPs */
-		p_ptr->vp += vp * vp_mult;
+		p_ptr->vp += vp;
 
 		/* Remove from pool */
-		g->vp_pool -= vp * vp_mult;
+		g->vp_pool -= vp;
 
 		/* Count reward */
-		p_ptr->phase_vp += vp * vp_mult;
+		p_ptr->phase_vp += vp;
+
+		/* Check for simulation */
+		if (!g->simulation)
+		{
+			sprintf(msg, "%s receives %d VP%s from %s.\n",
+			        g->p[who].name, vp, vp == 1 ? "" : "s", name);
+			
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 
 		/* Done */
 		return;
@@ -9330,20 +9344,36 @@ void begin_game(game *g)
 	/* Send message */
 	message_add(g, msg);
 
-	if (g->goal_disabled && g-> takeover_disabled)
+	/* Check for expansion with goals */
+	if (g->expanded)
 	{
-		/* Send message */
-		message_add(g, "Goals and takeovers disabled.\n");
+		/* Check for disabled goals */
+		if (g->goal_disabled)
+		{
+			/* Send message */
+			message_add(g, "Goals disabled.\n");
+		}
+		else
+		{
+			/* Send message */
+			message_add_formatted(g, "Goals enabled.\n", FORMAT_GOAL);
+		}
 	}
-	else if (g->goal_disabled)
+
+	/* Check for expansion with takeovers */
+	if (g->expanded > 1)
 	{
-		/* Send message */
-		message_add(g, "Goals disabled.\n");
-	}
-	else if (g->takeover_disabled)
-	{
-		/* Send message */
-		message_add(g, "Takeovers disabled.\n");
+		/* Check for disabled takeovers */
+		if (g->takeover_disabled)
+		{
+			/* Send message */
+			message_add(g, "Takeovers disabled.\n");
+		}
+		else
+		{
+			/* Send message */
+			message_add_formatted(g, "Takeovers enabled.\n", FORMAT_TAKEOVER);
+		}
 	}
 
 	/* Send start of game message */
@@ -10058,6 +10088,36 @@ int game_round(game *g)
 
 	/* Continue game */
 	return 1;
+}
+
+/*
+ * Return non-specific discount
+ */
+int total_discount(game *g, int who)
+{
+	power_where w_list[100];
+	power *o_ptr;
+	int i, n, amt = 0;
+
+	/* Get list of settle powers */
+	n = get_powers(g, who, PHASE_SETTLE, w_list);
+
+	/* Loop over powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for generic discount */
+		if (o_ptr->code == P3_REDUCE)
+		{
+			/* Add to discount */
+			amt += o_ptr->value;
+		}
+	}
+
+	/* Return discount */
+	return amt;
 }
 
 /*

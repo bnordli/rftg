@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file patched to *b version by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, April 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1674,6 +1674,14 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 }
 
 /*
+ * Callback to trigger the accept response of a dialog
+ */
+static void enter_callback(GtkWidget *widget, GtkWidget *dialog)
+{
+    g_signal_emit_by_name(G_OBJECT(dialog), "response", GTK_RESPONSE_ACCEPT);
+}
+
+/*
  * Connect to a multiplayer server.
  */
 void connect_dialog(GtkMenuItem *menu_item, gpointer data)
@@ -1810,6 +1818,16 @@ with the password you enter.");
 
 	/* Add table to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+	
+	/* Connect the entries' activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(server), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
+	g_signal_connect(G_OBJECT(port), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
+	g_signal_connect(G_OBJECT(user), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
+	g_signal_connect(G_OBJECT(pass), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
@@ -2243,6 +2261,12 @@ void create_dialog(GtkButton *button, gpointer data)
 	/* Set default password */
 	gtk_entry_set_text(GTK_ENTRY(pass), opt.game_pass);
 
+	/* Connect the entries' activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(desc), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
+	g_signal_connect(G_OBJECT(pass), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
+
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
 	gtk_table_attach_defaults(GTK_TABLE(table), pass, 1, 2, 1, 2);
@@ -2535,6 +2559,10 @@ void join_game(GtkButton *button, gpointer data)
 
 		/* Add hbox to dialog */
 		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),hbox);
+
+		/* Connect the entry's activate signla to the accept response on the dialog */
+		g_signal_connect(G_OBJECT(password), "activate", G_CALLBACK(enter_callback),
+		                 (gpointer) dialog);
 
 		/* Show everything */
 		gtk_widget_show_all(dialog);
