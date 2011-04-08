@@ -31,9 +31,9 @@
 #define VERSION "0.8.1"
 #endif
 
-#define RELEASE VERSION "b"
-
-#define RELEASE VERSION "b"
+#ifndef RELEASE
+#define RELEASE VERSION "c"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
