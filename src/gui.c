@@ -73,7 +73,7 @@ static int game_replaying;
 /*
  * Undo number of start of rounds.
  */
-static int *num_undo_rounds[50];
+static int num_undo_rounds[50];
 
 /*
  * Current size of num_undo_rounds
@@ -413,7 +413,22 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	if (strcmp(tag, FORMAT_BOLD) != 0 && !opt.colored_log)
+	/* Check for verbosity disabled */
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose)
+	{
+		/* Disregard message */
+		return;
+	}
+	/* Check for verbose message */
+	else if (!strcmp(tag, FORMAT_VERBOSE))
+	{
+		/* Add message as normal */
+		message_add(g, msg);
+		return;
+	}
+
+	/* Check for bold formatting */
+	if (!strcmp(tag, FORMAT_BOLD) && !opt.colored_log)
 	{
 		/* Skip coloring when colored log is off */
 		message_add(g, msg);
@@ -545,6 +560,83 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 
 	/* Draw line across window */
 	gdk_draw_line(event->window, text_view->style->black_gc, 0, y, w, y);
+
+	/* Continue handling event */
+	return FALSE;
+}
+
+static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
+                               gpointer data)
+{
+	int x, y, buffer_x, buffer_y, i;
+	GtkTextIter iter_start, iter_end;
+	GdkPixbuf *buf;
+	char *line;
+
+	/* Check for hint event */
+	if (event->is_hint)
+	{
+		/* Extract coordinates */
+		gdk_window_get_pointer(event->window, &x, &y, NULL);
+	}
+	else
+	{
+		/* Take coordinates directly */
+		x = (int) event->x;
+		y = (int) event->y;
+	}
+
+	/* Convert window coordinates to buffer coordinates */
+	gtk_text_view_window_to_buffer_coords(GTK_TEXT_VIEW(message_view),
+	                                      GTK_TEXT_WINDOW_WIDGET,
+	                                      x, y, &buffer_x, &buffer_y);
+
+	/* Get start of line */
+	gtk_text_view_get_line_at_y(GTK_TEXT_VIEW(message_view), &iter_start, buffer_y, NULL);
+
+	/* Get end of line */
+	iter_end = iter_start;
+	gtk_text_iter_forward_line(&iter_end);
+
+	/* Get line contents */
+	line = gtk_text_iter_get_text(&iter_start, &iter_end);
+
+	/* Loop over designs */
+	for (i = 0; i < MAX_DESIGN; i++)
+	{
+		/* Check if card name is found */
+		if (strstr(line, library[i].name))
+		{
+			/* Set image to card face */
+			buf = image_cache[library[i].index];
+
+			/* Check for halfsize image */
+			if (opt.full_reduced == 1)
+			{
+				/* Scale image */
+				buf = gdk_pixbuf_scale_simple(buf,
+				                              CARD_WIDTH / 2,
+				                              CARD_HEIGHT / 2,
+				                              GDK_INTERP_BILINEAR);
+			}
+
+			/* Set image */
+			gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
+
+			/* Check for halfsize image */
+			if (opt.full_reduced == 1)
+			{
+				/* Remove our scaled buffer */
+				g_object_unref(G_OBJECT(buf));
+			}
+
+			/* Card is found */
+			break;
+		}
+	}
+
+	/* Destroy line */
+	g_free(line);
 
 	/* Continue handling event */
 	return FALSE;
@@ -2231,7 +2323,7 @@ static char *get_military_tooltip(game *g, int who)
 	card *c_ptr;
 	power *o_ptr;
 	int i, j;
-	int base, rebel, blue, brown, green, yellow;
+	int base, rebel, blue, brown, green, yellow, defense, attack_imperium;
 
 	/* Begin with base military strength */
 	base = total_military(g, who);
@@ -2239,8 +2331,8 @@ static char *get_military_tooltip(game *g, int who)
 	/* Create text */
 	sprintf(msg, "Base strength: %+d", base);
 
-	/* Start other strengths at base */
-	rebel = blue = brown = green = yellow = base;
+	/* Start strengths at 0 */
+	rebel = blue = brown = green = yellow = defense = attack_imperium = 0;
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -2262,6 +2354,26 @@ static char *get_military_tooltip(game *g, int who)
 
 			/* Skip incorrect phase */
 			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for defense power */
+			if (o_ptr->code & P3_TAKEOVER_DEFENSE)
+			{
+				/* Add defense for military worlds */
+				defense += count_active_flags(g, who,
+				                              FLAG_MILITARY);
+
+				/* Add extra defense for Rebel military worlds */
+				defense += count_active_flags(g, who,
+				                              (FLAG_REBEL | FLAG_MILITARY));
+			}
+
+			/* Check for takeover imperium power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
+			{
+				/* Set imperium attack */
+				attack_imperium = 2 * count_active_flags(g, who, FLAG_REBEL |
+				                                                 FLAG_MILITARY);
+			}
 
 			/* Skip non-military powers */
 			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
@@ -2288,52 +2400,68 @@ static char *get_military_tooltip(game *g, int who)
 		}
 	}
 
-	/* Add rebel strength if different than base */
-	if (rebel != base)
+	/* Add temporary military */
+	if (g->p[who].bonus_military)
+	{
+		/* Create text */
+		sprintf(text, "\nActivated temporary military: %+d",
+		              g->p[who].bonus_military);
+		strcat(msg, text);
+	}
+
+	/* Add rebel strength */
+	if (rebel)
 	{
 		/* Create rebel text */
-		sprintf(text, "\nAgainst Rebel: %+d", rebel);
+		sprintf(text, "\nAdditional Rebel strength: %+d", rebel);
 		strcat(msg, text);
 	}
 
-	/* Add Novelty strength if different than base */
-	if (blue != base)
+	/* Add Novelty strength */
+	if (blue)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Novelty: %+d", blue);
+		sprintf(text, "\nAdditional Novelty strength: %+d", blue);
 		strcat(msg, text);
 	}
 
-	/* Add Rare strength if different than base */
-	if (brown != base)
+	/* Add Rare strength */
+	if (brown)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Rare: %+d", brown);
+		sprintf(text, "\nAdditional Rare strength: %+d", brown);
 		strcat(msg, text);
 	}
 
-	/* Add Gene strength if different than base */
-	if (green != base)
+	/* Add Gene strength */
+	if (green)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Gene: %+d", green);
+		sprintf(text, "\nAdditional Gene strength: %+d", green);
 		strcat(msg, text);
 	}
 
-	/* Add Alien strength if different than base */
-	if (yellow != base)
+	/* Add Alien strength */
+	if (yellow)
 	{
 		/* Create text */
-		sprintf(text, "\nAgainst Alien: %+d", yellow);
+		sprintf(text, "\nAdditional Alien strength: %+d", yellow);
 		strcat(msg, text);
 	}
 
-	/* Add temporary military */
-	if (g->p[who].bonus_military > 0)
+	/* Add defense strength */
+	if (defense)
 	{
 		/* Create text */
-		sprintf(text, "\nActivated temporary military: %d",
-		              g->p[who].bonus_military);
+		sprintf(text, "\nAdditional Takeover defense: %+d", defense);
+		strcat(msg, text);
+	}
+
+	/* Add attack imperium */
+	if (attack_imperium)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional attack against IMPERIUM: %+d", attack_imperium);
 		strcat(msg, text);
 	}
 
@@ -2817,13 +2945,13 @@ void redraw_status(void)
 	if (display_pool > 10)
 	{
 		/* Do not highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  Pool: %d", 
+		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: %d", 
 		                                 display_deck, display_discard, display_pool);
 	}
 	else
 	{
 		/* Highlight remaining VPs */
-		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  Pool: <b>%d</b>", 
+		markup = g_markup_printf_escaped("Draw: %d  Discard: %d  VP Pool: <b>%d</b>", 
 		                                 display_deck, display_discard, display_pool);
 	}
 
@@ -6626,6 +6754,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Save undo round position */
 	if (save_round)
 	{
+		/* Add round position */
 		num_undo_rounds[num_undo_rounds_size++] = num_undo;
 	}
 
@@ -7129,9 +7258,11 @@ static void read_prefs(void)
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
-	                                       "save_log", NULL);
+	                                      "save_log", NULL);
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "colored_log", NULL);
+	opt.verbose = g_key_file_get_boolean(pref_file, "gui",
+	                                     "verbose", NULL);
 
 	/* Read multiplayer options */
 	opt.server_name = g_key_file_get_string(pref_file, "multiplayer",
@@ -7196,6 +7327,8 @@ void save_prefs(void)
 		                   opt.save_log);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
 		                   opt.colored_log);
+	g_key_file_set_boolean(pref_file, "gui", "verbose",
+		                   opt.verbose);
 
 	/* Set multiplayer options */
 	g_key_file_set_string(pref_file, "multiplayer", "server_name",
@@ -7668,8 +7801,8 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Select Parameters", NULL,
 	                                     GTK_DIALOG_MODAL,
-	                                     "Start New Game",
-                                         GTK_RESPONSE_ACCEPT,
+	                                     "New Game",
+	                                     GTK_RESPONSE_ACCEPT,
 	                                     GTK_STOCK_CANCEL,
 	                                     GTK_RESPONSE_REJECT, NULL);
 
@@ -7934,6 +8067,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *autosave_button;
 	GtkWidget *save_log_button;
 	GtkWidget *colored_log_button;
+	GtkWidget *verbose_button;
 	int i;
 
 	/* Create dialog box */
@@ -8030,7 +8164,18 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Add button to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                 colored_log_button);
+	                  colored_log_button);
+
+	/* Create toggle button for verbose log */
+	verbose_button = gtk_check_button_new_with_label("Verbose log");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(verbose_button),
+	                             opt.verbose);
+
+	/* Add button to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  verbose_button);
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
@@ -8056,6 +8201,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set colored log option */
 		opt.colored_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
+
+		/* Set verbose option */
+		opt.verbose =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
 		/* Handle new options */
 		modify_gui();
@@ -8552,8 +8701,8 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
-					                     GTK_STOCK_OK,
-                                         GTK_RESPONSE_ACCEPT, NULL);
+	                                     GTK_STOCK_OK,
+	                                     GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
@@ -8959,7 +9108,10 @@ int main(int argc, char *argv[])
 		else if (!strcmp(argv[i], "-r"))
 		{
 			/* Set random seed */
-			real_game.random_seed = atoi(argv[++i]);
+			opt.customize_seed = TRUE;
+
+			/* Set start seed */
+			opt.seed = (unsigned int) atof(argv[++i]);
 		}
 
 		/* Check for goals on */
@@ -9088,7 +9240,7 @@ int main(int argc, char *argv[])
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
-	redo_item = gtk_menu_item_new_with_mnemonic("_Redo");
+	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
 	select_item = gtk_menu_item_new_with_mnemonic("Select _Parameters...");
 	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
@@ -9128,13 +9280,13 @@ int main(int argc, char *argv[])
 	network_menu = gtk_menu_new();
 
 	/* Create network menu items */
-	connect_item = gtk_menu_item_new_with_mnemonic("_Connect to server...");
+	connect_item = gtk_menu_item_new_with_mnemonic("Connect to se_rver...");
 	disconnect_item = gtk_menu_item_new_with_mnemonic("_Disconnect");
 	resign_item = gtk_menu_item_new_with_mnemonic("_Resign from game");
 
 	/* Add accelerators for network menu items */
 	gtk_widget_add_accelerator(connect_item, "activate", window_accel,
-	                           'C', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'R', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 
 	/* Add items to network menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(network_menu), connect_item);
@@ -9276,6 +9428,15 @@ int main(int argc, char *argv[])
 	/* Connect "expose-event" */
 	g_signal_connect_after(G_OBJECT(message_view), "expose-event",
 	                       G_CALLBACK(message_view_expose), NULL);
+
+
+	/* Connect "motion-notify-event" */
+	g_signal_connect_after(G_OBJECT(message_view), "motion-notify-event",
+	                       G_CALLBACK(message_motion), NULL);
+
+	/* Enalble motion event mask */
+	gtk_widget_set_events(message_view, GDK_POINTER_MOTION_MASK |
+	                                    GDK_POINTER_MOTION_HINT_MASK);
 
 	/* Make scrolled window for message buffer */
 	msg_scroll = gtk_scrolled_window_new(NULL, NULL);

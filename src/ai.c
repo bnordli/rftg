@@ -4934,7 +4934,7 @@ static void ai_choose_consume_hand(game *g, int who, int c_idx, int o_idx,
 		else if (o_ptr->code & P4_GET_CARD)
 		{
 			/* Draw cards */
-			draw_cards(g, who, n);
+			draw_cards(g, who, n, NULL);
 		}
 
 		/* Done */
@@ -5283,7 +5283,7 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 		simulate_game(&sim, g, who);
 
 		/* Assume we win a card */
-		draw_card(&sim, who);
+		draw_card(&sim, who, NULL);
 
 		/* Accumulate score */
 		score += (1.0 - chance) * eval_game(&sim, who);

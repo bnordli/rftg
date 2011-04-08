@@ -25,7 +25,9 @@
  */
 #include "config.h"
 
-#define RELEASE VERSION "b"
+#ifndef RELEASE
+#define RELEASE VERSION "c"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -479,6 +481,7 @@
 #define FORMAT_TAKEOVER "takeover"
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
+#define FORMAT_VERBOSE "verbose"
 
 /*
  * Forward declaration.
@@ -889,8 +892,8 @@ extern int player_chose(game *g, int who, int act);
 extern int random_draw(game *g);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);
-extern void draw_card(game *g, int who);
-extern void draw_cards(game *g, int who, int num);
+extern void draw_card(game *g, int who, char *reason);
+extern void draw_cards(game *g, int who, int num, char *reason);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);
