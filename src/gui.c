@@ -2981,7 +2981,7 @@ void redraw_status(void)
 	gtk_box_pack_start(GTK_BOX(game_status), label, TRUE, TRUE, 0);
 
 	/* Create victory point icon image */
-	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], size, size,
+	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], (int) size, (int) size,
 	                              GDK_INTERP_BILINEAR);
 
 	/* Compute fill_ratio */
@@ -2997,7 +2997,8 @@ void redraw_status(void)
 
 		/* Overlay the alternative vp image */
 		gdk_pixbuf_composite(icon_cache[ICON_VP2], buf,
-		                     0, size * (1 - fill_ratio), size, size * fill_ratio,
+		                     0, (int) (size * (1 - fill_ratio)),
+		                     (int) size, (int) size * fill_ratio,
 		                     0, 0, height_scale, width_scale, GDK_INTERP_BILINEAR, 255);
 	}
 

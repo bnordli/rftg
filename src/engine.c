@@ -6493,6 +6493,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char msg[1024];
 	char *name;
 	int i, x, min, max, vp, vp_mult;
 	int types[6], num_types = 0;
@@ -6594,14 +6595,27 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 			vp_mult = 3;
 		}
 
+		/* Multiply vp */
+		vp *= vp_mult;
+
 		/* Award VPs */
-		p_ptr->vp += vp * vp_mult;
+		p_ptr->vp += vp;
 
 		/* Remove from pool */
-		g->vp_pool -= vp * vp_mult;
+		g->vp_pool -= vp;
 
 		/* Count reward */
-		p_ptr->phase_vp += vp * vp_mult;
+		p_ptr->phase_vp += vp;
+
+		/* Check for simulation */
+		if (!g->simulation)
+		{
+			sprintf(msg, "%s receives %d VP%s from %s.\n",
+			        g->p[who].name, vp, vp == 1 ? "" : "s", name);
+			
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 
 		/* Done */
 		return;
