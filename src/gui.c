@@ -7718,7 +7718,7 @@ static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
 static GtkWidget *custom_seed_check;
-static GtkWidget *seed_spin_button;
+static GtkWidget *seed_entry;
 
 /*
  * Current selections for next game options.
@@ -7770,7 +7770,7 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 static void seed_toggle(GtkToggleButton *button, gpointer data)
 {
 	/* Toggle the sensitivity of the seed spin button */
-	gtk_widget_set_sensitive(seed_spin_button, gtk_toggle_button_get_active(button));
+	gtk_widget_set_sensitive(seed_entry, gtk_toggle_button_get_active(button));
 }
 
 /*
@@ -7969,17 +7969,17 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Pack seed label into seed value box */
 	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_label, FALSE, TRUE, 10);
 
-	/* Create spin button for seed */
-	seed_spin_button = gtk_spin_button_new_with_range(0, UINT_MAX, 1);
+	/* Create text entry for seed */
+	seed_entry = gtk_entry_new();
 
-	/* Set wrap behaviour */
-	gtk_spin_button_set_wrap(GTK_SPIN_BUTTON(seed_spin_button), TRUE);
+	/* Set max length */
+	gtk_entry_set_max_length(GTK_ENTRY(seed_entry), 10);
 
-	/* Disable seed spin box */
-	gtk_widget_set_sensitive(seed_spin_button, FALSE);
+	/* Disable seed entry box */
+	gtk_widget_set_sensitive(seed_entry, FALSE);
 
 	/* Pack seed spin button into seed value box */
-	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_spin_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_entry, FALSE, TRUE, 0);
 
 	/* Pack seed value box into seed box */
 	gtk_box_pack_start(GTK_BOX(seed_box), seed_value_box, FALSE, TRUE, 0);
@@ -8029,8 +8029,8 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		                          GTK_TOGGLE_BUTTON(custom_seed_check));
 
 		/* Set seed */
-		opt.seed = (unsigned int) gtk_spin_button_get_value(
-		                 GTK_SPIN_BUTTON(seed_spin_button));
+		opt.seed = (unsigned int) atof(gtk_entry_get_text(
+		                               GTK_ENTRY(seed_entry)));
 
 		/* Apply options */
 		apply_options();

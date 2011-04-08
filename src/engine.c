@@ -9330,20 +9330,36 @@ void begin_game(game *g)
 	/* Send message */
 	message_add(g, msg);
 
-	if (g->goal_disabled && g-> takeover_disabled)
+	/* Check for expansion with goals */
+	if (g->expanded)
 	{
-		/* Send message */
-		message_add(g, "Goals and takeovers disabled.\n");
+		/* Check for disabled goals */
+		if (g->goal_disabled)
+		{
+			/* Send message */
+			message_add(g, "Goals disabled.\n");
+		}
+		else
+		{
+			/* Send message */
+			message_add_formatted(g, "Goals enabled.\n", FORMAT_GOAL);
+		}
 	}
-	else if (g->goal_disabled)
+
+	/* Check for expansion with takeovers */
+	if (g->expanded > 1)
 	{
-		/* Send message */
-		message_add(g, "Goals disabled.\n");
-	}
-	else if (g->takeover_disabled)
-	{
-		/* Send message */
-		message_add(g, "Takeovers disabled.\n");
+		/* Check for disabled takeovers */
+		if (g->takeover_disabled)
+		{
+			/* Send message */
+			message_add(g, "Takeovers disabled.\n");
+		}
+		else
+		{
+			/* Send message */
+			message_add_formatted(g, "Takeovers enabled.\n", FORMAT_TAKEOVER);
+		}
 	}
 
 	/* Send start of game message */
