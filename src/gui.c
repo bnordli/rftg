@@ -9790,7 +9790,7 @@ int main(int argc, char *argv[])
 	g_signal_connect_after(G_OBJECT(message_view), "motion-notify-event",
 	                       G_CALLBACK(message_motion), NULL);
 
-	/* Enalble motion event mask */
+	/* Enable motion event mask */
 	gtk_widget_set_events(message_view, GDK_POINTER_MOTION_MASK |
 	                                    GDK_POINTER_MOTION_HINT_MASK);
 
