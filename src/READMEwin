@@ -1,0 +1,27 @@
+This is a patch to Keldon's Race for the Galaxy AI, version 0.8.1.
+
+Information about the project can be found at http://keldon.net/rftg/, and the
+source code can be downloaded from http://warpcore.org/rftg/rftg-0.8.1.tar.bz2.
+
+The source code for this release can be found at http://dl.dropbox.com/u/7379896/rftg-0.8.1c-source.zip.
+
+Copy these files into your rftg installation directory:
+ rftg8c.exe:
+    The program itself
+ icon0xx.png:
+    Some new icons
+
+This patch introduces the following additional command line option:
+
+	-s <savegame>  -- A save game to load when starting the program.
+	-g, -nog       -- Enable or disable goals
+	-t, -not       -- Enable or disable takeovers
+
+Else the instructions and notes are equivalent to the original version and can
+be found in the file README.
+
+Since you read this, this is a bonus tip to you: If you download these two
+files, and put them in your installation folder (overwriting what's already
+there, loading times will be drastically reduced.
+  http://dl.dropbox.com/u/7379896/libgdk_pixbuf-2.0-0.dll
+  http://dl.dropbox.com/u/7379896/libpng12-0.dll
