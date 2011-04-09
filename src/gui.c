@@ -288,22 +288,24 @@ static int action_cidx, action_oidx;
 /*
  * Number of icon images.
  */
-#define MAX_ICON 21
+#define MAX_ICON 23
 
 /*
  * Special icon numbers.
  */
-#define ICON_NO_ACT    10
-#define ICON_HANDSIZE  11
-#define ICON_VP        12
-#define ICON_MILITARY  13
-#define ICON_PRESTIGE  14
-#define ICON_WAITING   15
-#define ICON_READY     16
-#define ICON_OPTION    17
-#define ICON_DISCARD   18
-#define ICON_VP_EMPTY  19
-#define ICON_DISCOUNT  20
+#define ICON_NO_ACT     10
+#define ICON_HANDSIZE   11
+#define ICON_VP         12
+#define ICON_MILITARY   13
+#define ICON_PRESTIGE   14
+#define ICON_WAITING    15
+#define ICON_READY      16
+#define ICON_OPTION     17
+#define ICON_DISCARD    18
+#define ICON_VP_EMPTY   19
+#define ICON_DISCOUNT   20
+#define ICON_DRAW       21
+#define ICON_DRAW_EMPTY 22
 
 /*
  * Number of action card images.
@@ -875,37 +877,23 @@ static void load_images(void)
 		load_image_bundle();
 
 		/* TODO: Pack icon into images.data */
-		/* Check for missing icon */
-		if (!icon_cache[ICON_VP_EMPTY])
+		for (i = ICON_VP_EMPTY; i < MAX_ICON; ++i)
 		{
-			/* Construct image filename */
-			sprintf(fn, "icon019.png");
-
-			/* Load image */
-			icon_cache[ICON_VP_EMPTY] = gdk_pixbuf_new_from_file(fn, NULL);
-
-			/* Check for error */
-			if (!icon_cache[ICON_VP_EMPTY])
+			/* Check for missing icon */
+			if (!icon_cache[i])
 			{
-				/* Print error */
-				printf("Cannot open icon image %s!\n", fn);
-			}
-		}
+				/* Construct image filename */
+				sprintf(fn, "icon%03d.png", i);
 
-		/* Check for missing icon */
-		if (!icon_cache[ICON_DISCOUNT])
-		{
-			/* Construct image filename */
-			sprintf(fn, "icon020.png");
+				/* Load image */
+				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
 
-			/* Load image */
-			icon_cache[ICON_DISCOUNT] = gdk_pixbuf_new_from_file(fn, NULL);
-
-			/* Check for error */
-			if (!icon_cache[ICON_DISCOUNT])
-			{
-				/* Print error */
-				printf("Cannot open icon image %s!\n", fn);
+				/* Check for error */
+				if (!icon_cache[i])
+				{
+					/* Print error */
+					printf("Cannot open icon image %s!\n", fn);
+				}
 			}
 		}
 		return;
@@ -3145,18 +3133,58 @@ static void redraw_status_area(int who, GtkWidget *box)
 	gtk_widget_show_all(box);
 }
 
+GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay, double size, double current, double max)
+{
+	GdkPixbuf *buf;
+	double ratio, height_scale, width_scale;
+
+	/* Compute ratio for VP pool */
+	ratio = current / max;
+
+	/* Check if ratio is empty */
+	if (ratio <= 0)
+	{
+		/* Use the scaled overlay */
+		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
+	                                  GDK_INTERP_BILINEAR);
+	}
+	else
+	{
+		/* Scale the background */
+		buf = gdk_pixbuf_scale_simple(background, (int) size, (int) size,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Check if ratio is less than full */
+		if (ratio < 1)
+		{
+			/* Compute scale ratios */
+			height_scale = size / gdk_pixbuf_get_height(overlay);
+			width_scale = size / gdk_pixbuf_get_width(overlay);
+
+			/* Overlay the alternative vp image */
+			gdk_pixbuf_composite(overlay, buf,
+			                     0, 0,
+			                     (int) size, (int) (size * (1 - ratio)),
+			                     0, 0,
+			                     height_scale, width_scale,
+			                     GDK_INTERP_BILINEAR, 255);
+		}
+	}
+
+	/* Return the pixbuf */
+	return buf;
+}
+
 /*
  * Redraw game's and all player's status information.
  */
 void redraw_status(void)
 {
-	GtkWidget *label1, *label2, *image;
+	GtkWidget *image1, *image2, *image3;
 	GdkPixbuf *buf;
 	int i;
-	double fill_ratio, height_scale, width_scale;
-	char msg[1024];
 	struct extra_info *ei;
-	const double size = 48;
+	const int size = 48;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
@@ -3168,75 +3196,79 @@ void redraw_status(void)
 	/* First destroy all pre-existing status widgets */
 	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
 
-	/* Format text */
-	sprintf(msg, "<b><big>Draw pile: %d</big></b>", display_deck);
-
-	/* Create first label */
-	label1 = gtk_label_new(msg);
-
-	/* Set markup flag for first label */
-	gtk_label_set_use_markup(GTK_LABEL(label1), TRUE);
-
-	/* Add first label to box */
-	gtk_box_pack_start(GTK_BOX(game_status), label1, TRUE, TRUE, 0);
-
-	/* Request size for first label */
-	gtk_widget_set_size_request(label1, CARD_WIDTH * 3 / 8, -1);
-
-	/* Format text */
-	sprintf(msg, "<b><big>Discard pile: %d</big></b>", display_discard);
-
-	/* Create second label */
-	label2 = gtk_label_new(msg);
-
-	/* Set markup flag for second label */
-	gtk_label_set_use_markup(GTK_LABEL(label2), TRUE);
-
-	/* Add second label to box */
-	gtk_box_pack_start(GTK_BOX(game_status), label2, TRUE, TRUE, 0);
-
-	/* Request size for second label */
-	gtk_widget_set_size_request(label2, CARD_WIDTH * 3 / 8, -1);
-
-	/* Compute fill_ratio for VP pool */
-	fill_ratio = (double) (display_pool) /
-	             (real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
-
-	/* Check if pool is empty */
-	if (fill_ratio <= 0)
-	{
-		/* Create alternate victory point icon image */
-		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP_EMPTY], (int) size, (int) size,
-	                                  GDK_INTERP_BILINEAR);
-	}
-	else
-	{
-		/* Create victory point icon image */
-		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], (int) size, (int) size,
-		                              GDK_INTERP_BILINEAR);
-
-		/* Check if pool is less than full */
-		if (fill_ratio < 1)
-		{
-			/* Compute scale ratios */
-			height_scale = size / gdk_pixbuf_get_height(icon_cache[ICON_VP_EMPTY]);
-			width_scale = size / gdk_pixbuf_get_width(icon_cache[ICON_VP_EMPTY]);
-
-			/* Overlay the alternative vp image */
-			gdk_pixbuf_composite(icon_cache[ICON_VP_EMPTY], buf,
-									0, 0,
-									(int) size, (int) (size * (1 - fill_ratio)),
-									0, 0,
-			                        height_scale, width_scale,
-									GDK_INTERP_BILINEAR, 255);
-		}
-	}
+	/* Build deck image */
+	buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
+	              display_deck, real_game.deck_size);
 
 	/* Make image widget */
-	image = gtk_image_new_from_pixbuf(buf);
+	image1 = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
 	ei = &status_extra_info[MAX_PLAYER][0];
+
+	/* Create text for deck */
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>", display_deck);
+
+	/* Set font */
+	ei->fontstr = "Sans 12";
+
+	/* Draw text a border */
+	ei->border = 1;
+
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image1), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
+
+	/* Pack deck image */
+	gtk_box_pack_start(GTK_BOX(game_status), image1, TRUE, TRUE, 0);
+
+	/* Request size for deck image */
+	gtk_widget_set_size_request(image1, CARD_WIDTH / 3, -1);
+
+	/* Build discard image */
+	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Make image widget */
+	image2 = gtk_image_new_from_pixbuf(buf);
+
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[MAX_PLAYER][1];
+
+	/* Create text for discard */
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>", display_discard);
+
+	/* Set font */
+	ei->fontstr = "Sans 12";
+
+	/* Draw text a border */
+	ei->border = 1;
+
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image2), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
+
+	/* Pack discard image */
+	gtk_box_pack_start(GTK_BOX(game_status), image2, TRUE, TRUE, 0);
+
+	/* Request size for discard image */
+	gtk_widget_set_size_request(image2, CARD_WIDTH / 3, -1);
+
+	/* Build VP image */
+	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY], size, display_pool,
+	              real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
+
+	/* Make VP widget */
+	image3 = gtk_image_new_from_pixbuf(buf);
+
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[MAX_PLAYER][2];
 
 	/* Create text for VPs */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
@@ -3248,17 +3280,17 @@ void redraw_status(void)
 	ei->border = 1;
 
 	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(image), "expose-event",
+	g_signal_connect_after(G_OBJECT(image3), "expose-event",
 	                       G_CALLBACK(draw_extra_text), ei);
 
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
 
-	/* Set status label */
-	gtk_box_pack_start(GTK_BOX(game_status), image, TRUE, TRUE, 0);
+	/* Pack VP image */
+	gtk_box_pack_start(GTK_BOX(game_status), image3, TRUE, TRUE, 0);
 
-	/* Request size for image */
-	gtk_widget_set_size_request(image, CARD_WIDTH / 4, -1);
+	/* Request size for VP image */
+	gtk_widget_set_size_request(image3, CARD_WIDTH / 3, -1);
 
 	/* Show everything */
 	gtk_widget_show_all(game_status);
