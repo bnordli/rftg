@@ -351,8 +351,8 @@ static GtkWidget *game_status;
 static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
-static GtkWidget *new_item, *load_item, *save_item, *undo_item, *undo_round_item;
-static GtkWidget *redo_item, *select_item, *option_item, *quit_item;
+static GtkWidget *new_item, *new_parameters_item, *load_item, *save_item, *undo_item, *undo_round_item;
+static GtkWidget *redo_item, *option_item, *quit_item;
 static GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *entry_hbox;
@@ -7773,12 +7773,12 @@ void gui_client_state_changed(int playing_game)
 	{
 		/* Activate local game menu items */
 		gtk_widget_set_sensitive(new_item, TRUE);
+		gtk_widget_set_sensitive(new_parameters_item, TRUE);
 		gtk_widget_set_sensitive(load_item, TRUE);
 		gtk_widget_set_sensitive(save_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(redo_item, TRUE);
-		gtk_widget_set_sensitive(select_item, TRUE);
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
@@ -7790,12 +7790,12 @@ void gui_client_state_changed(int playing_game)
 	{
 		/* Deactivate local game menu items */
 		gtk_widget_set_sensitive(new_item, FALSE);
+		gtk_widget_set_sensitive(new_parameters_item, FALSE);
 		gtk_widget_set_sensitive(load_item, FALSE);
 		gtk_widget_set_sensitive(save_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(redo_item, FALSE);
-		gtk_widget_set_sensitive(select_item, FALSE);
 		gtk_widget_set_sensitive(debug_card_item, FALSE);
 		gtk_widget_set_sensitive(debug_ai_item, FALSE);
 		gtk_widget_set_sensitive(connect_item, FALSE);
@@ -8051,8 +8051,9 @@ static char *reduce_names[] =
 };
 
 /*
- * Checkbox widgets for select dialog.
+ * Widgets for select dialog.
  */
+static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
@@ -8070,6 +8071,7 @@ static int next_exp, next_player, next_reduce;
 static void exp_toggle(GtkToggleButton *button, gpointer data)
 {
 	int i = GPOINTER_TO_INT(data);
+	int j;
 
 	/* Check for button set */
 	if (gtk_toggle_button_get_active(button))
@@ -8082,6 +8084,12 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 
 		/* Set takeover disabled checkbox sensitivity */
 		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
+
+		/* Set player radio sensitivities */
+		for (j = 0; player_labels[j]; ++j)
+		{
+			gtk_widget_set_sensitive(num_players_radio[j], j < i + 3);
+		}
 	}
 }
 
@@ -8126,7 +8134,7 @@ static void reduce_toggle(GtkToggleButton *button, gpointer data)
 /*
  * Select parameters and start a new game.
  */
-static void select_parameters(GtkMenuItem *menu_item, gpointer data)
+static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
@@ -8203,6 +8211,9 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		                                        GTK_RADIO_BUTTON(radio),
 		                                        player_labels[i]);
 
+		/* Remember radio button */
+		num_players_radio[i] = radio;
+
 		/* Check for current number of players */
 		if (real_game.num_players == i + 2)
 		{
@@ -8213,6 +8224,9 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 			/* Remember current number of players */
 			next_player = i + 2;
 		}
+
+		/* Set player radio sensitivity */
+		gtk_widget_set_sensitive(radio, i < next_exp + 3);
 
 		/* Add handler */
 		g_signal_connect(G_OBJECT(radio), "toggled",
@@ -9576,18 +9590,20 @@ int main(int argc, char *argv[])
 
 	/* Create game menu items */
 	new_item = gtk_menu_item_new_with_mnemonic("_New");
+	new_parameters_item = gtk_menu_item_new_with_mnemonic("N_ew...");
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
 	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
-	select_item = gtk_menu_item_new_with_mnemonic("Select _Parameters...");
 	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
 	/* Add accelerators for game menu items */
 	gtk_widget_add_accelerator(new_item, "activate", window_accel,
 	                           'N', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(new_parameters_item, "activate", window_accel,
+	                           'N', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(load_item, "activate", window_accel,
 	                           'L', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
@@ -9598,8 +9614,6 @@ int main(int argc, char *argv[])
 	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
 	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
-	gtk_widget_add_accelerator(select_item, "activate", window_accel,
-	                           'P', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
 	                           'O', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
@@ -9607,12 +9621,12 @@ int main(int argc, char *argv[])
 
 	/* Add items to game menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_parameters_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), load_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_round_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), redo_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), select_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
@@ -9667,6 +9681,8 @@ int main(int argc, char *argv[])
 	/* Attach events to menu items */
 	g_signal_connect(G_OBJECT(new_item), "activate",
 	                 G_CALLBACK(gui_new_game), NULL);
+	g_signal_connect(G_OBJECT(new_parameters_item), "activate",
+	                 G_CALLBACK(gui_new_parameters), NULL);
 	g_signal_connect(G_OBJECT(load_item), "activate",
 	                 G_CALLBACK(gui_load_game), NULL);
 	g_signal_connect(G_OBJECT(save_item), "activate",
@@ -9677,8 +9693,6 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_undo_round), NULL);
 	g_signal_connect(G_OBJECT(redo_item), "activate",
 	                 G_CALLBACK(gui_redo_choice), NULL);
-	g_signal_connect(G_OBJECT(select_item), "activate",
-	                 G_CALLBACK(select_parameters), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
