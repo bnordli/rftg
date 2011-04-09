@@ -287,22 +287,24 @@ static int action_cidx, action_oidx;
 /*
  * Number of icon images.
  */
-#define MAX_ICON 21
+#define MAX_ICON 23
 
 /*
  * Special icon numbers.
  */
-#define ICON_NO_ACT    10
-#define ICON_HANDSIZE  11
-#define ICON_VP        12
-#define ICON_MILITARY  13
-#define ICON_PRESTIGE  14
-#define ICON_WAITING   15
-#define ICON_READY     16
-#define ICON_OPTION    17
-#define ICON_DISCARD   18
-#define ICON_VP_EMPTY  19
-#define ICON_DISCOUNT  20
+#define ICON_NO_ACT     10
+#define ICON_HANDSIZE   11
+#define ICON_VP         12
+#define ICON_MILITARY   13
+#define ICON_PRESTIGE   14
+#define ICON_WAITING    15
+#define ICON_READY      16
+#define ICON_OPTION     17
+#define ICON_DISCARD    18
+#define ICON_VP_EMPTY   19
+#define ICON_DISCOUNT   20
+#define ICON_DRAW       21
+#define ICON_DRAW_EMPTY 22
 
 /*
  * Number of action card images.
@@ -348,8 +350,8 @@ static GtkWidget *game_status;
 static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
-static GtkWidget *new_item, *load_item, *save_item, *undo_item, *undo_round_item;
-static GtkWidget *redo_item, *select_item, *option_item, *quit_item;
+static GtkWidget *new_item, *new_parameters_item, *load_item, *save_item, *undo_item, *undo_round_item;
+static GtkWidget *redo_item, *option_item, *quit_item;
 static GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *entry_hbox;
@@ -874,37 +876,23 @@ static void load_images(void)
 		load_image_bundle();
 
 		/* TODO: Pack icon into images.data */
-		/* Check for missing icon */
-		if (!icon_cache[ICON_VP_EMPTY])
+		for (i = ICON_VP_EMPTY; i < MAX_ICON; ++i)
 		{
-			/* Construct image filename */
-			sprintf(fn, "icon019.png");
-
-			/* Load image */
-			icon_cache[ICON_VP_EMPTY] = gdk_pixbuf_new_from_file(fn, NULL);
-
-			/* Check for error */
-			if (!icon_cache[ICON_VP_EMPTY])
+			/* Check for missing icon */
+			if (!icon_cache[i])
 			{
-				/* Print error */
-				printf("Cannot open icon image %s!\n", fn);
-			}
-		}
+				/* Construct image filename */
+				sprintf(fn, "icon%03d.png", i);
 
-		/* Check for missing icon */
-		if (!icon_cache[ICON_DISCOUNT])
-		{
-			/* Construct image filename */
-			sprintf(fn, "icon020.png");
+				/* Load image */
+				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
 
-			/* Load image */
-			icon_cache[ICON_DISCOUNT] = gdk_pixbuf_new_from_file(fn, NULL);
-
-			/* Check for error */
-			if (!icon_cache[ICON_DISCOUNT])
-			{
-				/* Print error */
-				printf("Cannot open icon image %s!\n", fn);
+				/* Check for error */
+				if (!icon_cache[i])
+				{
+					/* Print error */
+					printf("Cannot open icon image %s!\n", fn);
+				}
 			}
 		}
 		return;
@@ -2516,7 +2504,7 @@ static char *get_military_tooltip(game *g, int who)
 			if (o_ptr->phase != PHASE_SETTLE) continue;
 
 			/* Check for defense power */
-			if (o_ptr->code & P3_TAKEOVER_DEFENSE)
+			if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
 			{
 				/* Add defense for military worlds */
 				defense += count_active_flags(g, who,
@@ -2528,7 +2516,7 @@ static char *get_military_tooltip(game *g, int who)
 			}
 
 			/* Check for takeover imperium power */
-			if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
 			{
 				/* Set imperium attack */
 				attack_imperium = 2 * count_active_flags(g, who, FLAG_REBEL |
@@ -2560,11 +2548,13 @@ static char *get_military_tooltip(game *g, int who)
 		}
 	}
 
-	/* Check for imperium card played */
-	imperium = count_active_flags(g, who, FLAG_IMPERIUM);
+	/* Check for takeovers enabled and imperium card played */
+	imperium = takeovers_enabled(g) &&
+	           count_active_flags(g, who, FLAG_IMPERIUM);
 
-	/* Check for rebel military world played */
-	military_rebel = count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
+	/* Check for takeovers enabled and rebel military world played */
+	military_rebel = takeovers_enabled(g) &&
+	                 count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
 
 	/* Set empty text */
 	strcpy(msg, "");
@@ -3145,17 +3135,62 @@ static void redraw_status_area(int who, GtkWidget *box)
 }
 
 /*
+ * Overlays the overlay pixbuf on the background pixbuf,
+ * using the top current/max portion of the image only.
+ */
+GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
+	               double size,double current, double max)
+{
+	GdkPixbuf *buf;
+	double ratio, height_scale, width_scale;
+
+	/* Compute ratio for VP pool */
+	ratio = current / max;
+
+	/* Check if ratio is empty */
+	if (ratio <= 0)
+	{
+		/* Use the scaled overlay */
+		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
+	                                  GDK_INTERP_BILINEAR);
+	}
+	else
+	{
+		/* Scale the background */
+		buf = gdk_pixbuf_scale_simple(background, (int) size, (int) size,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Check if ratio is less than full */
+		if (ratio < 1)
+		{
+			/* Compute scale ratios */
+			height_scale = size / gdk_pixbuf_get_height(overlay);
+			width_scale = size / gdk_pixbuf_get_width(overlay);
+
+			/* Overlay the alternative vp image */
+			gdk_pixbuf_composite(overlay, buf,
+			                     0, 0,
+			                     (int) size, (int) (size * (1 - ratio)),
+			                     0, 0,
+			                     height_scale, width_scale,
+			                     GDK_INTERP_BILINEAR, 255);
+		}
+	}
+
+	/* Return the pixbuf */
+	return buf;
+}
+
+/*
  * Redraw game's and all player's status information.
  */
 void redraw_status(void)
 {
-	GtkWidget *label1, *label2, *image;
+	GtkWidget *image1, *image2, *image3;
 	GdkPixbuf *buf;
 	int i;
-	double fill_ratio, height_scale, width_scale;
-	char msg[1024];
 	struct extra_info *ei;
-	const double size = 48;
+	const int size = 48;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
@@ -3167,75 +3202,79 @@ void redraw_status(void)
 	/* First destroy all pre-existing status widgets */
 	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
 
-	/* Format text */
-	sprintf(msg, "<b><big>Draw pile: %d</big></b>", display_deck);
-
-	/* Create first label */
-	label1 = gtk_label_new(msg);
-
-	/* Set markup flag for first label */
-	gtk_label_set_use_markup(GTK_LABEL(label1), TRUE);
-
-	/* Add first label to box */
-	gtk_box_pack_start(GTK_BOX(game_status), label1, TRUE, TRUE, 0);
-
-	/* Request size for first label */
-	gtk_widget_set_size_request(label1, CARD_WIDTH * 3 / 8, -1);
-
-	/* Format text */
-	sprintf(msg, "<b><big>Discard pile: %d</big></b>", display_discard);
-
-	/* Create second label */
-	label2 = gtk_label_new(msg);
-
-	/* Set markup flag for second label */
-	gtk_label_set_use_markup(GTK_LABEL(label2), TRUE);
-
-	/* Add second label to box */
-	gtk_box_pack_start(GTK_BOX(game_status), label2, TRUE, TRUE, 0);
-
-	/* Request size for second label */
-	gtk_widget_set_size_request(label2, CARD_WIDTH * 3 / 8, -1);
-
-	/* Compute fill_ratio for VP pool */
-	fill_ratio = (double) (display_pool) /
-	             (real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
-
-	/* Check if pool is empty */
-	if (fill_ratio <= 0)
-	{
-		/* Create alternate victory point icon image */
-		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP_EMPTY], (int) size, (int) size,
-	                                  GDK_INTERP_BILINEAR);
-	}
-	else
-	{
-		/* Create victory point icon image */
-		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], (int) size, (int) size,
-		                              GDK_INTERP_BILINEAR);
-
-		/* Check if pool is less than full */
-		if (fill_ratio < 1)
-		{
-			/* Compute scale ratios */
-			height_scale = size / gdk_pixbuf_get_height(icon_cache[ICON_VP_EMPTY]);
-			width_scale = size / gdk_pixbuf_get_width(icon_cache[ICON_VP_EMPTY]);
-
-			/* Overlay the alternative vp image */
-			gdk_pixbuf_composite(icon_cache[ICON_VP_EMPTY], buf,
-									0, 0,
-									(int) size, (int) (size * (1 - fill_ratio)),
-									0, 0,
-			                        height_scale, width_scale,
-									GDK_INTERP_BILINEAR, 255);
-		}
-	}
+	/* Build deck image */
+	buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
+	              display_deck, real_game.deck_size);
 
 	/* Make image widget */
-	image = gtk_image_new_from_pixbuf(buf);
+	image1 = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
 	ei = &status_extra_info[MAX_PLAYER][0];
+
+	/* Create text for deck */
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>", display_deck);
+
+	/* Set font */
+	ei->fontstr = "Sans 12";
+
+	/* Draw text a border */
+	ei->border = 1;
+
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image1), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
+
+	/* Pack deck image */
+	gtk_box_pack_start(GTK_BOX(game_status), image1, TRUE, TRUE, 0);
+
+	/* Request size for deck image */
+	gtk_widget_set_size_request(image1, CARD_WIDTH / 3, -1);
+
+	/* Build discard image */
+	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Make image widget */
+	image2 = gtk_image_new_from_pixbuf(buf);
+
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[MAX_PLAYER][1];
+
+	/* Create text for discard */
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>", display_discard);
+
+	/* Set font */
+	ei->fontstr = "Sans 12";
+
+	/* Draw text a border */
+	ei->border = 1;
+
+	/* Connect expose-event to draw extra text */
+	g_signal_connect_after(G_OBJECT(image2), "expose-event",
+	                       G_CALLBACK(draw_extra_text), ei);
+
+	/* Destroy our copy of the icon */
+	g_object_unref(G_OBJECT(buf));
+
+	/* Pack discard image */
+	gtk_box_pack_start(GTK_BOX(game_status), image2, TRUE, TRUE, 0);
+
+	/* Request size for discard image */
+	gtk_widget_set_size_request(image2, CARD_WIDTH / 3, -1);
+
+	/* Build VP image */
+	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY], size, display_pool,
+	              real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
+
+	/* Make VP widget */
+	image3 = gtk_image_new_from_pixbuf(buf);
+
+	/* Pointer to extra info structure */
+	ei = &status_extra_info[MAX_PLAYER][2];
 
 	/* Create text for VPs */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
@@ -3247,17 +3286,17 @@ void redraw_status(void)
 	ei->border = 1;
 
 	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(image), "expose-event",
+	g_signal_connect_after(G_OBJECT(image3), "expose-event",
 	                       G_CALLBACK(draw_extra_text), ei);
 
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
 
-	/* Set status label */
-	gtk_box_pack_start(GTK_BOX(game_status), image, TRUE, TRUE, 0);
+	/* Pack VP image */
+	gtk_box_pack_start(GTK_BOX(game_status), image3, TRUE, TRUE, 0);
 
-	/* Request size for image */
-	gtk_widget_set_size_request(image, CARD_WIDTH / 4, -1);
+	/* Request size for VP image */
+	gtk_widget_set_size_request(image3, CARD_WIDTH / 3, -1);
 
 	/* Show everything */
 	gtk_widget_show_all(game_status);
@@ -7223,16 +7262,16 @@ void modify_gui(void)
 {
 	int i;
 
-	/* Check for basic game */
-	if (!real_game.expanded || real_game.goal_disabled)
-	{
-		/* Hide goal area */
-		gtk_widget_hide(goal_area);
-	}
-	else
+	/* Check for goals enabled */
+	if (goals_enabled(&real_game))
 	{
 		/* Show goal area */
 		gtk_widget_show(goal_area);
+	}
+	else
+	{
+		/* Hide goal area */
+		gtk_widget_hide(goal_area);
 	}
 
 	/* Loop over existing players */
@@ -7740,12 +7779,12 @@ void gui_client_state_changed(int playing_game)
 	{
 		/* Activate local game menu items */
 		gtk_widget_set_sensitive(new_item, TRUE);
+		gtk_widget_set_sensitive(new_parameters_item, TRUE);
 		gtk_widget_set_sensitive(load_item, TRUE);
 		gtk_widget_set_sensitive(save_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(redo_item, TRUE);
-		gtk_widget_set_sensitive(select_item, TRUE);
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
@@ -7757,12 +7796,12 @@ void gui_client_state_changed(int playing_game)
 	{
 		/* Deactivate local game menu items */
 		gtk_widget_set_sensitive(new_item, FALSE);
+		gtk_widget_set_sensitive(new_parameters_item, FALSE);
 		gtk_widget_set_sensitive(load_item, FALSE);
 		gtk_widget_set_sensitive(save_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(redo_item, FALSE);
-		gtk_widget_set_sensitive(select_item, FALSE);
 		gtk_widget_set_sensitive(debug_card_item, FALSE);
 		gtk_widget_set_sensitive(debug_ai_item, FALSE);
 		gtk_widget_set_sensitive(connect_item, FALSE);
@@ -8018,8 +8057,9 @@ static char *reduce_names[] =
 };
 
 /*
- * Checkbox widgets for select dialog.
+ * Widgets for select dialog.
  */
+static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
@@ -8037,6 +8077,7 @@ static int next_exp, next_player, next_reduce;
 static void exp_toggle(GtkToggleButton *button, gpointer data)
 {
 	int i = GPOINTER_TO_INT(data);
+	int j;
 
 	/* Check for button set */
 	if (gtk_toggle_button_get_active(button))
@@ -8049,6 +8090,12 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 
 		/* Set takeover disabled checkbox sensitivity */
 		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
+
+		/* Set player radio sensitivities */
+		for (j = 0; player_labels[j]; ++j)
+		{
+			gtk_widget_set_sensitive(num_players_radio[j], j < i + 3);
+		}
 	}
 }
 
@@ -8093,7 +8140,7 @@ static void reduce_toggle(GtkToggleButton *button, gpointer data)
 /*
  * Select parameters and start a new game.
  */
-static void select_parameters(GtkMenuItem *menu_item, gpointer data)
+static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
@@ -8170,6 +8217,9 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		                                        GTK_RADIO_BUTTON(radio),
 		                                        player_labels[i]);
 
+		/* Remember radio button */
+		num_players_radio[i] = radio;
+
 		/* Check for current number of players */
 		if (real_game.num_players == i + 2)
 		{
@@ -8180,6 +8230,9 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 			/* Remember current number of players */
 			next_player = i + 2;
 		}
+
+		/* Set player radio sensitivity */
+		gtk_widget_set_sensitive(radio, i < next_exp + 3);
 
 		/* Add handler */
 		g_signal_connect(G_OBJECT(radio), "toggled",
@@ -9543,18 +9596,20 @@ int main(int argc, char *argv[])
 
 	/* Create game menu items */
 	new_item = gtk_menu_item_new_with_mnemonic("_New");
+	new_parameters_item = gtk_menu_item_new_with_mnemonic("N_ew...");
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
 	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
-	select_item = gtk_menu_item_new_with_mnemonic("Select _Parameters...");
 	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
 	/* Add accelerators for game menu items */
 	gtk_widget_add_accelerator(new_item, "activate", window_accel,
 	                           'N', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(new_parameters_item, "activate", window_accel,
+	                           'N', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(load_item, "activate", window_accel,
 	                           'L', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
@@ -9565,8 +9620,6 @@ int main(int argc, char *argv[])
 	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
 	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
-	gtk_widget_add_accelerator(select_item, "activate", window_accel,
-	                           'P', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
 	                           'O', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
@@ -9574,12 +9627,12 @@ int main(int argc, char *argv[])
 
 	/* Add items to game menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_parameters_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), load_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_round_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), redo_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), select_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
@@ -9634,6 +9687,8 @@ int main(int argc, char *argv[])
 	/* Attach events to menu items */
 	g_signal_connect(G_OBJECT(new_item), "activate",
 	                 G_CALLBACK(gui_new_game), NULL);
+	g_signal_connect(G_OBJECT(new_parameters_item), "activate",
+	                 G_CALLBACK(gui_new_parameters), NULL);
 	g_signal_connect(G_OBJECT(load_item), "activate",
 	                 G_CALLBACK(gui_load_game), NULL);
 	g_signal_connect(G_OBJECT(save_item), "activate",
@@ -9644,8 +9699,6 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_undo_round), NULL);
 	g_signal_connect(G_OBJECT(redo_item), "activate",
 	                 G_CALLBACK(gui_redo_choice), NULL);
-	g_signal_connect(G_OBJECT(select_item), "activate",
-	                 G_CALLBACK(select_parameters), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
@@ -9741,7 +9794,7 @@ int main(int argc, char *argv[])
 	g_signal_connect_after(G_OBJECT(message_view), "motion-notify-event",
 	                       G_CALLBACK(message_motion), NULL);
 
-	/* Enalble motion event mask */
+	/* Enable motion event mask */
 	gtk_widget_set_events(message_view, GDK_POINTER_MOTION_MASK |
 	                                    GDK_POINTER_MOTION_HINT_MASK);
 

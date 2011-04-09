@@ -129,6 +129,22 @@ int simple_rand(unsigned int *seed)
 }
 
 /*
+ * Return whether goals are enabled in this game.
+ */
+int goals_enabled(game *g)
+{
+	return g->expanded && !g->goal_disabled;
+}
+
+/*
+ * Return whether takeovers are enabled in this game.
+ */
+int takeovers_enabled(game *g)
+{
+	return g->expanded > 1 && !g->takeover_disabled;
+}
+
+/*
  * Return the number of cards in the draw deck.
  */
 static int count_draw(game *g)

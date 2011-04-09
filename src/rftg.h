@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "c"
+#define RELEASE VERSION "d"
 #endif
 
 #include <stdio.h>
@@ -881,6 +881,8 @@ extern decisions gui_func;
  */
 extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
+extern int goals_enabled(game *g);
+extern int takeovers_enabled(game *g);
 extern void save_log(void);
 extern int game_rand(game *g);
 extern void read_cards(void);
