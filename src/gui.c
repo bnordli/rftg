@@ -3135,54 +3135,12 @@ static void redraw_status_area(int who, GtkWidget *box)
 	gtk_widget_show_all(box);
 }
 
-GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay, double size, double current, double max)
-{
-	GdkPixbuf *buf;
-	double ratio, height_scale, width_scale;
-
-	/* Compute ratio for VP pool */
-	ratio = current / max;
-
-	/* Check if ratio is empty */
-	if (ratio <= 0)
-	{
-		/* Use the scaled overlay */
-		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
-	                                  GDK_INTERP_BILINEAR);
-	}
-	else
-	{
-		/* Scale the background */
-		buf = gdk_pixbuf_scale_simple(background, (int) size, (int) size,
-		                              GDK_INTERP_BILINEAR);
-
-		/* Check if ratio is less than full */
-		if (ratio < 1)
-		{
-			/* Compute scale ratios */
-			height_scale = size / gdk_pixbuf_get_height(overlay);
-			width_scale = size / gdk_pixbuf_get_width(overlay);
-
-			/* Overlay the alternative vp image */
-			gdk_pixbuf_composite(overlay, buf,
-			                     0, 0,
-			                     (int) size, (int) (size * (1 - ratio)),
-			                     0, 0,
-			                     height_scale, width_scale,
-			                     GDK_INTERP_BILINEAR, 255);
-		}
-	}
-
-	/* Return the pixbuf */
-	return buf;
-}
-
 /*
  * Overlays the overlay pixbuf on the background pixbuf,
  * using the top current/max portion of the image only.
  */
 GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
-	               double size,double current, double max)
+	               double size, double current, double max)
 {
 	GdkPixbuf *buf;
 	double ratio, height_scale, width_scale;
