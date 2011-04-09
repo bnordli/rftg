@@ -2505,7 +2505,7 @@ static char *get_military_tooltip(game *g, int who)
 			if (o_ptr->phase != PHASE_SETTLE) continue;
 
 			/* Check for defense power */
-			if (o_ptr->code & P3_TAKEOVER_DEFENSE)
+			if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
 			{
 				/* Add defense for military worlds */
 				defense += count_active_flags(g, who,
@@ -2517,7 +2517,7 @@ static char *get_military_tooltip(game *g, int who)
 			}
 
 			/* Check for takeover imperium power */
-			if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
 			{
 				/* Set imperium attack */
 				attack_imperium = 2 * count_active_flags(g, who, FLAG_REBEL |
@@ -2549,11 +2549,13 @@ static char *get_military_tooltip(game *g, int who)
 		}
 	}
 
-	/* Check for imperium card played */
-	imperium = count_active_flags(g, who, FLAG_IMPERIUM);
+	/* Check for takeovers enabled and imperium card played */
+	imperium = takeovers_enabled(g) &&
+	           count_active_flags(g, who, FLAG_IMPERIUM);
 
-	/* Check for rebel military world played */
-	military_rebel = count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
+	/* Check for takeovers enabled and rebel military world played */
+	military_rebel = takeovers_enabled(g) &&
+	                 count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
 
 	/* Set empty text */
 	strcpy(msg, "");
@@ -7256,16 +7258,16 @@ void modify_gui(void)
 {
 	int i;
 
-	/* Check for basic game */
-	if (!real_game.expanded || real_game.goal_disabled)
-	{
-		/* Hide goal area */
-		gtk_widget_hide(goal_area);
-	}
-	else
+	/* Check for goals enabled */
+	if (goals_enabled(&real_game))
 	{
 		/* Show goal area */
 		gtk_widget_show(goal_area);
+	}
+	else
+	{
+		/* Hide goal area */
+		gtk_widget_hide(goal_area);
 	}
 
 	/* Loop over existing players */
