@@ -3020,8 +3020,8 @@ static void redraw_status_area(int who, GtkWidget *box)
 		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 	}
 
-	/* Check for discount tip */
-	if (strlen(s_ptr->discount_tip))
+	/* Check for discount enabled and discount tip */
+	if (opt.show_settle_discount && strlen(s_ptr->discount_tip))
 	{
 		/* Create discount icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_DISCOUNT], height, height,
@@ -7613,6 +7613,8 @@ static void read_prefs(void)
 	                                          "full_reduced", NULL);
 	opt.shrink_opponent = g_key_file_get_boolean(pref_file, "gui",
 	                                             "shrink_opponent", NULL);
+	opt.show_settle_discount = g_key_file_get_boolean(pref_file, "gui",
+	                                             "show_settle_discount", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
@@ -7680,6 +7682,8 @@ void save_prefs(void)
 	                       opt.full_reduced);
 	g_key_file_set_boolean(pref_file, "gui", "shrink_opponent",
 	                       opt.shrink_opponent);
+	g_key_file_set_boolean(pref_file, "gui", "show_settle_discount",
+	                       opt.show_settle_discount);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
 	g_key_file_set_boolean(pref_file, "gui", "save_log",
@@ -7872,10 +7876,10 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Load game", NULL,
-	                                  GTK_FILE_CHOOSER_ACTION_OPEN,
-	                                  GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-	                                  GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
-                                          NULL);
+	                                     GTK_FILE_CHOOSER_ACTION_OPEN,
+	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                     GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
+                                         NULL);
 
 	/* Run dialog and check response */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
@@ -8504,6 +8508,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *reduce_box;
 	GtkWidget *reduce_frame;
 	GtkWidget *shrink_button;
+	GtkWidget *discount_button;
 	GtkWidget *autosave_button;
 	GtkWidget *save_log_button;
 	GtkWidget *colored_log_button;
@@ -8573,6 +8578,17 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  shrink_button);
 
+	/* Create toggle button for settle discount */
+	discount_button = gtk_check_button_new_with_label("Show Settle discounts");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discount_button),
+	                             opt.show_settle_discount);
+
+	/* Add button to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  discount_button);
+
 	/* Create toggle button for autosaving */
 	autosave_button = gtk_check_button_new_with_label("Autosave");
 
@@ -8630,6 +8646,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.shrink_opponent =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(shrink_button));
 
+		/* Set show settle discount option */
+		opt.show_settle_discount =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discount_button));
+
 		/* Set autosave option */
 		opt.auto_save =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autosave_button));
@@ -8648,6 +8668,9 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 		/* Handle new options */
 		modify_gui();
+
+		/* Redraw status */
+		redraw_everything();
 
 		/* Save preferences */
 		save_prefs();

@@ -43,6 +43,9 @@ typedef struct options
 	/* Shrink opponent areas to fit without scrolling */
 	int shrink_opponent;
 
+	/* Show the settle discount icon */
+	int show_settle_discount;
+
 	/* Server name to connect to */
 	char *server_name;
 
