@@ -2708,7 +2708,7 @@ static char *display_card_tooltip(game *g, int who, int which)
 {
 	char text[1024];
 	card *c_ptr, *b_ptr;
-	int i, vp, count = 0;
+	int i, vp, kind, count = 0;
 
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
@@ -2754,8 +2754,17 @@ static char *display_card_tooltip(game *g, int who, int which)
 	}
 	else if (c_ptr->d_ptr->num_vp_bonus > 0)
 	{
+		/* Remember old kind */
+		kind = g->oort_kind;
+
+		/* Set best scoring value */
+		g->oort_kind = g->best_oort_kind;
+
 		/* Compute VPs */
 		vp = compute_card_vp(g, c_ptr->owner, which);
+
+		/* Reset oort kind */
+		g->oort_kind = kind;
 
 		/* Format tooltip text */
 		sprintf(text, "%d VP%s", vp, (vp == 1 || vp == -1) ? "" : "s");

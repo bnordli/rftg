@@ -10655,6 +10655,9 @@ void score_game(game *g)
 				{
 					/* Remember best score */
 					b_s = sim.p[i].end_vp;
+
+					/* Remember best selection of kind */
+					g->best_oort_kind = j;
 				}
 			}
 

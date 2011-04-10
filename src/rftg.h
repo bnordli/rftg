@@ -852,6 +852,9 @@ typedef struct game
 	/* XXX Current kind of "any" good world */
 	int oort_kind;
 
+	/* Current kind of "any" good giving owner the best score */
+	int best_oort_kind;
+
 	/* Actions selected this round */
 	int action_selected[MAX_ACTION];
 
