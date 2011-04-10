@@ -10,7 +10,8 @@ in order to get the new icons.
 
 This patch introduces the following additional command line option:
 
-	-s <savegame>  -- A save game to load when starting the program.
+	-n <name>      -- Set the name of the human player
+	-s <savegame>  -- A save game to load when starting the program
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
 

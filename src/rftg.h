@@ -798,6 +798,9 @@ typedef struct game
 	/* Who initiated the simulation */
 	int sim_who;
 
+	/* Name of human player */
+	char *human_name;
+
 	/* Players */
 	player p[MAX_PLAYER];
 

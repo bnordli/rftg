@@ -3241,9 +3241,6 @@ void redraw_status(void)
 	/* Pack deck image */
 	gtk_box_pack_start(GTK_BOX(game_status), image1, TRUE, TRUE, 0);
 
-	/* Request size for deck image */
-	gtk_widget_set_size_request(image1, CARD_WIDTH / 3, -1);
-
 	/* Build discard image */
 	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
 	                              GDK_INTERP_BILINEAR);
@@ -3273,9 +3270,6 @@ void redraw_status(void)
 	/* Pack discard image */
 	gtk_box_pack_start(GTK_BOX(game_status), image2, TRUE, TRUE, 0);
 
-	/* Request size for discard image */
-	gtk_widget_set_size_request(image2, CARD_WIDTH / 3, -1);
-
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY], size, display_pool,
 	              real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
@@ -3304,9 +3298,6 @@ void redraw_status(void)
 
 	/* Pack VP image */
 	gtk_box_pack_start(GTK_BOX(game_status), image3, TRUE, TRUE, 0);
-
-	/* Request size for VP image */
-	gtk_widget_set_size_request(image3, CARD_WIDTH / 3, -1);
 
 	/* Show everything */
 	gtk_widget_show_all(game_status);
@@ -7240,8 +7231,17 @@ void reset_gui(void)
 	/* Loop over all possible players */
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
-		/* Set name */
-		real_game.p[i].name = player_names[i];
+		/* Check for name already set for human player */
+		if (i == 0 && real_game.human_name && strlen(real_game.human_name))
+		{
+			/* Load name */
+			real_game.p[i].name = real_game.human_name;
+		}
+		else
+		{
+			/* Set name */
+			real_game.p[i].name = player_names[i];
+		}
 
 		/* Restore choice log */
 		real_game.p[i].choice_log = orig_log[i];
@@ -7597,12 +7597,14 @@ static void read_prefs(void)
 	/* Read game options */
 	opt.num_players = g_key_file_get_integer(pref_file, "game",
 	                                         "num_players", NULL);
+	opt.player_name = g_key_file_get_string(pref_file, "game",
+	                                       "name", NULL);
 	opt.expanded = g_key_file_get_integer(pref_file, "game", "expansion",
 	                                      NULL);
 	opt.advanced = g_key_file_get_boolean(pref_file, "game", "advanced",
-	                                           NULL);
+	                                      NULL);
 	opt.disable_goal = g_key_file_get_boolean(pref_file, "game", "no_goals",
-	                                           NULL);
+	                                          NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
 
@@ -7666,6 +7668,7 @@ void save_prefs(void)
 	/* Set game options */
 	g_key_file_set_integer(pref_file, "game", "num_players",
 	                       opt.num_players);
+	g_key_file_set_string(pref_file, "game", "name", opt.player_name);
 	g_key_file_set_integer(pref_file, "game", "expansion", opt.expanded);
 	g_key_file_set_boolean(pref_file, "game", "advanced", opt.advanced);
 	g_key_file_set_boolean(pref_file, "game", "no_goals", opt.disable_goal);
@@ -7748,6 +7751,9 @@ static void apply_options(void)
 		/* Reset to five players */
 		opt.num_players = 5;
 	}
+
+	/* Set name of human player */
+	real_game.human_name = opt.player_name;
 
 	/* Set number of players */
 	real_game.num_players = opt.num_players;
@@ -8073,6 +8079,7 @@ static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
+static GtkWidget *name_entry;
 static GtkWidget *custom_seed_check;
 static GtkWidget *seed_entry;
 
@@ -8161,15 +8168,23 @@ static void reduce_toggle(GtkToggleButton *button, gpointer data)
 }
 
 /*
+ * Callback to trigger the accept response of a dialog
+ */
+static void enter_callback(GtkWidget *widget, GtkWidget *dialog)
+{
+    g_signal_emit_by_name(G_OBJECT(dialog), "response", GTK_RESPONSE_ACCEPT);
+}
+
+/*
  * Select parameters and start a new game.
  */
 static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *exp_box, *player_box, *seed_box, *seed_value_box;
+	GtkWidget *exp_box, *player_box, *name_box, *seed_box, *seed_value_box;
 	GtkWidget *exp_frame, *player_frame, *seed_frame;
-	GtkWidget *seed_label;
+	GtkWidget *name_label, *seed_label;
 	int i;
 
 	/* Check for connected to server */
@@ -8186,6 +8201,38 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
 	                     "Race for the Galaxy " RELEASE);
+
+
+	/* Create hbox to hold player name label and entry */
+	name_box = gtk_hbox_new(FALSE, 0);
+
+	/* Create name label */
+	name_label = gtk_label_new("Player name:");
+
+	/* Pack name label into name box */
+	gtk_box_pack_start(GTK_BOX(name_box), name_label, FALSE, TRUE, 5);
+
+	/* Create text entry for name */
+	name_entry = gtk_entry_new();
+
+	/* Set max length */
+	gtk_entry_set_max_length(GTK_ENTRY(name_entry), 50);
+
+	/* Set request size */
+	gtk_widget_set_size_request(name_entry, 120, -1);
+
+	/* Set name contents */
+	gtk_entry_set_text(GTK_ENTRY(name_entry), opt.player_name ? opt.player_name : "");
+
+	/* Connect the name entry's activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(name_entry), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+
+	/* Pack name entry into name box */
+	gtk_box_pack_start(GTK_BOX(name_box), name_entry, FALSE, TRUE, 0);
+
+	/* Pack name box into dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), name_box);
 
 	/* Create vbox to hold expansion selection radio buttons */
 	exp_box = gtk_vbox_new(FALSE, 0);
@@ -8342,14 +8389,14 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Pack checkbox into seed box */
 	gtk_box_pack_start(GTK_BOX(seed_box), custom_seed_check, FALSE, TRUE, 0);
 
-	/* Create hbox to hold seed label and spin box */
+	/* Create hbox to hold seed label and entry */
 	seed_value_box = gtk_hbox_new(FALSE, 0);
 
 	/* Create seed label */
 	seed_label = gtk_label_new("Value:");
 
 	/* Pack seed label into seed value box */
-	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_label, FALSE, TRUE, 10);
+	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_label, FALSE, TRUE, 5);
 
 	/* Create text entry for seed */
 	seed_entry = gtk_entry_new();
@@ -8357,10 +8404,17 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Set max length */
 	gtk_entry_set_max_length(GTK_ENTRY(seed_entry), 10);
 
+	/* Set request size */
+	gtk_widget_set_size_request(seed_entry, 120, -1);
+
 	/* Disable seed entry box */
 	gtk_widget_set_sensitive(seed_entry, FALSE);
 
-	/* Pack seed spin button into seed value box */
+	/* Connect the seed entry's activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(name_entry), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+
+	/* Pack seed entry into seed value box */
 	gtk_box_pack_start(GTK_BOX(seed_value_box), seed_entry, FALSE, TRUE, 0);
 
 	/* Pack seed value box into seed box */
@@ -8384,6 +8438,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		/* Check for too many players */
 		if (next_exp == 0 && next_player > 4) next_player = 4;
 		if (next_exp == 1 && next_player > 5) next_player = 5;
+
+		/* Set player name */
+		opt.player_name = strdup(gtk_entry_get_text(GTK_ENTRY(name_entry)));
 
 		/* Set expansion level */
 		opt.expanded = next_exp;
@@ -9480,6 +9537,13 @@ int main(int argc, char *argv[])
 			opt.expanded = atoi(argv[++i]);
 		}
 
+		/* Check for player name */
+		else if (!strcmp(argv[i], "-n"))
+		{
+			/* Set player name */
+			opt.player_name = argv[++i];
+		}
+
 		/* Check for advanced game */
 		else if (!strcmp(argv[i], "-a"))
 		{
@@ -9762,7 +9826,7 @@ int main(int argc, char *argv[])
 	gtk_box_pack_start(GTK_BOX(left_vbox), h_sep, FALSE, FALSE, 0);
 
 	/* Create game status label */
-	game_status = gtk_hbox_new(FALSE, 0);
+	game_status = gtk_hbox_new(TRUE, 0);
 
 	/* Have game status request minimum width */
 	gtk_widget_set_size_request(game_status, CARD_WIDTH, -1);
@@ -10374,9 +10438,6 @@ int main(int argc, char *argv[])
 		real_game.game_over = 1;
 
 		/* Switch to loaded state when able */
-		restart_loop = RESTART_LOAD;
-
-		/* Load from file */
 		restart_loop = RESTART_LOAD;
 	}
 

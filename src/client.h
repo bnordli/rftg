@@ -19,6 +19,9 @@ typedef struct options
 	/* Expansion level */
 	int expanded;
 
+	/* Player name */
+	char *player_name;
+
 	/* Two-player advanced game */
 	int advanced;
 
