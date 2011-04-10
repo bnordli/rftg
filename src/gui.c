@@ -8132,8 +8132,21 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
  */
 static void seed_toggle(GtkToggleButton *button, gpointer data)
 {
-	/* Toggle the sensitivity of the seed spin button */
-	gtk_widget_set_sensitive(seed_entry, gtk_toggle_button_get_active(button));
+	/* Check whether the toggle button is active */
+	if (gtk_toggle_button_get_active(button))
+	{
+		/* Enable the seed value entry */
+		gtk_widget_set_sensitive(seed_entry, TRUE);
+
+		/* Give focus to the seed entry */
+		gtk_widget_grab_focus(seed_entry);
+	}
+	else
+	{
+		/* Disable the seed value entry */
+		gtk_widget_set_sensitive(seed_entry, FALSE);
+	}
+
 }
 
 /*
