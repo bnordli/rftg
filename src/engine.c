@@ -5140,6 +5140,19 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	/* Compute total attack strength */
 	if (!defeated) attack = bonus + strength_against(g, who, world, 0);
 
+	/* Message */
+	if (!g->simulation && !defeated)
+	{
+		/* Format attack message */
+		sprintf(msg, "%s attacks %s with %d military.\n",
+		             g->p[who].name,
+		             c_ptr->d_ptr->name,
+		             attack);
+
+		/* Send attack message */
+		message_add(g, msg);
+	}
+
 	/* Check for successful takeover */
 	if (!defeated && attack >= defense)
 	{
@@ -5175,15 +5188,6 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	/* Message */
 	if (!g->simulation && !defeated)
 	{
-		/* Format attack message */
-		sprintf(msg, "%s attacks %s with %d military.\n",
-		             g->p[who].name,
-		             c_ptr->d_ptr->name,
-		             attack);
-
-		/* Send attack message */
-		message_add(g, msg);
-
 		/* Format defense message */
 		sprintf(msg, "%s defends %s with %d military.\n",
 		             g->p[c_ptr->owner].name,
