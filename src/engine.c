@@ -4451,7 +4451,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s discards %d card%s.\n", g->p[i].name,
+			sprintf(msg, "%s discards %d card%s.\n", g->p[who].name,
 			        explore, explore == 1 ? "" : "s");
 
 			/* Send message */
