@@ -93,7 +93,7 @@ int load_game(game *g, char *filename)
 	if (fgets(buf, 1024, fff))
 	{
 		/* Read player name (if any) */
-		if (fgets(buf, 1024, fff))
+		if (fgets(buf, 50, fff))
 		{
 			/* Check for end of line */
 			if (buf[strlen(buf) - 1] == '\n')

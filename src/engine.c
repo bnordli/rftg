@@ -1920,7 +1920,7 @@ void place_card(game *g, int who, int which)
 {
 	player *p_ptr;
 	card *c_ptr;
-	char reason[64];
+	char reason[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -5044,7 +5044,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	char *name;
 	int defense;
 	int prestige = 0;
-	char prestige_reason[64];
+	char prestige_reason[1024];
 	char msg[1024];
 	int bonus = 0, attack;
 	int i;
@@ -5426,7 +5426,8 @@ void resolve_takeovers(game *g)
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg, "Takeover of %s is defeated because takeover of %s failed.\n",
+					sprintf(msg, "Takeover of %s is defeated because "
+					             "takeover of %s failed.\n",
 					             g->deck[list[j]].d_ptr->name,
 					             g->deck[list[i]].d_ptr->name);
 
@@ -8121,7 +8122,7 @@ void phase_produce_end(game *g)
 			{
 				/* Draw cards */
 				draw_cards(g, i, o_ptr->value,
-					       g->deck[w_list[j].c_idx].d_ptr->name);
+				           g->deck[w_list[j].c_idx].d_ptr->name);
 
 				/* Count reward */
 				p_ptr->phase_cards += o_ptr->value;
@@ -8165,7 +8166,7 @@ void phase_produce_end(game *g)
 			{
 				/* Draw cards */
 				draw_cards(g, i, o_ptr->value,
-					       g->deck[w_list[j].c_idx].d_ptr->name);
+				           g->deck[w_list[j].c_idx].d_ptr->name);
 
 				/* Count reward */
 				p_ptr->phase_cards += o_ptr->value;
@@ -10763,15 +10764,15 @@ void declare_winner(game *g)
 			{
 				/* Format message */
 				sprintf(msg, "%s wins with %d.\n", g->p[i].name,
-			                                   g->p[i].end_vp);
+			            g->p[i].end_vp);
 
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_BOLD);
 			}
 		}
 
-		/* Print seed if the game was local */
-		if (g->start_seed != 0)
+		/* YYY Print seed if the game was local */
+		if (g->start_seed)
 		{
 			/* Format message */
 			sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);

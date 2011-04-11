@@ -2633,7 +2633,7 @@ void join_game(GtkButton *button, gpointer data)
 		/* Add hbox to dialog */
 		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),hbox);
 
-		/* Connect the entry's activate signla to the accept response on the dialog */
+		/* Connect the entry's activate signal to the accept response on the dialog */
 		g_signal_connect(G_OBJECT(password), "activate", G_CALLBACK(enter_callback),
 		                 (gpointer) dialog);
 

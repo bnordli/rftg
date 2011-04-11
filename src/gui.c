@@ -430,6 +430,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 		/* Disregard message */
 		return;
 	}
+
 	/* Check for verbose message */
 	else if (!strcmp(tag, FORMAT_VERBOSE))
 	{
@@ -455,9 +456,9 @@ void message_add_formatted(game *g, char *msg, char *tag)
 
 	/* Add formatted message */
 	gtk_text_buffer_insert_with_tags_by_name(message_buffer,
-			                                 &end_iter,
-			                                 msg, -1, tag,
-			                                 NULL);
+	                                         &end_iter,
+	                                         msg, -1, tag,
+	                                         NULL);
 
 	/* Scroll to end mark */
 	gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(message_view),
@@ -587,10 +588,13 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 	return FALSE;
 }
 
+/*
+ * Called when mouse moves over log window
+ */
 static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
                                gpointer data)
 {
-	int x, y, buffer_x, buffer_y, i;
+	int window_x, window_y, buffer_x, buffer_y, i;
 	GtkTextIter iter_start, iter_end;
 	GdkPixbuf *buf;
 	char *line;
@@ -599,19 +603,20 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 	if (event->is_hint)
 	{
 		/* Extract coordinates */
-		gdk_window_get_pointer(event->window, &x, &y, NULL);
+		gdk_window_get_pointer(event->window, &window_x, &window_y, NULL);
 	}
 	else
 	{
 		/* Take coordinates directly */
-		x = (int) event->x;
-		y = (int) event->y;
+		window_x = (int) event->x;
+		window_y = (int) event->y;
 	}
 
 	/* Convert window coordinates to buffer coordinates */
 	gtk_text_view_window_to_buffer_coords(GTK_TEXT_VIEW(message_view),
 	                                      GTK_TEXT_WINDOW_WIDGET,
-	                                      x, y, &buffer_x, &buffer_y);
+	                                      window_x, window_y,
+	                                      &buffer_x, &buffer_y);
 
 	/* Get start of line */
 	gtk_text_view_get_line_at_y(GTK_TEXT_VIEW(message_view), &iter_start, buffer_y, NULL);
@@ -2524,15 +2529,15 @@ static char *get_military_tooltip(game *g, int who)
 
 				/* Add extra defense for Rebel military worlds */
 				defense += count_active_flags(g, who,
-				                              (FLAG_REBEL | FLAG_MILITARY));
+				                              FLAG_REBEL | FLAG_MILITARY);
 			}
 
 			/* Check for takeover imperium power */
 			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
 			{
 				/* Set imperium attack */
-				attack_imperium = 2 * count_active_flags(g, who, FLAG_REBEL |
-				                                                 FLAG_MILITARY);
+				attack_imperium = 2 * count_active_flags(g, who,
+				                                         FLAG_REBEL | FLAG_MILITARY);
 			}
 
 			/* Skip non-military powers */
@@ -2573,7 +2578,7 @@ static char *get_military_tooltip(game *g, int who)
 
 	/* Check for any modifiers */
 	if (base || g->p[who].bonus_military || rebel || blue || brown || green ||
-		yellow || defense || attack_imperium || imperium || military_rebel)
+	    yellow || defense || attack_imperium || imperium || military_rebel)
 	{
 		/* Create text */
 		sprintf(text, "Base strength: %+d", base);
@@ -2584,8 +2589,8 @@ static char *get_military_tooltip(game *g, int who)
 	if (g->p[who].bonus_military)
 	{
 		/* Create text */
-		sprintf(text, "\nActivated temporary military: %+d",
-		              g->p[who].bonus_military);
+		sprintf(text, "\nActivated temporary military: %+d", 
+		        g->p[who].bonus_military);
 		strcat(msg, text);
 	}
 
@@ -2763,12 +2768,14 @@ static char *display_card_tooltip(game *g, int who, int which)
 		/* Return tooltip */
 		return strdup(text);
 	}
+
+	/* Check for vp bonuses */
 	else if (c_ptr->d_ptr->num_vp_bonus > 0)
 	{
 		/* Remember old kind */
 		kind = g->oort_kind;
 
-		/* Set best scoring value */
+		/* Set oort kind to best scoring kind */
 		g->oort_kind = g->best_oort_kind;
 
 		/* Compute VPs */
@@ -3019,7 +3026,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 
 		/* Connect expose-event to draw extra text */
 		g_signal_connect_after(G_OBJECT(image), "expose-event",
-				       G_CALLBACK(draw_extra_text), ei);
+		                       G_CALLBACK(draw_extra_text), ei);
 
 		/* Destroy our copy of the icon */
 		g_object_unref(G_OBJECT(buf));
@@ -3036,7 +3043,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	{
 		/* Create discount icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_DISCOUNT], height, height,
-									  GDK_INTERP_BILINEAR);
+		                              GDK_INTERP_BILINEAR);
 
 		/* Create image from pixbuf */
 		image = gtk_image_new_from_pixbuf(buf);
@@ -3071,7 +3078,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	{
 		/* Create military icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_MILITARY], height, height,
-									  GDK_INTERP_BILINEAR);
+		                              GDK_INTERP_BILINEAR);
 
 		/* Create image from pixbuf */
 		image = gtk_image_new_from_pixbuf(buf);
@@ -3081,7 +3088,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 
 		/* Create text for military strength */
 		sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
-				s_ptr->military);
+		        s_ptr->military);
 
 		/* Set font */
 		ei->fontstr = "Sans 10";
@@ -3091,7 +3098,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 
 		/* Connect expose-event to draw extra text */
 		g_signal_connect_after(G_OBJECT(image), "expose-event",
-							   G_CALLBACK(draw_extra_text), ei);
+		                       G_CALLBACK(draw_extra_text), ei);
 
 		/* Destroy our copy of the icon */
 		g_object_unref(G_OBJECT(buf));
@@ -3160,12 +3167,12 @@ static void redraw_status_area(int who, GtkWidget *box)
  * using the top current/max portion of the image only.
  */
 GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
-	               double size, double current, double max)
+                   double size, double current, double max)
 {
 	GdkPixbuf *buf;
 	double ratio, height_scale, width_scale;
 
-	/* Compute ratio for VP pool */
+	/* Compute fill ratio */
 	ratio = current / max;
 
 	/* Check if ratio is empty */
@@ -3173,7 +3180,7 @@ GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
 	{
 		/* Use the scaled overlay */
 		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
-	                                  GDK_INTERP_BILINEAR);
+		                              GDK_INTERP_BILINEAR);
 	}
 	else
 	{
@@ -3207,7 +3214,7 @@ GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
  */
 void redraw_status(void)
 {
-	GtkWidget *image1, *image2, *image3;
+	GtkWidget *draw_image, *discard_image, *pool_image;
 	GdkPixbuf *buf;
 	int i;
 	struct extra_info *ei;
@@ -3228,7 +3235,7 @@ void redraw_status(void)
 	              display_deck, real_game.deck_size);
 
 	/* Make image widget */
-	image1 = gtk_image_new_from_pixbuf(buf);
+	draw_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
 	ei = &status_extra_info[MAX_PLAYER][0];
@@ -3243,21 +3250,21 @@ void redraw_status(void)
 	ei->border = 1;
 
 	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(image1), "expose-event",
+	g_signal_connect_after(G_OBJECT(draw_image), "expose-event",
 	                       G_CALLBACK(draw_extra_text), ei);
 
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
 
 	/* Pack deck image */
-	gtk_box_pack_start(GTK_BOX(game_status), image1, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(game_status), draw_image, TRUE, TRUE, 0);
 
 	/* Build discard image */
 	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
 	                              GDK_INTERP_BILINEAR);
 
 	/* Make image widget */
-	image2 = gtk_image_new_from_pixbuf(buf);
+	discard_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
 	ei = &status_extra_info[MAX_PLAYER][1];
@@ -3272,21 +3279,21 @@ void redraw_status(void)
 	ei->border = 1;
 
 	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(image2), "expose-event",
+	g_signal_connect_after(G_OBJECT(discard_image), "expose-event",
 	                       G_CALLBACK(draw_extra_text), ei);
 
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
 
 	/* Pack discard image */
-	gtk_box_pack_start(GTK_BOX(game_status), image2, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(game_status), discard_image, TRUE, TRUE, 0);
 
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY], size, display_pool,
 	              real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
 
 	/* Make VP widget */
-	image3 = gtk_image_new_from_pixbuf(buf);
+	pool_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
 	ei = &status_extra_info[MAX_PLAYER][2];
@@ -3301,14 +3308,14 @@ void redraw_status(void)
 	ei->border = 1;
 
 	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(image3), "expose-event",
+	g_signal_connect_after(G_OBJECT(pool_image), "expose-event",
 	                       G_CALLBACK(draw_extra_text), ei);
 
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
 
 	/* Pack VP image */
-	gtk_box_pack_start(GTK_BOX(game_status), image3, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(game_status), pool_image, TRUE, TRUE, 0);
 
 	/* Show everything */
 	gtk_widget_show_all(game_status);
@@ -7201,8 +7208,6 @@ static void gui_auto_save(game *g, int who)
 		fname = g_build_filename(opt.data_folder, "autosave.sav", NULL);
 	}
 
-	printf("Saving to %s\n", fname);
-
 	/* Save to file */
 	if (save_game(g, fname, who) < 0)
 	{
@@ -7294,16 +7299,16 @@ void modify_gui(void)
 {
 	int i;
 
-	/* Check for goals enabled */
-	if (goals_enabled(&real_game))
-	{
-		/* Show goal area */
-		gtk_widget_show(goal_area);
-	}
-	else
+	/* Check for goals disabled */
+	if (!goals_enabled(&real_game))
 	{
 		/* Hide goal area */
 		gtk_widget_hide(goal_area);
+	}
+	else
+	{
+		/* Show goal area */
+		gtk_widget_show(goal_area);
 	}
 
 	/* Loop over existing players */
@@ -7629,6 +7634,13 @@ static void read_prefs(void)
 	                                          NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
+
+	/* Check length of human name */
+	if (strlen(opt.player_name) > 50)
+	{
+		/* Cap length of name */
+		opt.player_name[50] = '\0';
+	}
 
 	/* Read GUI options */
 	opt.full_reduced = g_key_file_get_integer(pref_file, "gui",
@@ -8003,7 +8015,7 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
 	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 	                                     GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
-                                         NULL);
+	                                     NULL);
 
 	/* Check if last save location is set */
 	if (opt.last_save)

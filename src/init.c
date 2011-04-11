@@ -637,7 +637,7 @@ void init_game(game *g)
 	}
 
 	/* Add goals when expanded */
-	if (goals_enabled(g))
+	if (g->expanded && !g->goal_disabled)
 	{
 		/* No goals available yet */
 		n = 0;

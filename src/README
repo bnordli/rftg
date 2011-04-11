@@ -15,7 +15,7 @@ RUNNING
 Run with "./rftg".  You may specify number of players, expansion level,
 etc with some command line options:
 
-	-r <num>       -- A seed to pick when initiating the random pool
+	-r <num>       -- A seed to pick when initializing the random pool
 	-p <num>       -- Number of players (including yourself)
 	-a             -- Play a two-player advanced game
 	-e <expansion> -- Expansion level to play:
