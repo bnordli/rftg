@@ -10038,7 +10038,7 @@ int main(int argc, char *argv[])
 	                           NULL);
 
 	/* Create "goal" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_GOAL, "foreground", "#eebb00",
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_GOAL, "foreground", "#eeaa00",
 	                           NULL);
 
 	/* Create "prestige" tag for message buffer */
