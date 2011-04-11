@@ -502,7 +502,18 @@ void save_log(void)
 
 	/* Generate file name */
 	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
-	full_filename = g_build_filename(RFTGDIR, filename, NULL);
+
+	/* Check if data folder is set */
+	if (!opt.data_folder)
+	{
+		/* Build autosave filename */
+		full_filename = g_build_filename(RFTGDIR, filename, NULL);
+	}
+	else
+	{
+		/* Build autosave filename */
+		full_filename = g_build_filename(opt.data_folder, filename, NULL);
+	}
 
 	/* Open file for writing */
 	fff = fopen(full_filename, "w");
@@ -7178,8 +7189,19 @@ static void gui_auto_save(game *g, int who)
 	/* Check for connected to server, auto_save enabled, and not replaying game */
 	if (client_state != CS_DISCONN || !opt.auto_save || game_replaying) return;
 
-	/* Build autosave filename */
-	fname = g_build_filename(RFTGDIR, "autosave.sav", NULL);
+	/* Check if data folder is set */
+	if (!opt.data_folder)
+	{
+		/* Build autosave filename */
+		fname = g_build_filename(RFTGDIR, "autosave.sav", NULL);
+	}
+	else
+	{
+		/* Build autosave filename */
+		fname = g_build_filename(opt.data_folder, "autosave.sav", NULL);
+	}
+
+	printf("Saving to %s\n", fname);
 
 	/* Save to file */
 	if (save_game(g, fname, who) < 0)
@@ -7627,6 +7649,8 @@ static void read_prefs(void)
 	/* Read folder options */
 	opt.last_save = g_key_file_get_string(pref_file, "folders",
 	                                      "last_save", NULL);
+	opt.data_folder = g_key_file_get_string(pref_file, "folders",
+	                                       "data_folder", NULL);
 
 	/* Read multiplayer options */
 	opt.server_name = g_key_file_get_string(pref_file, "multiplayer",
@@ -7699,7 +7723,9 @@ void save_prefs(void)
 
 	/* Set folder location options */
 	g_key_file_set_string(pref_file, "folders", "last_save",
-		                  opt.last_save);
+	                      opt.last_save);
+	g_key_file_set_string(pref_file, "folders", "data_folder",
+	                      opt.data_folder);
 
 	/* Set multiplayer options */
 	g_key_file_set_string(pref_file, "multiplayer", "server_name",
@@ -8533,20 +8559,55 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
+ * Choose a location for autosaves and saved logs
+ */
+static void file_location_pressed(GtkButton *button, gpointer data)
+{
+	GtkWidget *dialog;
+	char *folder_name;
+
+	/* Create file chooser dialog box */
+	dialog = gtk_file_chooser_dialog_new("Choose location", NULL,
+	                                     GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                     GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
+	                                     NULL);
+
+	/* Check if last folder location is set */
+	if (opt.data_folder)
+	{
+		/* Set current folder to last save */
+		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), opt.data_folder);
+	}
+
+	/* Run dialog and check response */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Get folder name */
+		folder_name = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
+
+		/* Save folder name to options */
+		opt.data_folder = folder_name;
+	}
+
+	/* Destroy file choose dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
  * Modify GUI options.
  */
 static void gui_options(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *reduce_box;
-	GtkWidget *reduce_frame;
-	GtkWidget *shrink_button;
-	GtkWidget *discount_button;
-	GtkWidget *autosave_button;
-	GtkWidget *save_log_button;
-	GtkWidget *colored_log_button;
-	GtkWidget *verbose_button;
+	GtkWidget *reduce_box, *reduce_frame;
+	GtkWidget *game_view_box, *game_view_frame;
+	GtkWidget *shrink_button, *discount_button;
+	GtkWidget *log_box, *log_frame;
+	GtkWidget *colored_log_button, *verbose_button;
+	GtkWidget *file_box, *file_frame;
+	GtkWidget *autosave_button, *save_log_button, *file_location_button;
 	int i;
 
 	/* Create dialog box */
@@ -8557,10 +8618,14 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_STOCK_CANCEL,
 	                                     GTK_RESPONSE_REJECT, NULL);
 
+	/* Make some space */
+	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 4);
+
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog),
 	                     "Race for the Galaxy " RELEASE);
 
+	/* ---- Full Size ---- */
 	/* Create vbox to hold full-size image option radio buttons */
 	reduce_box = gtk_vbox_new(FALSE, 0);
 
@@ -8601,6 +8666,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  reduce_frame);
 
+	/* ---- Game view ---- */
+	/* Create vbox to hold game view check boxes */
+	game_view_box = gtk_vbox_new(FALSE, 0);
+
 	/* Create toggle button for shrinking opponent areas */
 	shrink_button = gtk_check_button_new_with_label("Shrink Opponents");
 
@@ -8608,9 +8677,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(shrink_button),
 	                             opt.shrink_opponent);
 
-	/* Add button to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  shrink_button);
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), shrink_button, FALSE, TRUE, 0);
 
 	/* Create toggle button for settle discount */
 	discount_button = gtk_check_button_new_with_label("Show Settle discounts");
@@ -8619,31 +8687,22 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discount_button),
 	                             opt.show_settle_discount);
 
-	/* Add button to dialog box */
+	/* Pack button into status box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), discount_button, FALSE, TRUE, 0);
+
+	/* Create frame around buttons */
+	game_view_frame = gtk_frame_new("Game view");
+
+	/* Pack button box into frame */
+	gtk_container_add(GTK_CONTAINER(game_view_frame), game_view_box);
+
+	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  discount_button);
+	                  game_view_frame);
 
-	/* Create toggle button for autosaving */
-	autosave_button = gtk_check_button_new_with_label("Autosave");
-
-	/* Set toggled status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(autosave_button),
-	                             opt.auto_save);
-
-	/* Add button to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                 autosave_button);
-
-	/* Create toggle button for log saving */
-	save_log_button = gtk_check_button_new_with_label("Save log at end of game");
-
-	/* Set toggled status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(save_log_button),
-	                             opt.save_log);
-
-	/* Add button to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                 save_log_button);
+	/* ---- Log options ---- */
+	/* Create vbox to hold log check boxes */
+	log_box = gtk_vbox_new(FALSE, 0);
 
 	/* Create toggle button for colored log */
 	colored_log_button = gtk_check_button_new_with_label("Colored log");
@@ -8652,9 +8711,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(colored_log_button),
 	                             opt.colored_log);
 
-	/* Add button to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  colored_log_button);
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(log_box), colored_log_button, FALSE, TRUE, 0);
 
 	/* Create toggle button for verbose log */
 	verbose_button = gtk_check_button_new_with_label("Verbose log");
@@ -8663,9 +8721,62 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(verbose_button),
 	                             opt.verbose);
 
-	/* Add button to dialog box */
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(log_box), verbose_button, FALSE, TRUE, 0);
+
+	/* Create frame around buttons */
+	log_frame = gtk_frame_new("Log options");
+
+	/* Pack button box into frame */
+	gtk_container_add(GTK_CONTAINER(log_frame), log_box);
+
+	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  verbose_button);
+	                  log_frame);
+
+	/* ---- File options ---- */
+	/* Create vbox to hold file options check boxes */
+	file_box = gtk_vbox_new(FALSE, 0);
+
+	/* Create toggle button for autosaving */
+	autosave_button = gtk_check_button_new_with_label("Autosave");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(autosave_button),
+	                             opt.auto_save);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(file_box), autosave_button, FALSE, TRUE, 0);
+
+	/* Create toggle button for log saving */
+	save_log_button = gtk_check_button_new_with_label("Save log at end of game");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(save_log_button),
+	                             opt.save_log);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(file_box), save_log_button, FALSE, TRUE, 0);
+
+	/* Create file location button */
+	file_location_button = gtk_button_new_with_label("Choose folder...");
+
+	/* Attach event */
+	g_signal_connect(G_OBJECT(file_location_button), "clicked",
+	                 G_CALLBACK(file_location_pressed), NULL);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(file_box), file_location_button, FALSE, TRUE, 0);
+
+	/* Create frame around buttons */
+	file_frame = gtk_frame_new("File options");
+
+	/* Pack button box into frame */
+	gtk_container_add(GTK_CONTAINER(file_frame), file_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  file_frame);
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);

@@ -82,6 +82,9 @@ typedef struct options
 
 	/* Last save location */
 	char *last_save;
+
+	/* Data folder location */
+	char *data_folder;
 } options;
 
 extern options opt;
