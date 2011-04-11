@@ -7624,6 +7624,10 @@ static void read_prefs(void)
 	opt.verbose = g_key_file_get_boolean(pref_file, "gui",
 	                                     "verbose", NULL);
 
+	/* Read folder options */
+	opt.last_save = g_key_file_get_string(pref_file, "folders",
+	                                      "last_save", NULL);
+
 	/* Read multiplayer options */
 	opt.server_name = g_key_file_get_string(pref_file, "multiplayer",
 	                                        "server_name", NULL);
@@ -7692,6 +7696,10 @@ void save_prefs(void)
 		                   opt.colored_log);
 	g_key_file_set_boolean(pref_file, "gui", "verbose",
 		                   opt.verbose);
+
+	/* Set folder location options */
+	g_key_file_set_string(pref_file, "folders", "last_save",
+		                  opt.last_save);
 
 	/* Set multiplayer options */
 	g_key_file_set_string(pref_file, "multiplayer", "server_name",
@@ -7881,9 +7889,22 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
                                          NULL);
 
+	/* Check if last save location is set */
+	if (opt.last_save)
+	{
+		/* Set current folder to last save */
+		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), opt.last_save);
+	}
+
 	/* Run dialog and check response */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
+		/* Get folder used */
+		opt.last_save = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
+
+		/* Save prefs */
+		save_prefs();
+
 		/* Get filename */
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
@@ -7953,14 +7974,27 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Save game", NULL,
-	                                  GTK_FILE_CHOOSER_ACTION_SAVE,
-	                                  GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-	                                  GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
-                                          NULL);
+	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
+	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                     GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
+                                         NULL);
+
+	/* Check if last save location is set */
+	if (opt.last_save)
+	{
+		/* Set current folder to last save */
+		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), opt.last_save);
+	}
 
 	/* Run dialog and check response */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
+		/* Get folder used */
+		opt.last_save = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
+
+		/* Save prefs */
+		save_prefs();
+
 		/* Get filename */
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
@@ -8669,7 +8703,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Handle new options */
 		modify_gui();
 
-		/* Redraw status */
+		/* Redraw everything */
 		redraw_everything();
 
 		/* Save preferences */
@@ -9707,12 +9741,12 @@ int main(int argc, char *argv[])
 	/* Create game menu items */
 	new_item = gtk_menu_item_new_with_mnemonic("_New");
 	new_parameters_item = gtk_menu_item_new_with_mnemonic("N_ew...");
-	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
+	load_item = gtk_menu_item_new_with_mnemonic("L_oad Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
 	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
-	option_item = gtk_menu_item_new_with_mnemonic("GUI _Options...");
+	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
 	/* Add accelerators for game menu items */
@@ -9721,7 +9755,7 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(new_parameters_item, "activate", window_accel,
 	                           'N', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(load_item, "activate", window_accel,
-	                           'L', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'O', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
 	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(undo_item, "activate", window_accel,
@@ -9731,7 +9765,7 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
 	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
-	                           'O', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'G', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
 	                           'Q', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 

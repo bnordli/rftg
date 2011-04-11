@@ -79,6 +79,9 @@ typedef struct options
 
 	/* Verbose log */
 	int verbose;
+
+	/* Last save location */
+	char *last_save;
 } options;
 
 extern options opt;
