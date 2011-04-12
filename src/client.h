@@ -68,6 +68,9 @@ typedef struct options
 	int multi_min;
 	int multi_max;
 
+	/* Log width */
+	int log_width;
+
 	/* Autosave */
 	int auto_save;
 

@@ -1454,7 +1454,7 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
 	{
 		/* Scale image */
 		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
-		                          CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
+		                              CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
 	}
 
 	/* Set image */
@@ -1490,7 +1490,7 @@ static gboolean redraw_action(GtkWidget *widget, GdkEventCrossing *event,
 	{
 		/* Scale image */
 		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
-		                          CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
+		                              CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
 	}
 
 	/* Set image */
@@ -7372,6 +7372,11 @@ void modify_gui(void)
 	/* Redraw full-size image */
 	redraw_full(NULL, NULL, NULL);
 
+	/* Resize log window */
+	gtk_widget_set_size_request(message_view,
+	                            opt.log_width ? opt.log_width : CARD_WIDTH,
+	                            -1);
+
 	/* Resize status areas */
 	status_resize();
 
@@ -7664,6 +7669,8 @@ static void read_prefs(void)
 	/* Read GUI options */
 	opt.full_reduced = g_key_file_get_integer(pref_file, "gui",
 	                                          "full_reduced", NULL);
+	opt.log_width = g_key_file_get_integer(pref_file, "gui",
+	                                       "log_width", NULL);
 	opt.shrink_opponent = g_key_file_get_boolean(pref_file, "gui",
 	                                             "shrink_opponent", NULL);
 	opt.show_settle_discount = g_key_file_get_boolean(pref_file, "gui",
@@ -7739,6 +7746,8 @@ void save_prefs(void)
 	/* Set GUI options */
 	g_key_file_set_integer(pref_file, "gui", "full_reduced",
 	                       opt.full_reduced);
+	g_key_file_set_integer(pref_file, "gui", "log_width",
+	                       opt.log_width);
 	g_key_file_set_boolean(pref_file, "gui", "shrink_opponent",
 	                       opt.shrink_opponent);
 	g_key_file_set_boolean(pref_file, "gui", "show_settle_discount",
@@ -8633,6 +8642,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
 	GtkWidget *reduce_box, *reduce_frame;
+	GtkWidget *log_width_frame, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button;
 	GtkWidget *log_box, *log_frame;
@@ -8696,6 +8706,29 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  reduce_frame);
+
+	/* ---- Log width ---- */
+	/* Create frame around scale */
+	log_width_frame = gtk_frame_new("Log width");
+
+	/* Create log width scale */
+	log_width_scale = gtk_hscale_new_with_range(150, 360, 10);
+
+	/* Do not display value */
+	gtk_scale_set_draw_value(GTK_SCALE(log_width_scale), FALSE);
+
+	/* Check for value set */
+	if (opt.log_width)
+	{
+		/* Set value */
+		gtk_range_set_value(GTK_RANGE(log_width_scale), opt.log_width);
+	}
+
+	/* Pack scale into fram */
+	gtk_container_add(GTK_CONTAINER(log_width_frame), log_width_scale);
+
+	/* Add frame to dialog */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), log_width_frame);
 
 	/* ---- Game view ---- */
 	/* Create vbox to hold game view check boxes */
@@ -8841,6 +8874,9 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set verbose option */
 		opt.verbose =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
+
+		/* Set log width */
+		opt.log_width = (int) gtk_range_get_value(GTK_RANGE(log_width_scale));
 
 		/* Handle new options */
 		modify_gui();
@@ -10026,9 +10062,6 @@ int main(int argc, char *argv[])
 
 	/* Create game status label */
 	game_status = gtk_hbox_new(TRUE, 0);
-
-	/* Have game status request minimum width */
-	gtk_widget_set_size_request(game_status, CARD_WIDTH, -1);
 
 	/* Add game status to status vbox */
 	gtk_box_pack_start(GTK_BOX(left_vbox), game_status, FALSE, FALSE, 0);
