@@ -10051,6 +10051,10 @@ int main(int argc, char *argv[])
 	gtk_text_buffer_create_tag(message_buffer, FORMAT_BOLD, "weight", "bold",
 	                           NULL);
 
+	/* Create "phase" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_PHASE, "foreground", "#0000aa",
+	                           NULL);
+
 	/* Create "takeover" tag for message buffer */
 	gtk_text_buffer_create_tag(message_buffer, FORMAT_TAKEOVER, "foreground", "#ff0000",
 	                           NULL);

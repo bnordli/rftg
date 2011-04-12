@@ -484,6 +484,7 @@
  * GUI: Text formatting
  */
 #define FORMAT_BOLD "bold"
+#define FORMAT_PHASE "phase"
 #define FORMAT_TAKEOVER "takeover"
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"

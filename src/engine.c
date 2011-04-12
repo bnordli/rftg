@@ -9719,6 +9719,24 @@ char *actname[MAX_ACTION * 2 - 1] =
 };
 
 /*
+ * Plain action names.
+ */
+
+static char *plain_actname[MAX_ACTION] =
+{
+	"Search",
+	"Explore",
+	"Explore",
+	"Develop",
+	"Second develop",
+	"Settle",
+	"Second settle",
+	"Consume",
+	"Consume",
+	"Produce",
+};
+
+/*
  * Return an action name.
  */
 char *action_name(int act)
@@ -9995,6 +10013,12 @@ int game_round(game *g)
 
 		/* Skip unchosen phases */
 		if (!g->action_selected[i]) continue;
+
+		/* Format message */
+		sprintf(msg, "--- %s phase ---\n", plain_actname[i]);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_PHASE);
 
 		/* Handle phase */
 		switch (i)
