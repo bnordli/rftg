@@ -6902,6 +6902,9 @@ static void auto_save(game *g, int who, char *id)
 	/* Check for connected to server, auto_save enabled, and not replaying game */
 	if (client_state != CS_DISCONN || !opt.auto_save || game_replaying) return;
 
+	/* Format file */
+	sprintf(tmp, "autosave_%s.sav", id);
+
 	/* Check if data folder is set */
 	if (!opt.data_folder)
 	{
@@ -6913,8 +6916,6 @@ static void auto_save(game *g, int who, char *id)
 		/* Build autosave filename */
 		full_name = g_build_filename(opt.data_folder, tmp, NULL);
 	}
-
-	printf("Autosaving to %s\n", full_name);
 
 	/* Save to file */
 	if (save_game(g, full_name, who) < 0)
