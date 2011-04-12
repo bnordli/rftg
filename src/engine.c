@@ -577,7 +577,7 @@ void draw_card(game *g, int who, char *reason)
 	if (!g->simulation && reason)
 	{
 		/* Format message */
-		sprintf(msg, "%s receives a card from %s.\n",
+		sprintf(msg, "%s receives 1 card from %s.\n",
 		        p_ptr->name, reason);
 
 		/* Add message */
@@ -4207,8 +4207,8 @@ int upgrade_chosen(game *g, int who, int replacement, int old)
 	if (!g->simulation)
 	{
 		/* Format message */
-		sprintf(msg, "%s replaces %s with %s.\n", p_ptr->name,
-		        c_ptr->d_ptr->name, b_ptr->d_ptr->name);
+		sprintf(msg, "%s uses Terraforming Engineers to replace %s with %s.\n",
+		        p_ptr->name, c_ptr->d_ptr->name, b_ptr->d_ptr->name);
 
 		/* Send message */
 		message_add(g, msg);
@@ -4588,18 +4588,43 @@ void settle_action(game *g, int who, int world)
 			if (g->game_over) return;
 		}
 
+		/* Get card used to place world */
+		c_ptr = &g->deck[place_again];
+
 		/* Check for no choice */
 		if (p_ptr->placing == -1)
 		{
 			/* Ask for takeover declaration if possible */
 			if (settle_check_takeover(g, who))
 			{
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s uses %s to attempt to take over a world.\n",
+					        g->p[who].name, c_ptr->d_ptr->name);
+
+					/* Add message */
+					message_add(g, msg);
+				}
+			
 				/* Act on declaration */
 				settle_action(g, who, -1);
 			}
 		}
 		else
 		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s uses %s to place an additional world.\n",
+					    g->p[who].name, c_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+			}
+			
 			/* Place card */
 			place_card(g, who, p_ptr->placing);
 
@@ -4666,8 +4691,8 @@ void settle_action(game *g, int who, int world)
 			if (!g->simulation)
 			{
 				/* Format message */
-				sprintf(msg, "%s discards %s.\n", p_ptr->name,
-				        c_ptr->d_ptr->name);
+				sprintf(msg, "%s discards %s to place an additional world.\n",
+				        p_ptr->name, c_ptr->d_ptr->name);
 
 				/* Send message */
 				message_add(g, msg);

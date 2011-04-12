@@ -431,7 +431,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 		if (opt.verbose)
 		{
 			/* Add message as normal */
-			message_add(g, msg);
+			message_add_formatted(g, msg, FORMAT_VERBOSE_COLOR);
 		}
 		return;
 	}
@@ -10079,24 +10079,28 @@ int main(int argc, char *argv[])
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
 	/* Create "bold" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_BOLD, "weight", "bold",
-	                           NULL);
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_BOLD,
+	                           "weight", "bold", NULL);
 
 	/* Create "phase" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_PHASE, "foreground", "#0000aa",
-	                           NULL);
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_PHASE,
+	                           "foreground", "#0000aa", NULL);
 
 	/* Create "takeover" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_TAKEOVER, "foreground", "#ff0000",
-	                           NULL);
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_TAKEOVER, 
+	                           "foreground", "#ff0000", NULL);
 
 	/* Create "goal" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_GOAL, "foreground", "#eeaa00",
-	                           NULL);
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_GOAL, 
+	                           "foreground", "#eeaa00", NULL);
 
 	/* Create "prestige" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_PRESTIGE, "foreground", "#8800bb",
-	                           NULL);
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_PRESTIGE, 
+	                           "foreground", "#8800bb", NULL);
+
+	/* Create "verbose" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE_COLOR, 
+	                           "foreground", "#aaaaaa", NULL);
 
 	/* Get iterator for end of buffer */
 	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);

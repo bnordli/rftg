@@ -489,6 +489,7 @@
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
+#define FORMAT_VERBOSE_COLOR "verbose_color"
 
 /*
  * Forward declaration.
