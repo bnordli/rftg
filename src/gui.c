@@ -6892,6 +6892,41 @@ static void gui_notify_rotation(game *g, int who)
 }
 
 /*
+ * Auto save the game.
+ */
+static void auto_save(game *g, int who, char *id)
+{
+	char tmp[1024];
+	char *full_name;
+
+	/* Check for connected to server, auto_save enabled, and not replaying game */
+	if (client_state != CS_DISCONN || !opt.auto_save || game_replaying) return;
+
+	/* Check if data folder is set */
+	if (!opt.data_folder)
+	{
+		/* Build autosave filename */
+		full_name = g_build_filename(RFTGDIR, tmp, NULL);
+	}
+	else
+	{
+		/* Build autosave filename */
+		full_name = g_build_filename(opt.data_folder, tmp, NULL);
+	}
+
+	printf("Autosaving to %s\n", full_name);
+
+	/* Save to file */
+	if (save_game(g, full_name, who) < 0)
+	{
+		/* Error */
+	}
+
+	/* Destroy filename */
+	g_free(full_name);
+}
+
+/*
  * Make a choice of the given type.
  */
 static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
@@ -6902,11 +6937,21 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	int *l_ptr;
 	int save_round = FALSE;
 
+	/* Auto save */
+	auto_save(g, who, "choice");
+
 	/* Determine type of choice */
 	switch (type)
 	{
 		/* Action(s) to play */
 		case CHOICE_ACTION:
+
+			/* Do not auto save for second choice in advanced game */
+			if (!g->advanced || arg1 != 2)
+			{
+				/* Auto save */
+				auto_save(g, who, "round");
+			}
 
 			/* Choose actions */
 			gui_choose_action(g, who, list, arg1);
@@ -6918,6 +6963,9 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 		/* Start world */
 		case CHOICE_START:
+
+			/* Auto save */
+			auto_save(g, who, "start");
 
 			/* Choose start world */
 			gui_choose_start(g, who, list, nl, special, ns);
@@ -7187,38 +7235,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 }
 
 /*
- * Auto save the game.
- */
-static void gui_auto_save(game *g, int who)
-{
-	char *fname;
-
-	/* Check for connected to server, auto_save enabled, and not replaying game */
-	if (client_state != CS_DISCONN || !opt.auto_save || game_replaying) return;
-
-	/* Check if data folder is set */
-	if (!opt.data_folder)
-	{
-		/* Build autosave filename */
-		fname = g_build_filename(RFTGDIR, "autosave.sav", NULL);
-	}
-	else
-	{
-		/* Build autosave filename */
-		fname = g_build_filename(opt.data_folder, "autosave.sav", NULL);
-	}
-
-	/* Save to file */
-	if (save_game(g, fname, who) < 0)
-	{
-		/* Error */
-	}
-
-	/* Destroy filename */
-	g_free(fname);
-}
-
-/*
  * Interface to GUI decision functions.
  */
 decisions gui_func =
@@ -7232,7 +7248,6 @@ decisions gui_func =
 	NULL,
 	NULL,
 	NULL,
-	gui_auto_save,
 };
 
 /*
@@ -7574,6 +7589,9 @@ static void run_game(void)
 
 		/* Declare winner */
 		declare_winner(&real_game);
+
+		/* Auto save */
+		auto_save(&real_game, player_us, "end");
 
 		/* Dump log */
 		save_log();

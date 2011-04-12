@@ -961,7 +961,6 @@ static decisions prepare_func =
 	NULL,
 	NULL,
 	NULL,
-	NULL,
 };
 
 /*
