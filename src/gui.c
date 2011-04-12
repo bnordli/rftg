@@ -424,23 +424,20 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	/* Check for verbosity disabled */
-	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose)
-	{
-		/* Disregard message */
-		return;
-	}
-
 	/* Check for verbose message */
-	else if (!strcmp(tag, FORMAT_VERBOSE))
+	if (!strcmp(tag, FORMAT_VERBOSE))
 	{
-		/* Add message as normal */
-		message_add(g, msg);
+		/* Check for verbosity enabled */
+		if (opt.verbose)
+		{
+			/* Add message as normal */
+			message_add(g, msg);
+		}
 		return;
 	}
 
 	/* Check for bold formatting */
-	if (!strcmp(tag, FORMAT_BOLD) && !opt.colored_log)
+	if (strcmp(tag, FORMAT_BOLD) && !opt.colored_log)
 	{
 		/* Skip coloring when colored log is off */
 		message_add(g, msg);
