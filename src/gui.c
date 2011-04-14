@@ -345,7 +345,8 @@ static GtkWidget *game_status;
 static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
-static GtkWidget *new_item, *new_parameters_item, *load_item, *save_item;
+static GtkWidget *new_item, *new_parameters_item;
+static GtkWidget *load_item, *replay_item, *save_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
 static GtkWidget *option_item, *quit_item;
@@ -7656,6 +7657,25 @@ static void run_game(void)
 			modify_gui();
 		}
 
+		/* Replay a new game */
+		else if (restart_loop == RESTART_REPLAY)
+		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
+
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Begin at start */
+			num_undo = 0;
+
+			/* Modify GUI for new game parameters */
+			modify_gui();
+		}
+
 		/* Reset counts */
 		pos = choice = 0;
 
@@ -7992,6 +8012,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(new_item, TRUE);
 		gtk_widget_set_sensitive(new_parameters_item, TRUE);
 		gtk_widget_set_sensitive(load_item, TRUE);
+		gtk_widget_set_sensitive(replay_item, TRUE);
 		gtk_widget_set_sensitive(save_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
@@ -8012,6 +8033,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(new_item, FALSE);
 		gtk_widget_set_sensitive(new_parameters_item, FALSE);
 		gtk_widget_set_sensitive(load_item, FALSE);
+		gtk_widget_set_sensitive(replay_item, FALSE);
 		gtk_widget_set_sensitive(save_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
@@ -8066,13 +8088,15 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 	game load_state;
 	GtkWidget *dialog, *alert;
 	char *fname;
+	char *header = GPOINTER_TO_INT(data) == RESTART_LOAD ?
+	               "Load game" : "Replay game";
 	int i;
 
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
 	/* Create file chooser dialog box */
-	dialog = gtk_file_chooser_dialog_new("Load game", NULL,
+	dialog = gtk_file_chooser_dialog_new(header, NULL,
 	                                     GTK_FILE_CHOOSER_ACTION_OPEN,
 	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 	                                     GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
@@ -8143,7 +8167,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		real_game.game_over = 1;
 
 		/* Switch to loaded state when able */
-		restart_loop = RESTART_LOAD;
+		restart_loop = GPOINTER_TO_INT(data);
 
 		/* Quit waiting for events */
 		gtk_main_quit();
@@ -10004,6 +10028,7 @@ int main(int argc, char *argv[])
 	new_item = gtk_menu_item_new_with_mnemonic("_New");
 	new_parameters_item = gtk_menu_item_new_with_mnemonic("N_ew...");
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
+	replay_item = gtk_menu_item_new_with_mnemonic("Re_play Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
@@ -10015,6 +10040,8 @@ int main(int argc, char *argv[])
 	                           'N', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(load_item, "activate", window_accel,
 	                           'L', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(replay_item, "activate", window_accel,
+	                           'P', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
 	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
@@ -10026,6 +10053,7 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_parameters_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), load_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), replay_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
@@ -10113,7 +10141,11 @@ int main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(new_parameters_item), "activate",
 	                 G_CALLBACK(gui_new_parameters), NULL);
 	g_signal_connect(G_OBJECT(load_item), "activate",
-	                 G_CALLBACK(gui_load_game), NULL);
+	                 G_CALLBACK(gui_load_game),
+	                 GINT_TO_POINTER(RESTART_LOAD));
+	g_signal_connect(G_OBJECT(replay_item), "activate",
+	                 G_CALLBACK(gui_load_game),
+	                 GINT_TO_POINTER(RESTART_REPLAY));
 	g_signal_connect(G_OBJECT(save_item), "activate",
 	                 G_CALLBACK(gui_save_game), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",

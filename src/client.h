@@ -10,6 +10,7 @@
 #define RESTART_REDO 7
 #define RESTART_REDO_ROUND 8
 #define RESTART_REDO_GAME 9
+#define RESTART_REPLAY 10
 
 /*
  * User options.
