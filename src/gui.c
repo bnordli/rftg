@@ -7439,12 +7439,12 @@ static void run_game(void)
 		/* Replay by default */
 		game_replaying = TRUE;
 
-		/* Reset our position and GUI elements */
-		reset_gui();
-
 		/* Check for new game starting */
 		if (restart_loop == RESTART_NEW)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Reset undo positions */
 			num_undo = 0;
 			max_undo = 0;
@@ -7481,6 +7481,9 @@ static void run_game(void)
 		/* Undo previous choice */
 		else if (restart_loop == RESTART_UNDO)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7497,6 +7500,9 @@ static void run_game(void)
 		/* Undo previous turn */
 		else if (restart_loop == RESTART_UNDO_ROUND)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7530,6 +7536,9 @@ static void run_game(void)
 		/* Undo game */
 		else if (restart_loop == RESTART_UNDO_GAME)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7543,6 +7552,9 @@ static void run_game(void)
 		/* Redo previous choice */
 		else if (restart_loop == RESTART_REDO)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7556,6 +7568,9 @@ static void run_game(void)
 		/* Redo previous round */
 		else if (restart_loop == RESTART_REDO_ROUND)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7610,6 +7625,9 @@ static void run_game(void)
 		/* Redo previous choice */
 		else if (restart_loop == RESTART_REDO_GAME)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7623,6 +7641,9 @@ static void run_game(void)
 		/* Load a new game */
 		else if (restart_loop == RESTART_LOAD)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
