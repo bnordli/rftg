@@ -86,6 +86,27 @@ int load_game(game *g, char *filename)
 		p_ptr->choice_pos = 0;
 	}
 
+	/* Reset human name */
+	g->human_name = NULL;
+
+	/* Skip to next line */
+	if (fgets(buf, 1024, fff))
+	{
+		/* Read player name (if any) */
+		if (fgets(buf, 50, fff))
+		{
+			/* Check for end of line */
+			if (buf[strlen(buf) - 1] == '\n')
+			{
+				/* Strip newline from buffer */
+				buf[strlen(buf) - 1] = '\0';
+			}
+
+			/* If still characters left, set human name */
+			if (strlen(buf)) g->human_name = strdup(buf);
+		}
+	}
+
 	/* Close file */
 	fclose(fff);
 
@@ -130,10 +151,10 @@ int save_game(game *g, char *filename, int player_us)
 		p_ptr = &g->p[n];
 
 		/* Write size of choice log */
-		fprintf(fff, "%d ", p_ptr->choice_size);
+		fprintf(fff, "%d ", p_ptr->choice_unread_pos);
 
 		/* Loop over choice log entries */
-		for (j = 0; j < p_ptr->choice_size; j++)
+		for (j = 0; j < p_ptr->choice_unread_pos; j++)
 		{
 			/* Write choice log entry */
 			fprintf(fff, "%d ", p_ptr->choice_log[j]);
@@ -141,6 +162,12 @@ int save_game(game *g, char *filename, int player_us)
 
 		/* Finish line */
 		fprintf(fff, "\n");
+	}
+
+	/* Save name of human player (if any) */
+	if (g->human_name && strlen(g->human_name))
+	{
+		fprintf(fff, "%s\n", g->human_name);
 	}
 
 	/* Close file */

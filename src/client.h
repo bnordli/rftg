@@ -6,7 +6,11 @@
 #define RESTART_UNDO 3
 #define RESTART_NONE 4
 #define RESTART_UNDO_ROUND 5
-#define RESTART_REDO 6
+#define RESTART_UNDO_GAME 6
+#define RESTART_REDO 7
+#define RESTART_REDO_ROUND 8
+#define RESTART_REDO_GAME 9
+#define RESTART_REPLAY 10
 
 /*
  * User options.
@@ -18,6 +22,9 @@ typedef struct options
 
 	/* Expansion level */
 	int expanded;
+
+	/* Player name */
+	char *player_name;
 
 	/* Two-player advanced game */
 	int advanced;
@@ -39,6 +46,9 @@ typedef struct options
 
 	/* Shrink opponent areas to fit without scrolling */
 	int shrink_opponent;
+
+	/* Show the settle discount icon */
+	int show_settle_discount;
 
 	/* Server name to connect to */
 	char *server_name;
@@ -62,6 +72,9 @@ typedef struct options
 	int multi_min;
 	int multi_max;
 
+	/* Log width */
+	int log_width;
+
 	/* Autosave */
 	int auto_save;
 
@@ -73,6 +86,12 @@ typedef struct options
 
 	/* Verbose log */
 	int verbose;
+
+	/* Last save location */
+	char *last_save;
+
+	/* Data folder location */
+	char *data_folder;
 } options;
 
 extern options opt;

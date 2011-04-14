@@ -6185,7 +6185,6 @@ decisions ai_func =
 	NULL,
 	ai_game_over,
 	ai_shutdown,
-	NULL,
 };
 
 /*

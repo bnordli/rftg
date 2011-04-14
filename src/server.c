@@ -2112,7 +2112,7 @@ decisions server_func =
 	NULL,
 	server_verify_choice,
 	NULL,
-	NULL
+	NULL,
 };
 
 /*

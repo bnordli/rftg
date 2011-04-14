@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "d"
+#define RELEASE VERSION "e"
 #endif
 
 #include <stdio.h>
@@ -478,6 +478,7 @@
  * GUI: Text formatting
  */
 #define FORMAT_BOLD "bold"
+#define FORMAT_PHASE "phase"
 #define FORMAT_TAKEOVER "takeover"
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
@@ -670,9 +671,6 @@ typedef struct decisions
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
 
-	/* Autosave */
-	void (*auto_save)(struct game *g, int who);
-
 } decisions;
 
 /*
@@ -770,6 +768,9 @@ typedef struct player
 	/* History of log sizes */
 	int *choice_history;
 
+	/* Last write position for log */
+	int choice_unread_pos;
+
 } player;
 
 /*
@@ -791,6 +792,9 @@ typedef struct game
 
 	/* Who initiated the simulation */
 	int sim_who;
+
+	/* Name of human player */
+	char *human_name;
 
 	/* Players */
 	player p[MAX_PLAYER];
@@ -846,6 +850,9 @@ typedef struct game
 	/* XXX Current kind of "any" good world */
 	int oort_kind;
 
+	/* Current kind of "any" good giving owner the best score */
+	int best_oort_kind;
+
 	/* Actions selected this round */
 	int action_selected[MAX_ACTION];
 
@@ -888,6 +895,7 @@ extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
+extern int next_choice(int* log, int pos);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
