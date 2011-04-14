@@ -69,7 +69,7 @@ static int max_undo;
 /*
  * The size of the human player's log.
  */
-static int us_choice_size;
+static int us_log_size;
 
 /*
  * Whether the game is replaying or not.
@@ -7206,7 +7206,18 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
 
 	/* Remember size of log */
-	us_choice_size = p_ptr->choice_size;
+	us_log_size = p_ptr->choice_size;
+
+	/* Loop over other players */
+	for (i = 0; i < g->num_players; ++i)
+	{
+		/* Skip human player */
+		if (i != player_us)
+		{
+			/* Reset size of log */
+			g->p[i].choice_size = g->p[i].choice_unread_pos;
+		}
+	}
 
 	/* Stop game replaying */
 	game_replaying = FALSE;
@@ -7278,7 +7289,7 @@ void reset_gui(void)
 	real_game.p[player_us].control = &gui_func;
 
 	/* Set size of human log */
-	real_game.p[player_us].choice_size = us_choice_size;
+	real_game.p[player_us].choice_size = us_log_size;
 
 	/* Loop over AI players */
 	for (i = 1; i < MAX_PLAYER; i++)
@@ -7605,7 +7616,7 @@ static void run_game(void)
 		real_game.p[0].choice_size = pos;
 
 		/* Find total number of replay points */
-		while (pos < us_choice_size)
+		while (pos < us_log_size)
 		{
 			/* Update log position */
 			pos = next_choice(real_game.p[0].choice_log, pos);
@@ -8060,7 +8071,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		reset_gui();
 
 		/* Remember log size */
-		us_choice_size = load_state.p[0].choice_size;
+		us_log_size = load_state.p[0].choice_size;
 
 		/* Copy loaded state to real */
 		real_game = load_state;
@@ -9856,6 +9867,9 @@ int main(int argc, char *argv[])
 		real_game.p[i].choice_pos = 0;
 	}
 
+	/* Clear choice log for us */
+	us_log_size = 0;
+
 	/* Create toplevel window */
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
@@ -10710,7 +10724,7 @@ int main(int argc, char *argv[])
 		real_game.game_over = 1;
 
 		/* Remember log size */
-		us_choice_size = real_game.p[0].choice_size;
+		us_log_size = real_game.p[0].choice_size;
 
 		/* Switch to loaded state when able */
 		restart_loop = RESTART_LOAD;
