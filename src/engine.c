@@ -2606,14 +2606,42 @@ void phase_develop(game *g)
 		p_ptr = &g->p[i];
 
 		/* Skip players who were not asked */
-		if (!asked[i]) continue;
+		if (!asked[i])
+		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a development.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
+			continue;
+		}
 
 		/* Get player's answer about placement */
 		p_ptr->placing = extract_choice(g, i, CHOICE_PLACE, list, &n,
 		                                NULL, NULL);
 
 		/* Skip players who are not placing anything */
-		if (p_ptr->placing == -1) continue;
+		if (p_ptr->placing == -1)
+		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a development.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
+			continue;
+		}
 
 		/* Place card */
 		place_card(g, i, p_ptr->placing);
@@ -5513,6 +5541,7 @@ void phase_settle(game *g)
 {
 	player *p_ptr;
 	card *c_ptr;
+	char *msg[1024];
 	int list[MAX_DECK];
 	int i, x, n;
 	int asked[MAX_PLAYER];
@@ -5606,14 +5635,42 @@ void phase_settle(game *g)
 		p_ptr = &g->p[i];
 
 		/* Skip players who were not asked */
-		if (!asked[i]) continue;
+		if (!asked[i])
+		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a world.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
+			continue;
+		}
 
 		/* Get player's world to place */
 		p_ptr->placing = extract_choice(g, i, CHOICE_PLACE, list, &n,
 		                                NULL, NULL);
 
 		/* Skip players who are not placing anything */
-		if (p_ptr->placing == -1) continue;
+		if (p_ptr->placing == -1)
+		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a world.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
+			continue;
+		}
 
 		/* Place card */
 		place_card(g, i, p_ptr->placing);
