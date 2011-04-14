@@ -57,35 +57,29 @@ int verbose = 0;
 game real_game;
 
 /*
- * Number of undo positions saved.
+ * The number of the current undo positions.
  */
 static int num_undo;
 
 /*
- * Maximum number of undo positions saved.
+ * Total number of undo positions saved.
  */
 static int max_undo;
 
 /*
- * Whether the game is replaying or not
+ * The size of the human player's log.
+ */
+static int us_choice_size;
+
+/*
+ * Whether the game is replaying or not.
  */
 static int game_replaying;
-
-/*
- * Undo number of start of rounds.
- */
-static int num_undo_rounds[50];
-
-/*
- * Current size of num_undo_rounds
- */
-static int num_undo_rounds_size;
 
 /*
  * Choice logs for each player.
  */
 static int *orig_log[MAX_PLAYER];
-static int *orig_history[MAX_PLAYER];
 
 /*
  * Player we're playing as.
@@ -351,8 +345,10 @@ static GtkWidget *game_status;
 static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
-static GtkWidget *new_item, *new_parameters_item, *load_item, *save_item, *undo_item, *undo_round_item;
-static GtkWidget *redo_item, *option_item, *quit_item;
+static GtkWidget *new_item, *new_parameters_item, *load_item, *save_item;
+static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
+static GtkWidget *redo_item, *redo_round_item;
+static GtkWidget *option_item, *quit_item;
 static GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *entry_hbox;
@@ -392,6 +388,14 @@ GtkTextMark *message_end;
  */
 static int message_last_y;
 
+/*
+ * Check whether a position in a log marks a round boundary-
+ */
+int is_round_boundary(int *p)
+{
+	// YYY Check for Psi-Crystal (advanced)
+	return *p == CHOICE_START || *p == CHOICE_ACTION;
+}
 
 /*
  * Add text to the message buffer.
@@ -6933,7 +6937,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	player *p_ptr;
 	int i, rv;
 	int *l_ptr;
-	int save_round = FALSE;
 
 	/* Auto save */
 	auto_save(g, who, "choice");
@@ -6954,9 +6957,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			/* Choose actions */
 			gui_choose_action(g, who, list, arg1);
 			rv = 0;
-
-			/* Save undo point for current round */
-			save_round = TRUE;
 			break;
 
 		/* Start world */
@@ -6968,9 +6968,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			/* Choose start world */
 			gui_choose_start(g, who, list, nl, special, ns);
 			rv = 0;
-
-			/* Save undo point for current round */
-			save_round = TRUE;
 			break;
 
 		/* Discard */
@@ -7155,29 +7152,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Check for aborted game */
 	if (g->game_over) return;
 
-	/* Save undo positions */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Save log size history */
-		g->p[i].choice_history[num_undo] = g->p[i].choice_size;
-	}
-
-	/* Save undo round position */
-	if (save_round)
-	{
-		/* Add round position */
-		num_undo_rounds[num_undo_rounds_size++] = num_undo;
-	}
-
-	/* Add one undo position to list */
-	num_undo++;
-
-	/* Clear redo possibility */
-	max_undo = num_undo;
-
-	/* Stop game replaying */
-	game_replaying = FALSE;
-
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
@@ -7230,6 +7204,18 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Mark new size of choice log */
 	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
+
+	/* Remember size of log */
+	us_choice_size = p_ptr->choice_size;
+
+	/* Stop game replaying */
+	game_replaying = FALSE;
+
+	/* Add one to undo position */
+	++num_undo;
+
+	/* Clear redo possibility */
+	max_undo = num_undo;
 }
 
 /*
@@ -7272,7 +7258,7 @@ void reset_gui(void)
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
 		/* Check for name already set for human player */
-		if (i == 0 && real_game.human_name && strlen(real_game.human_name))
+		if (i == player_us && real_game.human_name && strlen(real_game.human_name))
 		{
 			/* Load name */
 			real_game.p[i].name = real_game.human_name;
@@ -7285,11 +7271,14 @@ void reset_gui(void)
 
 		/* Restore choice log */
 		real_game.p[i].choice_log = orig_log[i];
-		real_game.p[i].choice_history = orig_history[i];
+		real_game.p[i].choice_pos = 0;
 	}
 
 	/* Restore player control functions */
 	real_game.p[player_us].control = &gui_func;
+
+	/* Set size of human log */
+	real_game.p[player_us].choice_size = us_choice_size;
 
 	/* Loop over AI players */
 	for (i = 1; i < MAX_PLAYER; i++)
@@ -7299,6 +7288,9 @@ void reset_gui(void)
 
 		/* Call initialization function */
 		real_game.p[i].control->init(&real_game, i, 0.0);
+
+		/* Set size of other's choice logs */
+		real_game.p[i].choice_size = 4096;
 	}
 
 	/* Clear message log */
@@ -7388,6 +7380,7 @@ static void run_game(void)
 {
 	char buf[1024];
 	int i;
+	int pos, choice, saved_choice;
 
 	/* Loop forever */
 	while (1)
@@ -7395,21 +7388,19 @@ static void run_game(void)
 		/* Check for new game starting */
 		if (restart_loop == RESTART_NEW)
 		{
-			/* Reset game */
+			/* Reset our position and GUI elements */
 			reset_gui();
+
+			/* Reset undo positions */
+			num_undo = 0;
+			max_undo = 0;
 
 			/* Loop over players */
 			for (i = 0; i < real_game.num_players; i++)
 			{
 				/* Clear choice log */
 				real_game.p[i].choice_size = 0;
-				real_game.p[i].choice_pos = 0;
 			}
-
-			/* Clear undos */
-			num_undo = 0;
-			max_undo = 0;
-			num_undo_rounds_size = 1;
 
 			/* Unset the replaying flag */
 			game_replaying = FALSE;
@@ -7436,6 +7427,9 @@ static void run_game(void)
 		/* Undo previous choice */
 		else if (restart_loop == RESTART_UNDO)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7444,119 +7438,162 @@ static void run_game(void)
 
 			if (num_undo > 0)
 			{
-				/* Remove one state from undo list */
+				/* Step backwards one point */
 				num_undo--;
-
-				/* Check if we undid past a round boundary */
-				if (num_undo <= num_undo_rounds[num_undo_rounds_size - 1])
-				{
-					/* Also remove one round from undo list */
-					num_undo_rounds_size--;
-				}
-
-				/* Set the replaying flag */
-				game_replaying = TRUE;
 			}
 
-			/* Reset our position and GUI elements */
-			reset_gui();
-
-			/* Loop over players */
-			for (i = 0; i < real_game.num_players; i++)
-			{
-				/* Start at beginning of log */
-				real_game.p[i].choice_pos = 0;
-
-				/* Set end of choice log */
-				real_game.p[i].choice_size =
-				        real_game.p[i].choice_history[num_undo];
-			}
+			/* Set the replay flag */
+			game_replaying = TRUE;
 		}
 
 		/* Undo previous turn */
 		else if (restart_loop == RESTART_UNDO_ROUND)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
 			/* Initialize game */
 			init_game(&real_game);
 
-			if (num_undo_rounds_size > 1)
-			{
-				/* Remove one round from undo list */
-				num_undo = num_undo_rounds[--num_undo_rounds_size];
+			/* Reset counts */
+			pos = choice = saved_choice = 0;
 
-				/* Set the replay flag */
-				game_replaying = TRUE;
+			/* Count to num_undo choices */
+			while (choice < num_undo && pos < real_game.p[0].choice_size)
+			{
+				/* Check if the current position is a round boundary */
+				if (is_round_boundary(real_game.p[0].choice_log + pos))
+				{
+					/* Save the current choice */
+					saved_choice = choice;
+				}
+
+				/* Update the position */
+				pos = next_choice(real_game.p[0].choice_log, pos);
+
+				/* Add one to choice count */
+				++choice;
 			}
 
+			/* Set the undo position at the previous round boundary */
+			num_undo = saved_choice;
+
+			/* Set the replay flag */
+			game_replaying = TRUE;
+		}
+
+		/* Undo game */
+		else if (restart_loop == RESTART_UNDO_GAME)
+		{
 			/* Reset our position and GUI elements */
 			reset_gui();
 
-			/* Loop over players */
-			for (i = 0; i < real_game.num_players; i++)
-			{
-				/* Start at beginning of log */
-				real_game.p[i].choice_pos = 0;
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
 
-				/* Set end of choice log */
-				real_game.p[i].choice_size =
-				        real_game.p[i].choice_history[num_undo];
-			}
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Start from the beginning */
+			num_undo = 0;
+
+			/* Set the replay flag */
+			game_replaying = TRUE;
 		}
 
 		/* Redo previous choice */
 		else if (restart_loop == RESTART_REDO)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
 			/* Initialize game */
 			init_game(&real_game);
 
-			if (num_undo < max_undo)
-			{
-				/* Add one state to undo list */
-				num_undo++;
+			/* Add one to undo position */
+			++num_undo;
 
-				/* Check if we redid past a round boundary */
-				if (num_undo > num_undo_rounds[num_undo_rounds_size - 1])
+			/* Set the replay flag */
+			game_replaying = TRUE;
+		}
+
+		/* Redo previous round */
+		else if (restart_loop == RESTART_REDO_ROUND)
+		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
+
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Reset counts */
+			pos = choice = 0;
+			saved_choice = -1;
+
+			/* Count to num_undo choices */
+			while (choice <= num_undo && pos < real_game.p[0].choice_size)
+			{
+				/* Update position */
+				pos = next_choice(real_game.p[0].choice_log, pos);
+
+				/* Add one to choice count */
+				++choice;
+			}
+
+			/* Loop until end of log */
+			while (pos < real_game.p[0].choice_size)
+			{
+				/* Check for round boundary */
+				if (is_round_boundary(real_game.p[0].choice_log + pos))
 				{
-					/* Add one round to the undo list */
-					num_undo_rounds_size++;
+					/* Save the current choice */
+					saved_choice = choice;
+					break;
 				}
+			
+				/* Update position */
+				pos = next_choice(real_game.p[0].choice_log, pos);
+
+				/* Add one to choice count */
+				++choice;
+			}
+
+			/* Check if choice was found */
+			if (saved_choice >= 0)
+			{
+				/* Set the undo position at the next round boundary */
+				num_undo = saved_choice;	
+			}
+			else
+			{
+				/* Set the undo position at the end of the log */
+				num_undo = choice;
 			}
 
 			/* Set the replay flag */
 			game_replaying = TRUE;
-
-			/* Reset our position and GUI elements */
-			reset_gui();
-
-			/* Loop over players */
-			for (i = 0; i < real_game.num_players; i++)
-			{
-				/* Start at beginning of log */
-				real_game.p[i].choice_pos = 0;
-
-				/* Set end of choice log */
-				real_game.p[i].choice_size =
-				        real_game.p[i].choice_history[num_undo];
-			}
-
 		}
 
 		/* Load a new game */
 		else if (restart_loop == RESTART_LOAD)
 		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
-			/* Clear undos */
-			num_undo = 0;
-			max_undo = 0;
-			num_undo_rounds_size = 1;
+			/* Set undo point (will be reduced later) */
+			num_undo = 9999;
 
 			/* Set the replay flag */
 			game_replaying = TRUE;
@@ -7566,10 +7603,39 @@ static void run_game(void)
 
 			/* Modify GUI for new game parameters */
 			modify_gui();
-
-			/* Reset our position and GUI elements */
-			reset_gui();
 		}
+
+		/* Reset counts */
+		pos = choice = 0;
+
+		/* Count to num_undo choices */
+		while (choice < num_undo && pos < real_game.p[0].choice_size)
+		{
+			/* Update log position */
+			pos = next_choice(real_game.p[0].choice_log, pos);
+
+			/* Add one to choice count */
+			++choice;
+		}
+
+		/* Set the current undo point (in case the log was too small) */		
+		num_undo = choice;
+
+		/* Reset the size choice of the human player */
+		real_game.p[0].choice_size = pos;
+
+		/* Find total number of replay points */
+		while (pos < us_choice_size)
+		{
+			/* Update log position */
+			pos = next_choice(real_game.p[0].choice_log, pos);
+
+			/* Add one to choice count */
+			++choice;
+		}
+
+		/* Set the max number of undo positions in the log */
+		max_undo = choice;
 
 		/* Clear restart loop flag */
 		restart_loop = 0;
@@ -7875,7 +7941,9 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(save_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
+		gtk_widget_set_sensitive(undo_game_item, TRUE);
 		gtk_widget_set_sensitive(redo_item, TRUE);
+		gtk_widget_set_sensitive(redo_round_item, TRUE);
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
@@ -7892,7 +7960,9 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(save_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
+		gtk_widget_set_sensitive(undo_game_item, TRUE);
 		gtk_widget_set_sensitive(redo_item, FALSE);
+		gtk_widget_set_sensitive(redo_round_item, FALSE);
 		gtk_widget_set_sensitive(debug_card_item, FALSE);
 		gtk_widget_set_sensitive(debug_ai_item, FALSE);
 		gtk_widget_set_sensitive(connect_item, FALSE);
@@ -8007,6 +8077,9 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		/* Reset GUI */
 		reset_gui();
 
+		/* Remember log size */
+		us_choice_size = load_state.p[0].choice_size;
+
 		/* Copy loaded state to real */
 		real_game = load_state;
 
@@ -8076,75 +8149,30 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
- * Undo choice.
+ * Undo.
  */
-static void gui_undo_choice(GtkMenuItem *menu_item, gpointer data)
+static void gui_undo(GtkMenuItem *menu_item, gpointer data)
 {
-	int i;
-
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for nothing to undo */
 	if (num_undo == 0) return;
 
-	/* Save undo positions */
-	for (i = 0; i < real_game.num_players; i++)
-	{
-		/* Save last log size history */
-		real_game.p[i].choice_history[num_undo] = real_game.p[i].choice_size;
-	}
-
-	/* Save last round undo position */
-	num_undo_rounds[num_undo_rounds_size] = num_undo;
-
 	/* Force game over */
 	real_game.game_over = 1;
 
 	/* Switch to undo state when able */
-	restart_loop = RESTART_UNDO;
+	restart_loop = GPOINTER_TO_INT(data);
 
 	/* Quit waiting for events */
 	gtk_main_quit();
 }
 
 /*
- * Undo round.
+ * Redo.
  */
-static void gui_undo_round(GtkMenuItem *menu_item, gpointer data)
-{
-	int i;
-
-	/* Check for connected to server */
-	if (client_state != CS_DISCONN) return;
-
-	/* Check for nothing to undo */
-	if (num_undo_rounds_size <= 1) return;
-
-	/* Save undo positions */
-	for (i = 0; i < real_game.num_players; i++)
-	{
-		/* Save last log size history */
-		real_game.p[i].choice_history[num_undo] = real_game.p[i].choice_size;
-	}
-
-	/* Save last round undo position */
-	num_undo_rounds[num_undo_rounds_size] = num_undo;
-
-	/* Force game over */
-	real_game.game_over = 1;
-
-	/* Switch to undo state when able */
-	restart_loop = RESTART_UNDO_ROUND;
-
-	/* Quit waiting for events */
-	gtk_main_quit();
-}
-
-/*
- * Redo choice.
- */
-static void gui_redo_choice(GtkMenuItem *menu_item, gpointer data)
+static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 {
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
@@ -8156,7 +8184,7 @@ static void gui_redo_choice(GtkMenuItem *menu_item, gpointer data)
 	real_game.game_over = 1;
 
 	/* Switch to redo state when able */
-	restart_loop = RESTART_REDO;
+	restart_loop = GPOINTER_TO_INT(data);
 
 	/* Quit waiting for events */
 	gtk_main_quit();
@@ -9705,7 +9733,6 @@ int main(int argc, char *argv[])
 	GtkTreeViewColumn *desc_column;
 	GdkColor color;
 
-	game load_state;
 	char *fname = NULL;
 	int i;
 
@@ -9841,12 +9868,6 @@ int main(int argc, char *argv[])
 		/* Save original log */
 		orig_log[i] = real_game.p[i].choice_log;
 
-		/* Create history of log sizes */
-		real_game.p[i].choice_history = (int*)malloc(sizeof(int) * 512);
-
-		/* Save original history */
-		orig_history[i] = real_game.p[i].choice_history;
-
 		/* Clear choice log size and position */
 		real_game.p[i].choice_size = 0;
 		real_game.p[i].choice_pos = 0;
@@ -9920,7 +9941,9 @@ int main(int argc, char *argv[])
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
 	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
+	undo_game_item = gtk_menu_item_new_with_mnemonic("Undo _Game");
 	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
+	redo_round_item = gtk_menu_item_new_with_mnemonic("Redo Round");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
@@ -9937,8 +9960,12 @@ int main(int argc, char *argv[])
 	                           'Z', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(undo_round_item, "activate", window_accel,
 	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(undo_game_item, "activate", window_accel,
+	                           'G', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
 	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(redo_round_item, "activate", window_accel,
+	                           'Y', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
 	                           'G', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
@@ -9951,7 +9978,9 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_round_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_game_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), redo_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), redo_round_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
@@ -10013,11 +10042,15 @@ int main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(save_item), "activate",
 	                 G_CALLBACK(gui_save_game), NULL);
 	g_signal_connect(G_OBJECT(undo_item), "activate",
-	                 G_CALLBACK(gui_undo_choice), NULL);
+	                 G_CALLBACK(gui_undo), GINT_TO_POINTER(RESTART_UNDO));
 	g_signal_connect(G_OBJECT(undo_round_item), "activate",
-	                 G_CALLBACK(gui_undo_round), NULL);
+	                 G_CALLBACK(gui_undo), GINT_TO_POINTER(RESTART_UNDO_ROUND));
+	g_signal_connect(G_OBJECT(undo_game_item), "activate",
+	                 G_CALLBACK(gui_undo), GINT_TO_POINTER(RESTART_UNDO_GAME));
 	g_signal_connect(G_OBJECT(redo_item), "activate",
-	                 G_CALLBACK(gui_redo_choice), NULL);
+	                 G_CALLBACK(gui_redo), GINT_TO_POINTER(RESTART_REDO));
+	g_signal_connect(G_OBJECT(redo_round_item), "activate",
+	                 G_CALLBACK(gui_redo), GINT_TO_POINTER(RESTART_REDO_ROUND));
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
@@ -10087,15 +10120,15 @@ int main(int argc, char *argv[])
 	                           "foreground", "#0000aa", NULL);
 
 	/* Create "takeover" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_TAKEOVER, 
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_TAKEOVER,
 	                           "foreground", "#ff0000", NULL);
 
 	/* Create "goal" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_GOAL, 
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_GOAL,
 	                           "foreground", "#eeaa00", NULL);
 
 	/* Create "prestige" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_PRESTIGE, 
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_PRESTIGE,
 	                           "foreground", "#8800bb", NULL);
 
 	/* Create "verbose" tag for message buffer */
@@ -10655,11 +10688,11 @@ int main(int argc, char *argv[])
 		for (i = 0; i < MAX_PLAYER; i++)
 		{
 			/* Set choice log pointer */
-			load_state.p[i].choice_log = orig_log[i];
+			real_game.p[i].choice_log = orig_log[i];
 		}
 
 		/* Try to load savefile into load state */
-		if (load_game(&load_state, fname) < 0)
+		if (load_game(&real_game, fname) < 0)
 		{
 			/* Error */
 			printf("Failed to load game from file %s\n", fname);
@@ -10668,11 +10701,11 @@ int main(int argc, char *argv[])
 			return;
 		}
 
-		/* Copy loaded state to real */
-		real_game = load_state;
-
 		/* Force current game over */
 		real_game.game_over = 1;
+
+		/* Remember log size */
+		us_choice_size = real_game.p[0].choice_size;
 
 		/* Switch to loaded state when able */
 		restart_loop = RESTART_LOAD;

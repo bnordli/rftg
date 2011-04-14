@@ -863,6 +863,25 @@ void clear_temp(game *g)
 }
 
 /*
+ * Find the next choice in a log after the current pos
+ */
+int next_choice(int* log, int pos)
+{
+	/* Step over the type and the return value */
+	pos += 2;
+
+	/* Step over the list size and the list */
+	pos += *(log + pos) + 1;
+
+	/* Step over the special size and the special list */
+	pos += *(log + pos) + 1;
+
+	/* Return the start of the next choice */
+	return pos;
+}
+
+
+/*
  * Extract an answer to a pending choice from the player's choice log.
  */
 static int extract_choice(game *g, int who, int type, int list[], int *nl,
@@ -890,7 +909,8 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	if (*l_ptr != type)
 	{
 		/* Error */
-		printf("Expected %d in choice log, found %d!\n", type, *l_ptr);
+		printf("Expected %d in choice log for player %d, found %d!\n",
+		       type, who, *l_ptr);
 		exit(1);
 	}
 
@@ -982,6 +1002,10 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 	/* Check for unconsumed choices in log */
 	if (p_ptr->choice_pos < p_ptr->choice_size)
 	{
+		/* Update unread pos */
+		p_ptr->choice_unread_pos = next_choice(p_ptr->choice_log,
+		                                       p_ptr->choice_pos);
+
 		/* Return logged answer */
 		return extract_choice(g, who, type, list, nl, special, ns);
 	}
@@ -992,6 +1016,9 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 
 	/* Check for aborted game */
 	if (g->game_over) return -1;
+
+	/* Set the unread position */
+	p_ptr->choice_unread_pos = p_ptr->choice_size;
 
 	/* Check for need to wait for answer */
 	if (p_ptr->control->wait_answer)
@@ -1019,11 +1046,20 @@ static void send_choice(game *g, int who, int type, int list[], int *nl,
 	p_ptr = &g->p[who];
 
 	/* Check for unconsumed choices in log */
-	if (p_ptr->choice_pos < p_ptr->choice_size) return;
+	if (p_ptr->choice_pos < p_ptr->choice_size)
+	{
+		/* Update unread pos */
+		p_ptr->choice_unread_pos = next_choice(p_ptr->choice_log,
+		                                       p_ptr->choice_pos);
+		return;
+	}
 
 	/* Ask player for answer */
 	p_ptr->control->make_choice(g, who, type, list, nl, special, ns,
 	                            arg1, arg2, arg3);
+
+	/* Set the unread position of the log */
+	p_ptr->choice_unread_pos = p_ptr->choice_size;
 }
 
 /*
@@ -4602,12 +4638,12 @@ void settle_action(game *g, int who, int world)
 				{
 					/* Format message */
 					sprintf(msg, "%s uses %s to attempt to take over a world.\n",
-					        g->p[who].name, c_ptr->d_ptr->name);
+					        p_ptr->name, c_ptr->d_ptr->name);
 
 					/* Add message */
 					message_add(g, msg);
 				}
-			
+
 				/* Act on declaration */
 				settle_action(g, who, -1);
 			}
@@ -4619,12 +4655,12 @@ void settle_action(game *g, int who, int world)
 			{
 				/* Format message */
 				sprintf(msg, "%s uses %s to place an additional world.\n",
-					    g->p[who].name, c_ptr->d_ptr->name);
+				        p_ptr->name, c_ptr->d_ptr->name);
 
 				/* Add message */
 				message_add(g, msg);
 			}
-			
+
 			/* Place card */
 			place_card(g, who, p_ptr->placing);
 

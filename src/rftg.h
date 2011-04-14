@@ -775,6 +775,9 @@ typedef struct player
 	/* History of log sizes */
 	int *choice_history;
 
+	/* Last write position for log */
+	int choice_unread_pos;
+
 } player;
 
 /*
@@ -899,6 +902,7 @@ extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
+extern int next_choice(int* log, int pos);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);

@@ -75,6 +75,9 @@ int load_game(game *g, char *filename)
 		/* Read choice log size */
 		fscanf(fff, "%d", &p_ptr->choice_size);
 
+		/* Reset unread pos */
+		p_ptr->choice_unread_pos = p_ptr->choice_size;
+
 		/* Loop over choice log entries */
 		for (j = 0; j < p_ptr->choice_size; j++)
 		{
@@ -151,10 +154,10 @@ int save_game(game *g, char *filename, int player_us)
 		p_ptr = &g->p[n];
 
 		/* Write size of choice log */
-		fprintf(fff, "%d ", p_ptr->choice_size);
+		fprintf(fff, "%d ", p_ptr->choice_unread_pos);
 
 		/* Loop over choice log entries */
-		for (j = 0; j < p_ptr->choice_size; j++)
+		for (j = 0; j < p_ptr->choice_unread_pos; j++)
 		{
 			/* Write choice log entry */
 			fprintf(fff, "%d ", p_ptr->choice_log[j]);

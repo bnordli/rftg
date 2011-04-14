@@ -6,7 +6,10 @@
 #define RESTART_UNDO 3
 #define RESTART_NONE 4
 #define RESTART_UNDO_ROUND 5
-#define RESTART_REDO 6
+#define RESTART_UNDO_GAME 6
+#define RESTART_REDO 7
+#define RESTART_REDO_ROUND 8
+#define RESTART_REDO_GAME 9
 
 /*
  * User options.
