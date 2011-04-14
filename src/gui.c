@@ -2593,7 +2593,7 @@ static char *get_military_tooltip(game *g, int who)
 	if (g->p[who].bonus_military)
 	{
 		/* Create text */
-		sprintf(text, "\nActivated temporary military: %+d", 
+		sprintf(text, "\nActivated temporary military: %+d",
 		        g->p[who].bonus_military);
 		strcat(msg, text);
 	}
@@ -7612,7 +7612,7 @@ static void run_game(void)
 					saved_choice = choice;
 					break;
 				}
-			
+
 				/* Update position */
 				pos = next_choice(real_game.p[0].choice_log, pos);
 
@@ -7624,7 +7624,7 @@ static void run_game(void)
 			if (saved_choice >= 0)
 			{
 				/* Set the undo position at the next round boundary */
-				num_undo = saved_choice;	
+				num_undo = saved_choice;
 			}
 			else
 			{
@@ -7700,7 +7700,7 @@ static void run_game(void)
 			++choice;
 		}
 
-		/* Set the current undo point (in case the log was too small) */		
+		/* Set the current undo point (in case the log was too small) */
 		num_undo = choice;
 
 		/* Reset the size choice of the human player */
@@ -10257,7 +10257,7 @@ int main(int argc, char *argv[])
 	                           "foreground", "#8800bb", NULL);
 
 	/* Create "verbose" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE, 
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE,
 	                           "foreground", "#aaaaaa", NULL);
 
 	/* Get iterator for end of buffer */
