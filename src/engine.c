@@ -9459,7 +9459,7 @@ void begin_game(game *g)
 	}
 
 	/* Send start of game message */
-	message_add_formatted(g, "--- Start of game ---\n", FORMAT_BOLD);
+	message_add_formatted(g, "=== Start of game ===\n", FORMAT_BOLD);
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -9844,7 +9844,7 @@ int game_round(game *g)
 	if (!g->simulation)
 	{
 		/* Format message */
-		sprintf(msg, "--- Round %d begins ---\n", g->round);
+		sprintf(msg, "=== Round %d begins ===\n", g->round);
 
 		/* Send message */
 		message_add_formatted(g, msg, FORMAT_BOLD);
@@ -10761,7 +10761,7 @@ void declare_winner(game *g)
 	if (!g->simulation)
 	{
 		/* Send end of game message */
-		message_add_formatted(g, "--- End of game ---\n", FORMAT_BOLD);
+		message_add_formatted(g, "=== End of game ===\n", FORMAT_BOLD);
 	}
 
 	/* Score game */
