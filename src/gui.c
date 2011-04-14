@@ -7385,12 +7385,15 @@ static void run_game(void)
 	/* Loop forever */
 	while (1)
 	{
+		/* Replay by default */
+		game_replaying = TRUE;
+
+		/* Reset our position and GUI elements */
+		reset_gui();
+
 		/* Check for new game starting */
 		if (restart_loop == RESTART_NEW)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Reset undo positions */
 			num_undo = 0;
 			max_undo = 0;
@@ -7402,7 +7405,7 @@ static void run_game(void)
 				real_game.p[i].choice_size = 0;
 			}
 
-			/* Unset the replaying flag */
+			/* Unset replaying flag */
 			game_replaying = FALSE;
 
 			/* Initialize game */
@@ -7427,9 +7430,6 @@ static void run_game(void)
 		/* Undo previous choice */
 		else if (restart_loop == RESTART_UNDO)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7441,17 +7441,11 @@ static void run_game(void)
 				/* Step backwards one point */
 				num_undo--;
 			}
-
-			/* Set the replay flag */
-			game_replaying = TRUE;
 		}
 
 		/* Undo previous turn */
 		else if (restart_loop == RESTART_UNDO_ROUND)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7480,17 +7474,11 @@ static void run_game(void)
 
 			/* Set the undo position at the previous round boundary */
 			num_undo = saved_choice;
-
-			/* Set the replay flag */
-			game_replaying = TRUE;
 		}
 
 		/* Undo game */
 		else if (restart_loop == RESTART_UNDO_GAME)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7499,17 +7487,11 @@ static void run_game(void)
 
 			/* Start from the beginning */
 			num_undo = 0;
-
-			/* Set the replay flag */
-			game_replaying = TRUE;
 		}
 
 		/* Redo previous choice */
 		else if (restart_loop == RESTART_REDO)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7518,17 +7500,11 @@ static void run_game(void)
 
 			/* Add one to undo position */
 			++num_undo;
-
-			/* Set the replay flag */
-			game_replaying = TRUE;
 		}
 
 		/* Redo previous round */
 		else if (restart_loop == RESTART_REDO_ROUND)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7578,17 +7554,11 @@ static void run_game(void)
 				/* Set the undo position at the end of the log */
 				num_undo = choice;
 			}
-
-			/* Set the replay flag */
-			game_replaying = TRUE;
 		}
 
 		/* Redo previous choice */
 		else if (restart_loop == RESTART_REDO_GAME)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7597,17 +7567,11 @@ static void run_game(void)
 
 			/* Set undo point (will be reduced later) */
 			num_undo = 9999;
-
-			/* Set the replay flag */
-			game_replaying = TRUE;
 		}
 
 		/* Load a new game */
 		else if (restart_loop == RESTART_LOAD)
 		{
-			/* Reset our position and GUI elements */
-			reset_gui();
-
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7616,9 +7580,6 @@ static void run_game(void)
 
 			/* Set undo point (will be reduced later) */
 			num_undo = 9999;
-
-			/* Set the replay flag */
-			game_replaying = TRUE;
 
 			/* Modify GUI for new game parameters */
 			modify_gui();
