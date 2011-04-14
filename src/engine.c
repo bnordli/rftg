@@ -5537,7 +5537,7 @@ void phase_settle(game *g)
 {
 	player *p_ptr;
 	card *c_ptr;
-	char *msg[1024];
+	char msg[1024];
 	int list[MAX_DECK];
 	int i, x, n;
 	int asked[MAX_PLAYER];
