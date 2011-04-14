@@ -392,10 +392,17 @@ static int message_last_y;
 /*
  * Check whether a position in a log marks a round boundary.
  */
-int is_round_boundary(int *p)
+int is_round_boundary(int advanced, int *p)
 {
-	// YYY Check for Psi-Crystal (advanced)
-	return *p == CHOICE_START || *p == CHOICE_ACTION;
+	/* Only start and action choices are boundary */
+	if (*p != CHOICE_START && *p != CHOICE_ACTION) return FALSE;
+
+	/* !This works only in newer save games! */
+	/* Second choice of Psi-Crystal is not a boundary */
+	if (advanced && *(p + 1) == 2) return FALSE;
+
+	/* Everything else is */
+	return TRUE;
 }
 
 /*
@@ -6992,7 +6999,9 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose actions */
 			gui_choose_action(g, who, list, arg1);
-			rv = 0;
+
+			/* Save Psi-Crystal info for redo/undo */
+			rv = arg1;
 			break;
 
 		/* Start world */
@@ -7516,7 +7525,8 @@ static void run_game(void)
 			while (choice < num_undo && pos < real_game.p[0].choice_size)
 			{
 				/* Check if the current position is a round boundary */
-				if (is_round_boundary(real_game.p[0].choice_log + pos))
+				if (is_round_boundary(real_game.advanced,
+				                      real_game.p[0].choice_log + pos))
 				{
 					/* Save the current choice */
 					saved_choice = choice;
@@ -7595,7 +7605,8 @@ static void run_game(void)
 			while (pos < real_game.p[0].choice_size)
 			{
 				/* Check for round boundary */
-				if (is_round_boundary(real_game.p[0].choice_log + pos))
+				if (is_round_boundary(real_game.advanced,
+				                      real_game.p[0].choice_log + pos))
 				{
 					/* Save the current choice */
 					saved_choice = choice;
