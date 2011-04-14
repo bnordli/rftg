@@ -9940,7 +9940,7 @@ int main(int argc, char *argv[])
 	/* Create game menu items */
 	new_item = gtk_menu_item_new_with_mnemonic("_New");
 	new_parameters_item = gtk_menu_item_new_with_mnemonic("N_ew...");
-	load_item = gtk_menu_item_new_with_mnemonic("L_oad Game...");
+	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
@@ -9951,7 +9951,7 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(new_parameters_item, "activate", window_accel,
 	                           'N', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(load_item, "activate", window_accel,
-	                           'O', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'L', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
 	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
