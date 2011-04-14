@@ -976,6 +976,9 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	/* Set log position to current */
 	p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
 
+	/* Update unread position */
+	p_ptr->choice_unread_pos = p_ptr->choice_pos;
+
 	/* Return logged answer */
 	return rv;
 }
@@ -1001,10 +1004,6 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 	/* Check for unconsumed choices in log */
 	if (p_ptr->choice_pos < p_ptr->choice_size)
 	{
-		/* Update unread pos */
-		p_ptr->choice_unread_pos = next_choice(p_ptr->choice_log,
-		                                       p_ptr->choice_pos);
-
 		/* Return logged answer */
 		return extract_choice(g, who, type, list, nl, special, ns);
 	}
@@ -1015,9 +1014,6 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 
 	/* Check for aborted game */
 	if (g->game_over) return -1;
-
-	/* Set the unread position */
-	p_ptr->choice_unread_pos = p_ptr->choice_size;
 
 	/* Check for need to wait for answer */
 	if (p_ptr->control->wait_answer)

@@ -7323,6 +7323,7 @@ void reset_gui(void)
 		/* Restore choice log */
 		real_game.p[i].choice_log = orig_log[i];
 		real_game.p[i].choice_pos = 0;
+		real_game.p[i].choice_unread_pos = 0;
 	}
 
 	/* Restore player control functions */
@@ -7448,6 +7449,9 @@ static void run_game(void)
 			/* Reset undo positions */
 			num_undo = 0;
 			max_undo = 0;
+
+			/* Reset size of choice log */
+			us_choice_size = 0;
 
 			/* Loop over players */
 			for (i = 0; i < real_game.num_players; i++)

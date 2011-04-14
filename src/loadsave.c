@@ -75,9 +75,6 @@ int load_game(game *g, char *filename)
 		/* Read choice log size */
 		fscanf(fff, "%d", &p_ptr->choice_size);
 
-		/* Reset unread pos */
-		p_ptr->choice_unread_pos = p_ptr->choice_size;
-
 		/* Loop over choice log entries */
 		for (j = 0; j < p_ptr->choice_size; j++)
 		{
