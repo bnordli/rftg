@@ -347,7 +347,7 @@ static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
 static GtkWidget *new_item, *new_parameters_item, *load_item, *save_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
-static GtkWidget *redo_item, *redo_round_item;
+static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
 static GtkWidget *option_item, *quit_item;
 static GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
@@ -7583,6 +7583,25 @@ static void run_game(void)
 			game_replaying = TRUE;
 		}
 
+		/* Redo previous choice */
+		else if (restart_loop == RESTART_REDO_GAME)
+		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
+
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Set undo point (will be reduced later) */
+			num_undo = 9999;
+
+			/* Set the replay flag */
+			game_replaying = TRUE;
+		}
+
 		/* Load a new game */
 		else if (restart_loop == RESTART_LOAD)
 		{
@@ -7592,14 +7611,14 @@ static void run_game(void)
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
+			/* Initialize game */
+			init_game(&real_game);
+
 			/* Set undo point (will be reduced later) */
 			num_undo = 9999;
 
 			/* Set the replay flag */
 			game_replaying = TRUE;
-
-			/* Initialize game */
-			init_game(&real_game);
 
 			/* Modify GUI for new game parameters */
 			modify_gui();
@@ -7944,6 +7963,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
 		gtk_widget_set_sensitive(redo_item, TRUE);
 		gtk_widget_set_sensitive(redo_round_item, TRUE);
+		gtk_widget_set_sensitive(redo_game_item, TRUE);
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
@@ -7960,9 +7980,10 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(save_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
-		gtk_widget_set_sensitive(undo_game_item, TRUE);
+		gtk_widget_set_sensitive(undo_game_item, FALSE);
 		gtk_widget_set_sensitive(redo_item, FALSE);
 		gtk_widget_set_sensitive(redo_round_item, FALSE);
+		gtk_widget_set_sensitive(redo_game_item, FALSE);
 		gtk_widget_set_sensitive(debug_card_item, FALSE);
 		gtk_widget_set_sensitive(debug_ai_item, FALSE);
 		gtk_widget_set_sensitive(connect_item, FALSE);
@@ -9717,8 +9738,9 @@ int main(int argc, char *argv[])
 	GtkWidget *chat_scroll;
 	GtkWidget *chat_entry;
 	GtkWidget *games_scroll;
-	GtkWidget *menu_bar, *game_menu, *debug_menu, *help_menu, *network_menu;
-	GtkWidget *game_item, *network_item, *debug_item, *help_item;
+	GtkWidget *menu_bar;
+	GtkWidget *game_menu, *undo_menu, *network_menu, *debug_menu, *help_menu;
+	GtkWidget *game_item, *undo_m_item, *network_item, *debug_item, *help_item;
 	GtkWidget *h_sep, *v_sep, *event;
 	GtkWidget *msg_scroll;
 	GtkWidget *table_box, *active_box;
@@ -9913,6 +9935,12 @@ int main(int argc, char *argv[])
 	/* Add game item to menu bar */
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu_bar), game_item);
 
+	/* Create menu item for 'undo' menu */
+	undo_m_item = gtk_menu_item_new_with_mnemonic("_Undo");
+
+	/* Add undo item to menu bar */
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu_bar), undo_m_item);
+
 	/* Create menu item for 'network' menu */
 	network_item = gtk_menu_item_new_with_mnemonic("_Network");
 
@@ -9939,11 +9967,6 @@ int main(int argc, char *argv[])
 	new_parameters_item = gtk_menu_item_new_with_mnemonic("N_ew...");
 	load_item = gtk_menu_item_new_with_mnemonic("L_oad Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
-	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
-	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
-	undo_game_item = gtk_menu_item_new_with_mnemonic("Undo _Game");
-	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
-	redo_round_item = gtk_menu_item_new_with_mnemonic("Redo Round");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
@@ -9956,16 +9979,6 @@ int main(int argc, char *argv[])
 	                           'O', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
 	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
-	gtk_widget_add_accelerator(undo_item, "activate", window_accel,
-	                           'Z', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
-	gtk_widget_add_accelerator(undo_round_item, "activate", window_accel,
-	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
-	gtk_widget_add_accelerator(undo_game_item, "activate", window_accel,
-	                           'G', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
-	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
-	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
-	gtk_widget_add_accelerator(redo_round_item, "activate", window_accel,
-	                           'Y', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
 	                           'G', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
@@ -9976,13 +9989,37 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), new_parameters_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), load_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_round_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_game_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), redo_item);
-	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), redo_round_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
+
+	/* Create undo menu */
+	undo_menu = gtk_menu_new();
+
+	/* Create undo menu items */
+	undo_item = gtk_menu_item_new_with_mnemonic("_Undo");
+	undo_round_item = gtk_menu_item_new_with_mnemonic("Undo _Round");
+	undo_game_item = gtk_menu_item_new_with_mnemonic("Undo _Game");
+	redo_item = gtk_menu_item_new_with_mnemonic("Re_do");
+	redo_round_item = gtk_menu_item_new_with_mnemonic("Redo R_ound");
+	redo_game_item = gtk_menu_item_new_with_mnemonic("Redo G_ame");
+
+	/* Add accelerators for undo menu items */
+	gtk_widget_add_accelerator(undo_item, "activate", window_accel,
+	                           'Z', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(undo_round_item, "activate", window_accel,
+	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
+	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(redo_round_item, "activate", window_accel,
+	                           'Y', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+
+	/* Add items to undo menu */
+	gtk_menu_shell_append(GTK_MENU_SHELL(undo_menu), undo_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(undo_menu), undo_round_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(undo_menu), undo_game_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(undo_menu), redo_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(undo_menu), redo_round_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(undo_menu), redo_game_item);
 
 	/* Create network menu */
 	network_menu = gtk_menu_new();
@@ -10041,6 +10078,11 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_load_game), NULL);
 	g_signal_connect(G_OBJECT(save_item), "activate",
 	                 G_CALLBACK(gui_save_game), NULL);
+	g_signal_connect(G_OBJECT(option_item), "activate",
+	                 G_CALLBACK(gui_options), NULL);
+	g_signal_connect(G_OBJECT(quit_item), "activate",
+	                 G_CALLBACK(gui_quit_game), NULL);
+
 	g_signal_connect(G_OBJECT(undo_item), "activate",
 	                 G_CALLBACK(gui_undo), GINT_TO_POINTER(RESTART_UNDO));
 	g_signal_connect(G_OBJECT(undo_round_item), "activate",
@@ -10051,25 +10093,27 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_redo), GINT_TO_POINTER(RESTART_REDO));
 	g_signal_connect(G_OBJECT(redo_round_item), "activate",
 	                 G_CALLBACK(gui_redo), GINT_TO_POINTER(RESTART_REDO_ROUND));
-	g_signal_connect(G_OBJECT(option_item), "activate",
-	                 G_CALLBACK(gui_options), NULL);
-	g_signal_connect(G_OBJECT(quit_item), "activate",
-	                 G_CALLBACK(gui_quit_game), NULL);
+	g_signal_connect(G_OBJECT(redo_game_item), "activate",
+	                 G_CALLBACK(gui_redo), GINT_TO_POINTER(RESTART_REDO_GAME));
+
 	g_signal_connect(G_OBJECT(connect_item), "activate",
 	                 G_CALLBACK(connect_dialog), NULL);
 	g_signal_connect(G_OBJECT(disconnect_item), "activate",
 	                 G_CALLBACK(disconnect_server), NULL);
 	g_signal_connect(G_OBJECT(resign_item), "activate",
 	                 G_CALLBACK(resign_game), NULL);
+
 	g_signal_connect(G_OBJECT(debug_card_item), "activate",
 	                 G_CALLBACK(debug_card_dialog), NULL);
 	g_signal_connect(G_OBJECT(debug_ai_item), "activate",
 	                 G_CALLBACK(debug_ai_dialog), NULL);
+
 	g_signal_connect(G_OBJECT(about_item), "activate",
 	                 G_CALLBACK(about_dialog), NULL);
 
 	/* Set submenus */
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(game_item), game_menu);
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(undo_m_item), undo_menu);
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(network_item), network_menu);
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(debug_item), debug_menu);
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(help_item), help_menu);
