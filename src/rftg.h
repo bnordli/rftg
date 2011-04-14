@@ -32,7 +32,7 @@
 #endif
 
 #ifndef RELEASE
-#define RELEASE VERSION "d"
+#define RELEASE VERSION "e"
 #endif
 
 #include <stdio.h>
