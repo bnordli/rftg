@@ -428,15 +428,10 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	/* Check for verbose message */
-	if (!strcmp(tag, FORMAT_VERBOSE))
+	/* Check for verbose message while verbosity disabled */
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose)
 	{
-		/* Check for verbosity enabled */
-		if (opt.verbose)
-		{
-			/* Add message as normal */
-			message_add_formatted(g, msg, FORMAT_VERBOSE_COLOR);
-		}
+		/* Do not log message */
 		return;
 	}
 
@@ -10219,7 +10214,7 @@ int main(int argc, char *argv[])
 	                           "foreground", "#8800bb", NULL);
 
 	/* Create "verbose" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE_COLOR, 
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE, 
 	                           "foreground", "#aaaaaa", NULL);
 
 	/* Get iterator for end of buffer */
