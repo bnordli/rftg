@@ -67,9 +67,9 @@ static int num_undo;
 static int max_undo;
 
 /*
- * The size of the human player's log.
+ * The size of the human player's choice log.
  */
-static int us_log_size;
+static int us_choice_size;
 
 /*
  * Whether the game is replaying or not.
@@ -389,7 +389,7 @@ GtkTextMark *message_end;
 static int message_last_y;
 
 /*
- * Check whether a position in a log marks a round boundary-
+ * Check whether a position in a log marks a round boundary.
  */
 int is_round_boundary(int *p)
 {
@@ -2525,20 +2525,20 @@ static char *get_military_tooltip(game *g, int who)
 			if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
 			{
 				/* Add defense for military worlds */
-				defense += count_active_flags(g, who,
-				                              FLAG_MILITARY);
+				defense +=
+				    count_active_flags(g, who, FLAG_MILITARY);
 
 				/* Add extra defense for Rebel military worlds */
-				defense += count_active_flags(g, who,
-				                              FLAG_REBEL | FLAG_MILITARY);
+				defense +=
+				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 			}
 
 			/* Check for takeover imperium power */
 			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
 			{
 				/* Set imperium attack */
-				attack_imperium = 2 * count_active_flags(g, who,
-				                                         FLAG_REBEL | FLAG_MILITARY);
+				attack_imperium =
+				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 			}
 
 			/* Skip non-military powers */
@@ -7246,7 +7246,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
 
 	/* Remember size of log */
-	us_log_size = p_ptr->choice_size;
+	us_choice_size = p_ptr->choice_size;
 
 	/* Loop over other players */
 	for (i = 0; i < g->num_players; ++i)
@@ -7329,7 +7329,7 @@ void reset_gui(void)
 	real_game.p[player_us].control = &gui_func;
 
 	/* Set size of human log */
-	real_game.p[player_us].choice_size = us_log_size;
+	real_game.p[player_us].choice_size = us_choice_size;
 
 	/* Loop over AI players */
 	for (i = 1; i < MAX_PLAYER; i++)
@@ -7677,7 +7677,7 @@ static void run_game(void)
 		real_game.p[0].choice_size = pos;
 
 		/* Find total number of replay points */
-		while (pos < us_log_size)
+		while (pos < us_choice_size)
 		{
 			/* Update log position */
 			pos = next_choice(real_game.p[0].choice_log, pos);
@@ -7768,12 +7768,12 @@ static void read_prefs(void)
 	                                         "num_players", NULL);
 	opt.player_name = g_key_file_get_string(pref_file, "game",
 	                                       "name", NULL);
-	opt.expanded = g_key_file_get_integer(pref_file, "game", "expansion",
-	                                      NULL);
-	opt.advanced = g_key_file_get_boolean(pref_file, "game", "advanced",
-	                                      NULL);
-	opt.disable_goal = g_key_file_get_boolean(pref_file, "game", "no_goals",
-	                                          NULL);
+	opt.expanded = g_key_file_get_integer(pref_file, "game",
+	                                      "expansion", NULL);
+	opt.advanced = g_key_file_get_boolean(pref_file, "game",
+	                                      "advanced", NULL);
+	opt.disable_goal = g_key_file_get_boolean(pref_file, "game",
+	                                          "no_goals", NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
 
@@ -7824,9 +7824,9 @@ static void read_prefs(void)
 	opt.game_pass = g_key_file_get_string(pref_file, "multiplayer",
 	                                      "game_pass", NULL);
 	opt.multi_min = g_key_file_get_integer(pref_file, "multiplayer",
-	                                         "min_player", NULL);
+	                                       "min_player", NULL);
 	opt.multi_max = g_key_file_get_integer(pref_file, "multiplayer",
-	                                         "max_player", NULL);
+	                                       "max_player", NULL);
 
 	/* Check range of values */
 	if (opt.num_players < 2) opt.num_players = 2;
@@ -8077,7 +8077,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_FILE_CHOOSER_ACTION_OPEN,
 	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 	                                     GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
-                                         NULL);
+	                                     NULL);
 
 	/* Check if last save location is set */
 	if (opt.last_save)
@@ -8135,7 +8135,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		reset_gui();
 
 		/* Remember log size */
-		us_log_size = load_state.p[0].choice_size;
+		us_choice_size = load_state.p[0].choice_size;
 
 		/* Copy loaded state to real */
 		real_game = load_state;
@@ -9932,7 +9932,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Clear choice log for us */
-	us_log_size = 0;
+	us_choice_size = 0;
 
 	/* Create toplevel window */
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -10788,7 +10788,7 @@ int main(int argc, char *argv[])
 		real_game.game_over = 1;
 
 		/* Remember log size */
-		us_log_size = real_game.p[0].choice_size;
+		us_choice_size = real_game.p[0].choice_size;
 
 		/* Switch to loaded state when able */
 		restart_loop = RESTART_LOAD;

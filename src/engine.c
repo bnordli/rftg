@@ -880,7 +880,6 @@ int next_choice(int* log, int pos)
 	return pos;
 }
 
-
 /*
  * Extract an answer to a pending choice from the player's choice log.
  */
@@ -10839,7 +10838,7 @@ void declare_winner(game *g)
 			{
 				/* Format message */
 				sprintf(msg, "%s wins with %d.\n", g->p[i].name,
-			            g->p[i].end_vp);
+				        g->p[i].end_vp);
 
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_BOLD);
