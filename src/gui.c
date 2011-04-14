@@ -6893,6 +6893,43 @@ static void gui_notify_rotation(game *g, int who)
 }
 
 /*
+ * Updates the sensitivity on menu items.
+ */
+void update_menu_items(void)
+{
+	/* Only control sensitivity when disconnected */
+	if (client_state != CS_DISCONN) return;
+
+	/* Check for no undo possibility */
+	if (num_undo == 0)
+	{
+		gtk_widget_set_sensitive(undo_item, FALSE);
+		gtk_widget_set_sensitive(undo_round_item, FALSE);
+		gtk_widget_set_sensitive(undo_game_item, FALSE);
+	}
+	else
+	{
+		gtk_widget_set_sensitive(undo_item, TRUE);
+		gtk_widget_set_sensitive(undo_round_item, TRUE);
+		gtk_widget_set_sensitive(undo_game_item, TRUE);
+	}
+
+	/* Check for no redo possibility */
+	if (num_undo == max_undo)
+	{
+		gtk_widget_set_sensitive(redo_item, FALSE);
+		gtk_widget_set_sensitive(redo_round_item, FALSE);
+		gtk_widget_set_sensitive(redo_game_item, FALSE);
+	}
+	else
+	{
+		gtk_widget_set_sensitive(redo_item, TRUE);
+		gtk_widget_set_sensitive(redo_round_item, TRUE);
+		gtk_widget_set_sensitive(redo_game_item, TRUE);
+	}
+}
+
+/*
  * Auto save the game.
  */
 static void auto_save(game *g, int who, char *id)
@@ -6940,6 +6977,9 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Auto save */
 	auto_save(g, who, "choice");
+
+	/* Update menu items */
+	update_menu_items();
 
 	/* Determine type of choice */
 	switch (type)
@@ -7667,6 +7707,9 @@ static void run_game(void)
 
 		/* Set prompt */
 		gtk_label_set_text(GTK_LABEL(action_prompt), buf);
+
+		/* Update menu items */
+		update_menu_items();
 
 		/* Process events */
 		gtk_main();
