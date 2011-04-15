@@ -3,6 +3,8 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file modified by B. Nordli, April 2011.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -42,6 +44,11 @@ int client_state = CS_DISCONN;
  * Our joined session ID.
  */
 static int client_sid = -1;
+
+/*
+ * Set when the connect dialog is closed.
+ */
+static int connect_dialog_closed;
 
 /*
  * We are currently playing in a game.
@@ -1073,7 +1080,7 @@ static gboolean message_read(gpointer data)
 {
 	char *ptr = data;
 	int type, size;
-	char text[1024], username[1024];
+	char text[1024], format[1024], username[1024];
 	GtkTreeIter list_iter;
 	GtkTextIter end_iter;
 	GtkTextMark *end_mark;
@@ -1093,6 +1100,9 @@ static gboolean message_read(gpointer data)
 
 			/* Set state */
 			client_state = CS_LOBBY;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1118,6 +1128,9 @@ static gboolean message_read(gpointer data)
 
 			/* Set login status */
 			gtk_label_set_text(GTK_LABEL(login_status), text);
+
+			/* Disconnect from server */
+			disconnect();
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1270,6 +1283,10 @@ static gboolean message_read(gpointer data)
 
 			/* Mark game as being played */
 			playing_game = 1;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
+
 			break;
 
 		/* We have been removed from a game */
@@ -1288,8 +1305,21 @@ static gboolean message_read(gpointer data)
 			/* Read message */
 			get_string(text, &ptr);
 
-			/* Add message to log */
-			message_add(&real_game, text);
+			/* Check for additional format string */
+			/* TODO: This should become a separate message in a new version */
+			if (size > strlen(text) + 1 + 8)
+			{
+				/* Read format tag */
+				get_string(format, &ptr);
+
+				/* Add formatted message to log */
+				message_add_formatted(&real_game, text, format);
+			}
+			else
+			{
+				/* Add message to log */
+				message_add(&real_game, text);
+			}
 			break;
 
 		/* Received in-game chat message */
@@ -1318,7 +1348,7 @@ static gboolean message_read(gpointer data)
 			/* Add username */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_BOLD,
 			                                 NULL);
 
 			/* Get end mark */
@@ -1331,10 +1361,10 @@ static gboolean message_read(gpointer data)
 				/* Add text (bolded) */
 				gtk_text_buffer_insert_with_tags_by_name(
 				                                 chat_buffer,
-								 &end_iter,
-								 text, -1,
-				                                 "bold",
-								 NULL);
+				                                 &end_iter,
+				                                 text, -1,
+				                                 FORMAT_BOLD,
+				                                 NULL);
 			}
 			else
 			{
@@ -1374,7 +1404,7 @@ static gboolean message_read(gpointer data)
 			/* Add username to chat window */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_BOLD,
 			                                 NULL);
 
 			/* Get end of buffer */
@@ -1475,6 +1505,9 @@ static gboolean message_read(gpointer data)
 			/* Clear game played flag */
 			playing_game = 0;
 
+			/* Notify gui */
+			gui_client_state_changed(playing_game);
+
 			/* Reset displayed cards */
 			reset_cards(&real_game, TRUE, TRUE);
 
@@ -1484,6 +1517,9 @@ static gboolean message_read(gpointer data)
 			/* Reset prompt */
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			           "Game Over - Press Done to return to lobby");
+
+			/* Save log */
+			save_log();
 
 			/* Enable action button */
 			gtk_widget_set_sensitive(action_button, TRUE);
@@ -1642,6 +1678,26 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 }
 
 /*
+ * Callback to trigger the accept response of a dialog
+ */
+static void enter_callback(GtkWidget *widget, GtkWidget *dialog)
+{
+    g_signal_emit_by_name(G_OBJECT(dialog), "response", GTK_RESPONSE_ACCEPT);
+}
+
+/*
+ * Remember that the connect dialog is closed
+ */
+static gboolean deleted_callback(GtkWidget *widget, GdkEvent event, gpointer data)
+{
+	/* Set the dialog closed flag */
+	connect_dialog_closed = TRUE;
+
+	/* Continue handling events */
+	return FALSE;
+}
+
+/*
  * Connect to a multiplayer server.
  */
 void connect_dialog(GtkMenuItem *menu_item, gpointer data)
@@ -1649,7 +1705,7 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	struct hostent *server_host;
 	struct sockaddr_in server_addr;
 	int portno;
-	GtkWidget *dialog;
+	GtkWidget *dialog, *connect_button, *cancel_button;
 	GtkWidget *label, *hsep;
 	GtkWidget *server, *port, *user, *pass;
 	GtkWidget *table;
@@ -1679,11 +1735,17 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Connect to Server", NULL,
-	                                     GTK_DIALOG_MODAL,
-	                                     GTK_STOCK_CONNECT,
-	                                     GTK_RESPONSE_ACCEPT,
-	                                     GTK_STOCK_CANCEL,
-	                                     GTK_RESPONSE_REJECT, NULL);
+	                                     GTK_DIALOG_MODAL, NULL);
+
+	/* Create connect button */
+	connect_button = gtk_dialog_add_button(GTK_DIALOG(dialog),
+	                                       GTK_STOCK_CONNECT,
+	                                       GTK_RESPONSE_ACCEPT);
+
+	/* Create cancel button */
+	cancel_button = gtk_dialog_add_button(GTK_DIALOG(dialog),
+	                                      GTK_STOCK_CANCEL,
+	                                      GTK_RESPONSE_REJECT);
 
 	/* Create a table for labels and text entry fields */
 	table = gtk_table_new(6, 4, FALSE);
@@ -1778,6 +1840,23 @@ with the password you enter.");
 
 	/* Add table to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+	
+	/* Connect the entries' activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(server), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+	g_signal_connect(G_OBJECT(port), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+	g_signal_connect(G_OBJECT(user), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+	g_signal_connect(G_OBJECT(pass), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+
+	/* Connect the dialog's delete event to catch that the dialog is closed */
+	g_signal_connect(G_OBJECT(dialog), "delete-event",
+	                 G_CALLBACK(deleted_callback), NULL);
+
+	/* Unset the dialog closed flag */
+	connect_dialog_closed = FALSE;
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
@@ -1785,8 +1864,12 @@ with the password you enter.");
 	/* Run dialog */
 	while (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
+		/* Disable buttons while processing connection */
+		gtk_widget_set_sensitive(connect_button, FALSE);
+		gtk_widget_set_sensitive(cancel_button, FALSE);
+
 		/* Get port number */
-		portno =gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(port));
+		portno = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(port));
 
 		/* Store changes to parameters */
 		opt.server_name = strdup(gtk_entry_get_text(GTK_ENTRY(server)));
@@ -1810,6 +1893,9 @@ with the password you enter.");
 			/* Handle pending events */
 			while (gtk_events_pending()) gtk_main_iteration();
 
+			/* Back out if dialog is closed (by escape) */
+			if (connect_dialog_closed) break;
+
 			/* Lookup server hostname */
 			server_host =
 			   gethostbyname(gtk_entry_get_text(GTK_ENTRY(server)));
@@ -1820,6 +1906,11 @@ with the password you enter.");
 				/* Set status label text */
 				gtk_label_set_text(GTK_LABEL(login_status),
 				                   "Failed to lookup name");
+
+				/* Enable buttons */
+				gtk_widget_set_sensitive(connect_button, TRUE);
+				gtk_widget_set_sensitive(cancel_button, TRUE);
+
 				continue;
 			}
 
@@ -1838,6 +1929,10 @@ with the password you enter.");
 				gtk_label_set_text(GTK_LABEL(login_status),
 				                   strerror(errno));
 #endif
+				/* Enable buttons */
+				gtk_widget_set_sensitive(connect_button, TRUE);
+				gtk_widget_set_sensitive(cancel_button, TRUE);
+
 				continue;
 			}
 
@@ -1847,6 +1942,9 @@ with the password you enter.");
 
 			/* Handle pending events */
 			while (gtk_events_pending()) gtk_main_iteration();
+
+			/* Back out if dialog is closed (by escape) */
+			if (connect_dialog_closed) break;
 
 			/* Create server address */
 			server_addr.sin_family = AF_INET;
@@ -1884,6 +1982,10 @@ with the password you enter.");
 				/* Reset server socket number */
 				server_fd = -1;
 
+				/* Enable buttons */
+				gtk_widget_set_sensitive(connect_button, TRUE);
+				gtk_widget_set_sensitive(cancel_button, TRUE);
+
 				/* Try again */
 				continue;
 			}
@@ -1912,6 +2014,9 @@ with the password you enter.");
 		/* Set client state */
 		client_state = CS_INIT;
 
+		/* Notify gui */
+		gui_client_state_changed(playing_game);
+
 		/* Freeze server name/port once connection is established */
 		gtk_widget_set_sensitive(server, FALSE);
 		gtk_widget_set_sensitive(port, FALSE);
@@ -1922,10 +2027,14 @@ with the password you enter.");
 		/* Handle pending events */
 		while (gtk_events_pending()) gtk_main_iteration();
 
+		/* Back out if dialog is closed (by escape) */
+		if (connect_dialog_closed) break;
+
 		/* Send login message to server */
 		send_msgf(server_fd, MSG_LOGIN, "sss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
 		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION);
+
 
 		/* Enter main loop to wait for response */
 		gtk_main();
@@ -1940,6 +2049,12 @@ with the password you enter.");
 			/* Quit loop */
 			break;
 		}
+
+		/* Enable buttons and inputs */
+		gtk_widget_set_sensitive(connect_button, TRUE);
+		gtk_widget_set_sensitive(cancel_button, TRUE);
+		gtk_widget_set_sensitive(server, TRUE);
+		gtk_widget_set_sensitive(port, TRUE);
 	}
 
 	/* Check for failure to login */
@@ -1964,6 +2079,12 @@ with the password you enter.");
 
 		/* Start new game */
 		restart_loop = RESTART_NEW;
+
+		/* Set state to disconnected */
+		client_state = CS_DISCONN;
+
+		/* Notify gui */
+		gui_client_state_changed(playing_game);
 	}
 	else
 	{
@@ -1977,8 +2098,12 @@ with the password you enter.");
 		gtk_main_quit();
 	}
 
-	/* Destroy dialog */
-	gtk_widget_destroy(dialog);
+	/* Check if dialog still exists */
+	if (GTK_IS_WIDGET(dialog))
+	{
+		/* Destroy dialog */
+		gtk_widget_destroy(dialog);
+	}
 }
 
 /*
@@ -2042,6 +2167,9 @@ static void disconnect(void)
 
 	/* Not playing in a game */
 	playing_game = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game);
 
 	/* Quit from all nested main loops */
 	g_timeout_add(0, quit_from_main, NULL);
@@ -2204,6 +2332,12 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Set default password */
 	gtk_entry_set_text(GTK_ENTRY(pass), opt.game_pass);
+
+	/* Connect the entries' activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(desc), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
+	g_signal_connect(G_OBJECT(pass), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
@@ -2423,6 +2557,9 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 	/* Clear game played flag */
 	playing_game = 0;
 
+	/* Notify gui */
+	gui_client_state_changed(playing_game);
+
 	/* Switch back to lobby view */
 	switch_view(1, 1);
 
@@ -2494,6 +2631,10 @@ void join_game(GtkButton *button, gpointer data)
 
 		/* Add hbox to dialog */
 		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),hbox);
+
+		/* Connect the entry's activate signal to the accept response on the dialog */
+		g_signal_connect(G_OBJECT(password), "activate", G_CALLBACK(enter_callback),
+		                 (gpointer) dialog);
 
 		/* Show everything */
 		gtk_widget_show_all(dialog);

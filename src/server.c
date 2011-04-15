@@ -3,6 +3,8 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file patched to *b version by B. Nordli, April 2011.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -27,7 +29,7 @@
  * Server settings.
  */
 #ifndef WELCOME
-#define WELCOME "Welcome to the Race for the Galaxy cygwin server!"
+#define WELCOME "Welcome to the Race for the Galaxy " RELEASE " server!"
 #endif
 
 #define FORCE_MYSQL_TCP_CONNECTION
@@ -1199,6 +1201,30 @@ void message_add(game *g, char *txt)
 }
 
 /*
+ * Handle a formatted game message.
+ */
+void message_add_formatted(game *g, char *txt, char *tag)
+{
+	/* TODO: This should become a separate message in a new version */
+	char msg[1024], *ptr = msg;
+
+	/* Create log message */
+	start_msg(&ptr, MSG_LOG);
+
+	/* Add text of message */
+	put_string(txt, &ptr);
+
+	/* Add format of message */
+	put_string(tag, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send message to all clients in game */
+	send_to_session(g->session_id, msg);
+}
+
+/*
  * Wait for player to have an answer ready.
  */
 static void server_wait(game *g, int who)
@@ -2102,7 +2128,7 @@ decisions server_func =
 	NULL,
 	server_verify_choice,
 	NULL,
-	NULL
+	NULL,
 };
 
 /*

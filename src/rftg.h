@@ -3,6 +3,8 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
+ * Source file modified by B. Nordli, April 2011.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -22,6 +24,10 @@
  * Standard headers.
  */
 #include "config.h"
+
+#ifndef RELEASE
+#define RELEASE VERSION "e"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -469,6 +475,16 @@
 
 
 /*
+ * GUI: Text formatting
+ */
+#define FORMAT_BOLD "bold"
+#define FORMAT_PHASE "phase"
+#define FORMAT_TAKEOVER "takeover"
+#define FORMAT_GOAL "goal"
+#define FORMAT_PRESTIGE "prestige"
+#define FORMAT_VERBOSE "verbose"
+
+/*
  * Forward declaration.
  */
 struct game;
@@ -752,6 +768,9 @@ typedef struct player
 	/* History of log sizes */
 	int *choice_history;
 
+	/* Last write position for log */
+	int choice_unread_pos;
+
 } player;
 
 /*
@@ -773,6 +792,9 @@ typedef struct game
 
 	/* Who initiated the simulation */
 	int sim_who;
+
+	/* Name of human player */
+	char *human_name;
 
 	/* Players */
 	player p[MAX_PLAYER];
@@ -828,6 +850,9 @@ typedef struct game
 	/* XXX Current kind of "any" good world */
 	int oort_kind;
 
+	/* Current kind of "any" good giving owner the best score */
+	int best_oort_kind;
+
 	/* Actions selected this round */
 	int action_selected[MAX_ACTION];
 
@@ -850,8 +875,11 @@ typedef struct game
  * External variables.
  */
 extern design library[MAX_DESIGN];
+extern char *actname[MAX_ACTION * 2 - 1];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
+extern char *exp_names[MAX_EXPANSION + 1];
+extern char *player_labels[MAX_PLAYER];
 extern decisions ai_func;
 extern decisions gui_func;
 
@@ -859,18 +887,23 @@ extern decisions gui_func;
  * External functions.
  */
 extern void message_add(game *g, char *msg);
+extern void message_add_formatted(game *g, char *msg, char *tag);
+extern int goals_enabled(game *g);
+extern int takeovers_enabled(game *g);
+extern void save_log(void);
 extern int game_rand(game *g);
 extern void read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
+extern int next_choice(int* log, int pos);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
 extern int random_draw(game *g);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);
-extern void draw_card(game *g, int who);
-extern void draw_cards(game *g, int who, int num);
+extern void draw_card(game *g, int who, char *reason);
+extern void draw_cards(game *g, int who, int num, char *reason);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);
@@ -917,7 +950,9 @@ extern void phase_discard(game *g);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
+extern int total_discount(game *g, int who);
 extern int total_military(game *g, int who);
+extern int compute_card_vp(game *g, int who, int which);
 extern void score_game(game *g);
 extern char *action_name(int act);
 extern int start_callback(game *g, int who, int list[], int n, int special[],

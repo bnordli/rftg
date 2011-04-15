@@ -5,6 +5,12 @@
 #define RESTART_LOAD 2
 #define RESTART_UNDO 3
 #define RESTART_NONE 4
+#define RESTART_UNDO_ROUND 5
+#define RESTART_UNDO_GAME 6
+#define RESTART_REDO 7
+#define RESTART_REDO_ROUND 8
+#define RESTART_REDO_GAME 9
+#define RESTART_REPLAY 10
 
 /*
  * User options.
@@ -17,6 +23,9 @@ typedef struct options
 	/* Expansion level */
 	int expanded;
 
+	/* Player name */
+	char *player_name;
+
 	/* Two-player advanced game */
 	int advanced;
 
@@ -26,11 +35,20 @@ typedef struct options
 	/* Disable takeovers */
 	int disable_takeover;
 
+	/* Customize seed */
+	int customize_seed;
+
+	/* Seed value */
+	unsigned int seed;
+
 	/* Reduce/eliminate full-size card image */
 	int full_reduced;
 
 	/* Shrink opponent areas to fit without scrolling */
 	int shrink_opponent;
+
+	/* Show the settle discount icon */
+	int show_settle_discount;
 
 	/* Server name to connect to */
 	char *server_name;
@@ -54,6 +72,26 @@ typedef struct options
 	int multi_min;
 	int multi_max;
 
+	/* Log width */
+	int log_width;
+
+	/* Autosave */
+	int auto_save;
+
+	/* Save log at end of game */
+	int save_log;
+
+	/* Colored log */
+	int colored_log;
+
+	/* Verbose log */
+	int verbose;
+
+	/* Last save location */
+	char *last_save;
+
+	/* Data folder location */
+	char *data_folder;
 } options;
 
 extern options opt;
@@ -85,6 +123,7 @@ extern void redraw_everything(void);
 extern void modify_gui(void);
 extern void reset_gui(void);
 extern void switch_view(int lobby, int chat);
+extern void gui_client_state_changed(int playing_game);
 
 extern void game_view_changed(GtkTreeView *view, gpointer data);
 extern void send_chat(GtkEntry *entry, gpointer data);

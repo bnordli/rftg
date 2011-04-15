@@ -3,6 +3,8 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file modified by B. Nordli, April 2011.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -4932,7 +4934,7 @@ static void ai_choose_consume_hand(game *g, int who, int c_idx, int o_idx,
 		else if (o_ptr->code & P4_GET_CARD)
 		{
 			/* Draw cards */
-			draw_cards(g, who, n);
+			draw_cards(g, who, n, NULL);
 		}
 
 		/* Done */
@@ -5281,7 +5283,7 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 		simulate_game(&sim, g, who);
 
 		/* Assume we win a card */
-		draw_card(&sim, who);
+		draw_card(&sim, who, NULL);
 
 		/* Accumulate score */
 		score += (1.0 - chance) * eval_game(&sim, who);
@@ -6182,7 +6184,7 @@ decisions ai_func =
 	ai_explore_sample,
 	NULL,
 	ai_game_over,
-	ai_shutdown
+	ai_shutdown,
 };
 
 /*

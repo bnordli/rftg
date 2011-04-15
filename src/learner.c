@@ -3,6 +3,8 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file modified by B. Nordli, April 2011.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -32,6 +34,15 @@ void message_add(game *g, char *msg)
 {
 	/* Print if verbose flag set */
 	if (verbose) printf("%s", msg);
+}
+
+/*
+ * Print messages to standard output.
+ */
+void message_add_formatted(game *g, char *msg, char *tag)
+{
+	/* Print without formatting */
+	message_add(g, msg);
 }
 
 /*
