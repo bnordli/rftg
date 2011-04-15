@@ -228,6 +228,9 @@ typedef struct status_display
 	/* Military strength */
 	int military;
 
+	/* Text of VP tooltip */
+	char vp_tip[1024];
+
 	/* Text of discount tooltip */
 	char discount_tip[1024];
 
@@ -2304,9 +2307,29 @@ struct extra_info
 };
 
 /*
+ * The maximum size of "extra info" structures.
+ */
+#define MAX_EI      5
+
+/*
+ * Types of "extra info" structures for player status.
+ */
+#define EI_HAND     0
+#define EI_VP       1
+#define EI_PRESTIGE 2
+#define EI_DISCOUNT 3
+#define EI_MILITARY 4
+
+/* 
+ * Types of "extra info" structures for game status.
+ */
+#define EI_DECK     0
+#define EI_DISCARD  2
+
+/*
  * Set of "extra info" structures.
  */
-static struct extra_info status_extra_info[MAX_PLAYER + 1][5];
+static struct extra_info status_extra_info[MAX_PLAYER + 1][MAX_EI];
 
 /*
  * Draw extra text on top of a GtkImage's window.
@@ -2363,6 +2386,127 @@ static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
 
 	/* Continue handling event */
 	return FALSE;
+}
+
+/*
+ * Create a tooltip for vp icon.
+ */
+static char *get_vp_tooltip(game *g, int who)
+{
+	static char msg[1024];
+	player *p_ptr = &g->p[who];
+	card *c_ptr;
+	char text[1024];
+	char bonus[1024];
+	int x, t, kind, worlds, devs;
+	
+	/* Clear counts */
+	worlds = devs = 0;
+
+	/* Clear messages */
+	strcpy(msg, "");
+	strcpy(bonus, "");
+
+	/* Check for VP from chips */
+	if (p_ptr->vp)
+	{
+		/* Count VP chips */
+		sprintf(text, "\nVP chips: %d VP%s", p_ptr->vp,
+		        p_ptr->vp == 1 ? "" : "s");
+		strcat(msg, text);
+	}
+
+	/* Check for VP from goals */
+	if (p_ptr->goal_vp)
+	{
+		/* Count goal VP */
+		sprintf(text, "\nGoals: %d VP%s", p_ptr->goal_vp,
+		        p_ptr->goal_vp == 1 ? "" : "s");
+		strcat(msg, text);
+	}
+
+	/* Check for VP from prestige */
+	if (p_ptr->prestige)
+	{
+		/* Count goal VP */
+		sprintf(text, "\nPrestige: %d VP%s", p_ptr->prestige,
+		        p_ptr->prestige == 1 ? "" : "s");
+		strcat(msg, text);
+	}
+
+	/* Remember old kind */
+	kind = g->oort_kind;
+
+	/* Set oort kind to best scoring kind */
+	g->oort_kind = g->best_oort_kind;
+
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
+	/* Loop over active cards */
+	for ( ; x != -1; x = g->deck[x].next)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[x];
+
+		/* Check for world */
+		if (c_ptr->d_ptr->type == TYPE_WORLD)
+		{
+			/* Add VP from this world */
+			worlds += c_ptr->d_ptr->vp;
+		}
+
+		/* Check for development */
+		else if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
+		{
+			/* Add VP from this development */
+			devs += c_ptr->d_ptr->vp;
+		}
+		
+		/* Check for VP bonuses */
+		if (c_ptr->d_ptr->num_vp_bonus)
+		{
+			/* Count VPs from this card */
+			t = compute_card_vp(g, who, x);
+
+			/* Format text */
+			sprintf(text, "\n%s: %d VP%s", c_ptr->d_ptr->name,
+			        t, t == 1 ? "" : "s");
+
+			/* Add to bonus string */
+			strcat(bonus, text);
+		}
+	}
+
+	/* Reset oort kind */
+	g->oort_kind = kind;
+
+	/* Check for VP from worlds */
+	if (worlds)
+	{
+		/* Add total count from worlds */
+		sprintf(text, "\nWorlds: %d VP%s", worlds, worlds == 1 ? "" : "s");
+		strcat(msg, text);
+	}
+
+	/* Check for VP from developments */
+	if (devs)
+	{
+		/* Add total count from developments */
+		sprintf(text, "\nDevelopments: %d VP%s", devs, devs == 1 ? "" : "s");
+		strcat(msg, text);
+	}
+
+	/* Add bonus cards */
+	strcat(msg, bonus);
+
+	/* Write total */
+	sprintf(text, "\nTotal: <b>%d VP%s</b>", p_ptr->end_vp,
+	        p_ptr->end_vp == 1 ? "" : "s");
+	strcat(msg, text);
+
+	/* Return message (without first newline) */
+	return msg + 1;
 }
 
 /*
@@ -2955,7 +3099,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[who][0];
+	ei = &status_extra_info[who][EI_HAND];
 
 	/* Create text for handsize */
 	sprintf(ei->text, "<b>%d</b>", s_ptr->cards_hand);
@@ -2984,7 +3128,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[who][1];
+	ei = &status_extra_info[who][EI_VP];
 
 	/* Create text for victory points */
 	sprintf(ei->text, "<b>%d\n%d</b>", s_ptr->vp, s_ptr->end_vp);
@@ -3002,6 +3146,9 @@ static void redraw_status_area(int who, GtkWidget *box)
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
 
+	/* Add VP tooltip */
+	gtk_widget_set_tooltip_markup(image, s_ptr->vp_tip);
+
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 
@@ -3017,7 +3164,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][2];
+		ei = &status_extra_info[who][EI_PRESTIGE];
 
 		/* Create text for prestige */
 		sprintf(ei->text, "<b>%d</b>", s_ptr->prestige);
@@ -3053,7 +3200,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][4];
+		ei = &status_extra_info[who][EI_DISCOUNT];
 
 		/* Create text for general discount */
 		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount);
@@ -3088,7 +3235,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][3];
+		ei = &status_extra_info[who][EI_MILITARY];
 
 		/* Create text for military strength */
 		sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
@@ -3242,7 +3389,7 @@ void redraw_status(void)
 	draw_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][0];
+	ei = &status_extra_info[MAX_PLAYER][EI_DECK];
 
 	/* Create text for deck */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>", display_deck);
@@ -3271,7 +3418,7 @@ void redraw_status(void)
 	discard_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][1];
+	ei = &status_extra_info[MAX_PLAYER][EI_DISCARD];
 
 	/* Create text for discard */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>", display_discard);
@@ -3300,7 +3447,7 @@ void redraw_status(void)
 	pool_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][2];
+	ei = &status_extra_info[MAX_PLAYER][EI_VP];
 
 	/* Create text for VPs */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
@@ -3682,6 +3829,9 @@ static void reset_status(game *g, int who)
 
 	/* Count military strength */
 	status_player[who].military = total_military(g, who);
+
+	/* Get text of vp tooltip */
+	strcpy(status_player[who].vp_tip, get_vp_tooltip(g, who));
 
 	/* Get text of discount tooltip */
 	strcpy(status_player[who].discount_tip, get_discount_tooltip(g, who));
