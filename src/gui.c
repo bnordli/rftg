@@ -7815,7 +7815,7 @@ static void read_prefs(void)
 	                                              "no_takeover", NULL);
 
 	/* Check length of human name */
-	if (strlen(opt.player_name) > 50)
+	if (opt.player_name && strlen(opt.player_name) > 50)
 	{
 		/* Cap length of name */
 		opt.player_name[50] = '\0';
