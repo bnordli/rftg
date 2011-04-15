@@ -603,7 +603,7 @@ void draw_cards(game *g, int who, int num, char *reason)
 		if (num == 1)
 		{
 			/* Format singular message */
-			sprintf(msg, "%s receives a card from %s.\n",
+			sprintf(msg, "%s receives 1 card from %s.\n",
 			        g->p[who].name, reason);
 		}
 		else
