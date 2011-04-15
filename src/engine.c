@@ -10806,7 +10806,7 @@ void score_game(game *g)
 void declare_winner(game *g)
 {
 	player *p_ptr;
-	int i, t, b_s = -1, b_t = -1;
+	int i, th, tg, b_s = -1, b_t = -1, num_b_s = 0;
 	char msg[1024];
 
 	/* Check for simulation */
@@ -10838,12 +10838,15 @@ void declare_winner(game *g)
 		/* Skip players who do not have best score */
 		if (p_ptr->end_vp < b_s) continue;
 
+		/* Add one to number of players with best score */
+		++num_b_s;
+
 		/* Get tiebreaker */
-		t = count_player_area(g, i, WHERE_HAND) +
-		    count_player_area(g, i, WHERE_GOOD);
+		th = count_player_area(g, i, WHERE_HAND) +
+		     count_player_area(g, i, WHERE_GOOD);
 
 		/* Track biggest tiebreaker */
-		if (t > b_t) b_t = t;
+		if (th > b_t) b_t = th;
 	}
 
 	/* Loop over players */
@@ -10866,12 +10869,27 @@ void declare_winner(game *g)
 		/* Skip players who do not have best score */
 		if (p_ptr->end_vp < b_s) continue;
 
-		/* Get tiebreaker */
-		t = count_player_area(g, i, WHERE_HAND) +
-		    count_player_area(g, i, WHERE_GOOD);
+		/* Get tiebreaker (hand cards) */
+		th = count_player_area(g, i, WHERE_HAND);
+
+		/* Get tiebreaker (goods) */
+		tg = count_player_area(g, i, WHERE_GOOD);
+
+		/* Check for simulation */
+		if (!g->simulation && num_b_s > 1)
+		{
+			/* Format message */
+			sprintf(msg, "  %s has %d card%s in hand and %d good%s "
+			        "on worlds.\n", g->p[i].name,
+			        th, th == 1 ? "" : "s",
+					tg, tg == 1 ? "" : "s", th + tg);
+
+			/* Send message */
+			message_add(g, msg);
+		}
 
 		/* Skip players who do not have best tiebreaker */
-		if (t < b_t) continue;
+		if (th + tg < b_t) continue;
 
 		/* Set winner flag */
 		p_ptr->winner = 1;
