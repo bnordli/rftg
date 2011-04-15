@@ -2307,29 +2307,14 @@ struct extra_info
 };
 
 /*
- * The maximum size of "extra info" structures.
- */
-#define MAX_EI      5
-
-/*
- * Types of "extra info" structures for player status.
- */
-#define EI_HAND     0
-#define EI_VP       1
-#define EI_PRESTIGE 2
-#define EI_DISCOUNT 3
-#define EI_MILITARY 4
-
-/* 
- * Types of "extra info" structures for game status.
- */
-#define EI_DECK     0
-#define EI_DISCARD  2
-
-/*
  * Set of "extra info" structures.
  */
-static struct extra_info status_extra_info[MAX_PLAYER + 1][MAX_EI];
+static struct extra_info status_extra_info[MAX_PLAYER][5];
+
+/*
+ * Set of "extra info" structures for game status.
+ */
+static struct extra_info game_extra_info[3];
 
 /*
  * Draw extra text on top of a GtkImage's window.
@@ -3099,7 +3084,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[who][EI_HAND];
+	ei = &status_extra_info[who][0];
 
 	/* Create text for handsize */
 	sprintf(ei->text, "<b>%d</b>", s_ptr->cards_hand);
@@ -3128,7 +3113,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[who][EI_VP];
+	ei = &status_extra_info[who][1];
 
 	/* Create text for victory points */
 	sprintf(ei->text, "<b>%d\n%d</b>", s_ptr->vp, s_ptr->end_vp);
@@ -3164,7 +3149,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][EI_PRESTIGE];
+		ei = &status_extra_info[who][2];
 
 		/* Create text for prestige */
 		sprintf(ei->text, "<b>%d</b>", s_ptr->prestige);
@@ -3200,7 +3185,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][EI_DISCOUNT];
+		ei = &status_extra_info[who][3];
 
 		/* Create text for general discount */
 		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount);
@@ -3235,7 +3220,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][EI_MILITARY];
+		ei = &status_extra_info[who][4];
 
 		/* Create text for military strength */
 		sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
@@ -3389,7 +3374,7 @@ void redraw_status(void)
 	draw_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][EI_DECK];
+	ei = &game_extra_info[0];
 
 	/* Create text for deck */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>", display_deck);
@@ -3418,7 +3403,7 @@ void redraw_status(void)
 	discard_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][EI_DISCARD];
+	ei = &game_extra_info[1];
 
 	/* Create text for discard */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>", display_discard);
@@ -3447,7 +3432,7 @@ void redraw_status(void)
 	pool_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][EI_VP];
+	ei = &game_extra_info[2];
 
 	/* Create text for VPs */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
