@@ -7345,8 +7345,15 @@ void reset_gui(void)
 		/* Call initialization function */
 		real_game.p[i].control->init(&real_game, i, 0.0);
 
-		/* Set size of other's choice logs */
-		real_game.p[i].choice_size = 4096;
+		/* We already know the log size when game is loaded */
+		if (restart_loop != RESTART_LOAD)
+		{
+			/* TODO: It might be more reasonable to save all */
+			/* players' log sizes (not just us) */
+
+			/* Set size of other's choice logs */
+			real_game.p[i].choice_size = 4096;
+		}
 	}
 
 	/* Clear message log */
@@ -8832,12 +8839,9 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Do not display value */
 	gtk_scale_set_draw_value(GTK_SCALE(log_width_scale), FALSE);
 
-	/* Check for value set */
-	if (opt.log_width)
-	{
-		/* Set value */
-		gtk_range_set_value(GTK_RANGE(log_width_scale), opt.log_width);
-	}
+	/* Set value */
+	gtk_range_set_value(GTK_RANGE(log_width_scale),
+	                    opt.log_width ? opt.log_width : CARD_WIDTH);
 
 	/* Pack scale into fram */
 	gtk_container_add(GTK_CONTAINER(log_width_frame), log_width_scale);
