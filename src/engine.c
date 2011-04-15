@@ -8557,6 +8557,16 @@ int goal_minimum(int goal)
 	/* Switch on goal type */
 	switch (goal)
 	{
+		/* One-dimensional first goals */
+		case GOAL_FIRST_5_VP: return 5;
+		case GOAL_FIRST_4_TYPES: return 4;
+		case GOAL_FIRST_3_ALIEN: return 3;
+		case GOAL_FIRST_PHASE_POWER: return 6;
+		case GOAL_FIRST_3_UPLIFT: return 3;
+		case GOAL_FIRST_4_GOODS: return 4;
+		case GOAL_FIRST_8_ACTIVE: return 8;
+
+		/* Most goals */
 		case GOAL_MOST_MILITARY: return 6;
 		case GOAL_MOST_BLUE_BROWN: return 3;
 		case GOAL_MOST_DEVEL: return 4;
@@ -8567,8 +8577,8 @@ int goal_minimum(int goal)
 		case GOAL_MOST_CONSUME: return 3;
 	}
 
-	/* XXX */
-	return -1;
+	/* Other goals are binary */
+	return 1;
 }
 
 /*
@@ -8594,8 +8604,8 @@ static int check_goal_player(game *g, int goal, int who)
 		/* First to 5 VP chips */
 		case GOAL_FIRST_5_VP:
 
-			/* Check for 5 VP */
-			return p_ptr->vp >= 5;
+			/* Return VP count */
+			return p_ptr->vp;
 
 		/* First to 4 good types */
 		case GOAL_FIRST_4_TYPES:
@@ -8626,17 +8636,14 @@ static int check_goal_player(game *g, int goal, int who)
 				if (good[i]) count++;
 			}
 
-			/* Check for all four types */
-			return count >= 4;
+			/* Return number of types */
+			return count;
 
 		/* First to three Alien cards */
 		case GOAL_FIRST_3_ALIEN:
 
-			/* Count ALIEN flags */
-			count = count_active_flags(g, who, FLAG_ALIEN);
-
-			/* Check for three alien cards */
-			return count >= 3;
+			/* Count number of Alien cards */
+			return count_active_flags(g, who, FLAG_ALIEN);
 
 		/* First to discard at end of turn */
 		case GOAL_FIRST_DISCARD:
@@ -8687,8 +8694,8 @@ static int check_goal_player(game *g, int goal, int who)
 				if (phase[i]) count++;
 			}
 
-			/* Check for all 6 phases */
-			return count == 6;
+			/* Return number of phases with powers */
+			return count;
 
 		/* First to have a six-cost development */
 		case GOAL_FIRST_SIX_DEVEL:
@@ -8718,11 +8725,8 @@ static int check_goal_player(game *g, int goal, int who)
 		/* First to three Uplift cards */
 		case GOAL_FIRST_3_UPLIFT:
 
-			/* Count UPLIFT flags */
-			count = count_active_flags(g, who, FLAG_UPLIFT);
-
-			/* Check for three Uplift cards */
-			return count >= 3;
+			/* Count number of Uplift cards */
+			return count_active_flags(g, who, FLAG_UPLIFT);
 
 		/* First to 4 goods */
 		case GOAL_FIRST_4_GOODS:
@@ -8743,14 +8747,14 @@ static int check_goal_player(game *g, int goal, int who)
 				if (c_ptr->covered != -1) count++;
 			}
 
-			/* Check for four goods */
-			return count >= 4;
+			/* Return number of goods */
+			return count;
 
 		/* First to 8 active cards */
 		case GOAL_FIRST_8_ACTIVE:
 
-			/* Check for 8 cards */
-			return count_player_area(g, who, WHERE_ACTIVE) >= 8;
+			/* Count number of cards */
+			return count_player_area(g, who, WHERE_ACTIVE);
 
 		/* First to have negative military or takeover power */
 		case GOAL_FIRST_NEG_MILITARY:
@@ -9184,8 +9188,14 @@ void check_goals(game *g)
 			/* Get player pointer */
 			p_ptr = &g->p[j];
 
+			/* Get player's progress */
+			count[j] = check_goal_player(g, i, j);
+
+			/* Save progress */
+			g->p[j].goal_progress[i] = count[j];
+
 			/* Check for player meeting requirement */
-			if (check_goal_player(g, i, j))
+			if (count[j] >= goal_minimum(i))
 			{
 				/* Claim goal */
 				p_ptr->goal_claimed[i] = 1;

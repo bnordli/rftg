@@ -2190,6 +2190,27 @@ static char *goal_tooltip(game *g, int goal)
 				}
 			}
 		}
+
+		/* Report progress for one-dimensional first goals */
+		else if (goal_minimum(goal) > 1)
+		{
+			/* Add text to tooltip */
+			strcat(msg, "\nProgress:");
+
+			/* Loop over players */
+			for (i = 0; i < g->num_players; i++)
+			{
+				/* Get player pointer */
+				p_ptr = &g->p[i];
+
+				/* Create progress string */
+				sprintf(text, "\n %s: %d",
+				        p_ptr->name, p_ptr->goal_progress[goal]);
+
+				/* Add progress string to tooltip */
+				strcat(msg, text);
+			}
+		}
 	}
 
 	/* Check for most goal */
@@ -2206,8 +2227,8 @@ static char *goal_tooltip(game *g, int goal)
 
 			/* Create progress string */
 			sprintf(text, "\n%c %s: %d",
-				p_ptr->goal_claimed[goal] ? '*' : ' ',
-				p_ptr->name, p_ptr->goal_progress[goal]);
+			        p_ptr->goal_claimed[goal] ? '*' : ' ',
+			        p_ptr->name, p_ptr->goal_progress[goal]);
 
 			/* Add progress string to tooltip */
 			strcat(msg, text);
