@@ -1864,9 +1864,8 @@ with the password you enter.");
 	/* Run dialog */
 	while (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
-		/* Disable buttons while processing connection */
+		/* Disable button while processing connection */
 		gtk_widget_set_sensitive(connect_button, FALSE);
-		gtk_widget_set_sensitive(cancel_button, FALSE);
 
 		/* Get port number */
 		portno = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(port));
@@ -1907,9 +1906,8 @@ with the password you enter.");
 				gtk_label_set_text(GTK_LABEL(login_status),
 				                   "Failed to lookup name");
 
-				/* Enable buttons */
+				/* Enable button */
 				gtk_widget_set_sensitive(connect_button, TRUE);
-				gtk_widget_set_sensitive(cancel_button, TRUE);
 
 				continue;
 			}
@@ -1929,9 +1927,8 @@ with the password you enter.");
 				gtk_label_set_text(GTK_LABEL(login_status),
 				                   strerror(errno));
 #endif
-				/* Enable buttons */
+				/* Enable button */
 				gtk_widget_set_sensitive(connect_button, TRUE);
-				gtk_widget_set_sensitive(cancel_button, TRUE);
 
 				continue;
 			}
@@ -1982,9 +1979,8 @@ with the password you enter.");
 				/* Reset server socket number */
 				server_fd = -1;
 
-				/* Enable buttons */
+				/* Enable button */
 				gtk_widget_set_sensitive(connect_button, TRUE);
-				gtk_widget_set_sensitive(cancel_button, TRUE);
 
 				/* Try again */
 				continue;
@@ -2052,7 +2048,6 @@ with the password you enter.");
 
 		/* Enable buttons and inputs */
 		gtk_widget_set_sensitive(connect_button, TRUE);
-		gtk_widget_set_sensitive(cancel_button, TRUE);
 		gtk_widget_set_sensitive(server, TRUE);
 		gtk_widget_set_sensitive(port, TRUE);
 	}
