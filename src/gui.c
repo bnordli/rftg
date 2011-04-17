@@ -596,6 +596,34 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 }
 
 /*
+ * Update the card image with the given image.
+ */
+void update_card(GdkPixbuf *buf)
+{
+	double card_width, card_height;
+
+	/* Don't do anything if image hidden */
+	if (opt.hide_card == 2) return;
+
+	/* Compute card width */
+	card_width = opt.card_size ? opt.card_size : CARD_WIDTH;
+
+	/* Compute card height */
+	card_height = CARD_HEIGHT * (card_width / CARD_WIDTH);
+
+	/* Scale image */
+	buf = gdk_pixbuf_scale_simple(buf,
+	                              (int) card_width, (int) card_height,
+	                              GDK_INTERP_BILINEAR);
+
+	/* Set image */
+	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
+
+	/* Remove our scaled buffer */
+	g_object_unref(G_OBJECT(buf));
+}
+
+/*
  * Called when mouse moves over log window
  */
 static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
@@ -603,7 +631,6 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 {
 	int window_x, window_y, buffer_x, buffer_y, i;
 	GtkTextIter iter_start, iter_end;
-	GdkPixbuf *buf;
 	char *line;
 
 	/* Check for hint event */
@@ -641,28 +668,8 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 		/* Check if card name is found */
 		if (strstr(line, library[i].name))
 		{
-			/* Set image to card face */
-			buf = image_cache[library[i].index];
-
-			/* Check for halfsize image */
-			if (opt.full_reduced == 1)
-			{
-				/* Scale image */
-				buf = gdk_pixbuf_scale_simple(buf,
-				                              CARD_WIDTH / 2,
-				                              CARD_HEIGHT / 2,
-				                              GDK_INTERP_BILINEAR);
-			}
-
-			/* Set image */
-			gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
-
-			/* Check for halfsize image */
-			if (opt.full_reduced == 1)
-			{
-				/* Remove our scaled buffer */
-				g_object_unref(G_OBJECT(buf));
-			}
+			/* Update image */
+			update_card(image_cache[library[i].index]);
 
 			/* Card is found */
 			break;
@@ -1442,37 +1449,9 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
                             gpointer data)
 {
 	design *d_ptr = (design *)data;
-	GdkPixbuf *buf;
 
-	/* Check for no design */
-	if (!d_ptr)
-	{
-		/* Set image to card back */
-		buf = card_back;
-	}
-	else
-	{
-		/* Set image to card face */
-		buf = image_cache[d_ptr->index];
-	}
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Scale image */
-		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
-		                              CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
-	}
-
-	/* Set image */
-	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Remove our scaled buffer */
-		g_object_unref(G_OBJECT(buf));
-	}
+	/* Update card image */
+	update_card(d_ptr ? image_cache[d_ptr->index] : card_back);
 
 	/* Event handled */
 	return TRUE;
@@ -1486,29 +1465,8 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
 static gboolean redraw_action(GtkWidget *widget, GdkEventCrossing *event,
                               gpointer data)
 {
-	int a = GPOINTER_TO_INT(data);
-	GdkPixbuf *buf;
-
-	/* Set image to card face */
-	buf = action_cache[a];
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Scale image */
-		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
-		                              CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
-	}
-
-	/* Set image */
-	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Remove our scaled buffer */
-		g_object_unref(G_OBJECT(buf));
-	}
+	/* Update image */
+	update_card(action_cache[GPOINTER_TO_INT(data)]);
 
 	/* Continue to handle event */
 	return FALSE;
@@ -7567,7 +7525,7 @@ void modify_gui(void)
 	}
 
 	/* Check for no full-size image */
-	if (opt.full_reduced == 2)
+	if (opt.hide_card == 2)
 	{
 		/* Hide image */
 		gtk_widget_hide(full_image);
@@ -7583,7 +7541,7 @@ void modify_gui(void)
 
 	/* Resize log window */
 	gtk_widget_set_size_request(message_view,
-	                            opt.log_width ? opt.log_width : CARD_WIDTH,
+	                            (opt.log_width ? opt.log_width : CARD_WIDTH) - 20,
 	                            -1);
 
 	/* Resize status areas */
@@ -7978,8 +7936,10 @@ static void read_prefs(void)
 	}
 
 	/* Read GUI options */
-	opt.full_reduced = g_key_file_get_integer(pref_file, "gui",
-	                                          "full_reduced", NULL);
+	opt.hide_card = g_key_file_get_integer(pref_file, "gui",
+	                                       "full_reduced", NULL);
+	opt.card_size = g_key_file_get_integer(pref_file, "gui",
+	                                       "card_size", NULL);
 	opt.log_width = g_key_file_get_integer(pref_file, "gui",
 	                                       "log_width", NULL);
 	opt.shrink_opponent = g_key_file_get_boolean(pref_file, "gui",
@@ -8056,7 +8016,9 @@ void save_prefs(void)
 
 	/* Set GUI options */
 	g_key_file_set_integer(pref_file, "gui", "full_reduced",
-	                       opt.full_reduced);
+	                       opt.hide_card);
+	g_key_file_set_integer(pref_file, "gui", "card_size",
+	                       opt.card_size);
 	g_key_file_set_integer(pref_file, "gui", "log_width",
 	                       opt.log_width);
 	g_key_file_set_boolean(pref_file, "gui", "shrink_opponent",
@@ -8445,17 +8407,6 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
- * Full-size image option names.
- */
-static char *reduce_names[] =
-{
-	"Original size",
-	"Half size",
-	"Hidden",
-	NULL
-};
-
-/*
  * Widgets for select dialog.
  */
 static GtkWidget *num_players_radio[MAX_PLAYER];
@@ -8469,7 +8420,7 @@ static GtkWidget *seed_entry;
 /*
  * Current selections for next game options.
  */
-static int next_exp, next_player, next_reduce;
+static int next_exp, next_player;
 
 /*
  * React to an expansion level button being toggled.
@@ -8540,14 +8491,55 @@ static void seed_toggle(GtkToggleButton *button, gpointer data)
 }
 
 /*
- * React to an full-size image option button being toggled.
+ * Callback when action choice changes in advanced game.
  */
-static void reduce_toggle(GtkToggleButton *button, gpointer data)
+static void hide_card_changed(GtkToggleButton *button, gpointer card_size_scale)
 {
-	int i = GPOINTER_TO_INT(data);
+	/* Disable card size if card is hidden */
+	gtk_widget_set_sensitive(GTK_WIDGET(card_size_scale),
+	                         !gtk_toggle_button_get_active(button));
+}
 
-	/* Check for button set */
-	if (gtk_toggle_button_get_active(button)) next_reduce = i;
+/*
+ * Callback when card size scale changes.
+ */
+static void card_size_changed(GtkRange *card_size_scale,
+                              gpointer log_width_scale)
+{
+	double card_size, log_width;
+
+	/* Get current card size */
+	card_size = gtk_range_get_value(card_size_scale);
+
+	/* Get current log width */
+	log_width = gtk_range_get_value(GTK_RANGE(log_width_scale));
+
+	/* Update log width if needed */
+	if (card_size > log_width)
+	{
+		gtk_range_set_value(GTK_RANGE(log_width_scale), card_size);
+	}
+}
+
+/*
+ * Callback when log width scale changes.
+ */
+static void log_width_changed(GtkRange *log_width_scale,
+                              gpointer card_size_scale)
+{
+	double card_size, log_width;
+
+	/* Get current card size */
+	card_size = gtk_range_get_value(GTK_RANGE(card_size_scale));
+
+	/* Get current log width */
+	log_width = gtk_range_get_value(log_width_scale);
+
+	/* Update card size if needed */
+	if (log_width < card_size)
+	{
+		gtk_range_set_value(GTK_RANGE(card_size_scale), log_width);
+	}
 }
 
 /*
@@ -8920,15 +8912,15 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *reduce_box, *reduce_frame;
-	GtkWidget *log_width_frame, *log_width_scale;
+	GtkWidget *status_box, *status_frame, *hide_card_button;
+	GtkWidget *card_size_box, *card_size_label, *card_size_scale;
+	GtkWidget *log_width_box, *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button;
 	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
-	int i;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("GUI Options", NULL,
@@ -8945,50 +8937,64 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_window_set_title(GTK_WINDOW(dialog),
 	                     "Race for the Galaxy " RELEASE);
 
-	/* ---- Full Size ---- */
-	/* Create vbox to hold full-size image option radio buttons */
-	reduce_box = gtk_vbox_new(FALSE, 0);
-
-	/* Loop over reduction levels */
-	for (i = 0; reduce_names[i]; i++)
-	{
-		/* Create radio button */
-		radio = gtk_radio_button_new_with_label_from_widget(
-		                                        GTK_RADIO_BUTTON(radio),
-		                                        reduce_names[i]);
-
-		/* Check for current reduction level */
-		if (opt.full_reduced == i)
-		{
-			/* Set button active */
-			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio),
-			                             TRUE);
-
-			/* Remember current reduction level */
-			next_reduce = i;
-		}
-
-		/* Add handler */
-		g_signal_connect(G_OBJECT(radio), "toggled",
-		                 G_CALLBACK(reduce_toggle), GINT_TO_POINTER(i));
-
-		/* Pack radio button into box */
-		gtk_box_pack_start(GTK_BOX(reduce_box), radio, FALSE, TRUE, 0);
-	}
-
+	/* ---- Game status ---- */
 	/* Create frame around buttons */
-	reduce_frame = gtk_frame_new("Full-size image");
+	status_frame = gtk_frame_new("Game status");
 
-	/* Pack radio button box into frame */
-	gtk_container_add(GTK_CONTAINER(reduce_frame), reduce_box);
+	/* Create vbox to hold game status options */
+	status_box = gtk_vbox_new(FALSE, 0);
 
-	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  reduce_frame);
+	/* Create toggle button for hiding card image */
+	hide_card_button = gtk_check_button_new_with_label("Hide card");
 
-	/* ---- Log width ---- */
-	/* Create frame around scale */
-	log_width_frame = gtk_frame_new("Log width");
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hide_card_button),
+	                             opt.hide_card == 2);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(status_box), hide_card_button, FALSE, TRUE, 0);
+
+	/* Create hbox to hold card size widgets */
+	card_size_box = gtk_hbox_new(FALSE, 11);
+
+	/* Create card size label */
+	card_size_label = gtk_label_new("Card size");
+
+	/* Pack label into box */
+	gtk_box_pack_start(GTK_BOX(card_size_box), card_size_label, FALSE, TRUE, 0);
+
+	/* Create card size scale */
+	card_size_scale = gtk_hscale_new_with_range(150, 360, 10);
+
+	/* Do not display value */
+	gtk_scale_set_draw_value(GTK_SCALE(card_size_scale), FALSE);
+
+	/* Set value */
+	gtk_range_set_value(GTK_RANGE(card_size_scale),
+	                    opt.card_size ? opt.card_size : CARD_WIDTH);
+
+	/* Set scale sensitivity status */
+	gtk_widget_set_sensitive(GTK_WIDGET(card_size_scale),
+	                         opt.hide_card != 2);
+
+	/* Connect hide card "toggled" signal */
+	g_signal_connect(G_OBJECT(hide_card_button), "toggled",
+	                 G_CALLBACK(hide_card_changed), card_size_scale);
+
+	/* Pack scale into box */
+	gtk_box_pack_start(GTK_BOX(card_size_box), card_size_scale, TRUE, TRUE, 0);
+
+	/* Pack card size box into status box */
+	gtk_container_add(GTK_CONTAINER(status_box), card_size_box);
+
+	/* Create hbox to hold log width widgets */
+	log_width_box = gtk_hbox_new(FALSE, 5);
+
+	/* Create log width label */
+	log_width_label = gtk_label_new("Log width");
+
+	/* Pack label into box */
+	gtk_box_pack_start(GTK_BOX(log_width_box), log_width_label, FALSE, TRUE, 0);
 
 	/* Create log width scale */
 	log_width_scale = gtk_hscale_new_with_range(150, 360, 10);
@@ -9000,11 +9006,29 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_range_set_value(GTK_RANGE(log_width_scale),
 	                    opt.log_width ? opt.log_width : CARD_WIDTH);
 
-	/* Pack scale into fram */
-	gtk_container_add(GTK_CONTAINER(log_width_frame), log_width_scale);
+	/* Pack scale into box */
+	gtk_box_pack_start(GTK_BOX(log_width_box), log_width_scale, TRUE, TRUE, 0);
 
-	/* Add frame to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), log_width_frame);
+	/* Pack log width box into status box */
+	gtk_container_add(GTK_CONTAINER(status_box), log_width_box);
+
+	/* Create card size "value-changed" signal */
+	g_signal_connect(G_OBJECT(card_size_scale), "value-changed",
+	                 G_CALLBACK(card_size_changed), log_width_scale);
+
+	/* Create log width "value-changed" signal */
+	g_signal_connect(G_OBJECT(log_width_scale), "value-changed",
+	                 G_CALLBACK(log_width_changed), card_size_scale);
+
+	/* Simulate a value changed to force scale update if needed */
+	card_size_changed(GTK_RANGE(card_size_scale), log_width_scale);
+
+	/* Pack status box into status frame */
+	gtk_container_add(GTK_CONTAINER(status_frame), status_box);
+
+	/* Add status fram to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  status_frame);
 
 	/* ---- Game view ---- */
 	/* Create vbox to hold game view check boxes */
@@ -9125,7 +9149,14 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		/* Set full-size image option */
-		opt.full_reduced = next_reduce;
+		opt.hide_card = 2 * gtk_toggle_button_get_active(
+		                GTK_TOGGLE_BUTTON(hide_card_button));
+
+		/* Set card size */
+		opt.card_size = (int) gtk_range_get_value(GTK_RANGE(card_size_scale));
+
+		/* Set log width */
+		opt.log_width = (int) gtk_range_get_value(GTK_RANGE(log_width_scale));
 
 		/* Set shrink opponents option */
 		opt.shrink_opponent =
@@ -9150,9 +9181,6 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set verbose option */
 		opt.verbose =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
-
-		/* Set log width */
-		opt.log_width = (int) gtk_range_get_value(GTK_RANGE(log_width_scale));
 
 		/* Handle new options */
 		modify_gui();
