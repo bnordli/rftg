@@ -10665,6 +10665,9 @@ static void score_game_player(game *g, int who)
 	card *c_ptr;
 	int i, x, count;
 
+	/* Reset goal vp */
+	p_ptr->goal_vp = 0;
+
 	/* Start with VP chips */
 	p_ptr->end_vp = p_ptr->vp;
 
@@ -10796,6 +10799,9 @@ void score_game(game *g)
 
 					/* Remember best selection of kind */
 					g->best_oort_kind = j;
+
+					/* Remember goal score */
+					g->p[i].goal_vp = sim.p[i].goal_vp;
 				}
 			}
 
