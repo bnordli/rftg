@@ -2436,8 +2436,11 @@ static char *get_vp_tooltip(game *g, int who)
 			/* Count VPs from this card */
 			t = compute_card_vp(g, who, x);
 
+			/* Copy previous bonus (to get names in table order) */
+			strcpy(text, bonus);
+
 			/* Format text */
-			sprintf(text, "\n%s: %d VP%s", c_ptr->d_ptr->name, t, PLURAL(t));
+			sprintf(bonus, "\n%s: %d VP%s", c_ptr->d_ptr->name, t, PLURAL(t));
 
 			/* Add to bonus string */
 			strcat(bonus, text);
@@ -8664,6 +8667,9 @@ static void card_size_changed(GtkRange *card_size_scale,
 	/* Update options */
 	opt.card_size = (int) gtk_range_get_value(card_size_scale);
 
+	/* Reset scale (adjust for rounding) */
+	gtk_range_set_value(card_size_scale, opt.card_size);
+
 	/* Get current log width */
 	log_width = gtk_range_get_value(GTK_RANGE(log_width_scale));
 
@@ -8691,6 +8697,9 @@ static void log_width_changed(GtkRange *log_width_scale,
 
 	/* Update options */
 	opt.log_width = (int) gtk_range_get_value(log_width_scale);
+
+	/* Reset scale (adjust for rounding) */
+	gtk_range_set_value(log_width_scale, opt.log_width);
 
 	/* Get current card size */
 	card_size = gtk_range_get_value(GTK_RANGE(card_size_scale));
