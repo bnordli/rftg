@@ -6792,7 +6792,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		{
 			sprintf(msg, "%s receives %d VP%s from %s.\n",
 			        g->p[who].name, vp, PLURAL(vp), name);
-			
+
 			/* Add message */
 			message_add_formatted(g, msg, FORMAT_VERBOSE);
 		}

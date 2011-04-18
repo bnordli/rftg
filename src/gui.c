@@ -2375,7 +2375,7 @@ static char *get_vp_tooltip(game *g, int who)
 	char text[1024];
 	char bonus[1024];
 	int x, t, kind, worlds, devs;
-	
+
 	/* Clear counts */
 	worlds = devs = 0;
 
@@ -2437,7 +2437,7 @@ static char *get_vp_tooltip(game *g, int who)
 			/* Add VP from this development */
 			devs += c_ptr->d_ptr->vp;
 		}
-		
+
 		/* Check for VP bonuses */
 		if (c_ptr->d_ptr->num_vp_bonus)
 		{
@@ -2951,7 +2951,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	vp_diff = sim.p[who].end_vp - g->p[who].end_vp;
 
 	/* Format message */
-	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff)); 
+	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
 
 	/* Return tool tip */
 	return strdup(text);

@@ -1846,7 +1846,7 @@ with the password you enter.");
 
 	/* Add table to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
-	
+
 	/* Connect the entries' activate signal to the accept response on the dialog */
 	g_signal_connect(G_OBJECT(server), "activate",
 	                 G_CALLBACK(enter_callback), (gpointer) dialog);
