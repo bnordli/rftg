@@ -1929,10 +1929,6 @@ void redraw_hand(void)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
-
-			/* Free copy of string */
-			free(i_ptr->tooltip);
-			i_ptr->tooltip = NULL;
 		}
 
 		/* Show image */
@@ -2052,10 +2048,6 @@ static void redraw_table_area(int who, GtkWidget *area)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
-
-			/* Free copy of string */
-			free(i_ptr->tooltip);
-			i_ptr->tooltip = NULL;
 		}
 
 		/* Check for good */
@@ -3766,6 +3758,9 @@ static void goal_allocated(GtkWidget *widget, GtkAllocation *allocation,
  */
 static void reset_display(displayed *i_ptr)
 {
+	/* Free previous tool tip */
+	free(i_ptr->tooltip);
+
 	/* Clear all fields */
 	memset(i_ptr, 0, sizeof(displayed));
 }
@@ -4938,6 +4933,9 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 		/* Card should be highlighted when selected */
 		i_ptr->highlight = HIGH_YELLOW;
 		i_ptr->highlight_else = HIGH_RED;
+
+		/* Set tool tip */
+		i_ptr->tooltip = card_hand_tooltip(g, who, list[i]);
 	}
 
 	/* Redraw everything */
@@ -6539,6 +6537,9 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 		/* Highlight card when selected */
 		i_ptr->highlight = HIGH_YELLOW;
 		i_ptr->highlight_else = HIGH_RED;
+
+		/* Set tool tip */
+		i_ptr->tooltip = card_hand_tooltip(g, who, list[i]);
 	}
 
 	/* Redraw everything */
@@ -7011,6 +7012,9 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Add card information */
 	i_ptr->index = arg1;
 	i_ptr->d_ptr = c_ptr->d_ptr;
+
+	/* Set tool tip */
+	i_ptr->tooltip = card_hand_tooltip(g, who, arg1);
 
 	/* Card is in hand */
 	i_ptr->hand = 1;
