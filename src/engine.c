@@ -1722,6 +1722,9 @@ void phase_explore(game *g)
 			ask_player(g, i, CHOICE_DISCARD_PRESTIGE, list, &num,
 			           NULL, NULL, 0, 0, 0);
 
+			/* Check for aborted game */
+			if (g->game_over) return;
+
 			/* Check for no discard made */
 			if (!num) continue;
 
@@ -2318,6 +2321,9 @@ void develop_action(game *g, int who, int placing)
 	/* Have player pay cost */
 	pay_devel(g, who, cost);
 
+	/* Check for aborted game */
+	if (g->game_over) return;
+
 	/* Message */
 	if (!g->simulation)
 	{
@@ -2458,6 +2464,9 @@ void phase_develop(game *g)
 
 			/* Ask player to discard one per explore */
 			player_discard(g, i, explore);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -4561,7 +4570,14 @@ void settle_action(game *g, int who, int world)
 	if (g->game_over) return;
 
 	/* Check for placed world */
-	if (world != -1 && !takeover) settle_bonus(g, who, world, 0);
+	if (world != -1 && !takeover)
+	{
+		/* Award bonuses for settling */
+		settle_bonus(g, who, world, 0);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
+	}
 
 	/* Get settle powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -4670,6 +4686,9 @@ void settle_action(game *g, int who, int world)
 				/* Act on declaration */
 				settle_action(g, who, -1);
 			}
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 		else
 		{
@@ -4689,6 +4708,9 @@ void settle_action(game *g, int who, int world)
 
 			/* Act on settle */
 			settle_action(g, who, p_ptr->placing);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -4768,6 +4790,9 @@ void settle_action(game *g, int who, int world)
 
 			/* Award bonuses for settling */
 			settle_bonus(g, who, p_ptr->placing, 0);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -5242,6 +5267,9 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Ask defender for any extra defense to spend */
 		defend_takeover(g, c_ptr->owner, world, who, attack - defense);
+
+		/* Check for aborted game */
+		if (g->game_over) return 0;
 	}
 
 	/* Recompute defense */
@@ -5323,6 +5351,9 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		/* Award settle bonus */
 		settle_bonus(g, who, world, 1);
 
+		/* Check for aborted game */
+		if (g->game_over) return 0;
+
 		/* Check for cards saved underneath world */
 		if (c_ptr->d_ptr->flags & FLAG_START_SAVE)
 		{
@@ -5393,6 +5424,9 @@ static int resolve_takeover(game *g, int who, int world, int special,
 
 	/* Award settle bonus */
 	settle_bonus(g, who, world, 1);
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
 
 	/* Successful takeover */
 	return 1;
@@ -5701,10 +5735,16 @@ void phase_settle(game *g)
 		{
 			/* Ask player for takeover choice instead */
 			settle_check_takeover(g, i);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 
 		/* Handle choice */
 		settle_action(g, i, p_ptr->placing);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 
 		/* Clear placing choice */
 		p_ptr->placing = -1;
@@ -5712,6 +5752,9 @@ void phase_settle(game *g)
 
 	/* Resolve takeovers */
 	resolve_takeovers(g);
+
+	/* Check for aborted game */
+	if (g->game_over) return;
 
 	/* Clear any temp flags on cards */
 	clear_temp(g);
@@ -5786,6 +5829,9 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 		/* Ask player what kind this is */
 		type = ask_player(g, who, CHOICE_OORT_KIND, NULL, NULL, NULL,
 		                  NULL, 0, 0, 0);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 
 		/* Set kind */
 		g->oort_kind = type;
@@ -7134,9 +7180,12 @@ void consume_player(game *g, int who)
 	{
 		/* First trade a good */
 		trade_action(g, who, 0, 1);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 
-	/* Use consume powers until none are usable */
+	/* Use consume powers until none are usable, or game is aborted */
 	while (consume_action(g, who));
 }
 
@@ -7168,6 +7217,9 @@ void phase_consume(game *g)
 	{
 		/* Perform trade (if needed) then consume actions */
 		consume_player(g, i);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 	
 	/* Loop over players */
@@ -7305,6 +7357,9 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 			c_ptr->produced = ask_player(g, who, CHOICE_OORT_KIND,
 			                             NULL, NULL, NULL, NULL,
 			                             0, 0, 0);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 
 			/* Set kind */
 			g->oort_kind = c_ptr->produced;
@@ -8125,6 +8180,10 @@ int produce_action(game *g, int who)
 	{
 		/* Use bonus */
 		produce_chosen(g, who, -3, -1);
+
+		/* Check for aborted game */
+		if (g->game_over) return 0;
+
 		return 1;
 	}
 
@@ -8141,6 +8200,9 @@ int produce_action(game *g, int who)
 		{
 			/* Use power */
 			produce_chosen(g, who, cidx[i], oidx[i]);
+
+			/* Check for aborted game */
+			if (g->game_over) return 0;
 		}
 
 		/* Done */
@@ -8160,6 +8222,9 @@ int produce_action(game *g, int who)
 
 	/* Use chosen power */
 	produce_chosen(g, who, cidx[0], oidx[0]);
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
 
 	/* Successfully used power */
 	return 1;
@@ -10199,6 +10264,9 @@ int game_round(game *g)
 
 	/* Handle discard phase */
 	phase_discard(g);
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
 
 	/* Check intermediate goals */
 	check_goals(g);
