@@ -1530,11 +1530,17 @@ static gboolean message_read(gpointer data)
 			/* Tell server we are out of the game */
 			send_msgf(server_fd, MSG_GAMEOVER, "");
 
-			/* Switch back to lobby view */
-			switch_view(1, 1);
+			/* Check for disconnected */
+			if (client_state != CS_DISCONN)
+			{
+				/* Switch back to lobby view */
+				switch_view(1, 1);
 
-			/* Reset buttons */
-			game_view_changed(GTK_TREE_VIEW(games_view), NULL);
+				/* Reset buttons */
+				game_view_changed(GTK_TREE_VIEW(games_view), NULL);
+			}
+
+			/* Done */
 			break;
 
 		default:
