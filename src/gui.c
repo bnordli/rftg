@@ -9103,7 +9103,6 @@ static void file_location_pressed(GtkButton *button, gpointer data)
 static void gui_options(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
-	GtkWidget *radio = NULL;
 	GtkWidget *status_box, *status_frame, *hide_card_button;
 	GtkWidget *card_size_box, *card_size_label, *card_size_scale;
 	GtkWidget *log_width_box, *log_width_label, *log_width_scale;
