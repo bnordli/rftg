@@ -598,9 +598,21 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 /*
  * Update the card image with the given image.
  */
-void update_card(GdkPixbuf *buf)
+void update_card(GdkPixbuf *newbuf)
 {
+	static GdkPixbuf *buf;
+	GdkPixbuf *scaled_buf;
 	double card_width, card_height;
+
+	/* Set image to card back on startup */
+	if (!buf) buf = card_back;
+
+	/* Check if image is updated */
+	if (newbuf)
+	{
+		/* Remember the new image */
+		buf = newbuf;
+	}
 
 	/* Don't do anything if image hidden */
 	if (opt.hide_card == 2) return;
@@ -612,15 +624,15 @@ void update_card(GdkPixbuf *buf)
 	card_height = CARD_HEIGHT * (card_width / CARD_WIDTH);
 
 	/* Scale image */
-	buf = gdk_pixbuf_scale_simple(buf,
-	                              (int) card_width, (int) card_height,
-	                              GDK_INTERP_BILINEAR);
+	scaled_buf = gdk_pixbuf_scale_simple(buf,
+	                                     (int) card_width, (int) card_height,
+	                                     GDK_INTERP_BILINEAR);
 
 	/* Set image */
-	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
+	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), scaled_buf);
 
 	/* Remove our scaled buffer */
-	g_object_unref(G_OBJECT(buf));
+	g_object_unref(G_OBJECT(scaled_buf));
 }
 
 /*
@@ -1451,7 +1463,7 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
 	design *d_ptr = (design *)data;
 
 	/* Update card image */
-	update_card(d_ptr ? image_cache[d_ptr->index] : card_back);
+	update_card(d_ptr ? image_cache[d_ptr->index] : NULL);
 
 	/* Event handled */
 	return TRUE;
@@ -8491,13 +8503,20 @@ static void seed_toggle(GtkToggleButton *button, gpointer data)
 }
 
 /*
- * Callback when action choice changes in advanced game.
+ * Callback when hide card toggle button is changed.
  */
-static void hide_card_changed(GtkToggleButton *button, gpointer card_size_scale)
+static void hide_card_changed(GtkToggleButton *hide_card_button,
+                              gpointer card_size_scale)
 {
 	/* Disable card size if card is hidden */
 	gtk_widget_set_sensitive(GTK_WIDGET(card_size_scale),
-	                         !gtk_toggle_button_get_active(button));
+	                         !gtk_toggle_button_get_active(hide_card_button));
+
+	/* Update options */
+	opt.hide_card = 2 * gtk_toggle_button_get_active(hide_card_button);
+
+	/* Handle new options */
+	modify_gui();
 }
 
 /*
@@ -8506,19 +8525,26 @@ static void hide_card_changed(GtkToggleButton *button, gpointer card_size_scale)
 static void card_size_changed(GtkRange *card_size_scale,
                               gpointer log_width_scale)
 {
-	double card_size, log_width;
+	double log_width;
 
-	/* Get current card size */
-	card_size = gtk_range_get_value(card_size_scale);
+	/* Update options */
+	opt.card_size = (int) gtk_range_get_value(card_size_scale);
 
 	/* Get current log width */
 	log_width = gtk_range_get_value(GTK_RANGE(log_width_scale));
 
 	/* Update log width if needed */
-	if (card_size > log_width)
+	if (opt.card_size > log_width)
 	{
-		gtk_range_set_value(GTK_RANGE(log_width_scale), card_size);
+		/* Update scale */
+		gtk_range_set_value(GTK_RANGE(log_width_scale), opt.card_size);
+
+		/* Update options */
+		opt.log_width = opt.card_size;
 	}
+
+	/* Handle new options */
+	modify_gui();
 }
 
 /*
@@ -8527,19 +8553,43 @@ static void card_size_changed(GtkRange *card_size_scale,
 static void log_width_changed(GtkRange *log_width_scale,
                               gpointer card_size_scale)
 {
-	double card_size, log_width;
+	double card_size;
 
 	/* Get current card size */
-	card_size = gtk_range_get_value(GTK_RANGE(card_size_scale));
+	card_size = (int) gtk_range_get_value(GTK_RANGE(card_size_scale));
 
-	/* Get current log width */
-	log_width = gtk_range_get_value(log_width_scale);
+	/* Update options */
+	opt.log_width = gtk_range_get_value(log_width_scale);
 
 	/* Update card size if needed */
-	if (log_width < card_size)
+	if (opt.log_width < card_size)
 	{
-		gtk_range_set_value(GTK_RANGE(card_size_scale), log_width);
+		/* Update scale */
+		gtk_range_set_value(GTK_RANGE(card_size_scale), opt.log_width);
+
+		/* Update options */
+		opt.card_size = opt.log_width;
 	}
+
+	/* Handle new options */
+	modify_gui();
+}
+
+/*
+ * Callback when card size scale changes.
+ */
+static void update_option(GtkToggleButton *button, gpointer option)
+{
+	int *opt_ptr = (int *)option;
+
+	/* Update option */
+	*opt_ptr = gtk_toggle_button_get_active(button);
+
+	/* Handle new options */
+	modify_gui();
+
+	/* Redraw everything */
+	redraw_everything();
 }
 
 /*
@@ -8922,6 +8972,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
 
+	options old_options = opt;
+
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("GUI Options", NULL,
 	                                     GTK_DIALOG_MODAL,
@@ -9041,6 +9093,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(shrink_button),
 	                             opt.shrink_opponent);
 
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(shrink_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.shrink_opponent);
+
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(game_view_box), shrink_button, FALSE, TRUE, 0);
 
@@ -9050,6 +9106,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discount_button),
 	                             opt.show_settle_discount);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(discount_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.show_settle_discount);
 
 	/* Pack button into status box */
 	gtk_box_pack_start(GTK_BOX(game_view_box), discount_button, FALSE, TRUE, 0);
@@ -9148,24 +9208,6 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Run dialog */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
-		/* Set full-size image option */
-		opt.hide_card = 2 * gtk_toggle_button_get_active(
-		                GTK_TOGGLE_BUTTON(hide_card_button));
-
-		/* Set card size */
-		opt.card_size = (int) gtk_range_get_value(GTK_RANGE(card_size_scale));
-
-		/* Set log width */
-		opt.log_width = (int) gtk_range_get_value(GTK_RANGE(log_width_scale));
-
-		/* Set shrink opponents option */
-		opt.shrink_opponent =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(shrink_button));
-
-		/* Set show settle discount option */
-		opt.show_settle_discount =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discount_button));
-
 		/* Set autosave option */
 		opt.auto_save =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autosave_button));
@@ -9182,15 +9224,20 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.verbose =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
-		/* Handle new options */
-		modify_gui();
-
-		/* Redraw everything */
-		redraw_everything();
-
 		/* Save preferences */
 		save_prefs();
 	}
+	else
+	{
+		/* Restore old options */
+		opt = old_options;
+	}
+
+	/* Handle new options */
+	modify_gui();
+
+	/* Redraw everything */
+	redraw_everything();
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);
