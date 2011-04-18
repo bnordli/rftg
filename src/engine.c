@@ -2450,7 +2450,7 @@ void phase_develop(game *g)
 			{
 				/* Format message */
 				sprintf(msg, "%s discards %d card%s.\n", g->p[i].name,
-				        explore, explore == 1 ? "" : "s");
+				        explore, PLURAL(explore));
 
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -4511,7 +4511,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 		{
 			/* Format message */
 			sprintf(msg, "%s discards %d card%s.\n", g->p[who].name,
-			        explore, explore == 1 ? "" : "s");
+			        explore, PLURAL(explore));
 
 			/* Send message */
 			message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -6462,7 +6462,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 	{
 		/* Format message */
 		sprintf(msg, "%s consumes %d card%s from hand using %s.\n",
-		        p_ptr->name, n, n != 1 ? "s" : "", power_name);
+		        p_ptr->name, n, PLURAL(n), power_name);
 
 		/* Send message */
 		message_add(g, msg);
@@ -6745,7 +6745,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		if (!g->simulation)
 		{
 			sprintf(msg, "%s receives %d VP%s from %s.\n",
-			        g->p[who].name, vp, vp == 1 ? "" : "s", name);
+			        g->p[who].name, vp, PLURAL(vp), name);
 			
 			/* Add message */
 			message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -7188,7 +7188,7 @@ void phase_consume(game *g)
 			{
 				/* Create card string */
 				sprintf(text, "%d card%s ", p_ptr->phase_cards,
-				        p_ptr->phase_cards > 1 ? "s" : "");
+				        PLURAL(p_ptr->phase_cards));
 
 				/* Add text to message */
 				strcat(msg, text);
@@ -7816,7 +7816,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		{
 			/* Format message */
 			sprintf(msg, "%s takes %d card%s from under %s.\n",
-			        p_ptr->name, count, count != 1 ? "s" : "",
+			        p_ptr->name, count, PLURAL(count),
 			        g->deck[c_idx].d_ptr->name);
 
 			/* Send message */
@@ -8360,7 +8360,7 @@ void phase_produce(game *g)
 			{
 				/* Create card string */
 				sprintf(text, "%d card%s ", p_ptr->phase_cards,
-				        p_ptr->phase_cards > 1 ? "s" : "");
+				        PLURAL(p_ptr->phase_cards));
 
 				/* Add text to message */
 				strcat(msg, text);
@@ -8455,7 +8455,7 @@ void phase_discard(game *g)
 		{
 			/* Format message */
 			sprintf(msg, "%s discards %d card%s at end of turn.\n",
-			        p_ptr->name, n - target, n - target == 1 ? "" : "s");
+			        p_ptr->name, n - target, PLURAL(n - target));
 
 			/* Send message */
 			message_add(g, msg);
@@ -8538,8 +8538,7 @@ void phase_discard(game *g)
 				{
 					/* Format message */
 					sprintf(msg, "%s takes %d discard%s.\n",
-					        g->p[i].name, taken,
-						(taken == 1) ? "" : "s");
+					        g->p[i].name, taken, PLURAL(taken));
 
 					/* Send message */
 					message_add(g, msg);
@@ -10897,8 +10896,7 @@ void declare_winner(game *g)
 			/* Format message */
 			sprintf(msg, "  %s has %d card%s in hand and %d good%s "
 			        "on worlds.\n", g->p[i].name,
-			        th, th == 1 ? "" : "s",
-					tg, tg == 1 ? "" : "s", th + tg);
+			        th, PLURAL(th), tg, PLURAL(tg), th + tg);
 
 			/* Send message */
 			message_add(g, msg);

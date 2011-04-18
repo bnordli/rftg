@@ -2387,8 +2387,7 @@ static char *get_vp_tooltip(game *g, int who)
 	if (p_ptr->vp)
 	{
 		/* Count VP chips */
-		sprintf(text, "\nVP chips: %d VP%s", p_ptr->vp,
-		        p_ptr->vp == 1 ? "" : "s");
+		sprintf(text, "\nVP chips: %d VP%s", p_ptr->vp, PLURAL(p_ptr->vp));
 		strcat(msg, text);
 	}
 
@@ -2397,7 +2396,7 @@ static char *get_vp_tooltip(game *g, int who)
 	{
 		/* Count goal VP */
 		sprintf(text, "\nGoals: %d VP%s", p_ptr->goal_vp,
-		        p_ptr->goal_vp == 1 ? "" : "s");
+		        PLURAL(p_ptr->goal_vp));
 		strcat(msg, text);
 	}
 
@@ -2406,7 +2405,7 @@ static char *get_vp_tooltip(game *g, int who)
 	{
 		/* Count goal VP */
 		sprintf(text, "\nPrestige: %d VP%s", p_ptr->prestige,
-		        p_ptr->prestige == 1 ? "" : "s");
+		        PLURAL(p_ptr->prestige));
 		strcat(msg, text);
 	}
 
@@ -2446,8 +2445,7 @@ static char *get_vp_tooltip(game *g, int who)
 			t = compute_card_vp(g, who, x);
 
 			/* Format text */
-			sprintf(text, "\n%s: %d VP%s", c_ptr->d_ptr->name,
-			        t, t == 1 ? "" : "s");
+			sprintf(text, "\n%s: %d VP%s", c_ptr->d_ptr->name, t, PLURAL(t));
 
 			/* Add to bonus string */
 			strcat(bonus, text);
@@ -2461,7 +2459,7 @@ static char *get_vp_tooltip(game *g, int who)
 	if (worlds)
 	{
 		/* Add total count from worlds */
-		sprintf(text, "\nWorlds: %d VP%s", worlds, worlds == 1 ? "" : "s");
+		sprintf(text, "\nWorlds: %d VP%s", worlds, PLURAL(worlds));
 		strcat(msg, text);
 	}
 
@@ -2469,7 +2467,7 @@ static char *get_vp_tooltip(game *g, int who)
 	if (devs)
 	{
 		/* Add total count from developments */
-		sprintf(text, "\nDevelopments: %d VP%s", devs, devs == 1 ? "" : "s");
+		sprintf(text, "\nDevelopments: %d VP%s", devs, PLURAL(devs));
 		strcat(msg, text);
 	}
 
@@ -2478,7 +2476,7 @@ static char *get_vp_tooltip(game *g, int who)
 
 	/* Write total */
 	sprintf(text, "\nTotal: <b>%d VP%s</b>", p_ptr->end_vp,
-	        p_ptr->end_vp == 1 ? "" : "s");
+	        PLURAL(p_ptr->end_vp));
 	strcat(msg, text);
 
 	/* Return message (without first newline) */
@@ -2867,7 +2865,7 @@ static char *display_card_tooltip(game *g, int who, int which)
 		}
 
 		/* Start tooltip text */
-		sprintf(text, "%d card%s saved", count, (count == 1) ? "" : "s");
+		sprintf(text, "%d card%s saved", count, PLURAL(count));
 
 		/* Check for card not owned by player showing */
 		if (count == 0 || c_ptr->owner != who) return strdup(text);
@@ -2909,7 +2907,7 @@ static char *display_card_tooltip(game *g, int who, int which)
 		g->oort_kind = kind;
 
 		/* Format tooltip text */
-		sprintf(text, "%d VP%s", vp, (vp == 1 || vp == -1) ? "" : "s");
+		sprintf(text, "%d VP%s", vp, PLURAL(vp));
 
 		/* Return tooltip */
 		return strdup(text);
@@ -4665,8 +4663,7 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 	int i, j, n = 0;
 
 	/* Create prompt */
-	sprintf(buf, "Choose %d card%s to discard", discard,
-	              discard == 1 ? "" : "s");
+	sprintf(buf, "Choose %d card%s to discard", discard, PLURAL(discard));
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
@@ -5949,8 +5946,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 			if (o_ptr->code & P4_GET_CARD)
 			{
 				/* Create card reward string */
-				sprintf(buf2, "%d card%s", o_ptr->value,
-				        (o_ptr->value != 1) ? "s" : "");
+				sprintf(buf2, "%d card%s", o_ptr->value, PLURAL(o_ptr->value));
 
 				/* Add to string */
 				strcat(buf, buf2);

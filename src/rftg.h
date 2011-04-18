@@ -890,6 +890,11 @@ extern decisions ai_func;
 extern decisions gui_func;
 
 /*
+ * Macro functions.
+ */
+#define PLURAL(x) ((x) == 1 ? "" : "s")
+
+/*
  * External functions.
  */
 extern void message_add(game *g, char *msg);
