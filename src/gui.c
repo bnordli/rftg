@@ -66,11 +66,6 @@ static int num_undo;
 static int max_undo;
 
 /*
- * The size of the human player's choice log.
- */
-static int us_choice_size;
-
-/*
  * Whether the game is replaying or not.
  */
 static int game_replaying;
@@ -79,6 +74,11 @@ static int game_replaying;
  * Choice logs for each player.
  */
 static int *orig_log[MAX_PLAYER];
+
+/*
+ * Original log sizes for each player.
+ */
+static int orig_log_size[MAX_PLAYER];
 
 /*
  * Player we're playing as.
@@ -226,6 +226,9 @@ typedef struct status_display
 
 	/* Military strength */
 	int military;
+
+	/* Text of VP tooltip */
+	char vp_tip[1024];
 
 	/* Text of discount tooltip */
 	char discount_tip[1024];
@@ -592,6 +595,46 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 }
 
 /*
+ * Update the card image with the given image.
+ */
+void update_card(GdkPixbuf *newbuf)
+{
+	static GdkPixbuf *buf;
+	GdkPixbuf *scaled_buf;
+	double card_width, card_height;
+
+	/* Set image to card back on startup */
+	if (!buf) buf = card_back;
+
+	/* Check if image is updated */
+	if (newbuf)
+	{
+		/* Remember the new image */
+		buf = newbuf;
+	}
+
+	/* Don't do anything if image hidden */
+	if (opt.hide_card == 2) return;
+
+	/* Compute card width */
+	card_width = opt.card_size ? opt.card_size : CARD_WIDTH;
+
+	/* Compute card height */
+	card_height = CARD_HEIGHT * (card_width / CARD_WIDTH);
+
+	/* Scale image */
+	scaled_buf = gdk_pixbuf_scale_simple(buf,
+	                                     (int) card_width, (int) card_height,
+	                                     GDK_INTERP_BILINEAR);
+
+	/* Set image */
+	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), scaled_buf);
+
+	/* Remove our scaled buffer */
+	g_object_unref(G_OBJECT(scaled_buf));
+}
+
+/*
  * Called when mouse moves over log window
  */
 static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
@@ -599,7 +642,6 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 {
 	int window_x, window_y, buffer_x, buffer_y, i;
 	GtkTextIter iter_start, iter_end;
-	GdkPixbuf *buf;
 	char *line;
 
 	/* Check for hint event */
@@ -637,28 +679,8 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 		/* Check if card name is found */
 		if (strstr(line, library[i].name))
 		{
-			/* Set image to card face */
-			buf = image_cache[library[i].index];
-
-			/* Check for halfsize image */
-			if (opt.full_reduced == 1)
-			{
-				/* Scale image */
-				buf = gdk_pixbuf_scale_simple(buf,
-				                              CARD_WIDTH / 2,
-				                              CARD_HEIGHT / 2,
-				                              GDK_INTERP_BILINEAR);
-			}
-
-			/* Set image */
-			gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
-
-			/* Check for halfsize image */
-			if (opt.full_reduced == 1)
-			{
-				/* Remove our scaled buffer */
-				g_object_unref(G_OBJECT(buf));
-			}
+			/* Update image */
+			update_card(image_cache[library[i].index]);
 
 			/* Card is found */
 			break;
@@ -1438,37 +1460,9 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
                             gpointer data)
 {
 	design *d_ptr = (design *)data;
-	GdkPixbuf *buf;
 
-	/* Check for no design */
-	if (!d_ptr)
-	{
-		/* Set image to card back */
-		buf = card_back;
-	}
-	else
-	{
-		/* Set image to card face */
-		buf = image_cache[d_ptr->index];
-	}
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Scale image */
-		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
-		                              CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
-	}
-
-	/* Set image */
-	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Remove our scaled buffer */
-		g_object_unref(G_OBJECT(buf));
-	}
+	/* Update card image */
+	update_card(d_ptr ? image_cache[d_ptr->index] : NULL);
 
 	/* Event handled */
 	return TRUE;
@@ -1482,29 +1476,8 @@ static gboolean redraw_full(GtkWidget *widget, GdkEventCrossing *event,
 static gboolean redraw_action(GtkWidget *widget, GdkEventCrossing *event,
                               gpointer data)
 {
-	int a = GPOINTER_TO_INT(data);
-	GdkPixbuf *buf;
-
-	/* Set image to card face */
-	buf = action_cache[a];
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Scale image */
-		buf = gdk_pixbuf_scale_simple(buf, CARD_WIDTH / 2,
-		                              CARD_HEIGHT / 2, GDK_INTERP_BILINEAR);
-	}
-
-	/* Set image */
-	gtk_image_set_from_pixbuf(GTK_IMAGE(full_image), buf);
-
-	/* Check for halfsize image */
-	if (opt.full_reduced == 1)
-	{
-		/* Remove our scaled buffer */
-		g_object_unref(G_OBJECT(buf));
-	}
+	/* Update image */
+	update_card(action_cache[GPOINTER_TO_INT(data)]);
 
 	/* Continue to handle event */
 	return FALSE;
@@ -1955,10 +1928,6 @@ void redraw_hand(void)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
-
-			/* Free copy of string */
-			free(i_ptr->tooltip);
-			i_ptr->tooltip = NULL;
 		}
 
 		/* Show image */
@@ -2078,10 +2047,6 @@ static void redraw_table_area(int who, GtkWidget *area)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
-
-			/* Free copy of string */
-			free(i_ptr->tooltip);
-			i_ptr->tooltip = NULL;
 		}
 
 		/* Check for good */
@@ -2186,6 +2151,27 @@ static char *goal_tooltip(game *g, int goal)
 				}
 			}
 		}
+
+		/* Report progress for one-dimensional first goals */
+		else if (goal_minimum(goal) > 1)
+		{
+			/* Add text to tooltip */
+			strcat(msg, "\nProgress:");
+
+			/* Loop over players */
+			for (i = 0; i < g->num_players; i++)
+			{
+				/* Get player pointer */
+				p_ptr = &g->p[i];
+
+				/* Create progress string */
+				sprintf(text, "\n %s: %d",
+				        p_ptr->name, p_ptr->goal_progress[goal]);
+
+				/* Add progress string to tooltip */
+				strcat(msg, text);
+			}
+		}
 	}
 
 	/* Check for most goal */
@@ -2202,8 +2188,8 @@ static char *goal_tooltip(game *g, int goal)
 
 			/* Create progress string */
 			sprintf(text, "\n%c %s: %d",
-				p_ptr->goal_claimed[goal] ? '*' : ' ',
-				p_ptr->name, p_ptr->goal_progress[goal]);
+			        p_ptr->goal_claimed[goal] ? '*' : ' ',
+			        p_ptr->name, p_ptr->goal_progress[goal]);
 
 			/* Add progress string to tooltip */
 			strcat(msg, text);
@@ -2305,7 +2291,12 @@ struct extra_info
 /*
  * Set of "extra info" structures.
  */
-static struct extra_info status_extra_info[MAX_PLAYER + 1][5];
+static struct extra_info status_extra_info[MAX_PLAYER][5];
+
+/*
+ * Set of "extra info" structures for game status.
+ */
+static struct extra_info game_extra_info[3];
 
 /*
  * Draw extra text on top of a GtkImage's window.
@@ -2362,6 +2353,128 @@ static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
 
 	/* Continue handling event */
 	return FALSE;
+}
+
+/*
+ * Create a tooltip for vp icon.
+ */
+static char *get_vp_tooltip(game *g, int who)
+{
+	static char msg[1024];
+	player *p_ptr = &g->p[who];
+	card *c_ptr;
+	char text[1024];
+	char bonus[1024];
+	int x, t, kind, worlds, devs;
+
+	/* Clear counts */
+	worlds = devs = 0;
+
+	/* Clear messages */
+	strcpy(msg, "");
+	strcpy(bonus, "");
+
+	/* Check for VP from chips */
+	if (p_ptr->vp)
+	{
+		/* Count VP chips */
+		sprintf(text, "\nVP chips: %d VP%s", p_ptr->vp, PLURAL(p_ptr->vp));
+		strcat(msg, text);
+	}
+
+	/* Check for VP from goals */
+	if (p_ptr->goal_vp)
+	{
+		/* Count goal VP */
+		sprintf(text, "\nGoals: %d VP%s", p_ptr->goal_vp,
+		        PLURAL(p_ptr->goal_vp));
+		strcat(msg, text);
+	}
+
+	/* Check for VP from prestige */
+	if (p_ptr->prestige)
+	{
+		/* Count goal VP */
+		sprintf(text, "\nPrestige: %d VP%s", p_ptr->prestige,
+		        PLURAL(p_ptr->prestige));
+		strcat(msg, text);
+	}
+
+	/* Remember old kind */
+	kind = g->oort_kind;
+
+	/* Set oort kind to best scoring kind */
+	g->oort_kind = g->best_oort_kind;
+
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
+	/* Loop over active cards */
+	for ( ; x != -1; x = g->deck[x].next)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[x];
+
+		/* Check for world */
+		if (c_ptr->d_ptr->type == TYPE_WORLD)
+		{
+			/* Add VP from this world */
+			worlds += c_ptr->d_ptr->vp;
+		}
+
+		/* Check for development */
+		else if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
+		{
+			/* Add VP from this development */
+			devs += c_ptr->d_ptr->vp;
+		}
+
+		/* Check for VP bonuses */
+		if (c_ptr->d_ptr->num_vp_bonus)
+		{
+			/* Count VPs from this card */
+			t = compute_card_vp(g, who, x);
+
+			/* Copy previous bonus (to get names in table order) */
+			strcpy(text, bonus);
+
+			/* Format text */
+			sprintf(bonus, "\n%s: %d VP%s", c_ptr->d_ptr->name, t, PLURAL(t));
+
+			/* Add to bonus string */
+			strcat(bonus, text);
+		}
+	}
+
+	/* Reset oort kind */
+	g->oort_kind = kind;
+
+	/* Check for VP from worlds */
+	if (worlds)
+	{
+		/* Add total count from worlds */
+		sprintf(text, "\nWorlds: %d VP%s", worlds, PLURAL(worlds));
+		strcat(msg, text);
+	}
+
+	/* Check for VP from developments */
+	if (devs)
+	{
+		/* Add total count from developments */
+		sprintf(text, "\nDevelopments: %d VP%s", devs, PLURAL(devs));
+		strcat(msg, text);
+	}
+
+	/* Add bonus cards */
+	strcat(msg, bonus);
+
+	/* Write total */
+	sprintf(text, "\nTotal: <b>%d VP%s</b>", p_ptr->end_vp,
+	        PLURAL(p_ptr->end_vp));
+	strcat(msg, text);
+
+	/* Return message (without first newline) */
+	return msg + 1;
 }
 
 /*
@@ -2721,9 +2834,127 @@ static char *get_prestige_tooltip(game *g, int who)
 }
 
 /*
- * Create a tooltip for a displayed card.
+ * Create a tooltip for a card displayed in a table.
  */
-static char *display_card_tooltip(game *g, int who, int which)
+static char *card_hand_tooltip(game *g, int who, int which)
+{
+	char text[1024];
+	card *c_ptr;
+	power_where w_list[100];
+	power *o_ptr;
+	int n, i, vp_diff;
+	game sim;
+
+	/* Copy game */
+	memcpy(&sim, g, sizeof(game));
+
+	/* Set simulated game */
+	sim.simulation = 1;
+
+	/* Simulate placement of card */
+	place_card(&sim, who, which);
+
+	/* Get card pointer */
+	c_ptr = &sim.deck[which];
+
+	/* Check for development type */
+	if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
+	{
+		/* Get list of develop powers */
+		n = get_powers(&sim, who, PHASE_DEVELOP, w_list);
+
+		/* Loop over powers */
+		for (i = 0; i < n; i++)
+		{
+			/* Get power pointer */
+			o_ptr = w_list[i].o_ptr;
+
+			/* Check for "earn prestige after Rebel" power */
+			if (o_ptr->code & P2_PRESTIGE_REBEL)
+			{
+				/* Check for Rebel flag on played card */
+				if (c_ptr->d_ptr->flags & FLAG_REBEL)
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+
+			/* Check for "earn prestige after 6 dev" power */
+			if (o_ptr->code & P2_PRESTIGE_SIX)
+			{
+				/* Check for six-cost development */
+				if (c_ptr->d_ptr->cost == 6)
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+
+			/* Check for "earn prestige" power */
+			if (o_ptr->code & P2_PRESTIGE)
+			{
+				/* Reward prestige */
+				sim.p[who].prestige += o_ptr->value;
+			}
+		}
+	}
+
+	/* Check for world type */
+	else if (c_ptr->d_ptr->type == TYPE_WORLD)
+	{
+		/* Get settle phase powers */
+		n = get_powers(g, who, PHASE_SETTLE, w_list);
+
+		/* Loop over pre-existing powers */
+		for (i = 0; i < n; i++)
+		{
+			/* Get power pointer */
+			o_ptr = w_list[i].o_ptr;
+
+			/* Check for prestige after rebel power */
+			if (o_ptr->code & P3_PRESTIGE_REBEL)
+			{
+				/* Check for rebel military world placed */
+				if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
+					(c_ptr->d_ptr->flags & FLAG_MILITARY))
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+
+			/* Check for prestige after production world */
+			if (o_ptr->code & P3_PRODUCE_PRESTIGE)
+			{
+				/* Check for production world */
+				if (c_ptr->d_ptr->good_type > 0 &&
+					!(c_ptr->d_ptr->flags & FLAG_WINDFALL))
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+		}
+	}
+
+	/* Score game for player */
+	score_game(&sim);
+
+	/* Compute score difference */
+	vp_diff = sim.p[who].end_vp - g->p[who].end_vp;
+
+	/* Format message */
+	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
+
+	/* Return tool tip */
+	return strdup(text);
+}
+
+/*
+ * Create a tooltip for a card displayed on a table.
+ */
+static char *card_table_tooltip(game *g, int who, int which)
 {
 	char text[1024];
 	card *c_ptr, *b_ptr;
@@ -2732,7 +2963,7 @@ static char *display_card_tooltip(game *g, int who, int which)
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
-	/* Check for nothing to display */
+	/* Check for cards saved */
 	if (c_ptr->d_ptr->flags & FLAG_START_SAVE)
 	{
 		/* Loop over cards in deck */
@@ -2746,7 +2977,7 @@ static char *display_card_tooltip(game *g, int who, int which)
 		}
 
 		/* Start tooltip text */
-		sprintf(text, "%d card%s saved", count, (count == 1) ? "" : "s");
+		sprintf(text, "%d card%s saved", count, PLURAL(count));
 
 		/* Check for card not owned by player showing */
 		if (count == 0 || c_ptr->owner != who) return strdup(text);
@@ -2788,7 +3019,7 @@ static char *display_card_tooltip(game *g, int who, int which)
 		g->oort_kind = kind;
 
 		/* Format tooltip text */
-		sprintf(text, "%d VP%s", vp, (vp == 1 || vp == -1) ? "" : "s");
+		sprintf(text, "%d VP%s", vp, PLURAL(vp));
 
 		/* Return tooltip */
 		return strdup(text);
@@ -3001,6 +3232,9 @@ static void redraw_status_area(int who, GtkWidget *box)
 	/* Destroy our copy of the icon */
 	g_object_unref(G_OBJECT(buf));
 
+	/* Add VP tooltip */
+	gtk_widget_set_tooltip_markup(image, s_ptr->vp_tip);
+
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 
@@ -3052,7 +3286,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][4];
+		ei = &status_extra_info[who][3];
 
 		/* Create text for general discount */
 		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount);
@@ -3087,7 +3321,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		image = gtk_image_new_from_pixbuf(buf);
 
 		/* Pointer to extra info structure */
-		ei = &status_extra_info[who][3];
+		ei = &status_extra_info[who][4];
 
 		/* Create text for military strength */
 		sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
@@ -3241,7 +3475,7 @@ void redraw_status(void)
 	draw_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][0];
+	ei = &game_extra_info[0];
 
 	/* Create text for deck */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>", display_deck);
@@ -3270,7 +3504,7 @@ void redraw_status(void)
 	discard_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][1];
+	ei = &game_extra_info[1];
 
 	/* Create text for discard */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>", display_discard);
@@ -3299,7 +3533,7 @@ void redraw_status(void)
 	pool_image = gtk_image_new_from_pixbuf(buf);
 
 	/* Pointer to extra info structure */
-	ei = &status_extra_info[MAX_PLAYER][2];
+	ei = &game_extra_info[2];
 
 	/* Create text for VPs */
 	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
@@ -3526,6 +3760,9 @@ static void goal_allocated(GtkWidget *widget, GtkAllocation *allocation,
  */
 static void reset_display(displayed *i_ptr)
 {
+	/* Free previous tool tip */
+	free(i_ptr->tooltip);
+
 	/* Clear all fields */
 	memset(i_ptr, 0, sizeof(displayed));
 }
@@ -3580,6 +3817,9 @@ static void reset_hand(game *g, int color)
 
 		/* Set color flag */
 		i_ptr->color = color;
+
+		/* Get tooltip */
+		i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
 	}
 }
 
@@ -3627,7 +3867,7 @@ static void reset_table(game *g, int who, int color)
 		i_ptr->order = c_ptr->order;
 
 		/* Get tooltip */
-		i_ptr->tooltip = display_card_tooltip(g, player_us, i);
+		i_ptr->tooltip = card_table_tooltip(g, player_us, i);
 	}
 
 	/* Sort list */
@@ -3681,6 +3921,9 @@ static void reset_status(game *g, int who)
 
 	/* Count military strength */
 	status_player[who].military = total_military(g, who);
+
+	/* Get text of vp tooltip */
+	strcpy(status_player[who].vp_tip, get_vp_tooltip(g, who));
 
 	/* Get text of discount tooltip */
 	strcpy(status_player[who].discount_tip, get_discount_tooltip(g, who));
@@ -4538,8 +4781,7 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 	int i, j, n = 0;
 
 	/* Create prompt */
-	sprintf(buf, "Choose %d card%s to discard", discard,
-	              discard == 1 ? "" : "s");
+	sprintf(buf, "Choose %d card%s to discard", discard, PLURAL(discard));
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
@@ -4693,6 +4935,9 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 		/* Card should be highlighted when selected */
 		i_ptr->highlight = HIGH_YELLOW;
 		i_ptr->highlight_else = HIGH_RED;
+
+		/* Set tool tip */
+		i_ptr->tooltip = card_hand_tooltip(g, who, list[i]);
 	}
 
 	/* Redraw everything */
@@ -5822,8 +6067,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 			if (o_ptr->code & P4_GET_CARD)
 			{
 				/* Create card reward string */
-				sprintf(buf2, "%d card%s", o_ptr->value,
-				        (o_ptr->value != 1) ? "s" : "");
+				sprintf(buf2, "%d card%s", o_ptr->value, PLURAL(o_ptr->value));
 
 				/* Add to string */
 				strcat(buf, buf2);
@@ -6295,6 +6539,9 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 		/* Highlight card when selected */
 		i_ptr->highlight = HIGH_YELLOW;
 		i_ptr->highlight_else = HIGH_RED;
+
+		/* Set tool tip */
+		i_ptr->tooltip = card_hand_tooltip(g, who, list[i]);
 	}
 
 	/* Redraw everything */
@@ -6767,6 +7014,9 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Add card information */
 	i_ptr->index = arg1;
 	i_ptr->d_ptr = c_ptr->d_ptr;
+
+	/* Set tool tip */
+	i_ptr->tooltip = card_hand_tooltip(g, who, arg1);
 
 	/* Card is in hand */
 	i_ptr->hand = 1;
@@ -7249,10 +7499,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Mark new size of choice log */
 	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
 
-	/* Remember size of log */
-	us_choice_size = p_ptr->choice_size;
-
-	/* Loop over other players */
+	/* Loop over all players */
 	for (i = 0; i < g->num_players; ++i)
 	{
 		/* Skip human player */
@@ -7261,6 +7508,10 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			/* Reset size of log */
 			g->p[i].choice_size = g->p[i].choice_unread_pos;
 		}
+
+		/* Remember new log size */
+		orig_log_size[((i-player_us) + g->num_players) % g->num_players] =
+		    g->p[i].choice_size;
 	}
 
 	/* Stop game replaying */
@@ -7328,13 +7579,17 @@ void reset_gui(void)
 		real_game.p[i].choice_log = orig_log[i];
 		real_game.p[i].choice_pos = 0;
 		real_game.p[i].choice_unread_pos = 0;
+
+		/* Log size already set when game is loaded or replayed */
+		if (restart_loop != RESTART_LOAD && restart_loop != RESTART_REPLAY)
+		{
+			/* Set size of player's logs */
+			real_game.p[i].choice_size = orig_log_size[i];
+		}
 	}
 
 	/* Restore player control functions */
 	real_game.p[player_us].control = &gui_func;
-
-	/* Set size of human log */
-	real_game.p[player_us].choice_size = us_choice_size;
 
 	/* Loop over AI players */
 	for (i = 1; i < MAX_PLAYER; i++)
@@ -7344,16 +7599,6 @@ void reset_gui(void)
 
 		/* Call initialization function */
 		real_game.p[i].control->init(&real_game, i, 0.0);
-
-		/* We already know the log size when game is loaded */
-		if (restart_loop != RESTART_LOAD)
-		{
-			/* TODO: It might be more reasonable to save all */
-			/* players' log sizes (not just us) */
-
-			/* Set size of other's choice logs */
-			real_game.p[i].choice_size = 4096;
-		}
 	}
 
 	/* Clear message log */
@@ -7410,7 +7655,7 @@ void modify_gui(void)
 	}
 
 	/* Check for no full-size image */
-	if (opt.full_reduced == 2)
+	if (opt.hide_card == 2)
 	{
 		/* Hide image */
 		gtk_widget_hide(full_image);
@@ -7426,7 +7671,7 @@ void modify_gui(void)
 
 	/* Resize log window */
 	gtk_widget_set_size_request(message_view,
-	                            opt.log_width ? opt.log_width : CARD_WIDTH,
+	                            (opt.log_width ? opt.log_width : CARD_WIDTH) - 20,
 	                            -1);
 
 	/* Resize status areas */
@@ -7461,14 +7706,12 @@ static void run_game(void)
 			num_undo = 0;
 			max_undo = 0;
 
-			/* Reset size of choice log */
-			us_choice_size = 0;
-
 			/* Loop over players */
 			for (i = 0; i < real_game.num_players; i++)
 			{
 				/* Clear choice log */
 				real_game.p[i].choice_size = 0;
+				orig_log_size[i] = 0;
 			}
 
 			/* Unset replaying flag */
@@ -7693,6 +7936,22 @@ static void run_game(void)
 			modify_gui();
 		}
 
+		/* Replay to current position (to regenerate log) */
+		else if (restart_loop == RESTART_CURRENT)
+		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
+
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Modify GUI for new game parameters */
+			modify_gui();
+		}
+
 		/* Reset counts */
 		pos = choice = 0;
 
@@ -7713,7 +7972,7 @@ static void run_game(void)
 		real_game.p[0].choice_size = pos;
 
 		/* Find total number of replay points */
-		while (pos < us_choice_size)
+		while (pos < orig_log_size[0])
 		{
 			/* Update log position */
 			pos = next_choice(real_game.p[0].choice_log, pos);
@@ -7821,8 +8080,10 @@ static void read_prefs(void)
 	}
 
 	/* Read GUI options */
-	opt.full_reduced = g_key_file_get_integer(pref_file, "gui",
-	                                          "full_reduced", NULL);
+	opt.hide_card = g_key_file_get_integer(pref_file, "gui",
+	                                       "full_reduced", NULL);
+	opt.card_size = g_key_file_get_integer(pref_file, "gui",
+	                                       "card_size", NULL);
 	opt.log_width = g_key_file_get_integer(pref_file, "gui",
 	                                       "log_width", NULL);
 	opt.shrink_opponent = g_key_file_get_boolean(pref_file, "gui",
@@ -7899,7 +8160,9 @@ void save_prefs(void)
 
 	/* Set GUI options */
 	g_key_file_set_integer(pref_file, "gui", "full_reduced",
-	                       opt.full_reduced);
+	                       opt.hide_card);
+	g_key_file_set_integer(pref_file, "gui", "card_size",
+	                       opt.card_size);
 	g_key_file_set_integer(pref_file, "gui", "log_width",
 	                       opt.log_width);
 	g_key_file_set_boolean(pref_file, "gui", "shrink_opponent",
@@ -8174,8 +8437,12 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		/* Reset GUI */
 		reset_gui();
 
-		/* Remember log size */
-		us_choice_size = load_state.p[0].choice_size;
+		/* Loop over players */
+		for (i = 0; i < load_state.num_players; ++i)
+		{
+			/* Remember log sizes */
+			orig_log_size[i] = load_state.p[i].choice_size;
+		}
 
 		/* Copy loaded state to real */
 		real_game = load_state;
@@ -8288,17 +8555,6 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
- * Full-size image option names.
- */
-static char *reduce_names[] =
-{
-	"Original size",
-	"Half size",
-	"Hidden",
-	NULL
-};
-
-/*
  * Widgets for select dialog.
  */
 static GtkWidget *num_players_radio[MAX_PLAYER];
@@ -8312,7 +8568,7 @@ static GtkWidget *seed_entry;
 /*
  * Current selections for next game options.
  */
-static int next_exp, next_player, next_reduce;
+static int next_exp, next_player;
 
 /*
  * React to an expansion level button being toggled.
@@ -8383,14 +8639,99 @@ static void seed_toggle(GtkToggleButton *button, gpointer data)
 }
 
 /*
- * React to an full-size image option button being toggled.
+ * Callback when hide card toggle button is changed.
  */
-static void reduce_toggle(GtkToggleButton *button, gpointer data)
+static void hide_card_changed(GtkToggleButton *hide_card_button,
+                              gpointer card_size_scale)
 {
-	int i = GPOINTER_TO_INT(data);
+	/* Disable card size if card is hidden */
+	gtk_widget_set_sensitive(GTK_WIDGET(card_size_scale),
+	                         !gtk_toggle_button_get_active(hide_card_button));
 
-	/* Check for button set */
-	if (gtk_toggle_button_get_active(button)) next_reduce = i;
+	/* Update options */
+	opt.hide_card = 2 * gtk_toggle_button_get_active(hide_card_button);
+
+	/* Handle new options */
+	modify_gui();
+}
+
+/*
+ * Callback when card size scale changes.
+ */
+static void card_size_changed(GtkRange *card_size_scale,
+                              gpointer log_width_scale)
+{
+	double log_width;
+
+	/* Update options */
+	opt.card_size = (int) gtk_range_get_value(card_size_scale);
+
+	/* Reset scale (adjust for rounding) */
+	gtk_range_set_value(card_size_scale, opt.card_size);
+
+	/* Get current log width */
+	log_width = gtk_range_get_value(GTK_RANGE(log_width_scale));
+
+	/* Update log width if needed */
+	if (opt.card_size > log_width)
+	{
+		/* Update scale */
+		gtk_range_set_value(GTK_RANGE(log_width_scale), opt.card_size);
+
+		/* Update options */
+		opt.log_width = opt.card_size;
+	}
+
+	/* Handle new options */
+	modify_gui();
+}
+
+/*
+ * Callback when log width scale changes.
+ */
+static void log_width_changed(GtkRange *log_width_scale,
+                              gpointer card_size_scale)
+{
+	double card_size;
+
+	/* Update options */
+	opt.log_width = (int) gtk_range_get_value(log_width_scale);
+
+	/* Reset scale (adjust for rounding) */
+	gtk_range_set_value(log_width_scale, opt.log_width);
+
+	/* Get current card size */
+	card_size = gtk_range_get_value(GTK_RANGE(card_size_scale));
+
+	/* Update card size if needed */
+	if (opt.log_width < card_size)
+	{
+		/* Update scale */
+		gtk_range_set_value(GTK_RANGE(card_size_scale), opt.log_width);
+
+		/* Update options */
+		opt.card_size = opt.log_width;
+	}
+
+	/* Handle new options */
+	modify_gui();
+}
+
+/*
+ * Callback when card size scale changes.
+ */
+static void update_option(GtkToggleButton *button, gpointer option)
+{
+	int *opt_ptr = (int *)option;
+
+	/* Update option */
+	*opt_ptr = gtk_toggle_button_get_active(button);
+
+	/* Handle new options */
+	modify_gui();
+
+	/* Redraw everything */
+	redraw_everything();
 }
 
 /*
@@ -8763,15 +9104,17 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *reduce_box, *reduce_frame;
-	GtkWidget *log_width_frame, *log_width_scale;
+	GtkWidget *status_box, *status_frame, *hide_card_button;
+	GtkWidget *card_size_box, *card_size_label, *card_size_scale;
+	GtkWidget *log_width_box, *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button;
 	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
-	int i;
+
+	options old_options = opt;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("GUI Options", NULL,
@@ -8788,50 +9131,64 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_window_set_title(GTK_WINDOW(dialog),
 	                     "Race for the Galaxy " RELEASE);
 
-	/* ---- Full Size ---- */
-	/* Create vbox to hold full-size image option radio buttons */
-	reduce_box = gtk_vbox_new(FALSE, 0);
-
-	/* Loop over reduction levels */
-	for (i = 0; reduce_names[i]; i++)
-	{
-		/* Create radio button */
-		radio = gtk_radio_button_new_with_label_from_widget(
-		                                        GTK_RADIO_BUTTON(radio),
-		                                        reduce_names[i]);
-
-		/* Check for current reduction level */
-		if (opt.full_reduced == i)
-		{
-			/* Set button active */
-			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio),
-			                             TRUE);
-
-			/* Remember current reduction level */
-			next_reduce = i;
-		}
-
-		/* Add handler */
-		g_signal_connect(G_OBJECT(radio), "toggled",
-		                 G_CALLBACK(reduce_toggle), GINT_TO_POINTER(i));
-
-		/* Pack radio button into box */
-		gtk_box_pack_start(GTK_BOX(reduce_box), radio, FALSE, TRUE, 0);
-	}
-
+	/* ---- Game status ---- */
 	/* Create frame around buttons */
-	reduce_frame = gtk_frame_new("Full-size image");
+	status_frame = gtk_frame_new("Game status");
 
-	/* Pack radio button box into frame */
-	gtk_container_add(GTK_CONTAINER(reduce_frame), reduce_box);
+	/* Create vbox to hold game status options */
+	status_box = gtk_vbox_new(FALSE, 0);
 
-	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  reduce_frame);
+	/* Create toggle button for hiding card image */
+	hide_card_button = gtk_check_button_new_with_label("Hide card");
 
-	/* ---- Log width ---- */
-	/* Create frame around scale */
-	log_width_frame = gtk_frame_new("Log width");
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hide_card_button),
+	                             opt.hide_card == 2);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(status_box), hide_card_button, FALSE, TRUE, 0);
+
+	/* Create hbox to hold card size widgets */
+	card_size_box = gtk_hbox_new(FALSE, 11);
+
+	/* Create card size label */
+	card_size_label = gtk_label_new("Card size");
+
+	/* Pack label into box */
+	gtk_box_pack_start(GTK_BOX(card_size_box), card_size_label, FALSE, TRUE, 0);
+
+	/* Create card size scale */
+	card_size_scale = gtk_hscale_new_with_range(150, 360, 10);
+
+	/* Do not display value */
+	gtk_scale_set_draw_value(GTK_SCALE(card_size_scale), FALSE);
+
+	/* Set value */
+	gtk_range_set_value(GTK_RANGE(card_size_scale),
+	                    opt.card_size ? opt.card_size : CARD_WIDTH);
+
+	/* Set scale sensitivity status */
+	gtk_widget_set_sensitive(GTK_WIDGET(card_size_scale),
+	                         opt.hide_card != 2);
+
+	/* Connect hide card "toggled" signal */
+	g_signal_connect(G_OBJECT(hide_card_button), "toggled",
+	                 G_CALLBACK(hide_card_changed), card_size_scale);
+
+	/* Pack scale into box */
+	gtk_box_pack_start(GTK_BOX(card_size_box), card_size_scale, TRUE, TRUE, 0);
+
+	/* Pack card size box into status box */
+	gtk_container_add(GTK_CONTAINER(status_box), card_size_box);
+
+	/* Create hbox to hold log width widgets */
+	log_width_box = gtk_hbox_new(FALSE, 5);
+
+	/* Create log width label */
+	log_width_label = gtk_label_new("Log width");
+
+	/* Pack label into box */
+	gtk_box_pack_start(GTK_BOX(log_width_box), log_width_label, FALSE, TRUE, 0);
 
 	/* Create log width scale */
 	log_width_scale = gtk_hscale_new_with_range(150, 360, 10);
@@ -8843,11 +9200,29 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_range_set_value(GTK_RANGE(log_width_scale),
 	                    opt.log_width ? opt.log_width : CARD_WIDTH);
 
-	/* Pack scale into fram */
-	gtk_container_add(GTK_CONTAINER(log_width_frame), log_width_scale);
+	/* Pack scale into box */
+	gtk_box_pack_start(GTK_BOX(log_width_box), log_width_scale, TRUE, TRUE, 0);
 
-	/* Add frame to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), log_width_frame);
+	/* Pack log width box into status box */
+	gtk_container_add(GTK_CONTAINER(status_box), log_width_box);
+
+	/* Create card size "value-changed" signal */
+	g_signal_connect(G_OBJECT(card_size_scale), "value-changed",
+	                 G_CALLBACK(card_size_changed), log_width_scale);
+
+	/* Create log width "value-changed" signal */
+	g_signal_connect(G_OBJECT(log_width_scale), "value-changed",
+	                 G_CALLBACK(log_width_changed), card_size_scale);
+
+	/* Simulate a value changed to force scale update if needed */
+	card_size_changed(GTK_RANGE(card_size_scale), log_width_scale);
+
+	/* Pack status box into status frame */
+	gtk_container_add(GTK_CONTAINER(status_frame), status_box);
+
+	/* Add status fram to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  status_frame);
 
 	/* ---- Game view ---- */
 	/* Create vbox to hold game view check boxes */
@@ -8860,6 +9235,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(shrink_button),
 	                             opt.shrink_opponent);
 
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(shrink_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.shrink_opponent);
+
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(game_view_box), shrink_button, FALSE, TRUE, 0);
 
@@ -8869,6 +9248,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discount_button),
 	                             opt.show_settle_discount);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(discount_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.show_settle_discount);
 
 	/* Pack button into status box */
 	gtk_box_pack_start(GTK_BOX(game_view_box), discount_button, FALSE, TRUE, 0);
@@ -8967,17 +9350,6 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Run dialog */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
-		/* Set full-size image option */
-		opt.full_reduced = next_reduce;
-
-		/* Set shrink opponents option */
-		opt.shrink_opponent =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(shrink_button));
-
-		/* Set show settle discount option */
-		opt.show_settle_discount =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discount_button));
-
 		/* Set autosave option */
 		opt.auto_save =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autosave_button));
@@ -8994,18 +9366,35 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.verbose =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
-		/* Set log width */
-		opt.log_width = (int) gtk_range_get_value(GTK_RANGE(log_width_scale));
-
-		/* Handle new options */
-		modify_gui();
-
-		/* Redraw everything */
-		redraw_everything();
-
 		/* Save preferences */
 		save_prefs();
+
+		/* Restart main loop if not online and log options changed */
+		if (client_state == CS_DISCONN &&
+		    (opt.colored_log != old_options.colored_log ||
+		     opt.verbose != old_options.verbose))
+		{
+			/* Force current game over */
+			real_game.game_over = 1;
+
+			/* Replay to current position */
+			restart_loop = RESTART_CURRENT;
+
+			/* Quit waiting for events */
+			gtk_main_quit();
+		}
 	}
+	else
+	{
+		/* Restore old options */
+		opt = old_options;
+	}
+
+	/* Handle new options */
+	modify_gui();
+
+	/* Redraw everything */
+	redraw_everything();
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);
@@ -9962,14 +10351,12 @@ int main(int argc, char *argv[])
 
 		/* Save original log */
 		orig_log[i] = real_game.p[i].choice_log;
+		orig_log_size[i] = 0;
 
 		/* Clear choice log size and position */
 		real_game.p[i].choice_size = 0;
 		real_game.p[i].choice_pos = 0;
 	}
-
-	/* Clear choice log for us */
-	us_choice_size = 0;
 
 	/* Create toplevel window */
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -10832,8 +11219,12 @@ int main(int argc, char *argv[])
 		/* Force current game over */
 		real_game.game_over = 1;
 
-		/* Remember log size */
-		us_choice_size = real_game.p[0].choice_size;
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; ++i)
+		{
+			/* Remember log size */
+			orig_log_size[i] = real_game.p[i].choice_size;
+		}
 
 		/* Switch to loaded state when able */
 		restart_loop = RESTART_LOAD;

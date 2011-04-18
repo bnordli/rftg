@@ -1,6 +1,6 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009 Keldon Jones
  *
  * Source file modified by B. Nordli, April 2011.
@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "e"
+#define RELEASE VERSION "f"
 #endif
 
 #include <stdio.h>
@@ -884,6 +884,11 @@ extern decisions ai_func;
 extern decisions gui_func;
 
 /*
+ * Macro functions.
+ */
+#define PLURAL(x) ((x) == 1 ? "" : "s")
+
+/*
  * External functions.
  */
 extern void message_add(game *g, char *msg);
@@ -908,6 +913,7 @@ extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
+extern int get_powers(game *g, int who, int phase, power_where *w_list);
 extern void add_good(game *g, card *c_ptr);
 extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);

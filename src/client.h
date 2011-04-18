@@ -11,6 +11,7 @@
 #define RESTART_REDO_ROUND 8
 #define RESTART_REDO_GAME 9
 #define RESTART_REPLAY 10
+#define RESTART_CURRENT 11
 
 /*
  * User options.
@@ -41,8 +42,8 @@ typedef struct options
 	/* Seed value */
 	unsigned int seed;
 
-	/* Reduce/eliminate full-size card image */
-	int full_reduced;
+	/* Hide/show card preview (For legacy reasons: 0: Show, 2: Hide) */
+	int hide_card;
 
 	/* Shrink opponent areas to fit without scrolling */
 	int shrink_opponent;
@@ -71,6 +72,9 @@ typedef struct options
 	/* Number of players in multiplayer */
 	int multi_min;
 	int multi_max;
+
+	/* Card size */
+	int card_size;
 
 	/* Log width */
 	int log_width;
