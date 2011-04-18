@@ -919,6 +919,7 @@ extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
+extern int get_powers(game *g, int who, int phase, power_where *w_list);
 extern void add_good(game *g, card *c_ptr);
 extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);

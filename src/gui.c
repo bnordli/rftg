@@ -2840,9 +2840,127 @@ static char *get_prestige_tooltip(game *g, int who)
 }
 
 /*
- * Create a tooltip for a displayed card.
+ * Create a tooltip for a card displayed in a table.
  */
-static char *display_card_tooltip(game *g, int who, int which)
+static char *card_hand_tooltip(game *g, int who, int which)
+{
+	char text[1024];
+	card *c_ptr;
+	power_where w_list[100];
+	power *o_ptr;
+	int n, i, vp_diff;
+	game sim;
+
+	/* Copy game */
+	memcpy(&sim, g, sizeof(game));
+
+	/* Set simulated game */
+	sim.simulation = 1;
+
+	/* Simulate placement of card */
+	place_card(&sim, who, which);
+
+	/* Get card pointer */
+	c_ptr = &sim.deck[which];
+
+	/* Check for development type */
+	if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
+	{
+		/* Get list of develop powers */
+		n = get_powers(&sim, who, PHASE_DEVELOP, w_list);
+
+		/* Loop over powers */
+		for (i = 0; i < n; i++)
+		{
+			/* Get power pointer */
+			o_ptr = w_list[i].o_ptr;
+
+			/* Check for "earn prestige after Rebel" power */
+			if (o_ptr->code & P2_PRESTIGE_REBEL)
+			{
+				/* Check for Rebel flag on played card */
+				if (c_ptr->d_ptr->flags & FLAG_REBEL)
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+
+			/* Check for "earn prestige after 6 dev" power */
+			if (o_ptr->code & P2_PRESTIGE_SIX)
+			{
+				/* Check for six-cost development */
+				if (c_ptr->d_ptr->cost == 6)
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+
+			/* Check for "earn prestige" power */
+			if (o_ptr->code & P2_PRESTIGE)
+			{
+				/* Reward prestige */
+				sim.p[who].prestige += o_ptr->value;
+			}
+		}
+	}
+
+	/* Check for world type */
+	else if (c_ptr->d_ptr->type == TYPE_WORLD)
+	{
+		/* Get settle phase powers */
+		n = get_powers(g, who, PHASE_SETTLE, w_list);
+
+		/* Loop over pre-existing powers */
+		for (i = 0; i < n; i++)
+		{
+			/* Get power pointer */
+			o_ptr = w_list[i].o_ptr;
+
+			/* Check for prestige after rebel power */
+			if (o_ptr->code & P3_PRESTIGE_REBEL)
+			{
+				/* Check for rebel military world placed */
+				if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
+					(c_ptr->d_ptr->flags & FLAG_MILITARY))
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+
+			/* Check for prestige after production world */
+			if (o_ptr->code & P3_PRODUCE_PRESTIGE)
+			{
+				/* Check for production world */
+				if (c_ptr->d_ptr->good_type > 0 &&
+					!(c_ptr->d_ptr->flags & FLAG_WINDFALL))
+				{
+					/* Reward prestige */
+					sim.p[who].prestige += o_ptr->value;
+				}
+			}
+		}
+	}
+
+	/* Score game for player */
+	score_game(&sim);
+
+	/* Compute score difference */
+	vp_diff = sim.p[who].end_vp - g->p[who].end_vp;
+
+	/* Format message */
+	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff)); 
+
+	/* Return tool tip */
+	return strdup(text);
+}
+
+/*
+ * Create a tooltip for a card displayed on a table.
+ */
+static char *card_table_tooltip(game *g, int who, int which)
 {
 	char text[1024];
 	card *c_ptr, *b_ptr;
@@ -2851,7 +2969,7 @@ static char *display_card_tooltip(game *g, int who, int which)
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
-	/* Check for nothing to display */
+	/* Check for cards saved */
 	if (c_ptr->d_ptr->flags & FLAG_START_SAVE)
 	{
 		/* Loop over cards in deck */
@@ -3702,6 +3820,9 @@ static void reset_hand(game *g, int color)
 
 		/* Set color flag */
 		i_ptr->color = color;
+
+		/* Get tooltip */
+		i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
 	}
 }
 
@@ -3749,7 +3870,7 @@ static void reset_table(game *g, int who, int color)
 		i_ptr->order = c_ptr->order;
 
 		/* Get tooltip */
-		i_ptr->tooltip = display_card_tooltip(g, player_us, i);
+		i_ptr->tooltip = card_table_tooltip(g, player_us, i);
 	}
 
 	/* Sort list */

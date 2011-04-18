@@ -1190,7 +1190,7 @@ void player_discard(game *g, int who, int discard)
 /*
  * Return locations of powers for a given player for the given phase.
  */
-static int get_powers(game *g, int who, int phase, power_where *w_list)
+int get_powers(game *g, int who, int phase, power_where *w_list)
 {
 	card *c_ptr;
 	power *o_ptr;
