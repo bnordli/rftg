@@ -67,11 +67,6 @@ static int num_undo;
 static int max_undo;
 
 /*
- * The size of the human player's choice log.
- */
-static int us_choice_size;
-
-/*
  * Whether the game is replaying or not.
  */
 static int game_replaying;
@@ -80,6 +75,11 @@ static int game_replaying;
  * Choice logs for each player.
  */
 static int *orig_log[MAX_PLAYER];
+
+/*
+ * Original log sizes for each player.
+ */
+static int orig_log_size[MAX_PLAYER];
 
 /*
  * Player we're playing as.
@@ -7493,10 +7493,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Mark new size of choice log */
 	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
 
-	/* Remember size of log */
-	us_choice_size = p_ptr->choice_size;
-
-	/* Loop over other players */
+	/* Loop over all players */
 	for (i = 0; i < g->num_players; ++i)
 	{
 		/* Skip human player */
@@ -7505,6 +7502,10 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			/* Reset size of log */
 			g->p[i].choice_size = g->p[i].choice_unread_pos;
 		}
+
+		/* Remember new log size */
+		orig_log_size[((i-player_us) + g->num_players) % g->num_players] =
+		    g->p[i].choice_size;
 	}
 
 	/* Stop game replaying */
@@ -7572,13 +7573,17 @@ void reset_gui(void)
 		real_game.p[i].choice_log = orig_log[i];
 		real_game.p[i].choice_pos = 0;
 		real_game.p[i].choice_unread_pos = 0;
+
+		/* Log size already set when game is loaded or replayed */
+		if (restart_loop != RESTART_LOAD && restart_loop != RESTART_REPLAY)
+		{
+			/* Set size of player's logs */
+			real_game.p[i].choice_size = orig_log_size[i];
+		}
 	}
 
 	/* Restore player control functions */
 	real_game.p[player_us].control = &gui_func;
-
-	/* Set size of human log */
-	real_game.p[player_us].choice_size = us_choice_size;
 
 	/* Loop over AI players */
 	for (i = 1; i < MAX_PLAYER; i++)
@@ -7588,16 +7593,6 @@ void reset_gui(void)
 
 		/* Call initialization function */
 		real_game.p[i].control->init(&real_game, i, 0.0);
-
-		/* We already know the log size when game is loaded */
-		if (restart_loop != RESTART_LOAD)
-		{
-			/* TODO: It might be more reasonable to save all */
-			/* players' log sizes (not just us) */
-
-			/* Set size of other's choice logs */
-			real_game.p[i].choice_size = 4096;
-		}
 	}
 
 	/* Clear message log */
@@ -7705,14 +7700,12 @@ static void run_game(void)
 			num_undo = 0;
 			max_undo = 0;
 
-			/* Reset size of choice log */
-			us_choice_size = 0;
-
 			/* Loop over players */
 			for (i = 0; i < real_game.num_players; i++)
 			{
 				/* Clear choice log */
 				real_game.p[i].choice_size = 0;
+				orig_log_size[i] = 0;
 			}
 
 			/* Unset replaying flag */
@@ -7973,7 +7966,7 @@ static void run_game(void)
 		real_game.p[0].choice_size = pos;
 
 		/* Find total number of replay points */
-		while (pos < us_choice_size)
+		while (pos < orig_log_size[0])
 		{
 			/* Update log position */
 			pos = next_choice(real_game.p[0].choice_log, pos);
@@ -8438,8 +8431,12 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		/* Reset GUI */
 		reset_gui();
 
-		/* Remember log size */
-		us_choice_size = load_state.p[0].choice_size;
+		/* Loop over players */
+		for (i = 0; i < load_state.num_players; ++i)
+		{
+			/* Remember log sizes */
+			orig_log_size[i] = load_state.p[i].choice_size;
+		}
 
 		/* Copy loaded state to real */
 		real_game = load_state;
@@ -10341,14 +10338,12 @@ int main(int argc, char *argv[])
 
 		/* Save original log */
 		orig_log[i] = real_game.p[i].choice_log;
+		orig_log_size[i] = 0;
 
 		/* Clear choice log size and position */
 		real_game.p[i].choice_size = 0;
 		real_game.p[i].choice_pos = 0;
 	}
-
-	/* Clear choice log for us */
-	us_choice_size = 0;
 
 	/* Create toplevel window */
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -11211,8 +11206,12 @@ int main(int argc, char *argv[])
 		/* Force current game over */
 		real_game.game_over = 1;
 
-		/* Remember log size */
-		us_choice_size = real_game.p[0].choice_size;
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; ++i)
+		{
+			/* Remember log size */
+			orig_log_size[i] = real_game.p[i].choice_size;
+		}
 
 		/* Switch to loaded state when able */
 		restart_loop = RESTART_LOAD;
