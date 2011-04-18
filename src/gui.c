@@ -7820,6 +7820,22 @@ static void run_game(void)
 			modify_gui();
 		}
 
+		/* Replay to current position (to regenerate log) */
+		else if (restart_loop == RESTART_CURRENT)
+		{
+			/* Reset our position and GUI elements */
+			reset_gui();
+
+			/* Start with start of game random seed */
+			real_game.random_seed = real_game.start_seed;
+
+			/* Initialize game */
+			init_game(&real_game);
+
+			/* Modify GUI for new game parameters */
+			modify_gui();
+		}
+
 		/* Reset counts */
 		pos = choice = 0;
 
@@ -9226,6 +9242,20 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 		/* Save preferences */
 		save_prefs();
+
+		/* Restart main loop if log options changed */
+		if (opt.colored_log != old_options.colored_log ||
+			opt.verbose != old_options.verbose)
+		{
+			/* Force current game over */
+			real_game.game_over = 1;
+
+			/* Replay to current position */
+			restart_loop = RESTART_CURRENT;
+
+			/* Quit waiting for events */
+			gtk_main_quit();
+		}
 	}
 	else
 	{

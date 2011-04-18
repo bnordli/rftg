@@ -11,6 +11,7 @@
 #define RESTART_REDO_ROUND 8
 #define RESTART_REDO_GAME 9
 #define RESTART_REPLAY 10
+#define RESTART_CURRENT 11
 
 /*
  * User options.
