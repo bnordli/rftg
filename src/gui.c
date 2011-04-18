@@ -9357,9 +9357,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Save preferences */
 		save_prefs();
 
-		/* Restart main loop if log options changed */
-		if (opt.colored_log != old_options.colored_log ||
-			opt.verbose != old_options.verbose)
+		/* Restart main loop if not online and log options changed */
+		if (client_state == CS_DISCONN &&
+		    (opt.colored_log != old_options.colored_log ||
+		     opt.verbose != old_options.verbose))
 		{
 			/* Force current game over */
 			real_game.game_over = 1;
