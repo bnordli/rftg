@@ -8184,6 +8184,7 @@ int produce_action(game *g, int who)
 		/* Check for aborted game */
 		if (g->game_over) return 0;
 
+		/* Done */
 		return 1;
 	}
 
