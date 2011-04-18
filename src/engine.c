@@ -10965,7 +10965,7 @@ void declare_winner(game *g)
 			/* Format message */
 			sprintf(msg, "  %s has %d card%s in hand and %d good%s "
 			        "on worlds.\n", g->p[i].name,
-			        th, PLURAL(th), tg, PLURAL(tg), th + tg);
+			        th, PLURAL(th), tg, PLURAL(tg));
 
 			/* Send message */
 			message_add(g, msg);
