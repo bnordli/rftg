@@ -8685,11 +8685,11 @@ static void log_width_changed(GtkRange *log_width_scale,
 {
 	double card_size;
 
-	/* Get current card size */
-	card_size = (int) gtk_range_get_value(GTK_RANGE(card_size_scale));
-
 	/* Update options */
-	opt.log_width = gtk_range_get_value(log_width_scale);
+	opt.log_width = (int) gtk_range_get_value(log_width_scale);
+
+	/* Get current card size */
+	card_size = gtk_range_get_value(GTK_RANGE(card_size_scale));
 
 	/* Update card size if needed */
 	if (opt.log_width < card_size)
