@@ -2102,7 +2102,7 @@ static void handle_prepare(int cid, char *ptr)
 /*
  * Add formatted text to the message buffer.
  */
-void server_private_message(int who, game *g, char *msg, char *tag)
+void server_private_message(game *g, int who, char *txt, char *tag)
 {
 	char msg[1024], *ptr = msg;
 	int cid;
@@ -2111,7 +2111,7 @@ void server_private_message(int who, game *g, char *msg, char *tag)
 	cid = s_list[g->session_id].cids[who];
 
 	/* Check for no connection */
-	if (cid < 0) continue;
+	if (cid < 0) return;
 
 	/* Create log message */
 	start_msg(&ptr, MSG_LOG);

@@ -7538,7 +7538,7 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
 			sprintf(msg, "%s discards %s.\n", p_ptr->name, c_ptr->d_ptr->name);
 
 			/* Send message */
-			g->p[who].control->private_message(g, msg, who, FORMAT_DISCARD);
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 		}
 
 		/* Format message */
