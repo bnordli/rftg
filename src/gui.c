@@ -8034,6 +8034,9 @@ static void run_game(void)
 		/* Declare winner */
 		declare_winner(&real_game);
 
+		/* Deactivate action button */
+		gtk_widget_set_sensitive(action_button, FALSE);
+
 		/* Auto save */
 		auto_save(&real_game, player_us, "end");
 
