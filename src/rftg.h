@@ -489,6 +489,7 @@
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
+#define FORMAT_DISCARD "discard"
 
 /*
  * Forward declaration.
@@ -676,6 +677,9 @@ typedef struct decisions
 
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
+
+	/* Private message */
+	void (*private_message)(struct game *g, char *msg, char *tag);
 
 } decisions;
 

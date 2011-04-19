@@ -446,6 +446,13 @@ void message_add_formatted(game *g, char *msg, char *tag)
 		return;
 	}
 
+	/* Check for discard message while discard log disabled */
+	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log)
+	{
+		/* Do not log message */
+		return;
+	}
+
 	/* Check for bold formatting */
 	if (strcmp(tag, FORMAT_BOLD) && !opt.colored_log)
 	{
@@ -7540,6 +7547,7 @@ decisions gui_func =
 	NULL,
 	NULL,
 	NULL,
+	message_add_formatted,
 };
 
 /*
@@ -8100,6 +8108,8 @@ static void read_prefs(void)
 	                                         "colored_log", NULL);
 	opt.verbose = g_key_file_get_boolean(pref_file, "gui",
 	                                     "verbose", NULL);
+	opt.discard_log = g_key_file_get_boolean(pref_file, "gui",
+	                                         "discard_log", NULL);
 
 	/* Read folder options */
 	opt.last_save = g_key_file_get_string(pref_file, "folders",
@@ -8179,6 +8189,8 @@ void save_prefs(void)
 		                   opt.colored_log);
 	g_key_file_set_boolean(pref_file, "gui", "verbose",
 		                   opt.verbose);
+	g_key_file_set_boolean(pref_file, "gui", "discard_log",
+		                   opt.discard_log);
 
 	/* Set folder location options */
 	g_key_file_set_string(pref_file, "folders", "last_save",
@@ -9111,7 +9123,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button;
 	GtkWidget *log_box, *log_frame;
-	GtkWidget *colored_log_button, *verbose_button;
+	GtkWidget *colored_log_button, *verbose_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
 
@@ -9301,6 +9313,16 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  log_frame);
 
+	/* Create toggle button for discard log */
+	discard_log_button = gtk_check_button_new_with_label("Log discards");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discard_log_button),
+	                             opt.discard_log);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(log_box), discard_log_button, FALSE, TRUE, 0);
+
 	/* ---- File options ---- */
 	/* Create vbox to hold file options check boxes */
 	file_box = gtk_vbox_new(FALSE, 0);
@@ -9367,13 +9389,18 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.verbose =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
+		/* Set log discards option */
+		opt.discard_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discard_log_button));
+
 		/* Save preferences */
 		save_prefs();
 
 		/* Restart main loop if not online and log options changed */
 		if (client_state == CS_DISCONN &&
 		    (opt.colored_log != old_options.colored_log ||
-		     opt.verbose != old_options.verbose))
+		     opt.verbose != old_options.verbose ||
+		     opt.discard_log != old_options.discard_log))
 		{
 			/* Force current game over */
 			real_game.game_over = 1;
@@ -10650,6 +10677,10 @@ int main(int argc, char *argv[])
 	/* Create "verbose" tag for message buffer */
 	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE,
 	                           "foreground", "#aaaaaa", NULL);
+
+	/* Create "discard" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_DISCARD,
+	                           "foreground", "#cccccc", NULL);
 
 	/* Get iterator for end of buffer */
 	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);

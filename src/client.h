@@ -91,6 +91,9 @@ typedef struct options
 	/* Verbose log */
 	int verbose;
 
+	/* Discard log */
+	int discard_log;
+
 	/* Last save location */
 	char *last_save;
 
