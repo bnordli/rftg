@@ -600,7 +600,7 @@ void draw_cards(game *g, int who, int num, char *reason)
 	if (!g->simulation && reason)
 	{
 		/* Format message */
-		sprintf(msg, "%s receives %d cards%s from %s.\n",
+		sprintf(msg, "%s receives %d card%s from %s.\n",
 				g->p[who].name, num, PLURAL(num), reason);
 
 		/* Add message */
