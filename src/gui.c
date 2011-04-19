@@ -2964,6 +2964,9 @@ static char *card_hand_tooltip(game *g, int who, int which)
 		}
 	}
 
+	/* Simulate end of phase (for self-scoring cards) */
+	clear_temp(&sim);
+
 	/* Score game for player */
 	score_game(&sim);
 
