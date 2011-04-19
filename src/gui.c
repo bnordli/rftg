@@ -3763,6 +3763,7 @@ static void reset_display(displayed *i_ptr)
 {
 	/* Free previous tool tip */
 	free(i_ptr->tooltip);
+	i_ptr->tooltip = NULL;
 
 	/* Clear all fields */
 	memset(i_ptr, 0, sizeof(displayed));
