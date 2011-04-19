@@ -3,7 +3,7 @@ This is a patch to Keldon's Race for the Galaxy AI, version 0.8.1.
 Information about the project can be found at http://keldon.net/rftg/, and the
 source code can be downloaded from http://warpcore.org/rftg/rftg-0.8.1.tar.bz2.
 
-These source files replaces the corresponding files from the 0.8.1 version.
+These source files replace the corresponding files from the 0.8.1 version.
 
 You must also copy the new icon files (icon0xx.png) to your installation folder
 in order to get the new icons.
