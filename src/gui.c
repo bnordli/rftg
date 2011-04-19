@@ -491,6 +491,9 @@ void message_add_private(game *g, int who, char *msg, char *tag)
 	}
 }
 
+/*
+ * Saves the message log to a time stamped file.
+ */
 void save_log(void)
 {
 	FILE *fff;
@@ -655,7 +658,7 @@ void update_card(GdkPixbuf *newbuf)
 }
 
 /*
- * Called when mouse moves over log window
+ * Called when mouse moves over the log window.
  */
 static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
                                gpointer data)
@@ -957,6 +960,8 @@ static void load_images(void)
 				}
 			}
 		}
+		
+		/* Done */
 		return;
 	}
 
@@ -2309,7 +2314,7 @@ struct extra_info
 };
 
 /*
- * Set of "extra info" structures.
+ * Set of "extra info" structures for player statuses.
  */
 static struct extra_info status_extra_info[MAX_PLAYER][5];
 
@@ -2854,7 +2859,7 @@ static char *get_prestige_tooltip(game *g, int who)
 }
 
 /*
- * Create a tooltip for a card displayed in a table.
+ * Create a tooltip for a card displayed in the player's hand.
  */
 static char *card_hand_tooltip(game *g, int who, int which)
 {
@@ -8476,7 +8481,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		/* Force current game over */
 		real_game.game_over = 1;
 
-		/* Switch to loaded state when able */
+		/* Switch to loaded or replay state when able */
 		restart_loop = GPOINTER_TO_INT(data);
 
 		/* Quit waiting for events */
@@ -8744,7 +8749,7 @@ static void log_width_changed(GtkRange *log_width_scale,
 }
 
 /*
- * Callback when card size scale changes.
+ * Callback when a GUI option button is toggled.
  */
 static void update_option(GtkToggleButton *button, gpointer option)
 {

@@ -35,7 +35,7 @@ char *exp_names[MAX_EXPANSION + 1] =
 };
 
 /*
- * Labels for number of players.
+ * Textual representation for number of players.
  */
 char *player_labels[MAX_PLAYER] =
 {
@@ -599,19 +599,9 @@ void draw_cards(game *g, int who, int num, char *reason)
 	/* Check for real game and reason */
 	if (!g->simulation && reason)
 	{
-		/* Check for one card */
-		if (num == 1)
-		{
-			/* Format singular message */
-			sprintf(msg, "%s receives 1 card from %s.\n",
-			        g->p[who].name, reason);
-		}
-		else
-		{
-			/* Format plural message */
-			sprintf(msg, "%s receives %d cards from %s.\n",
-			        g->p[who].name, num, reason);
-		}
+		/* Format message */
+		sprintf(msg, "%s receives %d cards%s from %s.\n",
+				g->p[who].name, num, PLURAL(num), reason);
 
 		/* Add message */
 		message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -870,10 +860,10 @@ int next_choice(int* log, int pos)
 	/* Step over the type and the return value */
 	pos += 2;
 
-	/* Step over the list size and the list */
+	/* Step over the list size and the list itself */
 	pos += *(log + pos) + 1;
 
-	/* Step over the special size and the special list */
+	/* Step over the special size and the special list itself */
 	pos += *(log + pos) + 1;
 
 	/* Return the start of the next choice */
@@ -1159,8 +1149,8 @@ void discard_callback(game *g, int who, int list[], int num)
 		{
 			/* Format message */
 			sprintf(msg, "%s discards %s.\n",
-					p_ptr->name,
-					g->deck[list[i]].d_ptr->name);
+			        p_ptr->name,
+			        g->deck[list[i]].d_ptr->name);
 
 			/* Send message */
 			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
@@ -2110,8 +2100,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Rare good to "
-					        "reduce cost.\n",
-					        p_ptr->name);
+					        "reduce cost.\n", p_ptr->name);
 
 					/* Send message */
 					message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -3317,8 +3306,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Genes good to "
-					        "reduce cost.\n",
-					        p_ptr->name);
+					        "reduce cost.\n", p_ptr->name);
 
 					/* Send message */
 					message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -3345,8 +3333,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Rare good for "
-					        "extra military.\n",
-					        p_ptr->name);
+					        "extra military.\n", p_ptr->name);
 
 					/* Send message */
 					message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -4958,8 +4945,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Rare good for "
-					        "extra military.\n",
-					        p_ptr->name);
+					        "extra military.\n", p_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -7783,7 +7769,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		else
 		{
 			/* Draw 3 cards */
-			draw_cards(g, who, 3, "Prestige Produce bonus");
+			draw_cards(g, who, 3, "his Prestige Produce bonus");
 
 			/* Count reward */
 			p_ptr->phase_cards += 3;
