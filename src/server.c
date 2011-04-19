@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file patched to *b version by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, April 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2100,7 +2100,7 @@ static void handle_prepare(int cid, char *ptr)
 }
 
 /*
- * Add formatted text to the message buffer.
+ * Send a private message to a client.
  */
 void server_private_message(game *g, int who, char *txt, char *tag)
 {

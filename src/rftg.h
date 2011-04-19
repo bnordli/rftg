@@ -1,6 +1,6 @@
 /*
  * Race for the Galaxy AI
- *
+ * 
  * Copyright (C) 2009 Keldon Jones
  *
  * Source file modified by B. Nordli, April 2011.
