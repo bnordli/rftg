@@ -479,6 +479,19 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	                                   message_end);
 }
 
+/*
+ * Add a private message to the message buffer.
+ */
+void message_add_private(game *g, int who, char *msg, char *tag)
+{
+	/* Verify we are the correct player */
+	if (who == player_us)
+	{
+		/* Add message */
+		message_add_formatted(g, msg, tag);
+	}
+}
+
 void save_log(void)
 {
 	FILE *fff;
@@ -7547,7 +7560,7 @@ decisions gui_func =
 	NULL,
 	NULL,
 	NULL,
-	message_add_formatted,
+	message_add_private,
 };
 
 /*
@@ -10680,7 +10693,7 @@ int main(int argc, char *argv[])
 
 	/* Create "discard" tag for message buffer */
 	gtk_text_buffer_create_tag(message_buffer, FORMAT_DISCARD,
-	                           "foreground", "#cccccc", NULL);
+	                           "foreground", "#aaaaaa", NULL);
 
 	/* Get iterator for end of buffer */
 	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);

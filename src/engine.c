@@ -1163,7 +1163,7 @@ void discard_callback(game *g, int who, int list[], int num)
 					g->deck[list[i]].d_ptr->name);
 
 			/* Send message */
-			g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 		}
 	}
 }
@@ -2169,7 +2169,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				        g->deck[list[i]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 		}
 
@@ -2229,7 +2229,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				        g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 
 			/* Move saved card */
@@ -3677,7 +3677,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			        g->deck[list[i]].d_ptr->name);
 
 			/* Send message */
-			g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 		}
 
 		/* Discard */
@@ -3721,7 +3721,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				        g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 
 			/* Move card to saved area */
@@ -5017,7 +5017,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 				        g->deck[list[i]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 		}
 
@@ -6593,7 +6593,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 				        g->deck[list[i]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 		}
 
@@ -7538,7 +7538,7 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
 			sprintf(msg, "%s discards %s.\n", p_ptr->name, c_ptr->d_ptr->name);
 
 			/* Send message */
-			g->p[who].control->private_message(g, msg, FORMAT_DISCARD);
+			g->p[who].control->private_message(g, msg, who, FORMAT_DISCARD);
 		}
 
 		/* Format message */
@@ -9975,7 +9975,7 @@ void begin_game(game *g)
 				        g->deck[hand[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[i].control->private_message(g, msg, FORMAT_DISCARD);
+				g->p[i].control->private_message(g, i, msg, FORMAT_DISCARD);
 			}
 
 			/* Move card to saved area */

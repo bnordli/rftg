@@ -2100,6 +2100,36 @@ static void handle_prepare(int cid, char *ptr)
 }
 
 /*
+ * Add formatted text to the message buffer.
+ */
+void server_private_message(int who, game *g, char *msg, char *tag)
+{
+	char msg[1024], *ptr = msg;
+	int cid;
+
+	/* Get connection ID of this user */
+	cid = s_list[g->session_id].cids[who];
+
+	/* Check for no connection */
+	if (cid < 0) continue;
+
+	/* Create log message */
+	start_msg(&ptr, MSG_LOG);
+
+	/* Add text of message */
+	put_string(txt, &ptr);
+
+	/* Add format of message */
+	put_string(tag, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send to client */
+	send_msg(cid, msg);
+}
+
+/*
  * Set of functions called by game engine to notify/ask clients.
  */
 decisions server_func =
@@ -2113,7 +2143,7 @@ decisions server_func =
 	server_verify_choice,
 	NULL,
 	NULL,
-	NULL,
+	server_private_message,
 };
 
 /*

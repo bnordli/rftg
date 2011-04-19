@@ -679,7 +679,7 @@ typedef struct decisions
 	void (*shutdown)(struct game *g, int who);
 
 	/* Private message */
-	void (*private_message)(struct game *g, char *msg, char *tag);
+	void (*private_message)(struct game *g, int who, char *msg, char *tag);
 
 } decisions;
 
