@@ -1141,6 +1141,7 @@ static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
  */
 void discard_callback(game *g, int who, int list[], int num)
 {
+	char msg[1024];
 	player *p_ptr;
 	int i;
 
@@ -1152,6 +1153,18 @@ void discard_callback(game *g, int who, int list[], int num)
 	{
 		/* Move card to discard */
 		move_card(g, list[i], -1, WHERE_DISCARD);
+
+		/* Message */
+		if (!g->simulation && g->p[who].control->private_message)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n",
+					p_ptr->name,
+					g->deck[list[i]].d_ptr->name);
+
+			/* Send message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		}
 	}
 }
 
@@ -2145,6 +2158,21 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Loop over choices */
+			for (i = 0; i < num; i++)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+			}
+		}
+
 		/* Format message */
 		sprintf(msg, "%s pays %d.\n", p_ptr->name, num);
 
@@ -2191,6 +2219,17 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 
 				/* Check for aborted game */
 				if (g->game_over) return 0;
+			}
+
+			/* Private message */
+			if (g->p[who].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s saves %s.\n", p_ptr->name,
+				        g->deck[list[0]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 
 			/* Move saved card */
@@ -3630,6 +3669,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			continue;
 		}
 
+		/* Private message */
+		if (!g->simulation && g->p[who].control->private_message)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n", p_ptr->name,
+			        g->deck[list[i]].d_ptr->name);
+
+			/* Send message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		}
+
 		/* Discard */
 		move_card(g, list[i], -1, WHERE_DISCARD);
 	}
@@ -3661,6 +3711,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 				/* Check for aborted game */
 				if (g->game_over) return 0;
+			}
+
+			/* Private message */
+			if (g->p[who].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s saves %s.\n", p_ptr->name,
+				        g->deck[list[0]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 
 			/* Move card to saved area */
@@ -4945,6 +5006,21 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 	/* Message */
 	if (!g->simulation && num > 0)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Loop over choices */
+			for (i = 0; i < num; i++)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+			}
+		}
+
 		/* Format message */
 		sprintf(msg, "%s pays %d for extra strength.\n",
 			p_ptr->name, num);
@@ -6506,6 +6582,21 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Loop over choices */
+			for (i = 0; i < n; i++)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+			}
+		}
+
 		/* Format message */
 		sprintf(msg, "%s consumes %d card%s from hand using %s.\n",
 		        p_ptr->name, n, PLURAL(n), power_name);
@@ -7440,6 +7531,16 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n", p_ptr->name, c_ptr->d_ptr->name);
+
+			/* Send message */
+			g->p[who].control->private_message(g, msg, who, FORMAT_DISCARD);
+		}
+
 		/* Format message */
 		sprintf(msg, "%s discards to produce.\n", p_ptr->name);
 
@@ -9865,6 +9966,17 @@ void begin_game(game *g)
 
 			/* Check for aborted game */
 			if (g->game_over) return;
+
+			/* Private message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s saves %s.\n", p_ptr->name,
+				        g->deck[hand[0]].d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DISCARD);
+			}
 
 			/* Move card to saved area */
 			move_card(g, hand[0], i, WHERE_SAVED);

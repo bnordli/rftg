@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "f"
+#define RELEASE VERSION "g"
 #endif
 
 #include <stdio.h>
@@ -483,6 +483,7 @@
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
+#define FORMAT_DISCARD "discard"
 
 /*
  * Forward declaration.
@@ -670,6 +671,9 @@ typedef struct decisions
 
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
+
+	/* Private message */
+	void (*private_message)(struct game *g, int who, char *msg, char *tag);
 
 } decisions;
 
