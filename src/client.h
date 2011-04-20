@@ -48,8 +48,11 @@ typedef struct options
 	/* Shrink opponent areas to fit without scrolling */
 	int shrink_opponent;
 
-	/* Show the settle discount icon */
-	int show_settle_discount;
+	/* Display the settle discount icon */
+	int settle_discount;
+
+	/* Display the VP value for cards in hand */
+	int vp_in_hand;
 
 	/* Server name to connect to */
 	char *server_name;

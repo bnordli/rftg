@@ -1963,8 +1963,8 @@ void redraw_hand(void)
 			}
 		}
 
-		/* Add tooltip if available */
-		if (i_ptr->tooltip)
+		/* Add tooltip if enabled and available */
+		if (opt.vp_in_hand && i_ptr->tooltip)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
@@ -3319,7 +3319,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	}
 
 	/* Check for discount enabled and discount tip */
-	if (opt.show_settle_discount && strlen(s_ptr->discount_tip))
+	if (opt.settle_discount && strlen(s_ptr->discount_tip))
 	{
 		/* Create discount icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_DISCOUNT], height, height,
@@ -8199,8 +8199,10 @@ static void read_prefs(void)
 	                                       "log_width", NULL);
 	opt.shrink_opponent = g_key_file_get_boolean(pref_file, "gui",
 	                                             "shrink_opponent", NULL);
-	opt.show_settle_discount = g_key_file_get_boolean(pref_file, "gui",
-	                                             "show_settle_discount", NULL);
+	opt.settle_discount = g_key_file_get_boolean(pref_file, "gui",
+	                                             "settle_discount", NULL);
+	opt.vp_in_hand = g_key_file_get_boolean(pref_file, "gui",
+	                                        "vp_in_hand", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
@@ -8280,8 +8282,10 @@ void save_prefs(void)
 	                       opt.log_width);
 	g_key_file_set_boolean(pref_file, "gui", "shrink_opponent",
 	                       opt.shrink_opponent);
-	g_key_file_set_boolean(pref_file, "gui", "show_settle_discount",
-	                       opt.show_settle_discount);
+	g_key_file_set_boolean(pref_file, "gui", "settle_discount",
+	                       opt.settle_discount);
+	g_key_file_set_boolean(pref_file, "gui", "vp_in_hand",
+	                       opt.vp_in_hand);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
 	g_key_file_set_boolean(pref_file, "gui", "save_log",
@@ -9237,7 +9241,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *card_size_box, *card_size_label, *card_size_scale;
 	GtkWidget *log_width_box, *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
-	GtkWidget *shrink_button, *discount_button;
+	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
 	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
@@ -9372,18 +9376,35 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_box_pack_start(GTK_BOX(game_view_box), shrink_button, FALSE, TRUE, 0);
 
 	/* Create toggle button for settle discount */
-	discount_button = gtk_check_button_new_with_label("Show Settle discounts");
+	discount_button = gtk_check_button_new_with_label(
+	    "Display Settle discounts");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discount_button),
-	                             opt.show_settle_discount);
+	                             opt.settle_discount);
 
 	/* Connect toggle button "toggled" signal */
 	g_signal_connect(G_OBJECT(discount_button), "toggled",
-	                 G_CALLBACK(update_option), &opt.show_settle_discount);
+	                 G_CALLBACK(update_option), &opt.settle_discount);
 
 	/* Pack button into status box */
-	gtk_box_pack_start(GTK_BOX(game_view_box), discount_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(game_view_box), discount_button,
+	                   FALSE, TRUE, 0);
+
+	/* Create toggle button for hand VPs */
+	hand_vp_button = gtk_check_button_new_with_label(
+	    "Display VPs for cards in hand");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hand_vp_button),
+	                             opt.vp_in_hand);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(hand_vp_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.vp_in_hand);
+
+	/* Pack button into status box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), hand_vp_button, FALSE, TRUE, 0);
 
 	/* Create frame around buttons */
 	game_view_frame = gtk_frame_new("Game view");
@@ -9454,7 +9475,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_box_pack_start(GTK_BOX(file_box), autosave_button, FALSE, TRUE, 0);
 
 	/* Create toggle button for log saving */
-	save_log_button = gtk_check_button_new_with_label("Save log at end of game");
+	save_log_button = gtk_check_button_new_with_label(
+	    "Save log at end of game");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(save_log_button),
@@ -9471,7 +9493,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                 G_CALLBACK(file_location_pressed), NULL);
 
 	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(file_box), file_location_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(file_box), file_location_button,
+	                   FALSE, TRUE, 0);
 
 	/* Create frame around buttons */
 	file_frame = gtk_frame_new("File options");
