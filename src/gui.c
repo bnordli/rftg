@@ -57,6 +57,11 @@ int verbose = 0;
 game real_game;
 
 /*
+ * Whether the current game has been tampered with in debug mode.
+ */
+static int debug_tampered;
+
+/*
  * The number of the current undo positions.
  */
 static int num_undo;
@@ -7183,31 +7188,47 @@ void update_menu_items(void)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for no undo possibility */
-	if (num_undo == 0)
+	if (num_undo == 0 || debug_tampered)
 	{
+		/* Disable undo items */
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(undo_game_item, FALSE);
 	}
 	else
 	{
+		/* Enable undo items */
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
 	}
 
 	/* Check for no redo possibility */
-	if (num_undo == max_undo)
+	if (num_undo == max_undo || debug_tampered)
 	{
+		/* Disable redo items */
 		gtk_widget_set_sensitive(redo_item, FALSE);
 		gtk_widget_set_sensitive(redo_round_item, FALSE);
 		gtk_widget_set_sensitive(redo_game_item, FALSE);
 	}
 	else
 	{
+		/* Enable redo items */
 		gtk_widget_set_sensitive(redo_item, TRUE);
 		gtk_widget_set_sensitive(redo_round_item, TRUE);
 		gtk_widget_set_sensitive(redo_game_item, TRUE);
+	}
+
+	/* Check for game tampered */
+	if (debug_tampered)
+	{
+		/* Disable save item */
+		gtk_widget_set_sensitive(save_item, FALSE);
+	}
+	else
+	{
+		/* Enable save item */
+		gtk_widget_set_sensitive(save_item, TRUE);
 	}
 }
 
@@ -7219,8 +7240,9 @@ static void auto_save(game *g, int who, char *id)
 	char tmp[1024];
 	char *full_name;
 
-	/* Check for connected to server, auto_save enabled, and not replaying game */
-	if (client_state != CS_DISCONN || !opt.auto_save || game_replaying) return;
+	/* Check for autosave disabled */
+	if (client_state != CS_DISCONN || !opt.auto_save ||
+	    game_replaying || debug_tampered) return;
 
 	/* Format file */
 	sprintf(tmp, "autosave_%s.sav", id);
@@ -7634,6 +7656,9 @@ void reset_gui(void)
 
 	/* Clear message log */
 	clear_log();
+
+	/* Reset the tampered flag */
+	debug_tampered = FALSE;
 }
 
 /*
@@ -8042,6 +8067,13 @@ static void run_game(void)
 
 		/* Auto save */
 		auto_save(&real_game, player_us, "end");
+
+		/* Check for tampered game */
+		if (debug_tampered)
+		{
+			/* Add tampered note */
+			message_add(&real_game, "(Debug game.)\n");
+		}
 
 		/* Dump log */
 		save_log();
@@ -8510,6 +8542,9 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
+	/* Check for tampered game */
+	if (debug_tampered) return;
+
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Save game", NULL,
 	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
@@ -8559,7 +8594,7 @@ static void gui_undo(GtkMenuItem *menu_item, gpointer data)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for nothing to undo */
-	if (num_undo == 0) return;
+	if (num_undo == 0 || debug_tampered) return;
 
 	/* Force game over */
 	real_game.game_over = 1;
@@ -8580,7 +8615,7 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for nothing to redo */
-	if (num_undo == max_undo) return;
+	if (num_undo == max_undo || debug_tampered) return;
 
 	/* Force game over */
 	real_game.game_over = 1;
@@ -9421,7 +9456,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		save_prefs();
 
 		/* Restart main loop if not online and log options changed */
-		if (client_state == CS_DISCONN &&
+		if (client_state == CS_DISCONN && !debug_tampered &&
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose != old_options.verbose ||
 		     opt.discard_log != old_options.discard_log))
@@ -9518,6 +9553,12 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 	card *c_ptr;
 	displayed *i_ptr;
 	int i;
+
+	/* Setting the tampered flag */
+	debug_tampered = TRUE;
+
+	/* Disable some menu items */
+	update_menu_items();
 
 	/* Get card pointer */
 	c_ptr = &real_game.deck[c];
@@ -9703,7 +9744,7 @@ static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
-	GtkWidget *list_view, *list_scroll;
+	GtkWidget *note_label, *list_view, *list_scroll;
 	GtkListStore *card_list, *player_list, *where_list;
 	GtkTreeIter list_iter;
 	GtkCellRenderer *render;
@@ -9724,6 +9765,15 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set default height */
 	gtk_window_set_default_size(GTK_WINDOW(dialog), -1, 600);
+
+	/* Create a note label */
+	note_label = gtk_label_new(
+	    "Note that moving a card for debugging purposes will\n"
+	    "disable saving, undo and redo for the rest of the game.");
+
+	/* Add note label to dialog */
+	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), note_label,
+	                   FALSE, FALSE, 0);
 
 	/* Create a card list */
 	card_list = gtk_list_store_new(4, G_TYPE_INT, G_TYPE_STRING,
@@ -9858,7 +9908,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	                               GTK_POLICY_ALWAYS);
 	
 	/* Add scrollable list view to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), list_scroll);
+	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), list_scroll,
+	                   TRUE, TRUE, 0);
 
 	/* Show everything */
 	gtk_widget_show_all(dialog);
