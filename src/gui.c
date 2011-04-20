@@ -57,9 +57,18 @@ int verbose = 0;
 game real_game;
 
 /*
+ * Flags for game tampered state.
+ */
+#define TAMPERED_LOAD 0x1
+#define TAMPERED_SEED 0x2
+#define TAMPERED_UNDO 0x4
+#define TAMPERED_LOOK 0x8
+#define TAMPERED_MOVE 0x10
+
+/*
  * Whether the current game has been tampered with in debug mode.
  */
-static int debug_tampered;
+static int game_tampered;
 
 /*
  * The number of the current undo positions.
@@ -3487,7 +3496,7 @@ void redraw_status(void)
 {
 	GtkWidget *draw_image, *discard_image, *pool_image;
 	GdkPixbuf *buf;
-	int i;
+	int i, color;
 	struct extra_info *ei;
 	const int size = 48;
 
@@ -3504,6 +3513,33 @@ void redraw_status(void)
 	/* Build deck image */
 	buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
 	              display_deck, real_game.deck_size);
+
+	/* Add note if game is tampered */
+	if (game_tampered)
+	{
+		/* Check for card moved in debug */
+		if (game_tampered & TAMPERED_MOVE) color = 0x00ff0000;
+
+		/* Check for looked at debug dialog */
+		else if (game_tampered & TAMPERED_LOOK) color = 0x00ffcc00;
+
+		/* Check for undo used */
+		else if (game_tampered & TAMPERED_UNDO) color = 0x00dddd00;
+
+		/* Check for seed used */
+		else if (game_tampered & TAMPERED_SEED) color = 0x00666666;
+
+		/* Check for loaded game */
+		else if (game_tampered & TAMPERED_LOAD)	color = 0x00ffffff;
+
+		/* Add a small square at the bottom left */
+		gdk_pixbuf_composite_color(buf, buf,
+		                           0, size - 3, 3, 3,
+		                           0, 0, 1, 1,
+		                           GDK_INTERP_BILINEAR, 255,
+		                           0, 0, 16,
+		                           color, 0);
+	}
 
 	/* Make image widget */
 	draw_image = gtk_image_new_from_pixbuf(buf);
@@ -7188,7 +7224,7 @@ void update_menu_items(void)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for no undo possibility */
-	if (num_undo == 0 || debug_tampered)
+	if (num_undo == 0 || (game_tampered & TAMPERED_MOVE))
 	{
 		/* Disable undo items */
 		gtk_widget_set_sensitive(undo_item, FALSE);
@@ -7204,7 +7240,7 @@ void update_menu_items(void)
 	}
 
 	/* Check for no redo possibility */
-	if (num_undo == max_undo || debug_tampered)
+	if (num_undo == max_undo || (game_tampered & TAMPERED_MOVE))
 	{
 		/* Disable redo items */
 		gtk_widget_set_sensitive(redo_item, FALSE);
@@ -7220,7 +7256,7 @@ void update_menu_items(void)
 	}
 
 	/* Check for game tampered */
-	if (debug_tampered)
+	if (game_tampered & TAMPERED_MOVE)
 	{
 		/* Disable save item */
 		gtk_widget_set_sensitive(save_item, FALSE);
@@ -7242,7 +7278,7 @@ static void auto_save(game *g, int who, char *id)
 
 	/* Check for autosave disabled */
 	if (client_state != CS_DISCONN || !opt.auto_save ||
-	    game_replaying || debug_tampered) return;
+	    game_replaying || (game_tampered & TAMPERED_MOVE)) return;
 
 	/* Format file */
 	sprintf(tmp, "autosave_%s.sav", id);
@@ -7656,9 +7692,6 @@ void reset_gui(void)
 
 	/* Clear message log */
 	clear_log();
-
-	/* Reset the tampered flag */
-	debug_tampered = FALSE;
 }
 
 /*
@@ -7757,6 +7790,12 @@ static void run_game(void)
 		{
 			/* Reset our position and GUI elements */
 			reset_gui();
+
+			/* Reset tampered state */
+			game_tampered = opt.customize_seed ? TAMPERED_SEED : 0;
+
+			/* Do not force seed for next game */
+			opt.customize_seed = FALSE;
 
 			/* Reset undo positions */
 			num_undo = 0;
@@ -7960,6 +7999,9 @@ static void run_game(void)
 			/* Reset our position and GUI elements */
 			reset_gui();
 
+			/* Set tampered loaded flag */
+			game_tampered = TAMPERED_LOAD;
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7978,6 +8020,9 @@ static void run_game(void)
 		{
 			/* Reset our position and GUI elements */
 			reset_gui();
+
+			/* Set tampered loaded flag */
+			game_tampered = TAMPERED_LOAD;
 
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
@@ -8069,7 +8114,7 @@ static void run_game(void)
 		auto_save(&real_game, player_us, "end");
 
 		/* Check for tampered game */
-		if (debug_tampered)
+		if (game_tampered & TAMPERED_MOVE)
 		{
 			/* Add tampered note */
 			message_add(&real_game, "(Debug game.)\n");
@@ -8543,7 +8588,7 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for tampered game */
-	if (debug_tampered) return;
+	if (game_tampered & TAMPERED_MOVE) return;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Save game", NULL,
@@ -8594,7 +8639,13 @@ static void gui_undo(GtkMenuItem *menu_item, gpointer data)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for nothing to undo */
-	if (num_undo == 0 || debug_tampered) return;
+	if (num_undo == 0) return;
+
+	/* Check for tampered game */
+	if (game_tampered & TAMPERED_MOVE) return;
+
+	/* Set the tampered undo flag */
+	game_tampered |= TAMPERED_UNDO;
 
 	/* Force game over */
 	real_game.game_over = 1;
@@ -8615,7 +8666,13 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for nothing to redo */
-	if (num_undo == max_undo || debug_tampered) return;
+	if (num_undo == max_undo) return;
+
+	/* Check for tampered game */
+	if (game_tampered & TAMPERED_MOVE) return;
+
+	/* Set the tampered undo flag */
+	game_tampered |= TAMPERED_UNDO;
 
 	/* Force game over */
 	real_game.game_over = 1;
@@ -9456,7 +9513,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		save_prefs();
 
 		/* Restart main loop if not online and log options changed */
-		if (client_state == CS_DISCONN && !debug_tampered &&
+		if (client_state == CS_DISCONN &&
+			!(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose != old_options.verbose ||
 		     opt.discard_log != old_options.discard_log))
@@ -9554,8 +9612,8 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 	displayed *i_ptr;
 	int i;
 
-	/* Setting the tampered flag */
-	debug_tampered = TRUE;
+	/* Set the tampered move flag */
+	game_tampered |= TAMPERED_MOVE;
 
 	/* Disable some menu items */
 	update_menu_items();
@@ -9753,6 +9811,9 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
+
+	/* Set the tampered look flag */
+	game_tampered |= TAMPERED_LOOK;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
