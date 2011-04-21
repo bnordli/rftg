@@ -9666,7 +9666,7 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 	}
 
 	/* Check for moving from active area */
-	if (old_where == WHERE_ACTIVE)
+	if (old_owner != -1 && old_where == WHERE_ACTIVE)
 	{
 		/* Loop over table area */
 		for (i = 0; i < table_size[old_owner]; i++)
