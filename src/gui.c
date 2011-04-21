@@ -9724,19 +9724,35 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 }
 
 /*
- * Called when the player cell of the debug window has been edited.
+ * The card list store of the debug dialog.
  */
-static void player_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
-                        gpointer data)
+static GtkListStore *card_list;
+
+/*
+ * The path for the last changed cell in the debug dialog.
+ */
+static GtkTreePath *previous_path;
+
+/*
+ * Called when the player cell of the debug window has been changed.
+ */
+static void player_changed(GtkCellRendererCombo *cell, char *path_str,
+                           GtkTreeIter *new_iter, gpointer data)
 {
-	GtkTreeModel *model = GTK_TREE_MODEL(data);
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
 	GtkTreePath *path;
 	GtkTreeIter iter;
 	card *c_ptr;
-	int c, i, old_owner;
+	int c, old_owner, new_owner;
+
+	/* Retrieve the new owner */
+	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_owner, -1);
 
 	/* Create path from path string */
 	path = gtk_tree_path_new_from_string(path_str);
+
+	/* Save path */
+	previous_path = path;
 
 	/* Get iterator for path */
 	gtk_tree_model_get_iter(model, &iter, path);
@@ -9750,45 +9766,33 @@ static void player_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	/* Remember current owner */
 	old_owner = c_ptr->owner;
 
-	/* Check for setting to "None" */
-	if (!strcmp(text, "None"))
-	{
-		/* Clear owner */
-		c_ptr->owner = -1;
-	}
-
-	/* Loop over players */
-	for (i = 0; i < real_game.num_players; i++)
-	{
-		/* Check for matching name */
-		if (!strcmp(text, real_game.p[i].name))
-		{
-			/* Move card */
-			move_card(&real_game, c, i, c_ptr->where);
-		}
-	}
-
-	/* Store new player number in model */
-	gtk_list_store_set(GTK_LIST_STORE(model), &iter, 2, c_ptr->owner, -1);
+	/* Move card */
+	move_card(&real_game, c, new_owner, c_ptr->where);
 
 	/* Notice card movement */
 	debug_card_moved(c, old_owner, c_ptr->where);
 }
 
 /*
- * Called when the location cell of the debug window has been edited.
+ * Called when the location cell of the debug window has been changed.
  */
-static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
-                       gpointer data)
+static void where_changed(GtkCellRendererCombo *cell, char *path_str,
+                          GtkTreeIter *new_iter, gpointer data)
 {
-	GtkTreeModel *model = GTK_TREE_MODEL(data);
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
 	GtkTreePath *path;
 	GtkTreeIter iter;
 	card *c_ptr;
 	int c, old_where, new_where;
 
+	/* Retrieve the new location */
+	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_where, -1);
+
 	/* Create path from path string */
 	path = gtk_tree_path_new_from_string(path_str);
+
+	/* Save path */
+	previous_path = path;
 
 	/* Get iterator for path */
 	gtk_tree_model_get_iter(model, &iter, path);
@@ -9802,21 +9806,71 @@ static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	/* Remember current location */
 	old_where = c_ptr->where;
 
-	/* Set location based on string */
-	if (!strcmp(text, "Deck")) new_where = WHERE_DECK;
-	else if (!strcmp(text, "Discard")) new_where = WHERE_DISCARD;
-	else if (!strcmp(text, "Hand")) new_where = WHERE_HAND;
-	else if (!strcmp(text, "Active")) new_where = WHERE_ACTIVE;
-	else if (!strcmp(text, "Good")) new_where = WHERE_GOOD;
-
 	/* Move card */
 	move_card(&real_game, c, c_ptr->owner, new_where);
 
-	/* Store new location in model */
-	gtk_list_store_set(GTK_LIST_STORE(model), &iter, 3, c_ptr->where, -1);
-
 	/* Notice card movement */
 	debug_card_moved(c, c_ptr->owner, old_where);
+}
+
+/*
+ * Called when a cell in the debug window has been edited.
+ */
+static void debug_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
+                       gpointer data)
+{
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
+	GtkTreePath *path;
+	GtkTreeIter iter;
+	card *c_ptr;
+	int c, column = GPOINTER_TO_INT(data), value;
+
+	/* Create path from path string */
+	path = gtk_tree_path_new_from_string(path_str);
+
+	/* Get iterator for path */
+	gtk_tree_model_get_iter(model, &iter, path);
+
+	/* Get card index for this row */
+	gtk_tree_model_get(model, &iter, 0, &c, -1);
+
+	/* Get card pointer */
+	c_ptr = &real_game.deck[c];
+
+	/* Find new value */
+	value = column == 2 ? c_ptr->owner : c_ptr->where;
+
+	/* Store new value in model */
+	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, value, -1);
+}
+
+/*
+ * Called when editing a cell in the debug window has been canceled.
+ */
+static void debug_canceled(GtkCellRendererCombo *cell, gpointer data)
+{
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
+	GtkTreeIter iter;
+	card *c_ptr;
+	int c, column = GPOINTER_TO_INT(data), value;
+
+	/* Safety check */
+	if (!previous_path) return;
+
+	/* Get iterator for path */
+	gtk_tree_model_get_iter(model, &iter, previous_path);
+
+	/* Get card index for this row */
+	gtk_tree_model_get(model, &iter, 0, &c, -1);
+
+	/* Get card pointer */
+	c_ptr = &real_game.deck[c];
+
+	/* Find new value */
+	value = column == 2 ? c_ptr->owner : c_ptr->where;
+
+	/* Store new value in model (i.e. ignore the cancel event) */
+	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, value, -1);
 }
 
 /*
@@ -9826,7 +9880,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *note_label, *list_view, *list_scroll;
-	GtkListStore *card_list, *player_list, *where_list;
+	GtkListStore *player_list, *where_list;
 	GtkTreeViewColumn *tree_view_column;
 	GtkTreeIter list_iter;
 	GtkCellRenderer *render;
@@ -9960,8 +10014,16 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	g_object_set(render, "text-column", 1, "model", player_list,
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
+	/* Connect "changed" signal */
+	g_signal_connect(render, "changed", G_CALLBACK(player_changed), player_list);
+
 	/* Connect "edited" signal */
-	g_signal_connect(render, "edited", G_CALLBACK(player_edit), card_list);
+	g_signal_connect(render, "edited", G_CALLBACK(debug_edit),
+	                 GINT_TO_POINTER(2));
+
+	/* Connect "editing-canceled" signal */
+	g_signal_connect(render, "editing-canceled", G_CALLBACK(debug_canceled),
+	                 GINT_TO_POINTER(2));
 
 	/* Create list view column */
 	gtk_tree_view_insert_column_with_data_func(GTK_TREE_VIEW(list_view),
@@ -9984,8 +10046,16 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	g_object_set(render, "text-column", 1, "model", where_list,
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
+	/* Connect "changed" signal */
+	g_signal_connect(render, "changed", G_CALLBACK(where_changed), where_list);
+
 	/* Connect "edited" signal */
-	g_signal_connect(render, "edited", G_CALLBACK(where_edit), card_list);
+	g_signal_connect(render, "edited", G_CALLBACK(debug_edit),
+	                 GINT_TO_POINTER(3));
+
+	/* Connect "editing-canceled" signal */
+	g_signal_connect(render, "editing-canceled", G_CALLBACK(debug_canceled),
+	                 GINT_TO_POINTER(3));
 
 	/* Create list view column */
 	gtk_tree_view_insert_column_with_data_func(GTK_TREE_VIEW(list_view),
