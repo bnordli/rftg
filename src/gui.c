@@ -9827,6 +9827,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *dialog;
 	GtkWidget *note_label, *list_view, *list_scroll;
 	GtkListStore *card_list, *player_list, *where_list;
+	GtkTreeViewColumn *tree_view_column;
 	GtkTreeIter list_iter;
 	GtkCellRenderer *render;
 	card *c_ptr;
@@ -9944,6 +9945,12 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	                                            -1, "Card Name", render,
 	                                            "text", 1, NULL);
 
+	/* Retrieve the new column */
+	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(list_view), 0);
+
+	/* Set the column to sort on */
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, 1);
+
 	/*** Second column (card owner) ***/
 
 	/* Create combo box renderer */
@@ -9962,6 +9969,12 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	                                           render_player, NULL,
 	                                           NULL);
 
+	/* Retrieve the new column */
+	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(list_view), 1);
+
+	/* Set the column to sort on */
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, 2);
+
 	/*** Third column (card location) ***/
 
 	/* Create combo box renderer */
@@ -9979,6 +9992,12 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	                                           -1, "Location", render,
 	                                           render_where, NULL,
 	                                           NULL);
+
+	/* Retrieve the new column */
+	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(list_view), 2);
+
+	/* Set the column to sort on */
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, 3);
 
 	/* Create scrolled window for list view */
 	list_scroll = gtk_scrolled_window_new(NULL, NULL);
