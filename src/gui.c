@@ -9854,7 +9854,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Create a note label */
 	note_label = gtk_label_new(
 	    "Moving a card for debugging purposes will disable\n"
-	    "disable saving, undo and redo for the rest of the game.");
+	    "saving, undo and redo for the rest of this game.");
 
 	/* Add note label to dialog */
 	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), note_label,
