@@ -548,17 +548,9 @@ void save_log(void)
 	/* Generate file name */
 	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
 
-	/* Check if data folder is set */
-	if (!opt.data_folder)
-	{
-		/* Build autosave filename */
-		full_filename = g_build_filename(RFTGDIR, filename, NULL);
-	}
-	else
-	{
-		/* Build autosave filename */
-		full_filename = g_build_filename(opt.data_folder, filename, NULL);
-	}
+	/* Build full file name */
+	full_filename = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                                 filename, NULL);
 
 	/* Open file for writing */
 	fff = fopen(full_filename, "w");
@@ -7269,31 +7261,19 @@ void update_menu_items(void)
 }
 
 /*
- * Auto save the game.
+ * Auto save during the game.
  */
-static void auto_save(game *g, int who, char *id)
+static void auto_save_choice(game *g, int who)
 {
-	char tmp[1024];
 	char *full_name;
 
 	/* Check for autosave disabled */
 	if (client_state != CS_DISCONN || !opt.auto_save ||
-	    game_replaying || (game_tampered & TAMPERED_MOVE)) return;
+	    (game_tampered & TAMPERED_MOVE)) return;
 
-	/* Format file */
-	sprintf(tmp, "autosave_%s.sav", id);
-
-	/* Check if data folder is set */
-	if (!opt.data_folder)
-	{
-		/* Build autosave filename */
-		full_name = g_build_filename(RFTGDIR, tmp, NULL);
-	}
-	else
-	{
-		/* Build autosave filename */
-		full_name = g_build_filename(opt.data_folder, tmp, NULL);
-	}
+	/* Build full file name */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave.rftg", NULL);
 
 	/* Save to file */
 	if (save_game(g, full_name, who) < 0)
@@ -7303,6 +7283,87 @@ static void auto_save(game *g, int who, char *id)
 
 	/* Destroy filename */
 	g_free(full_name);
+}
+
+/*
+ * Auto save at the end of the game.
+ */
+static void auto_save_end(game *g, int who)
+{
+	char *full_name;
+
+	/* Check for autosave disabled */
+	if (client_state != CS_DISCONN || !opt.auto_save ||
+	    (game_tampered & TAMPERED_MOVE)) return;
+
+	/* Build file name of choice save file */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave.rftg", NULL);
+
+	/* Delete the choice save file */
+	unlink(full_name);
+
+	/* Destroy filename */
+	g_free(full_name);
+
+	/* Build file name of end auto save file */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave_end.rftg", NULL);
+
+	/* Save to file */
+	if (save_game(g, full_name, who) < 0)
+	{
+		/* Error */
+	}
+
+	/* Destroy filename */
+	g_free(full_name);
+}
+
+/*
+ * Load an auto save file.
+ */
+static int load_auto_save(game *g)
+{
+	char *full_name;
+	int i;
+
+	/* Build full file name */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave.rftg", NULL);
+
+	/* Try to load savefile into game */
+	if (load_game(g, full_name) < 0)
+	{
+		/* Destroy filename */
+		g_free(full_name);
+
+		/* Give up */
+		return FALSE;
+	}
+
+	/* Destroy filename */
+	g_free(full_name);
+
+	/* Loop over players */
+	for (i = 0; i < MAX_PLAYER; i++)
+	{
+		/* Set choice log pointer */
+		g->p[i].choice_log = orig_log[i];
+	}
+
+	/* Loop over players */
+	for (i = 0; i < g->num_players; ++i)
+	{
+		/* Remember log size */
+		orig_log_size[i] = g->p[i].choice_size;
+	}
+
+	/* Force current game over */
+	g->game_over = 1;
+
+	/* Game successfully loaded */
+	return TRUE;
 }
 
 /*
@@ -7316,7 +7377,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	int *l_ptr;
 
 	/* Auto save */
-	auto_save(g, who, "choice");
+	auto_save_choice(g, who);
 
 	/* Update menu items */
 	update_menu_items();
@@ -7327,13 +7388,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 		/* Action(s) to play */
 		case CHOICE_ACTION:
 
-			/* Do not auto save for second choice in advanced game */
-			if (!g->advanced || arg1 != 2)
-			{
-				/* Auto save */
-				auto_save(g, who, "round");
-			}
-
 			/* Choose actions */
 			gui_choose_action(g, who, list, arg1);
 
@@ -7343,9 +7397,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 		/* Start world */
 		case CHOICE_START:
-
-			/* Auto save */
-			auto_save(g, who, "start");
 
 			/* Choose start world */
 			gui_choose_start(g, who, list, nl, special, ns);
@@ -7816,6 +7867,25 @@ static void run_game(void)
 			init_game(&real_game);
 		}
 
+		/* Check for restoring game */
+		else if (restart_loop == RESTART_RESTORE)
+		{
+			/* Check for auto save enabled and auto save present */
+			if (opt.auto_save && load_auto_save(&real_game))
+			{
+				/* Restart loaded game */
+				restart_loop = RESTART_LOAD;
+			}
+			else
+			{
+				/* Just start a new game */
+				restart_loop = RESTART_NEW;
+			}
+
+			/* Restart main loop */
+			continue;
+		}
+
 		/* Holding pattern for multiplayer */
 		else if (restart_loop == RESTART_NONE)
 		{
@@ -7826,8 +7896,8 @@ static void run_game(void)
 				gtk_main();
 			}
 
-			/* Start a new game */
-			restart_loop = RESTART_NEW;
+			/* Restore single-player game */
+			restart_loop = RESTART_RESTORE;
 			continue;
 		}
 
@@ -8111,7 +8181,7 @@ static void run_game(void)
 		gtk_widget_set_sensitive(action_button, FALSE);
 
 		/* Auto save */
-		auto_save(&real_game, player_us, "end");
+		auto_save_end(&real_game, player_us);
 
 		/* Check for tampered game */
 		if (game_tampered & TAMPERED_MOVE)
@@ -9465,7 +9535,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	file_box = gtk_vbox_new(FALSE, 0);
 
 	/* Create toggle button for autosaving */
-	autosave_button = gtk_check_button_new_with_label("Autosave");
+	autosave_button = gtk_check_button_new_with_label("Automatically save and restore");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(autosave_button),
@@ -10539,6 +10609,9 @@ int main(int argc, char *argv[])
 	/* Read preference file */
 	read_prefs();
 
+	/* By default restore single-player game */
+	restart_loop = RESTART_RESTORE;
+
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
 	{
@@ -10547,6 +10620,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set number of players */
 			opt.num_players = atoi(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for expansion level */
@@ -10554,6 +10630,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set expansion level */
 			opt.expanded = atoi(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for player name */
@@ -10561,6 +10640,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set player name */
 			opt.player_name = argv[++i];
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for advanced game */
@@ -10568,6 +10650,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set advanced */
 			opt.advanced = 1;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for random seed */
@@ -10578,6 +10663,9 @@ int main(int argc, char *argv[])
 
 			/* Set start seed */
 			opt.seed = (unsigned int) atof(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for goals on */
@@ -10585,6 +10673,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_goal = FALSE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for goals off */
@@ -10592,6 +10683,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_goal = TRUE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for takeovers on */
@@ -10599,6 +10693,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_takeover = FALSE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for takeovers off */
@@ -10606,6 +10703,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_takeover = TRUE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for saved game */
@@ -11472,12 +11572,7 @@ int main(int argc, char *argv[])
 	/* Modify GUI for current setup */
 	modify_gui();
 
-	if (!fname)
-	{
-		/* Start new game */
-		restart_loop = RESTART_NEW;
-	}
-	else
+	if (fname)
 	{
 		/* Loop over players */
 		for (i = 0; i < MAX_PLAYER; i++)
