@@ -3524,9 +3524,9 @@ void redraw_status(void)
 		/* Check for loaded game */
 		else if (game_tampered & TAMPERED_LOAD)	color = 0x00ffffff;
 
-		/* Add a small square at the bottom left */
+		/* Add a tiny square at the bottom left */
 		gdk_pixbuf_composite_color(buf, buf,
-		                           0, size - 3, 3, 3,
+		                           0, size - 2, 2, 2,
 		                           0, 0, 1, 1,
 		                           GDK_INTERP_BILINEAR, 255,
 		                           0, 0, 16,
