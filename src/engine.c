@@ -2163,7 +2163,8 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 		}
 
 		/* Format message */
-		sprintf(msg, "%s pays %d.\n", p_ptr->name, num);
+		sprintf(msg, "%s pays %d for %s.\n", p_ptr->name, num,
+		        c_ptr->d_ptr->name);
 
 		/* Send message */
 		message_add(g, msg);
@@ -2241,6 +2242,7 @@ static void pay_devel(game *g, int who, int cost)
 	player *p_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char msg[1024];
 	int list[MAX_DECK], special[MAX_DECK], g_list[MAX_DECK];
 	int i, n = 0, num_special = 0, num_goods = 0;
 
@@ -2289,7 +2291,21 @@ static void pay_devel(game *g, int who, int cost)
 	}
 
 	/* Do not ask for payment if not needed or allowed */
-	if (cost == 0 && !num_special) return;
+	if (cost == 0 && !num_special)
+	{
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s pays 0 for %s.\n",
+			        p_ptr->name, g->deck[p_ptr->placing].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
+		}
+
+		return;
+	}
 
 	/* Ask player to decide how to pay */
 	ask_player(g, who, CHOICE_PAYMENT, list, &n, special, &num_special,
@@ -2351,17 +2367,6 @@ void develop_action(game *g, int who, int placing)
 
 	/* Check for aborted game */
 	if (g->game_over) return;
-
-	/* Message */
-	if (!g->simulation)
-	{
-		/* Format message */
-		sprintf(msg, "%s develops %s.\n", p_ptr->name,
-		        c_ptr->d_ptr->name);
-
-		/* Send message */
-		message_add(g, msg);
-	}
 
 	/* Loop over powers */
 	for (i = 0; i < n; i++)
@@ -2479,6 +2484,9 @@ void phase_develop(game *g)
 		/* Check for unfinished "explore" power */
 		if (explore)
 		{
+			/* Ask player to discard one per explore */
+			player_discard(g, i, explore);
+
 			/* Message */
 			if (!g->simulation)
 			{
@@ -2489,9 +2497,6 @@ void phase_develop(game *g)
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_VERBOSE);
 			}
-
-			/* Ask player to discard one per explore */
-			player_discard(g, i, explore);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
@@ -2674,6 +2679,17 @@ void phase_develop(game *g)
 			}
 
 			continue;
+		}
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s develops %s.\n", p_ptr->name,
+			        g->deck[p_ptr->placing].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
 		}
 
 		/* Place card */
@@ -3450,7 +3466,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
+			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY) ||
 			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
 			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
 			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
@@ -3599,6 +3615,32 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		}
 	}
 
+	/* Loop over cards chosen as payment */
+	for (i = 0; i < num; i++)
+	{
+		/* Check for fake card passed in as payment */
+		if (list[i] < 0)
+		{
+			/* Add to count */
+			p_ptr->fake_discards++;
+			continue;
+		}
+
+		/* Private message */
+		if (!g->simulation && g->p[who].control->private_message)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n", p_ptr->name,
+			        g->deck[list[i]].d_ptr->name);
+
+			/* Send message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		}
+
+		/* Discard */
+		move_card(g, list[i], -1, WHERE_DISCARD);
+	}
+
 	/* Message */
 	if (!g->simulation)
 	{
@@ -3643,32 +3685,6 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 		/* Send message */
 		if (strlen(msg)) message_add(g, msg);
-	}
-
-	/* Loop over cards chosen as payment */
-	for (i = 0; i < num; i++)
-	{
-		/* Check for fake card passed in as payment */
-		if (list[i] < 0)
-		{
-			/* Add to count */
-			p_ptr->fake_discards++;
-			continue;
-		}
-
-		/* Private message */
-		if (!g->simulation && g->p[who].control->private_message)
-		{
-			/* Format message */
-			sprintf(msg, "%s discards %s.\n", p_ptr->name,
-			        g->deck[list[i]].d_ptr->name);
-
-			/* Send message */
-			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
-		}
-
-		/* Discard */
-		move_card(g, list[i], -1, WHERE_DISCARD);
 	}
 
 	/* Loop over settle powers */
@@ -4563,6 +4579,9 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 	/* Check for need to discard */
 	if (explore)
 	{
+		/* Have player discard */
+		player_discard(g, who, explore);
+
 		/* Message */
 		if (!g->simulation)
 		{
@@ -4573,9 +4592,6 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 			/* Send message */
 			message_add_formatted(g, msg, FORMAT_VERBOSE);
 		}
-
-		/* Have player discard */
-		player_discard(g, who, explore);
 	}
 }
 
@@ -5762,6 +5778,17 @@ void phase_settle(game *g)
 			}
 
 			continue;
+		}
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s settles %s.\n", p_ptr->name,
+			        g->deck[p_ptr->placing].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
 		}
 
 		/* Place card */
