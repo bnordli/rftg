@@ -9182,7 +9182,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_widget_set_sensitive(seed_entry, FALSE);
 
 	/* Connect the seed entry's activate signal to the accept response on the dialog */
-	g_signal_connect(G_OBJECT(name_entry), "activate",
+	g_signal_connect(G_OBJECT(seed_entry), "activate",
 	                 G_CALLBACK(enter_callback), (gpointer) dialog);
 
 	/* Pack seed entry into seed value box */
