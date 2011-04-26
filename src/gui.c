@@ -2519,11 +2519,13 @@ static char *get_discount_tooltip(game *g, int who)
 	card *c_ptr;
 	power *o_ptr;
 	int i, j;
-	int base, blue, brown, green, yellow, zero;
+	int base, zero, blue, brown, green, yellow, pay_discount;
 	int non_alien_mil_0, non_alien_mil_1, rebel_mil, chromo_mil, alien_mil;
 
 	/* Start discounts at 0 */
-	base = zero = blue = brown = green = yellow = 0;
+	base = zero = blue = brown = green = yellow = pay_discount = 0;
+
+	/* Start flags at FALSE */
 	non_alien_mil_0 = non_alien_mil_1 = FALSE;
 	rebel_mil = chromo_mil = alien_mil = FALSE;
 
@@ -2599,6 +2601,10 @@ static char *get_discount_tooltip(game *g, int who)
 				if (o_ptr->code & P3_ALIEN)
 					alien_mil = TRUE;
 			}
+
+			/* Check for pay-for-military discount */
+			if (o_ptr->code & P3_PAY_DISCOUNT)
+				pay_discount += o_ptr->value;
 		}
 	}
 
@@ -2647,41 +2653,70 @@ static char *get_discount_tooltip(game *g, int who)
 	}
 
 	/* Add pay for non-alien military with discount */
-	if (non_alien_mil_1)
+	if (non_alien_mil_1 || (non_alien_mil_0 && pay_discount))
 	{
 		/* Create text */
-		strcat(msg, "\nAdditional discount when paying\n"
-		       "  for non-Alien military worlds: -1");
+		sprintf(text, "\nAdditional discount when paying\n"
+		        "  for non-Alien military worlds: -%d",
+		        (non_alien_mil_1 ? 1 : 0) + pay_discount);
+		strcat(msg, text);
 	}
 
 	/* Add pay for rebel military with discount */
 	if (rebel_mil)
 	{
 		/* Create text */
-		strcat(msg, "\nAdditional discount when paying\n"
-		       "  for Rebel military worlds: -2");
+		sprintf(text, "\nAdditional discount when paying\n"
+		        "  for Rebel military worlds: -%d", 2 + pay_discount);
+		strcat(msg, text);
 	}
 
-	/* Add pay for non-alien military without discount */
-	if (non_alien_mil_0 && !non_alien_mil_1)
+	/* Check for discount when paying for military */
+	if (pay_discount)
 	{
-		/* Create text */
-		strcat(msg, "\nMay pay to settle a non-Alien military world");
+		/* Add pay for chromo military with discount */
+		if (chromo_mil)
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional discount when paying\n"
+			        "  for worlds with a Chromosome symbol: -%d", pay_discount);
+			strcat(msg, text);
+		}
+
+		/* Add pay for alien military with discount */
+		if (alien_mil)
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional discount when paying\n"
+			        "  for Alien military worlds: -%d", pay_discount);
+			strcat(msg, text);
+		}
 	}
 
-	/* Add pay for chromo military without discount */
-	if (chromo_mil)
+	/* No pay-for-military discount */
+	else
 	{
-		/* Create text */
-		strcat(msg, "\nMay pay to settle a military world\n"
-		       "  with a Chromosome symbol");
-	}
+		/* Add pay for non-alien military without discount */
+		if (non_alien_mil_0 && !non_alien_mil_1)
+		{
+			/* Create text */
+			strcat(msg, "\nMay pay to settle a non-Alien military world");
+		}
 
-	/* Add pay for alien military without discount */
-	if (alien_mil)
-	{
-		/* Create text */
-		strcat(msg, "\nMay pay to settle an Alien military world");
+		/* Add pay for chromo military without discount */
+		if (chromo_mil)
+		{
+			/* Create text */
+			strcat(msg, "\nMay pay to settle a military world\n"
+				   "  with a Chromosome symbol");
+		}
+
+		/* Add pay for alien military without discount */
+		if (alien_mil)
+		{
+			/* Create text */
+			strcat(msg, "\nMay pay to settle an Alien military world");
+		}
 	}
 
 	/* Add discard to zero */
