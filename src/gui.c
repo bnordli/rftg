@@ -6414,8 +6414,8 @@ void gui_choose_consume_hand(game *g, int who, int c_idx, int o_idx, int list[],
 	else
 	{
 		/* Create prompt */
-		sprintf(buf, "Choose up to %d cards to consume on %s",
-		        o_ptr->times, card_name);
+		sprintf(buf, "Choose up to %d card%s to consume on %s",
+		        o_ptr->times, PLURAL(o_ptr->times), card_name);
 	}
 
 	/* Set prompt */
