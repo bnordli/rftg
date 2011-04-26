@@ -2786,7 +2786,7 @@ static char *get_military_tooltip(game *g, int who)
 				defense +=
 				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 
-				/* Check if card name alreay set */
+				/* Check if card name already set */
 				if (strlen(card_name))
 				{
 					/* YYY Use name of both cards */
