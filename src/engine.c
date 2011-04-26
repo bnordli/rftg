@@ -2329,7 +2329,6 @@ void develop_action(game *g, int who, int placing)
 	power *o_ptr;
 	char* name;
 	int i, n, cost;
-	char msg[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -8589,7 +8588,7 @@ void phase_discard(game *g)
 {
 	player *p_ptr;
 	card *c_ptr;
-	int taken = 0, discarding[MAX_PLAYER];
+	int taken = 0, message = 0, discarding[MAX_PLAYER];
 	int i, j, n, list[MAX_DECK], target;
 	char msg[1024];
 
@@ -8631,14 +8630,13 @@ void phase_discard(game *g)
 		p_ptr->end_discard = n - target;
 
 		/* Message */
-		if (!g->simulation)
+		if (!g->simulation && !message)
 		{
-			/* Format message */
-			sprintf(msg, "%s discards %d card%s at end of turn.\n",
-			        p_ptr->name, n - target, PLURAL(n - target));
+			/* Send formatted message */
+			message_add_formatted(g, "--- End of round ---\n", FORMAT_PHASE);
 
-			/* Send message */
-			message_add(g, msg);
+			/* Remember message is sent */
+			message = 1;
 		}
 
 		/* Check for opponent's turn in simulated game */
@@ -8676,6 +8674,17 @@ void phase_discard(game *g)
 		
 		/* Make discards */
 		discard_callback(g, i, list, n);
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %d card%s at end of round.\n",
+			        g->p[i].name, n, PLURAL(n));
+
+			/* Send message */
+			message_add(g, msg);
+		}
 	}
 
 	/* Loop over players */
@@ -10034,7 +10043,6 @@ char *actname[MAX_ACTION * 2 - 1] =
 /*
  * Plain action names.
  */
-
 static char *plain_actname[MAX_ACTION] =
 {
 	"Search",
