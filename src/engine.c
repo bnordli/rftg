@@ -7372,7 +7372,8 @@ void phase_consume(game *g)
 			if (p_ptr->phase_vp)
 			{
 				/* Create VP string */
-				sprintf(text, "%d VP ", p_ptr->phase_vp);
+				sprintf(text, "%d VP%s ", p_ptr->phase_vp,
+				        PLURAL(p_ptr->phase_vp));
 
 				/* Add text to message */
 				strcat(msg, text);
