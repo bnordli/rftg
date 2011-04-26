@@ -549,8 +549,8 @@ void save_log(void)
 	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
 
 	/* Build full file name */
-	full_filename = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
-	                                 filename, NULL);
+	full_filename = g_build_filename(
+	    opt.data_folder ? opt.data_folder : RFTGDIR, filename, NULL);
 
 	/* Open file for writing */
 	fff = fopen(full_filename, "w");
@@ -694,7 +694,8 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 	                                      &buffer_x, &buffer_y);
 
 	/* Get start of line */
-	gtk_text_view_get_line_at_y(GTK_TEXT_VIEW(message_view), &iter_start, buffer_y, NULL);
+	gtk_text_view_get_line_at_y(GTK_TEXT_VIEW(message_view),
+	                            &iter_start, buffer_y, NULL);
 
 	/* Get end of line */
 	iter_end = iter_start;
@@ -2896,7 +2897,8 @@ static char *get_military_tooltip(game *g, int who)
 	if (attack_imperium)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional attack against IMPERIUM: %+d", attack_imperium);
+		sprintf(text, "\nAdditional attack against IMPERIUM: %d",
+		        attack_imperium);
 		strcat(msg, text);
 	}
 
@@ -3642,7 +3644,8 @@ void redraw_status(void)
 	ei = &game_extra_info[0];
 
 	/* Create text for deck */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>", display_deck);
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>",
+	        display_deck);
 
 	/* Set font */
 	ei->fontstr = "Sans 12";
@@ -3671,7 +3674,8 @@ void redraw_status(void)
 	ei = &game_extra_info[1];
 
 	/* Create text for discard */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>", display_discard);
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>",
+	        display_discard);
 
 	/* Set font */
 	ei->fontstr = "Sans 12";
@@ -3690,8 +3694,9 @@ void redraw_status(void)
 	gtk_box_pack_start(GTK_BOX(game_status), discard_image, TRUE, TRUE, 0);
 
 	/* Build VP image */
-	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY], size, display_pool,
-	              real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
+	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
+	              size, display_pool, real_game.num_players * 12 +
+				    (real_game.expanded == 3 ? 5 : 0));
 
 	/* Make VP widget */
 	pool_image = gtk_image_new_from_pixbuf(buf);
@@ -3700,7 +3705,8 @@ void redraw_status(void)
 	ei = &game_extra_info[2];
 
 	/* Create text for VPs */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>",
+	        display_pool);
 
 	/* Set font */
 	ei->fontstr = "Sans 12";
@@ -4294,7 +4300,8 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 /*
  * Callback when action choice changes in advanced game.
  */
-static void action_choice_changed_advanced(GtkToggleButton *button, gpointer data)
+static void action_choice_changed_advanced(GtkToggleButton *button,
+                                           gpointer data)
 {
 	int i = GPOINTER_TO_INT(data), j;
 
@@ -7806,7 +7813,8 @@ void reset_gui(void)
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
 		/* Check for name already set for human player */
-		if (i == player_us && real_game.human_name && strlen(real_game.human_name))
+		if (i == player_us && real_game.human_name &&
+		    strlen(real_game.human_name))
 		{
 			/* Load name */
 			real_game.p[i].name = real_game.human_name;
@@ -7913,8 +7921,7 @@ void modify_gui(void)
 
 	/* Resize log window */
 	gtk_widget_set_size_request(message_view,
-	                            (opt.log_width ? opt.log_width : CARD_WIDTH) - 20,
-	                            -1);
+	    (opt.log_width ? opt.log_width : CARD_WIDTH) - 20, -1);
 
 	/* Resize status areas */
 	status_resize();
@@ -9095,9 +9102,11 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_widget_set_size_request(name_entry, 120, -1);
 
 	/* Set name contents */
-	gtk_entry_set_text(GTK_ENTRY(name_entry), opt.player_name ? opt.player_name : "");
+	gtk_entry_set_text(GTK_ENTRY(name_entry),
+	                   opt.player_name ? opt.player_name : "");
 
-	/* Connect the name entry's activate signal to the accept response on the dialog */
+	/* Connect the name entry's activate signal to */
+	/* the accept response on the dialog */
 	g_signal_connect(G_OBJECT(name_entry), "activate",
 	                 G_CALLBACK(enter_callback), (gpointer) dialog);
 
@@ -9283,7 +9292,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Disable seed entry box */
 	gtk_widget_set_sensitive(seed_entry, FALSE);
 
-	/* Connect the seed entry's activate signal to the accept response on the dialog */
+	/* Connect the seed entry's activate signal to */
+	/* the accept response on the dialog */
 	g_signal_connect(G_OBJECT(seed_entry), "activate",
 	                 G_CALLBACK(enter_callback), (gpointer) dialog);
 
@@ -9637,7 +9647,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	file_box = gtk_vbox_new(FALSE, 0);
 
 	/* Create toggle button for autosaving */
-	autosave_button = gtk_check_button_new_with_label("Automatically save and restore");
+	autosave_button = gtk_check_button_new_with_label("Autosave");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(autosave_button),
