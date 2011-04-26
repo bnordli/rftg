@@ -1576,13 +1576,25 @@ void phase_search(game *g)
 			/* Message */
 			if (!g->simulation)
 			{
-				/* Format message */
-				sprintf(msg, "%s reveals %s (%s).\n",
-				        p_ptr->name, c_ptr->d_ptr->name,
-				        match ? "match" : "no match");
+				/* Check for match */
+				if (match)
+				{
+					/* Format message */
+					sprintf(msg, "%s reveals %s (match).\n",
+							p_ptr->name, c_ptr->d_ptr->name);
 
-				/* Send message */
-				message_add(g, msg);
+					/* Send formatted message */
+					message_add_formatted(g, msg, FORMAT_PRESTIGE);
+				}
+				else
+				{
+					/* Format message */
+					sprintf(msg, "%s reveals %s (no match).\n",
+							p_ptr->name, c_ptr->d_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 			}
 
 			/* Keep looking if no match */
