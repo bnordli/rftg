@@ -2738,6 +2738,7 @@ static char *get_military_tooltip(game *g, int who)
 {
 	static char msg[1024];
 	char text[1024];
+	char card_name[1024];
 	card *c_ptr;
 	power *o_ptr;
 	int i, j;
@@ -2749,6 +2750,9 @@ static char *get_military_tooltip(game *g, int who)
 
 	/* Start strengths at 0 */
 	rebel = blue = brown = green = yellow = defense = attack_imperium = 0;
+
+	/* Clear card name */
+	strcpy(card_name, "");
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -2781,6 +2785,18 @@ static char *get_military_tooltip(game *g, int who)
 				/* Add extra defense for Rebel military worlds */
 				defense +=
 				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+
+				/* Check if card name alreay set */
+				if (strlen(card_name))
+				{
+					/* YYY Use name of both cards */
+					strcpy(card_name, "Rebel Alliance/Rebel Sneak Attack");
+				}
+				else
+				{
+					/* Remember name of card */
+					strcpy(card_name, c_ptr->d_ptr->name);
+				}
 			}
 
 			/* Check for takeover imperium power */
@@ -2897,12 +2913,12 @@ static char *get_military_tooltip(game *g, int who)
 	if (attack_imperium)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional attack against IMPERIUM: %d",
-		        attack_imperium);
+		sprintf(text, "\nAdditional attack when using %s: %+d",
+		        card_name, attack_imperium);
 		strcat(msg, text);
 	}
 
-	/* Check for active Imperium card */
+	/* Check for active imperium card */
 	if (imperium)
 	{
 		/* Add vulnerability text */
