@@ -2696,7 +2696,7 @@ void phase_develop(game *g)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s develops %s.\n", p_ptr->name,
+			sprintf(msg, "%s places %s.\n", p_ptr->name,
 			        g->deck[p_ptr->placing].d_ptr->name);
 
 			/* Send message */
@@ -5795,7 +5795,7 @@ void phase_settle(game *g)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s settles %s.\n", p_ptr->name,
+			sprintf(msg, "%s places %s.\n", p_ptr->name,
 			        g->deck[p_ptr->placing].d_ptr->name);
 
 			/* Send message */
