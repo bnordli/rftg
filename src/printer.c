@@ -51,7 +51,7 @@ static char *player_names[MAX_PLAYER] =
 };
 
 /*
- * Substite card file.
+ * Substite file name.
  */
 static char *subs_file = NULL;
 
@@ -92,6 +92,9 @@ int game_rand(game *g)
  */
 static void printer_notify_rotation(game *g, int who)
 {
+	/* Only rotate once */
+	if (who != 0) return;
+
 	/* Remember our new player index */
 	player_us--;
 
@@ -121,12 +124,12 @@ static void print_reverse(game *g, int x)
 		if (subs_file)
 		{
 			/* Print substitute */
-			printf("%s ", substitutes[g->deck[cards[n - p]].d_ptr->index]);
+			printf("%s", substitutes[g->deck[cards[n - p]].d_ptr->index]);
 		}
 		else
 		{
 			/* Print card name */
-			printf("%s ", g->deck[cards[n - p]].d_ptr->name);
+			printf("%s", g->deck[cards[n - p]].d_ptr->name);
 		}
 
 		/* Print newline if needed */
@@ -356,7 +359,7 @@ int main(int argc, char *argv[])
 	if (!save_file)
 	{
 		/* Print error and exit */
-		printf("No save file supplied! (use -s)");
+		printf("No save file supplied!\n");
 		exit(1);
 	}
 
@@ -383,7 +386,7 @@ int main(int argc, char *argv[])
 	if (load_game(&my_game, save_file) < 0)
 	{
 		/* Print error and exit */
-		printf(buf, "Failed to load game from file %s\n", save_file);
+		printf("Failed to load game from file %s.\n", save_file);
 		exit(1);
 	}
 
