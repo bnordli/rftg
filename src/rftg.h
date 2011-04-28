@@ -128,6 +128,7 @@
 /*
  * Player action choices.
  */
+#define ACT_ROUND_START    -1
 #define ACT_SEARCH         0
 #define ACT_EXPLORE_5_0    1
 #define ACT_EXPLORE_1_1    2
@@ -138,6 +139,7 @@
 #define ACT_CONSUME_TRADE  7
 #define ACT_CONSUME_X2     8
 #define ACT_PRODUCE        9
+#define ACT_ROUND_END      10
 
 #define ACT_MASK           0x7f
 #define ACT_PRESTIGE       0x80

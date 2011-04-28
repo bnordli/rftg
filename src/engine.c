@@ -9326,7 +9326,7 @@ void check_goals(game *g)
 			case GOAL_FIRST_DISCARD:
 			
 				/* Only check at end of turn */
-				if (g->cur_action != -1) continue;
+				if (g->cur_action != ACT_ROUND_END) continue;
 				break;
 
 			/* Develop phase only */
@@ -9365,7 +9365,7 @@ void check_goals(game *g)
 
 				/* Only check after round start/consume */
 				if (g->cur_action != ACT_CONSUME_TRADE &&
-				    g->cur_action != -1)
+				    g->cur_action != ACT_ROUND_START)
 					continue;
 				break;
 
@@ -10024,7 +10024,7 @@ void begin_game(game *g)
 	/* XXX Pretend settle phase to set goal progress properly */
 	g->cur_action = ACT_SETTLE;
 	check_goals(g);
-	g->cur_action = -1;
+	g->cur_action = ACT_ROUND_START;
 }
 
 /*
@@ -10107,8 +10107,8 @@ int game_round(game *g)
 		g->p[i].action[0] = g->p[i].action[1] = -1;
 	}
 
-	/* Clear current action */
-	g->cur_action = -1;
+	/* Set current phase to start of round */
+	g->cur_action = ACT_ROUND_START;
 
 	/* Check for aborted game */
 	if (g->game_over) return 0;
@@ -10406,8 +10406,8 @@ int game_round(game *g)
 		if (g->game_over) return 0;
 	}
 
-	/* Clear current action */
-	g->cur_action = -1;
+	/* Set current phase to end of round */
+	g->cur_action = ACT_ROUND_END;
 
 	/* Handle discard phase */
 	phase_discard(g);

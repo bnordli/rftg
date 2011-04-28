@@ -565,7 +565,7 @@ void init_game(game *g)
 	g->round = 1;
 
 	/* No phase or turn */
-	g->cur_action = -1;
+	g->cur_action = ACT_ROUND_START;
 	g->turn = 0;
 
 	/* Clear selected actions */
