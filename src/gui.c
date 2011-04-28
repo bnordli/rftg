@@ -3021,7 +3021,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int n, i, vp_diff;
+	int n, i, old_vp, vp_diff;
 	game sim;
 
 	/* Copy game */
@@ -3029,6 +3029,15 @@ static char *card_hand_tooltip(game *g, int who, int which)
 
 	/* Set simulated game */
 	sim.simulation = 1;
+
+	/* Simulate end of phase (for cards already placed) */
+	clear_temp(&sim);
+
+	/* Score game for player */
+	score_game(&sim);
+
+	/* Remember old score */
+	old_vp = sim.p[who].end_vp;
 
 	/* Simulate placement of card */
 	place_card(&sim, who, which);
@@ -3124,7 +3133,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	score_game(&sim);
 
 	/* Compute score difference */
-	vp_diff = sim.p[who].end_vp - g->p[who].end_vp;
+	vp_diff = sim.p[who].end_vp - old_vp;
 
 	/* Format message */
 	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
