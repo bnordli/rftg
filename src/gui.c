@@ -32,6 +32,8 @@
 #include "ige-mac-menu.h"
 #endif
 
+#define TITLE "Race for the Galaxy " RELEASE
+
 /*
  * Our default options.
  */

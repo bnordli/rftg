@@ -35,10 +35,6 @@
 #define RELEASE VERSION "h"
 #endif
 
-#ifndef TITLE
-#define TITLE "Race for the Galaxy " RELEASE
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include "stdint.h"
