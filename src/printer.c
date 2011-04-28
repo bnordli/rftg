@@ -103,37 +103,80 @@ static void printer_notify_rotation(game *g, int who)
 }
 
 /*
- * Print cards of the linked list starting with x, in reverse order.
+ * Function to compare two cards in a table for sorting.
  */
-static void print_reverse(game *g, int x)
+/*
+ * Function to compare two cards on the table for sorting.
+ */
+static int cmp_table(const void *h1, const void *h2)
+{
+	card *c_ptr1 = (card *)h1, *c_ptr2 = (card *)h2;
+
+	/* Sort by order played */
+	return c_ptr1->order - c_ptr2->order;
+}
+
+/*
+ * Function to compare two cards in the hand for sorting.
+ */
+static int cmp_hand(const void *h1, const void *h2)
+{
+	card *c_ptr1 = (card *)h1, *c_ptr2 = (card *)h2;
+
+	/* Worlds come before developments */
+	if (c_ptr1->d_ptr->type != c_ptr2->d_ptr->type)
+	{
+		/* Check for development */
+		if (c_ptr1->d_ptr->type == TYPE_DEVELOPMENT) return 1;
+		if (c_ptr2->d_ptr->type == TYPE_DEVELOPMENT) return -1;
+	}
+
+	/* Sort by cost */
+	if (c_ptr1->d_ptr->cost != c_ptr2->d_ptr->cost)
+	{
+		/* Return cost difference */
+		return c_ptr1->d_ptr->cost - c_ptr2->d_ptr->cost;
+	}
+
+	/* Otherwise sort by index */
+	return c_ptr1->d_ptr->index - c_ptr2->d_ptr->index;
+}
+
+/*
+ * Print cards of the linked list starting with x in a specified order.
+ */
+static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
 {
 	int n, p;
-	int cards[MAX_DECK];
+	card cards[MAX_DECK];
 
 	/* Loop over cards */
 	for (n = 0 ; x != -1; x = g->deck[x].next, ++n)
 	{
 		/* Save card */
-		cards[n] = x;
+		cards[n] = g->deck[x];
 	}
 
-	/* Traverse cards in reverse order */
-	for (p = 1; p <= n; ++p)
+	/* Sort the cards */
+	qsort(cards, n, sizeof(card), cmp);
+
+	/* Loop over sorted cards */
+	for (p = 0; p < n; ++p)
 	{
 		/* Check for substitutes */
 		if (subs_file)
 		{
 			/* Print substitute */
-			printf("%s", substitutes[g->deck[cards[n - p]].d_ptr->index]);
+			printf("%s", substitutes[cards[p].d_ptr->index]);
 		}
 		else
 		{
 			/* Print card name */
-			printf("%s", g->deck[cards[n - p]].d_ptr->name);
+			printf("%s", cards[p].d_ptr->name);
 		}
 
 		/* Print newline if needed */
-		if (p % cards_per_line == 0) printf("\n");
+		if ((p+1) % cards_per_line == 0) printf("\n");
 	}
 }
 
@@ -154,8 +197,8 @@ static void print_game(game *g, int who)
 		/* Print player name */
 		printf("%s's tableau:\n", g->p[i].name);
 
-		/* Dump active cards */
-		print_reverse(g, g->p[i].head[WHERE_ACTIVE]);
+		/* Dump tableau */
+		print_cards(g, g->p[i].head[WHERE_ACTIVE], cmp_table);
 
 		/* Print newline */
 		printf("\n");
@@ -168,7 +211,7 @@ static void print_game(game *g, int who)
 	printf("Hand:\n");
 
 	/* Dump hand */
-	print_reverse(g, g->p[who].head[WHERE_HAND]);
+	print_cards(g, g->p[who].head[WHERE_HAND], cmp_hand);
 }
 
 /*
@@ -317,7 +360,6 @@ int main(int argc, char *argv[])
 {
 	game my_game;
 	int i;
-	char buf[1024];
 	char *save_file = NULL;
 
 	/* Set random seed */
