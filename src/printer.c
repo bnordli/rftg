@@ -58,7 +58,7 @@ static char *subs_file = NULL;
 /*
  * Substitute for card names.
  */
-static char substitutes[MAX_DESIGN][64];
+static char substitutes[MAX_DESIGN][1024];
 
 /*
  * Print messages to standard output.
@@ -152,7 +152,7 @@ static void print_game(game *g, int who)
 		if (i == g->num_players) i = 0;
 
 		/* Print player name */
-		printf("%s tableau:\n", g->p[i].name);
+		printf("%s's tableau:\n", g->p[i].name);
 
 		/* Dump active cards */
 		print_reverse(g, g->p[i].head[WHERE_ACTIVE]);
