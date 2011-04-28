@@ -507,6 +507,30 @@ void message_add_private(game *g, int who, char *msg, char *tag)
 }
 
 /*
+ * Show an error dialog with a message.
+ */
+static void show_error(char *msg)
+{
+	GtkWidget *alert;
+
+	/* Create error dialog */
+	alert = gtk_message_dialog_new(NULL,
+	                               GTK_DIALOG_DESTROY_WITH_PARENT,
+	                               GTK_MESSAGE_ERROR,
+	                               GTK_BUTTONS_CLOSE,
+	                               msg);
+
+	/* Set title */
+	gtk_window_set_title(GTK_WINDOW(alert), TITLE);
+
+	/* Run dialog */
+	gtk_dialog_run(GTK_DIALOG(alert));
+
+	/* Destroy alert dialog */
+	gtk_widget_destroy(alert);
+}
+
+/*
  * Saves the message log to a time stamped file.
  */
 void save_log(void)
@@ -937,7 +961,7 @@ static void load_image_bundle(void)
 static void load_images(void)
 {
 	int i;
-	char fn[1024];
+	char fn[1024], msg[1024];
 
 	/* Load card back image */
 	card_back = gdk_pixbuf_new_from_file("image/cardback.jpg",NULL);
@@ -948,7 +972,7 @@ static void load_images(void)
 		/* Try to load image data from bundle instead */
 		load_image_bundle();
 
-		/* TODO: Pack icon into images.data */
+		/* TODO: Pack extra icons into images.data */
 		for (i = ICON_VP_EMPTY; i < MAX_ICON; ++i)
 		{
 			/* Check for missing icon */
@@ -963,8 +987,11 @@ static void load_images(void)
 				/* Check for error */
 				if (!icon_cache[i])
 				{
-					/* Print error */
-					printf("Cannot open icon image %s!\n", fn);
+					/* Format message */
+					sprintf(msg, "Cannot open icon image %s!\n", fn);
+
+					/* Show error */
+					show_error(msg);
 				}
 			}
 		}
@@ -8680,7 +8707,7 @@ static void gui_new_game(GtkMenuItem *menu_item, gpointer data)
 static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 {
 	game load_state;
-	GtkWidget *dialog, *alert;
+	GtkWidget *dialog;
 	char *fname;
 	char *header = GPOINTER_TO_INT(data) == RESTART_LOAD ?
 	               "Load game" : "Replay game";
@@ -8726,14 +8753,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		if (load_game(&load_state, fname) < 0)
 		{
 			/* Error */
-			alert = gtk_message_dialog_new(NULL,
-			                    GTK_DIALOG_DESTROY_WITH_PARENT,
-			                    GTK_MESSAGE_ERROR,
-			                    GTK_BUTTONS_CLOSE,
-			                    "Failed to load game");
-
-			/* Run dialog */
-			gtk_dialog_run(GTK_DIALOG(alert));
+			show_error("Failed to load game");
 
 			/* Destroy filename */
 			g_free(fname);
@@ -9095,9 +9115,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_RESPONSE_REJECT, NULL);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
-
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Create hbox to hold player name label and entry */
 	name_box = gtk_hbox_new(FALSE, 0);
@@ -9459,8 +9477,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 4);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* ---- Game status ---- */
 	/* Create frame around buttons */
@@ -10097,8 +10114,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
                                          GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Set default height */
 	gtk_window_set_default_size(GTK_WINDOW(dialog), -1, 600);
@@ -10362,8 +10378,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Get debug information from AI */
 	ai_debug(&real_game, win_prob, role, action_score, &num_action);
@@ -10561,11 +10576,10 @@ static void about_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Create dialog */
 	dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_DESTROY_WITH_PARENT,
 	                                GTK_MESSAGE_INFO, GTK_BUTTONS_CLOSE,
-	                                "Race for the Galaxy " RELEASE);
+	                                TITLE);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Set secondary text */
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
@@ -10692,7 +10706,8 @@ int main(int argc, char *argv[])
 	GdkColor color;
 
 	char *fname = NULL;
-	int i;
+	char msg[1024];
+	int i, err;
 
 #ifdef __APPLE__        
 	/* Set cwd to OS X .app bundle Resource fork so relative paths work */
@@ -10729,7 +10744,21 @@ int main(int argc, char *argv[])
 #endif
 
 	/* Load card designs */
-	read_cards();
+	err = read_cards();
+
+	/* Check for errors */
+	if (err == -1)
+	{
+		/* Print error and exit */
+		show_error("Could not locate cards.txt");
+		exit(1);
+	}
+	else if (err == -2)
+	{
+		/* Print error and exit */
+		show_error("Error while reading cards.txt");
+		exit(1);
+	}
 
 	/* Load card images */
 	load_images();
@@ -10869,8 +10898,7 @@ int main(int argc, char *argv[])
 	gtk_window_set_default_size(GTK_WINDOW(window), 1024, 800);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(window),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(window), TITLE);
 
 	/* Handle main window destruction */
 	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(destroy),
@@ -11702,35 +11730,30 @@ int main(int argc, char *argv[])
 
 	if (fname)
 	{
-		/* Loop over players */
-		for (i = 0; i < MAX_PLAYER; i++)
-		{
-			/* Set choice log pointer */
-			real_game.p[i].choice_log = orig_log[i];
-		}
-
 		/* Try to load savefile into load state */
 		if (load_game(&real_game, fname) < 0)
 		{
-			/* Error */
-			printf("Failed to load game from file %s\n", fname);
+			/* Format error */
+			sprintf(msg, "Failed to load game from file %s\n", fname);
 
-			/* Give up */
-			return;
+			/* Show error */
+			show_error(msg);
 		}
-
-		/* Force current game over */
-		real_game.game_over = 1;
-
-		/* Loop over players */
-		for (i = 0; i < real_game.num_players; ++i)
+		else
 		{
-			/* Remember log size */
-			orig_log_size[i] = real_game.p[i].choice_size;
-		}
+			/* Force current game over */
+			real_game.game_over = 1;
 
-		/* Switch to loaded state when able */
-		restart_loop = RESTART_LOAD;
+			/* Loop over players */
+			for (i = 0; i < real_game.num_players; ++i)
+			{
+				/* Remember log size */
+				orig_log_size[i] = real_game.p[i].choice_size;
+			}
+
+			/* Switch to loaded state when able */
+			restart_loop = RESTART_LOAD;
+		}
 	}
 
 	/* Run games */

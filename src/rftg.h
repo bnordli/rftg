@@ -35,6 +35,10 @@
 #define RELEASE VERSION "h"
 #endif
 
+#ifndef TITLE
+#define TITLE "Race for the Galaxy " RELEASE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "stdint.h"
@@ -907,7 +911,7 @@ extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
 extern void save_log(void);
 extern int game_rand(game *g);
-extern void read_cards(void);
+extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);

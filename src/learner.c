@@ -70,7 +70,11 @@ int main(int argc, char *argv[])
 	my_game.random_seed = time(NULL);
 
 	/* Read card database */
-	read_cards();
+	if (read_cards() < 0)
+	{
+		/* Exit */
+		exit(1);
+	}
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)

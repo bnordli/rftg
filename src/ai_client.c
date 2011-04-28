@@ -542,7 +542,11 @@ int main(int argc, char *argv[])
 	int i;
 
 	/* Read card database */
-	read_cards();
+	if (read_cards() < 0)
+	{
+		/* Exit */
+		exit(1);
+	}
 
 	/* Create choice logs */
 	for (i = 0; i < MAX_PLAYER; i++)
