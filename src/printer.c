@@ -291,7 +291,8 @@ static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
 		else
 		{
 			/* Print card name (and possibly good) */
-			printf("%s%s", cards[p].d_ptr->name, (cards[p].covered != -1 ? " (good)" : ""));
+			printf("%s%s", cards[p].d_ptr->name,
+			       (cards[p].covered != -1 ? " (with good)" : ""));
 		}
 
 		/* Print newline if needed */
@@ -394,7 +395,8 @@ static void print_game(game *g, int who)
 	printf("\n\n");
 
 	/* Print deck and discard */
-	printf("Draw deck size: %d card%s - Discard pile size: %d card%s - VP chips left: %d chip%s\n\n",
+	printf("Draw deck size: %d card%s - Discard pile size: %d card%s - "
+	       "VP chips left: %d chip%s\n\n",
 	    deck, PLURAL(deck), discard, PLURAL(discard),
 	    g->vp_pool, PLURAL(g->vp_pool));
 
@@ -494,8 +496,9 @@ static void print_game(game *g, int who)
 /*
  * Choice function: Just end the game.
  */
-static void printer_make_choice(game *g, int who, int type, int list[], int *nl,
-                                int special[], int *ns, int arg1, int arg2, int arg3)
+static void printer_make_choice(
+    game *g, int who, int type, int list[], int *nl,
+    int special[], int *ns, int arg1, int arg2, int arg3)
 {
 	/* Simulate game over */
 	g->game_over = 2;
@@ -681,7 +684,7 @@ static void read_subs()
 			if (strlen(good_subs[i]) == 0)
 			{
 				/* Print error and exit */
-				printf("Did not find substitute string for good on world %s.\n",
+				printf("Did not find substitute string for *%s.\n",
 				       library[i].name);
 				exit(1);
 			}
