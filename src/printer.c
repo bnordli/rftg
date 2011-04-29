@@ -66,6 +66,11 @@ static char *subs_file = NULL;
 static char card_subs[MAX_DESIGN][1024];
 
 /*
+ * Substitute for card with goods.
+ */
+static char good_subs[MAX_DESIGN][1024];
+
+/*
  * Substitute for goals.
  */
 static char goal_subs[MAX_GOAL][1024];
@@ -93,8 +98,9 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	/* Check for formatted */
 	if (!formatted)
 	{
-		/* Print without formatting */
+		/* Print without formatting and exit */
 		message_add(g, msg);
+		return;
 	}
 
 	/* Bold format */
@@ -220,12 +226,12 @@ static void print_action(game *g, int who)
 		else if (act1 == -1)
 		{
 			/* Only first action known */
-			printf("Action: %s", actname[act0]);
+			printf("Action: %s", action_name(act0));
 		}
 		else
 		{
 			/* Both actions known */
-			printf("Actions: %s - %s", actname[act0], actname[act1]);
+			printf("Actions: %s - %s", action_name(act0), action_name(act1));
 		}
 	}
 	else
@@ -238,7 +244,7 @@ static void print_action(game *g, int who)
 		else
 		{
 			/* Actions known */
-			printf("Action: %s", actname[act0]);
+			printf("Action: %s", action_name(act0));
 		}
 	}
 
@@ -270,13 +276,22 @@ static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
 		/* Check for substitutes */
 		if (subs_file)
 		{
-			/* Print substitute */
-			printf("%s", card_subs[cards[p].d_ptr->index]);
+			/* Check for good on card */
+			if (cards[p].covered != -1)
+			{
+				/* Print substitute with good */
+				printf("%s", good_subs[cards[p].d_ptr->index]);
+			}
+			else
+			{
+				/* Print substitute */
+				printf("%s", card_subs[cards[p].d_ptr->index]);
+			}
 		}
 		else
 		{
-			/* Print card name */
-			printf("%s", cards[p].d_ptr->name);
+			/* Print card name (and possibly good) */
+			printf("%s%s", cards[p].d_ptr->name, (cards[p].covered != -1 ? " (good)" : ""));
 		}
 
 		/* Print newline if needed */
@@ -519,15 +534,21 @@ static void read_subs()
 {
 	FILE *fff;
 	char buf[1024];
-	char *p;
-	int found, i;
+	char *p, *n;
+	int found, i, good;
 
-	/* Clear all substitute strings */
+	/* Clear card and good substitute strings */
 	for (i = 0; i < MAX_DESIGN; ++i)
+	{
 		card_subs[i][0] = '\0';
+		good_subs[i][0] = '\0';
+	}
 
+	/* Clear goal substitutes */
 	for (i = 0; i < MAX_GOAL; ++i)
+	{
 		goal_subs[i][0] = '\0';
+	}
 
 	/* Open file for reading */
 	fff = fopen(subs_file, "r");
@@ -581,17 +602,37 @@ static void read_subs()
 		/* Move to start of substitute string */
 		++p;
 
-		/* Clear found flag */
-		found = 0;
+		/* Clear found and good flag */
+		found = good = 0;
+
+		/* Look for name at start of buffer */
+		n = buf;
+
+		/* Look for good indicator */
+		if (*n == '*')
+		{
+			/* Set good flag and increase name pointer */
+			good = 1;
+			++n;
+		}
 
 		/* Loop over all designs */
 		for (i = 0; i < MAX_DESIGN; ++i)
 		{
 			/* Check for matching card name */
-			if (!strcmp(buf, library[i].name))
+			if (!strcmp(n, library[i].name))
 			{
-				/* Copy substitute string */
-				strcpy(card_subs[i], p);
+				/* Check for good substitute */
+				if (good)
+				{
+					/* Copy substitute string */
+					strcpy(good_subs[i], p);
+				}
+				else
+				{
+					/* Copy substitute string */
+					strcpy(card_subs[i], p);
+				}
 
 				/* Set found flag */
 				found = 1;
@@ -602,7 +643,7 @@ static void read_subs()
 		for (i = 0; i < MAX_GOAL; ++i)
 		{
 			/* Check for matching goal name */
-			if (!strcmp(buf, goal_name[i]))
+			if (!strcmp(n, goal_name[i]))
 			{
 				/* Copy substitute string */
 				strcpy(goal_subs[i], p);
@@ -629,8 +670,21 @@ static void read_subs()
 		{
 			/* Print error and exit */
 			printf("Did not find substitute string for card %s.\n",
-				library[i].name);
+			       library[i].name);
 			exit(1);
+		}
+
+		/* Check for world with good */
+		if (library[i].type == TYPE_WORLD && library[i].good_type)
+		{
+			/* Check for empty substitute */
+			if (strlen(good_subs[i]) == 0)
+			{
+				/* Print error and exit */
+				printf("Did not find substitute string for good on world %s.\n",
+				       library[i].name);
+				exit(1);
+			}
 		}
 	}
 
@@ -735,7 +789,8 @@ int main(int argc, char *argv[])
 	}
 
 	/* Set name of human player */
-	my_game.p[0].name = my_game.human_name;
+	if (my_game.human_name && strlen(my_game.human_name))
+		my_game.p[0].name = my_game.human_name;
 
 	/* Start with start of game random seed */
 	my_game.random_seed = my_game.start_seed;
