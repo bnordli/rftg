@@ -23,9 +23,14 @@
 #include "rftg.h"
 
 /*
- * Print messages?
+ * Print all messages?
  */
 static int verbose = 0;
+
+/*
+ * Format messages?
+ */
+static int formatted = 0;
 
 /*
  * Player we're playing as.
@@ -74,8 +79,34 @@ void message_add(game *g, char *msg)
  */
 void message_add_formatted(game *g, char *msg, char *tag)
 {
-	/* Print without formatting */
-	message_add(g, msg);
+	/* Check for formatted */
+	if (!formatted)
+	{
+		/* Print without formatting */
+		message_add(g, msg);
+	}
+
+	/* Bold format */
+	if (!strcmp(tag, FORMAT_BOLD))
+		printf("[b]%s[/b]", msg);
+	/* Phase (blue) */
+	else if (!strcmp(tag, FORMAT_PHASE))
+		printf("[color=#0000aa]%s[/color]", msg);
+	/* Phase (blue) */
+	else if (!strcmp(tag, FORMAT_TAKEOVER))
+		printf("[color=#ff0000]%s[/color]", msg);
+	/* Goal (yellow) */
+	else if (!strcmp(tag, FORMAT_GOAL))
+		printf("[color=#eeaa00]%s[/color]", msg);
+	/* Prestige (purple) */
+	else if (!strcmp(tag, FORMAT_PRESTIGE))
+		printf("[color=#8800bb]%s[/color]", msg);
+	/* Verbose (gray) */
+	else if (!strcmp(tag, FORMAT_VERBOSE))
+		printf("[color=#aaaaaa]%s[/color]", msg);
+	/* Discard (gray) */
+	else if (!strcmp(tag, FORMAT_DISCARD))
+		printf("[color=#aaaaaa]%s[/color]", msg);
 }
 
 /*
@@ -105,9 +136,6 @@ static void printer_notify_rotation(game *g, int who)
 /*
  * Function to compare two cards in a table for sorting.
  */
-/*
- * Function to compare two cards on the table for sorting.
- */
 static int cmp_table(const void *h1, const void *h2)
 {
 	card *c_ptr1 = (card *)h1, *c_ptr2 = (card *)h2;
@@ -117,7 +145,7 @@ static int cmp_table(const void *h1, const void *h2)
 }
 
 /*
- * Function to compare two cards in the hand for sorting.
+ * Function to compare two cards in a hand for sorting.
  */
 static int cmp_hand(const void *h1, const void *h2)
 {
@@ -180,7 +208,6 @@ static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
 	}
 }
 
-
 /*
  * Print the game state to stdout.
  */
@@ -220,8 +247,8 @@ static void print_game(game *g, int who)
 static void printer_make_choice(game *g, int who, int type, int list[], int *nl,
                                 int special[], int *ns, int arg1, int arg2, int arg3)
 {
-	/* Set game over */
-	g->game_over = 1;
+	/* Simulate game over */
+	g->game_over = 2;
 }
 
 /*
@@ -230,7 +257,7 @@ static void printer_make_choice(game *g, int who, int type, int list[], int *nl,
 void printer_private_message(struct game *g, int who, char *msg, char *tag)
 {
 	/* Add message if player matches */
-	if (who == player_us) message_add(g, msg);
+	if (who == player_us) message_add_formatted(g, msg, tag);
 }
 
 /*
@@ -382,6 +409,13 @@ int main(int argc, char *argv[])
 			verbose++;
 		}
 
+		/* Check for formatted messages */
+		if (!strcmp(argv[i], "-f"))
+		{
+			/* Set formatted flag */
+			formatted++;
+		}
+
 		/* Check for substitutes */
 		if (!strcmp(argv[i], "-s"))
 		{
@@ -444,8 +478,15 @@ int main(int argc, char *argv[])
 	/* Play game rounds until finished */
 	while (game_round(&my_game));
 
+	/* Check if game ended normally */
+	if (my_game.game_over == 1)
+	{
+		/* Declare winner */
+		declare_winner(&my_game);
+	}
+
 	/* Print separator if verbose */
-	if (verbose) printf("====================\n");
+	if (verbose) printf("======================\n");
 
 	/* Dump game */
 	print_game(&my_game, player_us);
