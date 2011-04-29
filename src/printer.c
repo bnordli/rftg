@@ -734,6 +734,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	/* Set name of human player */
+	my_game.p[0].name = my_game.human_name;
+
 	/* Start with start of game random seed */
 	my_game.random_seed = my_game.start_seed;
 
