@@ -28,7 +28,7 @@
 static int verbose = 0;
 
 /*
- * Format messages?
+ * BGG format tags in output?
  */
 static int formatted = 0;
 
@@ -315,8 +315,17 @@ static void print_game(game *g, int who)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
-		/* Print player name */
-		printf("%s:\n", p_ptr->name);
+		/* Check for BGG formatting */
+		if (formatted)
+		{
+			/* Print formatted player name */
+			printf("[b][size=18]%s[/size][/b]\n", p_ptr->name);
+		}
+		else
+		{
+			/* Print player name */
+			printf("%s\n", p_ptr->name);
+		}
 
 		/* Dump tableau */
 		print_cards(g, p_ptr->head[WHERE_ACTIVE], cmp_table);
