@@ -66,6 +66,11 @@ static char *subs_file = NULL;
 static char card_subs[MAX_DESIGN][1024];
 
 /*
+ * Substitute for goals.
+ */
+static char goal_subs[MAX_GOAL][1024];
+
+/*
  * Print messages to standard output.
  */
 void message_add(game *g, char *msg)
@@ -215,6 +220,37 @@ static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
 }
 
 /*
+ * Print goals claimed by one player to stdout.
+ */
+static void print_goals(player *p_ptr)
+{
+	int i;
+
+	/* Loop over goals */
+	for (i = 0; i < MAX_GOAL; ++i)
+	{
+		/* Check if player has goal */
+		if (p_ptr->goal_claimed[i])
+		{
+			/* Check for substitutes */
+			if (subs_file)
+			{
+				/* Print substitute */
+				printf("%s", goal_subs[i]);
+			}
+			else
+			{
+				/* Print card name */
+				printf("%s\n", goal_name[i]);
+			}
+		}
+	}
+
+	/* Print newline */
+	printf("\n");
+}
+
+/*
  * Print the game state to stdout.
  */
 static void print_game(game *g, int who)
@@ -258,6 +294,9 @@ static void print_game(game *g, int who)
 
 		/* Print newline */
 		printf("\n");
+
+		/* Print goals */
+		print_goals(p_ptr);
 
 		/* Print VP chips */
 		printf("VP chips: %d  ", p_ptr->vp);
@@ -327,11 +366,14 @@ static void read_subs()
 	FILE *fff;
 	char buf[1024];
 	char *p;
-	int card_found, i;
+	int found, i;
 
 	/* Clear all substitute strings */
 	for (i = 0; i < MAX_DESIGN; ++i)
 		card_subs[i][0] = '\0';
+
+	for (i = 0; i < MAX_GOAL; ++i)
+		goal_subs[i][0] = '\0';
 
 	/* Open file for reading */
 	fff = fopen(subs_file, "r");
@@ -365,6 +407,9 @@ static void read_subs()
 		/* Strip newline */
 		if (buf[strlen(buf) - 1] == '\n') buf[strlen(buf) - 1] = '\0';
 
+		/* Skip comments and blank lines */
+		if (!buf[0] || buf[0] == '#') continue;
+
 		/* Locate separator */
 		p = strchr(buf, ';');
 
@@ -376,14 +421,14 @@ static void read_subs()
 			exit(1);
 		}
 
-		/* End card name */
+		/* End name */
 		*p = '\0';
 
-		/* Move to start of substutite string */
+		/* Move to start of substitute string */
 		++p;
 
-		/* Clear card found flag */
-		card_found = 0;
+		/* Clear found flag */
+		found = 0;
 
 		/* Loop over all designs */
 		for (i = 0; i < MAX_DESIGN; ++i)
@@ -394,16 +439,30 @@ static void read_subs()
 				/* Copy substitute string */
 				strcpy(card_subs[i], p);
 
-				/* Remember that card is found */
-				card_found = 1;
+				/* Set found flag */
+				found = 1;
 			}
 		}
 
-		/* Check whether card was found */
-		if (!card_found)
+		/* Loop over all goals */
+		for (i = 0; i < MAX_GOAL; ++i)
+		{
+			/* Check for matching goal name */
+			if (!strcmp(buf, goal_name[i]))
+			{
+				/* Copy substitute string */
+				strcpy(goal_subs[i], p);
+
+				/* Set found flag */
+				found = 1;
+			}
+		}
+
+		/* Check whether string was recognized */
+		if (!found)
 		{
 			/* Print error and exit */
-			printf("Could not recognize card name %s.\n", buf);
+			printf("Could not recognize card or goal name %s.\n", buf);
 			exit(1);
 		}
 	}
@@ -415,8 +474,21 @@ static void read_subs()
 		if (strlen(card_subs[i]) == 0)
 		{
 			/* Print error and exit */
-			printf("Did not find substitute string for %s.\n",
+			printf("Did not find substitute string for card %s.\n",
 				library[i].name);
+			exit(1);
+		}
+	}
+
+	/* Loop over all goals */
+	for (i = 0; i < MAX_GOAL; ++i)
+	{
+		/* Check for empty substitute */
+		if (strlen(goal_subs[i]) == 0)
+		{
+			/* Print error and exit */
+			printf("Did not find substitute string for goal %s.\n",
+				goal_name[i]);
 			exit(1);
 		}
 	}
