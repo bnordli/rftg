@@ -10056,7 +10056,7 @@ char *actname[MAX_ACTION * 2 - 1] =
 /*
  * Plain action names.
  */
-static char *plain_actname[MAX_ACTION] =
+char *plain_actname[MAX_ACTION] =
 {
 	"Search",
 	"Explore",

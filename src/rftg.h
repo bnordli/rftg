@@ -888,6 +888,7 @@ typedef struct game
  */
 extern design library[MAX_DESIGN];
 extern char *actname[MAX_ACTION * 2 - 1];
+extern char *plain_actname[MAX_ACTION];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];

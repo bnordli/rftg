@@ -182,6 +182,71 @@ static int cmp_hand(const void *h1, const void *h2)
 }
 
 /*
+ * Prints the currently selected actions of a player.
+ */
+static void print_action(game *g, int who)
+{
+	int act0, act1;
+
+	/* Check for actions known */
+	if (g->advanced && g->cur_action < ACT_SEARCH && who == player_us &&
+	    count_active_flags(g, player_us, FLAG_SELECT_LAST))
+	{
+		/* Copy first action only */
+		act0 = g->p[who].action[0];
+		act1 = -1;
+	}
+	else if (g->cur_action >= ACT_SEARCH ||
+	         count_active_flags(g, player_us, FLAG_SELECT_LAST))
+	{
+		/* Copy actions */
+		act0 = g->p[who].action[0];
+		act1 = g->p[who].action[1];
+	}
+	else
+	{
+		/* Actions aren't known */
+		act0 = act1 = -1;
+	}
+
+	/* Check for advanced game */
+	if (g->advanced)
+	{
+		if (act0 == -1 && act1 == -1)
+		{
+			/* No actions known */
+			printf("Actions: N/A");
+		}
+		else if (act1 == -1)
+		{
+			/* Only first action known */
+			printf("Action: %s", actname[act0]);
+		}
+		else
+		{
+			/* Both actions known */
+			printf("Actions: %s - %s", actname[act0], actname[act1]);
+		}
+	}
+	else
+	{
+		if (act0 == -1)
+		{
+			/* Action not known */
+			printf("Action: N/A");
+		}
+		else
+		{
+			/* Actions known */
+			printf("Action: %s", actname[act0]);
+		}
+	}
+
+	/* Print newlines */
+	printf("\n\n");
+}
+
+/*
  * Print cards of the linked list starting with x in a specified order.
  */
 static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
@@ -258,8 +323,8 @@ static void print_goals(player *p_ptr)
 		}
 	}
 
-	/* Print newline if any goal is claimed */
-	if (found) printf("\n");
+	/* Print newlines if any goal is claimed */
+	if (found) printf("\n\n");
 }
 
 /*
@@ -269,7 +334,7 @@ static void print_game(game *g, int who)
 {
 	card *c_ptr;
 	player *p_ptr;
-	int i, hand, deck = 0, discard = 0, found = 0;
+	int i, hand, deck = 0, discard = 0, found;
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -284,27 +349,69 @@ static void print_game(game *g, int who)
 		if (c_ptr->where == WHERE_DISCARD) discard++;
 	}
 
-	/* Print deck and discard */
-	printf("Deck: %d card%s\nDiscard: %d card%s\nPool: %d chip%s\n",
-	    deck, PLURAL(deck), discard, PLURAL(discard),
-	    g->vp_pool, PLURAL(g->vp_pool));
+	/* Print phase header */
+	printf("Chosen phases: ");
 
-	/* Loop over all goals */
-	for (i = 0; i < MAX_GOAL; ++i)
+	/* Clear found flag */
+	found = 0;
+
+	/* Loop over phases */
+	for (i = ACT_EXPLORE_5_0; i <= ACT_PRODUCE; ++i)
 	{
-		/* Print goal if still available */
-		if (g->goal_avail[i])
+		/* Check for phases selected */
+		if (g->action_selected[i])
 		{
-			/* Print goal */
-			print_goal(i);
+			/* Add separator if not first phase */
+			if (found) printf(" - ");
 
-			/* Set the found flag */
+			/* Add action name */
+			printf("%s", plain_actname[i]);
+
+			/* Set found flag */
 			found = 1;
 		}
 	}
 
-	/* If some goals are unclaimed, print newline */
-	if (found) printf("\n");
+	/* Check for no phases found */
+	if (!found) printf("N/A");
+
+	/* Print newlines */
+	printf("\n\n");
+
+	/* Print deck and discard */
+	printf("Draw deck size: %d card%s - Discard pile size: %d card%s - VP chips left: %d chip%s\n\n",
+	    deck, PLURAL(deck), discard, PLURAL(discard),
+	    g->vp_pool, PLURAL(g->vp_pool));
+
+	/* Check for goals enabled */
+	if (goals_enabled(g))
+	{
+		/* Clear found flag */
+		found = 0;
+
+		/* Print goal header */
+		printf("Available goals\n");
+
+		/* Loop over all goals */
+		for (i = 0; i < MAX_GOAL; ++i)
+		{
+			/* Print goal if still available */
+			if (g->goal_avail[i])
+			{
+				/* Print goal */
+				print_goal(i);
+
+				/* Set the found flag */
+				found = 1;
+			}
+		}
+
+		/* Check if none available */
+		if (!found) printf("None\n");
+
+		/* Print newlines */
+		printf("\n\n");
+	}
 
 	/* Loop over all players */
 	for (i = who + 1; ; ++i)
@@ -327,14 +434,8 @@ static void print_game(game *g, int who)
 			printf("%s\n", p_ptr->name);
 		}
 
-		/* Dump tableau */
-		print_cards(g, p_ptr->head[WHERE_ACTIVE], cmp_table);
-
-		/* Print newline */
-		printf("\n");
-
-		/* Print goals */
-		print_goals(p_ptr);
+		/* Print currently selected action(s) */
+		print_action(g, i);
 
 		/* Count hand */
 		hand = count_player_area(g, i, WHERE_HAND);
@@ -353,7 +454,16 @@ static void print_game(game *g, int who)
 		}
 
 		/* Print total score */
-		printf("Score: %d VP%s\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
+		printf("Points: %d VP%s\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
+
+		/* Print claimed goals */
+		print_goals(p_ptr);
+
+		/* Dump tableau */
+		print_cards(g, p_ptr->head[WHERE_ACTIVE], cmp_table);
+
+		/* Print newlines */
+		printf("\n\n");
 
 		/* Check for all players traversed */
 		if (i == who) break;
