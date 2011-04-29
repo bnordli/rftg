@@ -470,8 +470,18 @@ static void print_game(game *g, int who)
 			printf("Prestige: %d\n", p_ptr->prestige);
 		}
 
-		/* Print total score */
-		printf("Points: %d VP%s\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
+		/* Check for formatted */
+		if (formatted)
+		{
+			/* Print formatted points */
+			printf("Points: [b]%d VP%s[/b]\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
+		}
+		else
+		{
+			/* Print points */
+			printf("Points: %d VP%s\n\n",
+			       p_ptr->end_vp, PLURAL(p_ptr->end_vp));
+		}
 
 		/* Print claimed goals */
 		print_goals(p_ptr);
@@ -812,6 +822,11 @@ int main(int argc, char *argv[])
 	{
 		/* Declare winner */
 		declare_winner(&my_game);
+	}
+	else
+	{
+		/* Score game */
+		score_game(&my_game);
 	}
 
 	/* Print separator if verbose */
