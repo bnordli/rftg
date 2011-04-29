@@ -63,15 +63,18 @@ static char *subs_file = NULL;
 /*
  * Substitute for card names.
  */
-static char substitutes[MAX_DESIGN][1024];
+static char card_subs[MAX_DESIGN][1024];
 
 /*
  * Print messages to standard output.
  */
 void message_add(game *g, char *msg)
 {
-	/* Print if verbose flag set */
-	if (verbose) printf("%s", msg);
+	/* Discard message if not verbose */
+	if (!verbose) return;
+
+	/* Print message */
+	printf("%s", msg);
 }
 
 /*
@@ -79,6 +82,9 @@ void message_add(game *g, char *msg)
  */
 void message_add_formatted(game *g, char *msg, char *tag)
 {
+	/* Discard message if not verbose */
+	if (!verbose) return;
+
 	/* Check for formatted */
 	if (!formatted)
 	{
@@ -195,7 +201,7 @@ static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
 		if (subs_file)
 		{
 			/* Print substitute */
-			printf("%s", substitutes[cards[p].d_ptr->index]);
+			printf("%s", card_subs[cards[p].d_ptr->index]);
 		}
 		else
 		{
@@ -213,7 +219,27 @@ static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
  */
 static void print_game(game *g, int who)
 {
-	int i;
+	card *c_ptr;
+	player *p_ptr;
+	int i, j, deck = 0, discard = 0;
+
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Check for card in draw pile */
+		if (c_ptr->where == WHERE_DECK) deck++;
+
+		/* Check for card in discard pile */
+		if (c_ptr->where == WHERE_DISCARD) discard++;
+	}
+
+	/* Print deck and discard */
+	printf("Deck: %d card%s  Discard: %d card%s  Pool: %d chip%s\n\n",
+	    deck, PLURAL(deck), discard, PLURAL(discard),
+	    g->vp_pool, PLURAL(g->vp_pool));
 
 	/* Loop over all players */
 	for (i = who + 1; ; ++i)
@@ -221,14 +247,30 @@ static void print_game(game *g, int who)
 		/* Check for wrap around */
 		if (i == g->num_players) i = 0;
 
+		/* Get player pointer */
+		p_ptr = &g->p[i];
+
 		/* Print player name */
-		printf("%s's tableau:\n", g->p[i].name);
+		printf("%s:\n", p_ptr->name);
 
 		/* Dump tableau */
-		print_cards(g, g->p[i].head[WHERE_ACTIVE], cmp_table);
+		print_cards(g, p_ptr->head[WHERE_ACTIVE], cmp_table);
 
 		/* Print newline */
 		printf("\n");
+
+		/* Print VP chips */
+		printf("VP chips: %d  ", p_ptr->vp);
+
+		/* Check for third expansion */
+		if (g->expanded == 3)
+		{
+			/* Print prestige */
+			printf("Prestige: %d  ", p_ptr->prestige);
+		}
+
+		/* Print total score */
+		printf("Total: %d VP%s\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
 
 		/* Check for all players traversed */
 		if (i == who) break;
@@ -289,7 +331,7 @@ static void read_subs()
 
 	/* Clear all substitute strings */
 	for (i = 0; i < MAX_DESIGN; ++i)
-		substitutes[i][0] = '\0';
+		card_subs[i][0] = '\0';
 
 	/* Open file for reading */
 	fff = fopen(subs_file, "r");
@@ -350,7 +392,7 @@ static void read_subs()
 			if (!strcmp(buf, library[i].name))
 			{
 				/* Copy substitute string */
-				strcpy(substitutes[i], p);
+				strcpy(card_subs[i], p);
 
 				/* Remember that card is found */
 				card_found = 1;
@@ -370,7 +412,7 @@ static void read_subs()
 	for (i = 0; i < MAX_DESIGN; ++i)
 	{
 		/* Check for empty substitute */
-		if (strlen(substitutes[i]) == 0)
+		if (strlen(card_subs[i]) == 0)
 		{
 			/* Print error and exit */
 			printf("Did not find substitute string for %s.\n",
