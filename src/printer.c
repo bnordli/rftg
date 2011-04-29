@@ -474,14 +474,25 @@ static void print_game(game *g, int who)
 		if (formatted)
 		{
 			/* Print formatted points */
-			printf("Points: [b]%d VP%s[/b]\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
+			printf("Points: [b]%d VP%s[/b]\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
 		}
 		else
 		{
 			/* Print points */
-			printf("Points: %d VP%s\n\n",
+			printf("Points: %d VP%s\n",
 			       p_ptr->end_vp, PLURAL(p_ptr->end_vp));
 		}
+
+		/* Check for third expansion */
+		if (g->expanded == 3)
+		{
+			/* Print whether prestige action is used */
+			printf("Prestige/Search action used: %s\n",
+			       p_ptr->prestige_action_used ? "YES" : "NO");
+		}
+
+		/* Print newline */
+		printf("\n");
 
 		/* Print claimed goals */
 		print_goals(p_ptr);
