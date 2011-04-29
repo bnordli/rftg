@@ -220,11 +220,29 @@ static void print_cards(game *g, int x, int (*cmp)(const void *, const void *))
 }
 
 /*
+ * Print a single goal to stdout.
+ */
+static void print_goal(int g)
+{
+	/* Check for substitutes */
+	if (subs_file)
+	{
+		/* Print substitute */
+		printf("%s", goal_subs[g]);
+	}
+	else
+	{
+		/* Print goal name */
+		printf("%s\n", goal_name[g]);
+	}
+}
+
+/*
  * Print goals claimed by one player to stdout.
  */
 static void print_goals(player *p_ptr)
 {
-	int i;
+	int i, found = 0;
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; ++i)
@@ -232,22 +250,16 @@ static void print_goals(player *p_ptr)
 		/* Check if player has goal */
 		if (p_ptr->goal_claimed[i])
 		{
-			/* Check for substitutes */
-			if (subs_file)
-			{
-				/* Print substitute */
-				printf("%s", goal_subs[i]);
-			}
-			else
-			{
-				/* Print card name */
-				printf("%s\n", goal_name[i]);
-			}
+			/* Print goal */
+			print_goal(i);
+
+			/* Set the found flag */
+			found = 1;
 		}
 	}
 
-	/* Print newline */
-	printf("\n");
+	/* Print newline if any goal is claimed */
+	if (found) printf("\n");
 }
 
 /*
@@ -257,7 +269,7 @@ static void print_game(game *g, int who)
 {
 	card *c_ptr;
 	player *p_ptr;
-	int i, j, deck = 0, discard = 0;
+	int i, hand, deck = 0, discard = 0, found = 0;
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -273,9 +285,26 @@ static void print_game(game *g, int who)
 	}
 
 	/* Print deck and discard */
-	printf("Deck: %d card%s  Discard: %d card%s  Pool: %d chip%s\n\n",
+	printf("Deck: %d card%s\nDiscard: %d card%s\nPool: %d chip%s\n",
 	    deck, PLURAL(deck), discard, PLURAL(discard),
 	    g->vp_pool, PLURAL(g->vp_pool));
+
+	/* Loop over all goals */
+	for (i = 0; i < MAX_GOAL; ++i)
+	{
+		/* Print goal if still available */
+		if (g->goal_avail[i])
+		{
+			/* Print goal */
+			print_goal(i);
+
+			/* Set the found flag */
+			found = 1;
+		}
+	}
+
+	/* If some goals are unclaimed, print newline */
+	if (found) printf("\n");
 
 	/* Loop over all players */
 	for (i = who + 1; ; ++i)
@@ -298,18 +327,24 @@ static void print_game(game *g, int who)
 		/* Print goals */
 		print_goals(p_ptr);
 
+		/* Count hand */
+		hand = count_player_area(g, i, WHERE_HAND);
+
+		/* Print hand */
+		printf("Hand: %d card%s\n", hand, PLURAL(hand));
+
 		/* Print VP chips */
-		printf("VP chips: %d  ", p_ptr->vp);
+		printf("VP chips: %d\n", p_ptr->vp);
 
 		/* Check for third expansion */
 		if (g->expanded == 3)
 		{
 			/* Print prestige */
-			printf("Prestige: %d  ", p_ptr->prestige);
+			printf("Prestige: %d\n", p_ptr->prestige);
 		}
 
 		/* Print total score */
-		printf("Total: %d VP%s\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
+		printf("Score: %d VP%s\n\n", p_ptr->end_vp, PLURAL(p_ptr->end_vp));
 
 		/* Check for all players traversed */
 		if (i == who) break;
