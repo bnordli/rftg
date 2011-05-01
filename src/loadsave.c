@@ -266,7 +266,7 @@ int export_game(game *g, char *filename, int player_us)
 
 	/* Write header information */
 	fputs("RFTG Export\n", fff);
-	fputs(VERSION, fff);
+	fputs(VERSION "\n", fff);
 
 	/* Write game setup information */
 	fprintf(fff, "%d %d\n", g->num_players, g->expanded);
