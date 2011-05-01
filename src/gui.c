@@ -7495,6 +7495,13 @@ static int load_auto_save(game *g)
 	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
 	                             "autosave.rftg", NULL);
 
+	/* Loop over players */
+	for (i = 0; i < MAX_PLAYER; i++)
+	{
+		/* Set choice log pointer */
+		g->p[i].choice_log = orig_log[i];
+	}
+
 	/* Try to load savefile into game */
 	if (load_game(g, full_name) < 0)
 	{
@@ -7507,13 +7514,6 @@ static int load_auto_save(game *g)
 
 	/* Destroy filename */
 	g_free(full_name);
-
-	/* Loop over players */
-	for (i = 0; i < MAX_PLAYER; i++)
-	{
-		/* Set choice log pointer */
-		g->p[i].choice_log = orig_log[i];
-	}
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; ++i)
