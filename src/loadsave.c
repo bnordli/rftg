@@ -273,6 +273,10 @@ int export_game(game *g, char *filename, int player_us)
 	fprintf(fff, "%d %d %d\n", g->advanced, g->goal_disabled,
 	                           g->takeover_disabled);
 
+	/* Write current round and phase */
+	fprintf(fff, "%d %s\n", g->round, g->cur_action == ACT_ROUND_START ?
+	        "Start of round" : plain_actname[g->cur_action]);
+
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
 	{
@@ -313,6 +317,11 @@ int export_game(game *g, char *filename, int player_us)
 
 		/* Finish line */
 		fputs("\n", fff);
+	}
+	else
+	{
+		/* Goals disabled */
+		fputs("N/A\n", fff);
 	}
 
 	/* Loop over players */
@@ -363,6 +372,11 @@ int export_game(game *g, char *filename, int player_us)
 			fprintf(fff, "%d %d\n", p_ptr->prestige,
 			        p_ptr->prestige_action_used);
 		}
+		else
+		{
+			/* No prestige */
+			fputs("N/A\n", fff);
+		}
 
 		/* Check for goals enabled */
 		if (goals_enabled(g))
@@ -392,6 +406,11 @@ int export_game(game *g, char *filename, int player_us)
 
 			/* Finish line */
 			fputs("\n", fff);
+		}
+		else
+		{
+			/* Goals disabled */
+			fputs("N/A\n", fff);
 		}
 
 		/* Print tableau */

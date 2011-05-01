@@ -10059,7 +10059,7 @@ char *actname[MAX_ACTION * 2 - 1] =
 /*
  * Plain action names.
  */
-char *plain_actname[MAX_ACTION] =
+char *plain_actname[MAX_ACTION + 1] =
 {
 	"Search",
 	"Explore",
@@ -10071,6 +10071,7 @@ char *plain_actname[MAX_ACTION] =
 	"Consume",
 	"Consume",
 	"Produce",
+	"End of round",
 };
 
 /*
