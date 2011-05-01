@@ -168,9 +168,238 @@ int save_game(game *g, char *filename, int player_us)
 
 	/* Save name of human player (if any) */
 	if (g->human_name && strlen(g->human_name))
-	{
 		fprintf(fff, "%s\n", g->human_name);
+
+	/* Close file */
+	fclose(fff);
+
+	/* Success */
+	return 0;
+}
+
+/*
+ * Function to compare two cards in a table for sorting.
+ */
+static int cmp_table(const void *h1, const void *h2)
+{
+	card *c_ptr1 = (card *)h1, *c_ptr2 = (card *)h2;
+
+	/* Sort by order played */
+	return c_ptr1->order - c_ptr2->order;
+}
+
+/*
+ * Function to compare two cards in a hand for sorting.
+ */
+static int cmp_hand(const void *h1, const void *h2)
+{
+	card *c_ptr1 = (card *)h1, *c_ptr2 = (card *)h2;
+
+	/* Worlds come before developments */
+	if (c_ptr1->d_ptr->type != c_ptr2->d_ptr->type)
+	{
+		/* Check for development */
+		if (c_ptr1->d_ptr->type == TYPE_DEVELOPMENT) return 1;
+		if (c_ptr2->d_ptr->type == TYPE_DEVELOPMENT) return -1;
 	}
+
+	/* Sort by cost */
+	if (c_ptr1->d_ptr->cost != c_ptr2->d_ptr->cost)
+	{
+		/* Return cost difference */
+		return c_ptr1->d_ptr->cost - c_ptr2->d_ptr->cost;
+	}
+
+	/* Otherwise sort by index */
+	return c_ptr1->d_ptr->index - c_ptr2->d_ptr->index;
+}
+
+/*
+ * Print cards of the linked list starting with x, in a specified order.
+ */
+static void export_cards(FILE *fff, game *g, int x,
+                         int (*cmp)(const void *, const void *))
+{
+	int n, p;
+	card cards[MAX_DECK];
+
+	/* Loop over cards */
+	for (n = 0 ; x != -1; x = g->deck[x].next, ++n)
+	{
+		/* Save card */
+		cards[n] = g->deck[x];
+	}
+
+	/* Sort the cards */
+	qsort(cards, n, sizeof(card), cmp);
+
+	/* Loop over sorted cards */
+	for (p = 0; p < n; ++p)
+	{
+		/* Print card name (* indicating good) */
+		fprintf(fff, "%s%s;", cards[p].d_ptr->name,
+			    (cards[p].covered != -1 ? "*" : ""));
+	}
+
+	/* Finish line */
+	fputs("\n", fff);
+}
+
+/*
+ * Export the game state to the given filename.
+ */
+int export_game(game *g, char *filename, int player_us)
+{
+	FILE *fff;
+	player *p_ptr;
+	card *c_ptr;
+	int p, i, n, deck = 0, discard = 0, act0, act1;
+
+	/* Open file for writing */
+	fff = fopen(filename, "w");
+
+	/* Check for failure */
+	if (!fff) return -1;
+
+	/* Score game to get end totals */
+	score_game(g);
+
+	/* Write header information */
+	fputs("RFTG Export\n", fff);
+	fputs(VERSION, fff);
+
+	/* Write game setup information */
+	fprintf(fff, "%d %d\n", g->num_players, g->expanded);
+	fprintf(fff, "%d %d %d\n", g->advanced, g->goal_disabled,
+	                           g->takeover_disabled);
+
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Check for card in draw pile */
+		if (c_ptr->where == WHERE_DECK) deck++;
+
+		/* Check for card in discard pile */
+		if (c_ptr->where == WHERE_DISCARD) discard++;
+	}
+
+	/* Write game status information */
+	fprintf(fff, "%d %d %d\n", deck, discard, g->vp_pool);
+
+	/* Loop over phases */
+	for (i = ACT_EXPLORE_5_0; i <= ACT_PRODUCE; ++i)
+	{
+		/* Print phase if selected */
+		if (g->action_selected[i])
+			fprintf(fff, "%s;", plain_actname[i]);
+	}
+
+	/* Finish line */
+	fputs("\n", fff);
+
+	/* Check for goals enabled */
+	if (goals_enabled(g))
+	{
+		/* Loop over all goals */
+		for (i = 0; i < MAX_GOAL; ++i)
+		{
+			/* Print goal if still available */
+			if (g->goal_avail[i])
+				fprintf(fff, "%s;", goal_name[i]);
+		}
+
+		/* Finish line */
+		fputs("\n", fff);
+	}
+
+	/* Loop over players */
+	for (p = 0; p < g->num_players; p++)
+	{
+		/* Get player index to save next */
+		n = (player_us + 1 + p) % g->num_players;
+
+		/* Get player pointer */
+		p_ptr = &g->p[n];
+
+		/* Print player name */
+		fprintf(fff, "%s\n", p_ptr->name);
+
+		/* Assume actions aren't known */
+		act0 = act1 = -1;
+
+		/* Check for actions known */
+		if (g->advanced && g->cur_action < ACT_SEARCH && n == player_us &&
+			count_active_flags(g, player_us, FLAG_SELECT_LAST))
+		{
+			/* Copy first action only */
+			act0 = p_ptr->action[0];
+		}
+		else if (g->cur_action >= ACT_SEARCH ||
+				 count_active_flags(g, player_us, FLAG_SELECT_LAST))
+		{
+			/* Copy both actions */
+			act0 = p_ptr->action[0];
+			act1 = p_ptr->action[1];
+		}
+
+		/* Print actions if known */
+		if (act0 != -1) fprintf(fff, "%s;", action_name(act0));
+		if (act1 != -1) fprintf(fff, "%s;", action_name(act1));
+
+		/* Finish line */
+		fputs("\n", fff);
+
+		/* Print player information */
+		fprintf(fff, "%d %d %d\n", count_player_area(g, n, WHERE_HAND),
+		        p_ptr->vp, p_ptr->end_vp);
+
+		/* Check for last expansion */
+		if (g->expanded == 3)
+		{
+			/* Print prestige and whether prestige action is used */
+			fprintf(fff, "%d %d\n", p_ptr->prestige,
+			        p_ptr->prestige_action_used);
+		}
+
+		/* Check for goals enabled */
+		if (goals_enabled(g))
+		{
+			/* Loop over goals */
+			for (i = 0; i < MAX_GOAL; ++i)
+			{
+				/* Check if player has goal */
+				if (p_ptr->goal_claimed[i])
+				{
+					/* Print goal name */
+					fprintf(fff, "%s;", goal_name[i]);
+					continue;
+				}
+
+				/* Check for insufficient progress */
+				if (p_ptr->goal_progress[i] < goal_minimum(i))
+					continue;
+
+				/* Check for less progress than other players */
+				if (p_ptr->goal_progress[i] < g->goal_most[i])
+					continue;
+
+				/* Print unclaimed goal */
+				fprintf(fff, "%s*;", goal_name[i]);
+			}
+
+			/* Finish line */
+			fputs("\n", fff);
+		}
+
+		/* Print tableau */
+		export_cards(fff, g, p_ptr->head[WHERE_ACTIVE], cmp_table);
+	}
+
+	/* Print human player's hand */
+	export_cards(fff, g, g->p[player_us].head[WHERE_HAND], cmp_hand);
 
 	/* Close file */
 	fclose(fff);

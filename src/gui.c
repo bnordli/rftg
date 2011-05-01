@@ -365,7 +365,7 @@ static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
 static GtkWidget *new_item, *new_parameters_item;
-static GtkWidget *load_item, *replay_item, *save_item;
+static GtkWidget *load_item, *replay_item, *save_item, *export_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
 static GtkWidget *option_item, *quit_item;
@@ -8646,6 +8646,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(load_item, TRUE);
 		gtk_widget_set_sensitive(replay_item, TRUE);
 		gtk_widget_set_sensitive(save_item, TRUE);
+		gtk_widget_set_sensitive(export_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
@@ -8667,6 +8668,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(load_item, FALSE);
 		gtk_widget_set_sensitive(replay_item, FALSE);
 		gtk_widget_set_sensitive(save_item, FALSE);
+		gtk_widget_set_sensitive(export_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(undo_game_item, FALSE);
@@ -8848,6 +8850,57 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 
 		/* Save to file */
 		if (save_game(&real_game, fname, player_us) < 0)
+		{
+			/* Error */
+		}
+
+		/* Destroy filename */
+		g_free(fname);
+	}
+
+	/* Destroy file chooser dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
+ * Export game.
+ */
+static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
+{
+	GtkWidget *dialog;
+	char *fname;
+
+	/* Check for connected to server */
+	if (client_state != CS_DISCONN) return;
+
+	/* Create file chooser dialog box */
+	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
+	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
+	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                     "Export", GTK_RESPONSE_ACCEPT,
+	                                     NULL);
+
+	/* Check if last save location is set */
+	if (opt.last_save)
+	{
+		/* Set current folder to last save */
+		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), opt.last_save);
+	}
+
+	/* Run dialog and check response */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Get folder used */
+		opt.last_save = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
+
+		/* Save prefs */
+		save_prefs();
+
+		/* Get filename */
+		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+		/* Save to file */
+		if (export_game(&real_game, fname, player_us) < 0)
 		{
 			/* Error */
 		}
@@ -10974,6 +11027,7 @@ int main(int argc, char *argv[])
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	replay_item = gtk_menu_item_new_with_mnemonic("Re_play Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
+	export_item = gtk_menu_item_new_with_mnemonic("E_xport Game...");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
@@ -10988,6 +11042,8 @@ int main(int argc, char *argv[])
 	                           'P', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
 	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(export_item, "activate", window_accel,
+	                           'E', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
 	                           'G', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
@@ -10999,6 +11055,7 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), load_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), replay_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), export_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
@@ -11092,6 +11149,8 @@ int main(int argc, char *argv[])
 	                 GINT_TO_POINTER(RESTART_REPLAY));
 	g_signal_connect(G_OBJECT(save_item), "activate",
 	                 G_CALLBACK(gui_save_game), NULL);
+	g_signal_connect(G_OBJECT(export_item), "activate",
+	                 G_CALLBACK(gui_export_game), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
