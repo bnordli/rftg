@@ -7272,6 +7272,9 @@ int consume_action(game *g, int who)
 	/* Use chosen power */
 	consume_chosen(g, who, cidx[0], oidx[0]);
 
+	/* Check for aborted game */
+	if (g->game_over) return 0;
+
 	/* Successfully used power */
 	return 1;
 }
