@@ -223,7 +223,7 @@ static void replace_char(char *s, char c, char *replacement)
 	char *p = s;
 
 	/* Search for occurrence of character */
-	while (p = strchr(p, c))
+	while ((p = strchr(p, c)))
 	{
 		/* Copy first part of string */
 		strncpy(tmp, s, p - s);
@@ -551,7 +551,7 @@ int export_game(game *g, char *filename, int player_us)
 			}
 
 			/* Write end tag */
-			fprintf(fff, "    </Saved>\n", count);
+			fprintf(fff, "    </Saved>\n");
 		}
 
 

@@ -519,7 +519,7 @@ static void show_error(char *msg)
 	                               GTK_DIALOG_DESTROY_WITH_PARENT,
 	                               GTK_MESSAGE_ERROR,
 	                               GTK_BUTTONS_CLOSE,
-	                               msg);
+	                               "%s", msg);
 
 	/* Set title */
 	gtk_window_set_title(GTK_WINDOW(alert), TITLE);
@@ -3645,7 +3645,7 @@ void redraw_status(void)
 {
 	GtkWidget *draw_image, *discard_image, *pool_image;
 	GdkPixbuf *buf;
-	int i, color;
+	int i;
 	struct extra_info *ei;
 	const int size = 48;
 
