@@ -215,9 +215,57 @@ static int cmp_hand(const void *h1, const void *h2)
 }
 
 /*
- * Print cards of the linked list starting with x, in a specified order.
+ * Replace all occurenses of a character with a string.
  */
-static void export_cards(FILE *fff, game *g, int x,
+static void replace_char(char *s, char c, char *replacement)
+{
+	char tmp[1024];
+	char *p = s;
+
+	/* Search for occurrence of character */
+	while (p = strchr(p, c))
+	{
+		/* Copy first part of string */
+		strncpy(tmp, s, p - s);
+		tmp[p - s] = '\0';
+
+		/* Write replacement entity */
+		strcat(tmp, replacement);
+		
+		/* Increase pointer */
+		++p;
+
+		/* Write second part of string */
+		strcat(tmp, p);
+
+		/* Copy back to original buffer */
+		strcpy(s, tmp);
+	}
+}
+
+/*
+ * XML escape a string.
+ */
+static char *escape(char *s)
+{
+	static char escaped[1024];
+
+	/* Copy string */
+	strcpy(escaped, s);
+
+	/* Replace some special xml characters */
+	replace_char(escaped, '&', "&amp;");
+	replace_char(escaped, '<', "&lt;");
+	replace_char(escaped, '>', "&gt;");
+
+	/* Return the escaped string */
+	return escaped;
+}
+
+/*
+ * Write cards of the linked list starting with x, in a specified order.
+ */
+static void export_cards(FILE *fff, char *header, game *g, int x,
                          int (*cmp)(const void *, const void *))
 {
 	int n, p;
@@ -233,16 +281,21 @@ static void export_cards(FILE *fff, game *g, int x,
 	/* Sort the cards */
 	qsort(cards, n, sizeof(card), cmp);
 
+	/* Start tag */
+	fprintf(fff, "    <%s>\n", header);
+
 	/* Loop over sorted cards */
 	for (p = 0; p < n; ++p)
 	{
-		/* Print card name (* indicating good) */
-		fprintf(fff, "%s%s;", cards[p].d_ptr->name,
-			    (cards[p].covered != -1 ? "*" : ""));
+		/* Write card name and good indicator */
+		fprintf(fff, "      <Card id=\"%d\"%s>%s</Card>\n",
+		        cards[p].d_ptr->index,
+		        cards[p].covered != -1 ? " good=\"yes\"" : "",
+		        escape(cards[p].d_ptr->name));
 	}
 
-	/* Finish line */
-	fputs("\n", fff);
+	/* End tag */
+	fprintf(fff, "    </%s>\n", header);
 }
 
 /*
@@ -253,7 +306,7 @@ int export_game(game *g, char *filename, int player_us)
 	FILE *fff;
 	player *p_ptr;
 	card *c_ptr;
-	int p, i, n, deck = 0, discard = 0, act0, act1;
+	int p, i, n, deck = 0, discard = 0, act[2];
 
 	/* Open file for writing */
 	fff = fopen(filename, "w");
@@ -264,18 +317,61 @@ int export_game(game *g, char *filename, int player_us)
 	/* Score game to get end totals */
 	score_game(g);
 
-	/* Write header information */
-	fputs("RFTG Export\n", fff);
-	fputs(VERSION "\n", fff);
+	/* Write header and top level tag */
+	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", fff);
+	fputs("<RftgExport>\n", fff);
 
-	/* Write game setup information */
-	fprintf(fff, "%d %d\n", g->num_players, g->expanded);
-	fprintf(fff, "%d %d %d\n", g->advanced, g->goal_disabled,
-	                           g->takeover_disabled);
+	/* Write version */
+	fprintf(fff, "  <Version>%s</Version>\n", RELEASE);
+
+	/* Write setup start tag */
+	fputs("  <Setup>\n", fff);
+
+	/* Write number of players (and advanced game) */
+	fprintf(fff, "    <Players%s>%d</Players>\n",
+		g->num_players == 2 && g->advanced ? " advanced=\"yes\"" : "",
+		g->num_players);
+
+	/* Write expansion */
+	fprintf(fff, "    <Expansion id=\"%d\">%s</Expansion>\n",
+	        g->expanded, escape(exp_names[g->expanded]));
+
+	/* Check for goals disabled */
+	if (g->expanded >= 1)
+		fprintf(fff, "    <GoalsDisabled>%s</GoalsDisabled>\n",
+		        g->goal_disabled ? "yes" : "no");
+
+	/* Check for takeovers disabled */
+	if (g->expanded >= 2)
+		fprintf(fff, "    <TakeoversDisabled>%s</TakeoversDisabled>\n",
+		        g->takeover_disabled ? "yes" : "no");
+
+	/* Write end tag */
+	fputs("  </Setup>\n", fff);
+
+	/* Write status start tag */
+	fputs("  <GameStatus>\n", fff);
 
 	/* Write current round and phase */
-	fprintf(fff, "%d %s\n", g->round, g->cur_action == ACT_ROUND_START ?
-	        "Start of round" : plain_actname[g->cur_action]);
+	fprintf(fff, "    <Round>%d</Round>\n", g->round);
+	fprintf(fff, "    <Phase id=\"%d\">%s</Phase>\n",
+	        g->cur_action, g->cur_action == ACT_ROUND_START ?
+	        "Start of round" : escape(plain_actname[g->cur_action]));
+
+	/* Write phases start tag */
+	fputs("    <SelectedPhases>\n", fff);
+
+	/* Loop over phases */
+	for (i = ACT_EXPLORE_5_0; i <= ACT_PRODUCE; ++i)
+	{
+		/* Write phase if selected */
+		if (g->action_selected[i])
+			fprintf(fff, "      <Phase id=\"%d\">%s</Phase>\n",
+			        i, escape(plain_actname[i]));
+	}
+
+	/* Write end tag */
+	fputs("    </SelectedPhases>\n", fff);
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -291,38 +387,31 @@ int export_game(game *g, char *filename, int player_us)
 	}
 
 	/* Write game status information */
-	fprintf(fff, "%d %d %d\n", deck, discard, g->vp_pool);
-
-	/* Loop over phases */
-	for (i = ACT_EXPLORE_5_0; i <= ACT_PRODUCE; ++i)
-	{
-		/* Print phase if selected */
-		if (g->action_selected[i])
-			fprintf(fff, "%s;", plain_actname[i]);
-	}
-
-	/* Finish line */
-	fputs("\n", fff);
+	fprintf(fff, "    <Deck>%d</Deck>\n", deck);
+	fprintf(fff, "    <Discard>%d</Discard>\n", discard);
+	fprintf(fff, "    <Pool>%d</Pool>\n", g->vp_pool);
 
 	/* Check for goals enabled */
 	if (goals_enabled(g))
 	{
+		/* Write goals start tag */
+		fputs("    <AvailableGoals>\n", fff);
+
 		/* Loop over all goals */
 		for (i = 0; i < MAX_GOAL; ++i)
 		{
-			/* Print goal if still available */
+			/* Write goal if still available */
 			if (g->goal_avail[i])
-				fprintf(fff, "%s;", goal_name[i]);
+				fprintf(fff, "      <Goal id=\"%d\">%s</Goal>\n",
+				        i, escape(goal_name[i]));
 		}
 
-		/* Finish line */
-		fputs("\n", fff);
+		/* Write end tag */
+		fputs("    </AvailableGoals>\n", fff);
 	}
-	else
-	{
-		/* Goals disabled */
-		fputs("N/A\n", fff);
-	}
+
+		/* Write end tag */
+	fputs("  </GameStatus>\n", fff);
 
 	/* Loop over players */
 	for (p = 0; p < g->num_players; p++)
@@ -333,62 +422,77 @@ int export_game(game *g, char *filename, int player_us)
 		/* Get player pointer */
 		p_ptr = &g->p[n];
 
-		/* Print player name */
-		fprintf(fff, "%s\n", p_ptr->name);
+		/* Write player start tag */
+		fprintf(fff, "  <Player id=\"%d\">\n", n);
+
+		/* Write player name */
+		fprintf(fff, "    <Name>%s</Name>\n", escape(p_ptr->name));
 
 		/* Assume actions aren't known */
-		act0 = act1 = -1;
+		act[0] = act[1] = -1;
 
 		/* Check for actions known */
 		if (g->advanced && g->cur_action < ACT_SEARCH && n == player_us &&
 			count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy first action only */
-			act0 = p_ptr->action[0];
+			act[0] = p_ptr->action[0];
 		}
 		else if (g->cur_action >= ACT_SEARCH ||
 				 count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy both actions */
-			act0 = p_ptr->action[0];
-			act1 = p_ptr->action[1];
+			act[0] = p_ptr->action[0];
+			act[1] = p_ptr->action[1];
 		}
 
-		/* Print actions if known */
-		if (act0 != -1) fprintf(fff, "%s;", action_name(act0));
-		if (act1 != -1) fprintf(fff, "%s;", action_name(act1));
+		/* Write action start tag */
+		fputs("    <Actions>\n", fff);
 
-		/* Finish line */
-		fputs("\n", fff);
+		/* Loop over actions */
+		for (i = 0; i < 2; ++i)
+		{
+			/* Write action if known */
+			if (act[i] != -1)
+				fprintf(fff, "      <Action id=\"%d\">%s</Action>\n",
+				        act[i], escape(action_name(act[i])));
+		}
 
-		/* Print player information */
-		fprintf(fff, "%d %d %d\n", count_player_area(g, n, WHERE_HAND),
-		        p_ptr->vp, p_ptr->end_vp);
+		/* Write end tag */
+		fputs("    </Actions>\n", fff);
+
+		/* Write player information */
+		fprintf(fff, "    <HandSize>%d</HandSize>\n",
+		        count_player_area(g, n, WHERE_HAND));
+		fprintf(fff, "    <Chips>%d</Chips>\n", p_ptr->vp);
 
 		/* Check for last expansion */
 		if (g->expanded == 3)
 		{
-			/* Print prestige and whether prestige action is used */
-			fprintf(fff, "%d %d\n", p_ptr->prestige,
-			        p_ptr->prestige_action_used);
+			/* Write prestige and whether prestige action is used */
+			fprintf(fff, "    <Prestige actionUsed=\"%s\">%d</Prestige>\n",
+			        p_ptr->prestige_action_used ? "yes" : "no",
+			        p_ptr->prestige);
 		}
-		else
-		{
-			/* No prestige */
-			fputs("N/A\n", fff);
-		}
+
+		/* Write current score */
+		fprintf(fff, "    <Score>%d</Score>\n", p_ptr->end_vp);
 
 		/* Check for goals enabled */
 		if (goals_enabled(g))
 		{
+			/* Write goals start tag*/
+			fputs("    <Goals>\n", fff);
+
 			/* Loop over goals */
 			for (i = 0; i < MAX_GOAL; ++i)
 			{
 				/* Check if player has goal */
 				if (p_ptr->goal_claimed[i])
 				{
-					/* Print goal name */
-					fprintf(fff, "%s;", goal_name[i]);
+					/* Write goal */
+					fprintf(fff, "      <Goal id=\"%d\">%s</Goal>\n",
+					        i, escape(goal_name[i]));
 					continue;
 				}
 
@@ -400,25 +504,30 @@ int export_game(game *g, char *filename, int player_us)
 				if (p_ptr->goal_progress[i] < g->goal_most[i])
 					continue;
 
-				/* Print unclaimed goal */
-				fprintf(fff, "%s*;", goal_name[i]);
+				/* Write unclaimed goal */
+				fprintf(fff, "      <Goal id=\"%d\" unclaimed=\"yes\">%s"
+				        "</Goal>\n", i, escape(goal_name[i]));
 			}
 
-			/* Finish line */
-			fputs("\n", fff);
-		}
-		else
-		{
-			/* Goals disabled */
-			fputs("N/A\n", fff);
+			/* Write end tag */
+			fputs("    </Goals>\n", fff);
 		}
 
-		/* Print tableau */
-		export_cards(fff, g, p_ptr->head[WHERE_ACTIVE], cmp_table);
+		/* Write tableau */
+		export_cards(fff, "Tableau", g, p_ptr->head[WHERE_ACTIVE], cmp_table);
+
+		if (n == player_us)
+		{
+			/* Write human player's hand */
+			export_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND], cmp_hand);
+		}
+
+		/* Write end tag */
+		fputs("  </Player>\n", fff);
 	}
 
-	/* Print human player's hand */
-	export_cards(fff, g, g->p[player_us].head[WHERE_HAND], cmp_hand);
+	/* End top level tag */
+	fputs("</RftgExport>\n", fff);
 
 	/* Close file */
 	fclose(fff);
