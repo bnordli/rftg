@@ -601,7 +601,7 @@ void draw_cards(game *g, int who, int num, char *reason)
 	{
 		/* Format message */
 		sprintf(msg, "%s receives %d card%s from %s.\n",
-				g->p[who].name, num, PLURAL(num), reason);
+		        g->p[who].name, num, PLURAL(num), reason);
 
 		/* Add message */
 		message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -627,7 +627,7 @@ static void gain_prestige(game *g, int who, int num, char *reason)
 	{
 		/* Format message */
 		sprintf(msg, "%s receives %d prestige from %s.\n",
-		              p_ptr->name, num, reason);
+		        p_ptr->name, num, reason);
 
 		/* Add message */
 		message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -853,7 +853,7 @@ void clear_temp(game *g)
 }
 
 /*
- * Find the next choice in a log after the current pos
+ * Find the next choice in a log after the current position.
  */
 int next_choice(int* log, int pos)
 {
@@ -4050,7 +4050,7 @@ int takeover_callback(game *g, int special, int world)
 			{
 				/* Format message */
 				sprintf(msg, "%s spends 1 prestige on %s.\n",
-				             g->p[c_ptr->owner].name, c_ptr->d_ptr->name);
+				        g->p[c_ptr->owner].name, c_ptr->d_ptr->name);
 
 				/* Send message */
 				message_add(g, msg);
@@ -10352,11 +10352,15 @@ int game_round(game *g)
 		/* Skip unchosen phases */
 		if (!g->action_selected[i]) continue;
 
-		/* Format message */
-		sprintf(msg, "--- %s phase ---\n", plain_actname[i]);
+		/* Check for real game */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "--- %s phase ---\n", plain_actname[i]);
 
-		/* Add message */
-		message_add_formatted(g, msg, FORMAT_PHASE);
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_PHASE);
+		}
 
 		/* Handle phase */
 		switch (i)

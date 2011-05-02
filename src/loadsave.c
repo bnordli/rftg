@@ -253,7 +253,7 @@ static char *escape(char *s)
 	/* Copy string */
 	strcpy(escaped, s);
 
-	/* Replace some special xml characters */
+	/* Replace special xml characters */
 	replace_char(escaped, '&', "&amp;");
 	replace_char(escaped, '<', "&lt;");
 	replace_char(escaped, '>', "&gt;");
@@ -336,13 +336,13 @@ int export_game(game *g, char *filename, int player_us)
 	fprintf(fff, "    <Expansion id=\"%d\">%s</Expansion>\n",
 	        g->expanded, escape(exp_names[g->expanded]));
 
-	/* Check for goals disabled */
-	if (g->expanded >= 1)
+	/* Check for expansion with goals */
+	if (g->expanded)
 		fprintf(fff, "    <Goals>%s</Goals>\n",
 		        g->goal_disabled ? "off" : "on");
 
-	/* Check for takeovers disabled */
-	if (g->expanded >= 2)
+	/* Check for expansion with takeovers */
+	if (g->expanded > 1)
 		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
 		        g->takeover_disabled ? "off" : "on");
 

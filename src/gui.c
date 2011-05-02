@@ -456,7 +456,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextBuffer *message_buffer;
 
 	/* Check for verbose message while verbosity disabled */
-	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose)
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log)
 	{
 		/* Do not log message */
 		return;
@@ -3752,7 +3752,7 @@ void redraw_status(void)
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
 	              size, display_pool, real_game.num_players * 12 +
-				    (real_game.expanded == 3 ? 5 : 0));
+	                (real_game.expanded == 3 ? 5 : 0));
 
 	/* Make VP widget */
 	pool_image = gtk_image_new_from_pixbuf(buf);
@@ -8502,8 +8502,8 @@ static void read_prefs(void)
 	                                      "save_log", NULL);
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "colored_log", NULL);
-	opt.verbose = g_key_file_get_boolean(pref_file, "gui",
-	                                     "verbose", NULL);
+	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
+	                                        "verbose_log", NULL);
 	opt.discard_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "discard_log", NULL);
 
@@ -8585,8 +8585,8 @@ void save_prefs(void)
 		                   opt.save_log);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
 		                   opt.colored_log);
-	g_key_file_set_boolean(pref_file, "gui", "verbose",
-		                   opt.verbose);
+	g_key_file_set_boolean(pref_file, "gui", "verbose_log",
+		                   opt.verbose_log);
 	g_key_file_set_boolean(pref_file, "gui", "discard_log",
 		                   opt.discard_log);
 
@@ -9722,7 +9722,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(verbose_button),
-	                             opt.verbose);
+	                             opt.verbose_log);
 
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(log_box), verbose_button, FALSE, TRUE, 0);
@@ -9811,8 +9811,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.colored_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
 
-		/* Set verbose option */
-		opt.verbose =
+		/* Set verbose log option */
+		opt.verbose_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
 		/* Set log discards option */
@@ -9826,7 +9826,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		if (client_state == CS_DISCONN &&
 			!(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
-		     opt.verbose != old_options.verbose ||
+		     opt.verbose_log != old_options.verbose_log ||
 		     opt.discard_log != old_options.discard_log))
 		{
 			/* Force current game over */
@@ -9953,7 +9953,7 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 	}
 
 	/* Check for moving from active area */
-	if (old_owner != -1 && old_where == WHERE_ACTIVE)
+	if (old_where == WHERE_ACTIVE && old_owner != -1)
 	{
 		/* Loop over table area */
 		for (i = 0; i < table_size[old_owner]; i++)
@@ -10182,8 +10182,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
-					                     GTK_STOCK_OK,
-                                         GTK_RESPONSE_ACCEPT, NULL);
+	                                     GTK_STOCK_OK,
+	                                     GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);

@@ -2,10 +2,10 @@
  * Reasons to restart main loop.
  */
 #define RESTART_NEW        1
-#define RESTART_RESTORE    2
+#define RESTART_NONE       2
 #define RESTART_LOAD       3
-#define RESTART_UNDO       4
-#define RESTART_NONE       5
+#define RESTART_RESTORE    4
+#define RESTART_UNDO       5
 #define RESTART_UNDO_ROUND 6
 #define RESTART_UNDO_GAME  7
 #define RESTART_REDO       8
@@ -93,7 +93,7 @@ typedef struct options
 	int colored_log;
 
 	/* Verbose log */
-	int verbose;
+	int verbose_log;
 
 	/* Discard log */
 	int discard_log;
@@ -103,6 +103,7 @@ typedef struct options
 
 	/* Data folder location */
 	char *data_folder;
+
 } options;
 
 extern options opt;
