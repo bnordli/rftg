@@ -338,40 +338,41 @@ int export_game(game *g, char *filename, int player_us)
 
 	/* Check for goals disabled */
 	if (g->expanded >= 1)
-		fprintf(fff, "    <GoalsDisabled>%s</GoalsDisabled>\n",
-		        g->goal_disabled ? "yes" : "no");
+		fprintf(fff, "    <Goals>%s</Goals>\n",
+		        g->goal_disabled ? "off" : "on");
 
 	/* Check for takeovers disabled */
 	if (g->expanded >= 2)
-		fprintf(fff, "    <TakeoversDisabled>%s</TakeoversDisabled>\n",
-		        g->takeover_disabled ? "yes" : "no");
+		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
+		        g->takeover_disabled ? "off" : "on");
 
 	/* Write end tag */
 	fputs("  </Setup>\n", fff);
 
 	/* Write status start tag */
-	fputs("  <GameStatus>\n", fff);
+	fputs("  <Status>\n", fff);
 
-	/* Write current round and phase */
+	/* Check for game over */
+	if (g->game_over) fputs("  <GameOver />\n", fff);
+
+	/* Write current round phase */
 	fprintf(fff, "    <Round>%d</Round>\n", g->round);
-	fprintf(fff, "    <Phase id=\"%d\">%s</Phase>\n",
-	        g->cur_action, g->cur_action == ACT_ROUND_START ?
-	        "Start of round" : escape(plain_actname[g->cur_action]));
 
 	/* Write phases start tag */
-	fputs("    <SelectedPhases>\n", fff);
+	fputs("    <Phases>\n", fff);
 
 	/* Loop over phases */
 	for (i = ACT_EXPLORE_5_0; i <= ACT_PRODUCE; ++i)
 	{
 		/* Write phase if selected */
 		if (g->action_selected[i])
-			fprintf(fff, "      <Phase id=\"%d\">%s</Phase>\n",
-			        i, escape(plain_actname[i]));
+			fprintf(fff, "      <Phase id=\"%d\"%s>%s</Phase>\n",
+			        i, i == g->cur_action ? " current=\"yes\"" : "",
+			        escape(plain_actname[i]));
 	}
 
 	/* Write end tag */
-	fputs("    </SelectedPhases>\n", fff);
+	fputs("    </Phases>\n", fff);
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -395,23 +396,25 @@ int export_game(game *g, char *filename, int player_us)
 	if (goals_enabled(g))
 	{
 		/* Write goals start tag */
-		fputs("    <AvailableGoals>\n", fff);
+		fputs("    <Goals>\n", fff);
 
 		/* Loop over all goals */
 		for (i = 0; i < MAX_GOAL; ++i)
 		{
-			/* Write goal if still available */
-			if (g->goal_avail[i])
-				fprintf(fff, "      <Goal id=\"%d\">%s</Goal>\n",
-				        i, escape(goal_name[i]));
+			/* Skip unused goals */
+			if (!g->goal_active[i]) continue;
+
+			/* Write goal and availability */
+			fprintf(fff, "      <Goal id=\"%d\" claimed=\"%s\">%s</Goal>\n",
+			        i, g->goal_avail[i] ? "no" : "yes", escape(goal_name[i]));
 		}
 
 		/* Write end tag */
-		fputs("    </AvailableGoals>\n", fff);
+		fputs("    </Goals>\n", fff);
 	}
 
-		/* Write end tag */
-	fputs("  </GameStatus>\n", fff);
+	/* Write end tag */
+	fputs("  </Status>\n", fff);
 
 	/* Loop over players */
 	for (p = 0; p < g->num_players; p++)
@@ -461,17 +464,17 @@ int export_game(game *g, char *filename, int player_us)
 		/* Write end tag */
 		fputs("    </Actions>\n", fff);
 
-		/* Write chips acquired */
-		fprintf(fff, "    <Chips>%d</Chips>\n", p_ptr->vp);
-
 		/* Check for last expansion */
 		if (g->expanded == 3)
 		{
 			/* Write prestige and whether prestige action is used */
-			fprintf(fff, "    <Prestige actionUsed=\"%s\">%d</Prestige>\n",
+			fprintf(fff, "    <Prestige used=\"%s\">%d</Prestige>\n",
 			        p_ptr->prestige_action_used ? "yes" : "no",
 			        p_ptr->prestige);
 		}
+
+		/* Write acquired chips */
+		fprintf(fff, "    <Chips>%d</Chips>\n", p_ptr->vp);
 
 		/* Write current score */
 		fprintf(fff, "    <Score>%d</Score>\n", p_ptr->end_vp);
