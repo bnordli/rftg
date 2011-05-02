@@ -7846,6 +7846,58 @@ decisions gui_func =
 };
 
 /*
+ * Apply options to game structure.
+ */
+static void apply_options(void)
+{
+	/* Sanity check number of players in base game */
+	if (opt.expanded < 1 && opt.num_players > 4)
+	{
+		/* Reset to four players */
+		opt.num_players = 4;
+	}
+
+	/* Sanity check number of players in first expansion */
+	if (opt.expanded < 2 && opt.num_players > 5)
+	{
+		/* Reset to five players */
+		opt.num_players = 5;
+	}
+
+	/* Set name of human player */
+	real_game.human_name = opt.player_name;
+
+	/* Set number of players */
+	real_game.num_players = opt.num_players;
+
+	/* Set expansion level */
+	real_game.expanded = opt.expanded;
+
+	/* Set advanced flag */
+	real_game.advanced = opt.advanced;
+
+	/* Set goals disabled */
+	real_game.goal_disabled = opt.disable_goal;
+
+	/* Set takeover disabled */
+	real_game.takeover_disabled = opt.disable_takeover;
+
+	/* Check for custom seed value */
+	if (opt.customize_seed)
+	{
+		/* Set start seed */
+		real_game.random_seed = opt.seed;
+	}
+
+	/* Sanity check advanced mode */
+	if (real_game.num_players > 2)
+	{
+		/* Clear advanced mode */
+		real_game.advanced = 0;
+	}
+}
+
+/*
  * Reset player structures.
  */
 void reset_gui(void)
@@ -8004,6 +8056,9 @@ static void run_game(void)
 		/* Check for new game starting */
 		if (restart_loop == RESTART_NEW)
 		{
+			/* Read parameters from options */
+			apply_options();
+
 			/* Reset our position and GUI elements */
 			reset_gui();
 
@@ -8030,6 +8085,9 @@ static void run_game(void)
 
 			/* Initialize game */
 			init_game(&real_game);
+
+			/* Modify GUI for new game parameters */
+			modify_gui();
 		}
 
 		/* Check for restoring game */
@@ -8580,58 +8638,6 @@ void save_prefs(void)
 
 	/* Close file */
 	fclose(fff);
-}
-
-/*
- * Apply options to game structure.
- */
-static void apply_options(void)
-{
-	/* Sanity check number of players in base game */
-	if (opt.expanded < 1 && opt.num_players > 4)
-	{
-		/* Reset to four players */
-		opt.num_players = 4;
-	}
-
-	/* Sanity check number of players in first expansion */
-	if (opt.expanded < 2 && opt.num_players > 5)
-	{
-		/* Reset to five players */
-		opt.num_players = 5;
-	}
-
-	/* Set name of human player */
-	real_game.human_name = opt.player_name;
-
-	/* Set number of players */
-	real_game.num_players = opt.num_players;
-
-	/* Set expansion level */
-	real_game.expanded = opt.expanded;
-
-	/* Set advanced flag */
-	real_game.advanced = opt.advanced;
-
-	/* Set goals disabled */
-	real_game.goal_disabled = opt.disable_goal;
-
-	/* Set takeover disabled */
-	real_game.takeover_disabled = opt.disable_takeover;
-
-	/* Check for custom seed value */
-	if (opt.customize_seed)
-	{
-		/* Set start seed */
-		real_game.random_seed = opt.seed;
-	}
-
-	/* Sanity check advanced mode */
-	if (real_game.num_players > 2)
-	{
-		/* Clear advanced mode */
-		real_game.advanced = 0;
-	}
 }
 
 /*
