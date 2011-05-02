@@ -273,7 +273,7 @@ static uint64_t lookup_power(char *ptr, int phase)
 /*
  * Read card designs from 'cards.txt' file.
  */
-void read_cards(void)
+int read_cards(void)
 {
 	FILE *fff;
 	char buf[1024], *ptr;
@@ -299,7 +299,7 @@ void read_cards(void)
 	{
 		/* Print error and exit */
 		perror("cards.txt");
-		exit(1);
+		return -1;
 	}
 
 	/* Loop over file */
@@ -401,9 +401,7 @@ void read_cards(void)
 						/* Error */
 						printf("Unknown flag '%s'!\n",
 						       ptr);
-
-						/* Exit */
-						exit(1);
+						return -2;
 					}
 
 					/* Get next flag */
@@ -436,7 +434,7 @@ void read_cards(void)
 				{
 					/* Error */
 					printf("No good name '%s'!\n", ptr);
-					exit(1);
+					return -2;
 				}
 
 				/* Done with good line */
@@ -516,7 +514,7 @@ void read_cards(void)
 				{
 					/* Error */
 					printf("No VP type '%s'!\n", ptr);
-					exit(1);
+					return -2;
 				}
 
 				/* Get name string */
@@ -530,6 +528,9 @@ void read_cards(void)
 
 	/* Close card design file */
 	fclose(fff);
+
+	/* Success */
+	return 0;
 }
 
 /*
@@ -564,7 +565,7 @@ void init_game(game *g)
 	g->round = 1;
 
 	/* No phase or turn */
-	g->cur_action = -1;
+	g->cur_action = ACT_ROUND_START;
 	g->turn = 0;
 
 	/* Clear selected actions */

@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "g"
+#define RELEASE VERSION "h"
 #endif
 
 #include <stdio.h>
@@ -118,6 +118,7 @@
 /*
  * Player action choices.
  */
+#define ACT_ROUND_START    -1
 #define ACT_SEARCH         0
 #define ACT_EXPLORE_5_0    1
 #define ACT_EXPLORE_1_1    2
@@ -128,6 +129,7 @@
 #define ACT_CONSUME_TRADE  7
 #define ACT_CONSUME_X2     8
 #define ACT_PRODUCE        9
+#define ACT_ROUND_END      10
 
 #define ACT_MASK           0x7f
 #define ACT_PRESTIGE       0x80
@@ -880,6 +882,7 @@ typedef struct game
  */
 extern design library[MAX_DESIGN];
 extern char *actname[MAX_ACTION * 2 - 1];
+extern char *plain_actname[MAX_ACTION + 1];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
@@ -901,7 +904,7 @@ extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
 extern void save_log(void);
 extern int game_rand(game *g);
-extern void read_cards(void);
+extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);
@@ -977,3 +980,4 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 
 extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
+extern int export_game(game *g, char *filename, int player_us);

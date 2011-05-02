@@ -1,17 +1,18 @@
 /*
  * Reasons to restart main loop.
  */
-#define RESTART_NEW  1
-#define RESTART_LOAD 2
-#define RESTART_UNDO 3
-#define RESTART_NONE 4
-#define RESTART_UNDO_ROUND 5
-#define RESTART_UNDO_GAME 6
-#define RESTART_REDO 7
-#define RESTART_REDO_ROUND 8
-#define RESTART_REDO_GAME 9
-#define RESTART_REPLAY 10
-#define RESTART_CURRENT 11
+#define RESTART_NEW        1
+#define RESTART_NONE       2
+#define RESTART_LOAD       3
+#define RESTART_RESTORE    4
+#define RESTART_UNDO       5
+#define RESTART_UNDO_ROUND 6
+#define RESTART_UNDO_GAME  7
+#define RESTART_REDO       8
+#define RESTART_REDO_ROUND 9
+#define RESTART_REDO_GAME  10
+#define RESTART_REPLAY     11
+#define RESTART_CURRENT    12
 
 /*
  * User options.
@@ -48,8 +49,11 @@ typedef struct options
 	/* Shrink opponent areas to fit without scrolling */
 	int shrink_opponent;
 
-	/* Show the settle discount icon */
-	int show_settle_discount;
+	/* Display the settle discount icon */
+	int settle_discount;
+
+	/* Display the VP value for cards in hand */
+	int vp_in_hand;
 
 	/* Server name to connect to */
 	char *server_name;
@@ -89,7 +93,7 @@ typedef struct options
 	int colored_log;
 
 	/* Verbose log */
-	int verbose;
+	int verbose_log;
 
 	/* Discard log */
 	int discard_log;
@@ -99,6 +103,7 @@ typedef struct options
 
 	/* Data folder location */
 	char *data_folder;
+
 } options;
 
 extern options opt;

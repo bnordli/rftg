@@ -286,7 +286,7 @@ static void complete_turn(game *g, int partial)
 	check_goals(g);
 
 	/* Handle costs of action selection */
-	if (g->cur_action == -1)
+	if (g->cur_action == ACT_ROUND_START)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
@@ -341,8 +341,8 @@ static void complete_turn(game *g, int partial)
 		}
 	}
 
-	/* Clear current action */
-	g->cur_action = -1;
+	/* End of round */
+	g->cur_action = ACT_ROUND_END;
 
 	/* Handle discard phase */
 	phase_discard(g);
@@ -2015,7 +2015,7 @@ static void ai_choose_action_advanced_aux(game *g, int who, int oa,
 		}
 
 		/* Start at beginning of turn */
-		sim2.cur_action = -1;
+		sim2.cur_action = ACT_ROUND_START;
 
 #ifdef DEBUG
 		old_computes = num_computes;
@@ -2381,7 +2381,7 @@ static void ai_choose_action_aux(game *g, int who, int current, double prob,
 			}
 
 			/* Start at beginning of turn */
-			sim.cur_action = -1;
+			sim.cur_action = ACT_ROUND_START;
 
 			/* Complete turn */
 			complete_turn(&sim, COMPLETE_ROUND);
@@ -3119,7 +3119,7 @@ static void ai_explore_sample_aux(game *g, int who, int draw, int keep,
 	b_s = -1;
 
 	/* XXX Change action so that we don't simulate rest of turn */
-	sim.cur_action = -1;
+	sim.cur_action = ACT_ROUND_START;
 
 	/* Find best set of cards */
 	ai_choose_discard_aux(&sim, who, list, num, discard, 0, &best, &b_s);

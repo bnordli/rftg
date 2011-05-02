@@ -2079,8 +2079,8 @@ with the password you enter.");
 		/* End current local game */
 		real_game.game_over = 1;
 
-		/* Start new game */
-		restart_loop = RESTART_NEW;
+		/* Restore single-player game */
+		restart_loop = RESTART_RESTORE;
 
 		/* Set state to disconnected */
 		client_state = CS_DISCONN;
@@ -2161,8 +2161,8 @@ static void disconnect(void)
 	/* Switch view to game */
 	switch_view(0, 0);
 
-	/* Restart single-player game */
-	restart_loop = RESTART_NEW;
+	/* Restore single-player game */
+	restart_loop = RESTART_RESTORE;
 
 	/* No longer making a choice */
 	making_choice = 0;

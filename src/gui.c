@@ -32,6 +32,8 @@
 #include "ige-mac-menu.h"
 #endif
 
+#define TITLE "Race for the Galaxy " RELEASE
+
 /*
  * Our default options.
  */
@@ -54,6 +56,20 @@ int verbose = 0;
  * Current (real) game state.
  */
 game real_game;
+
+/*
+ * Flags for game tampered state.
+ */
+#define TAMPERED_LOAD 0x1
+#define TAMPERED_SEED 0x2
+#define TAMPERED_UNDO 0x4
+#define TAMPERED_LOOK 0x8
+#define TAMPERED_MOVE 0x10
+
+/*
+ * Whether the current game has been tampered with in debug mode.
+ */
+static int game_tampered;
 
 /*
  * The number of the current undo positions.
@@ -348,7 +364,7 @@ static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_labels[MAX_ACTION];
 static GtkWidget *action_box;
 static GtkWidget *new_item, *new_parameters_item;
-static GtkWidget *load_item, *replay_item, *save_item;
+static GtkWidget *load_item, *replay_item, *save_item, *export_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
 static GtkWidget *option_item, *quit_item;
@@ -439,7 +455,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextBuffer *message_buffer;
 
 	/* Check for verbose message while verbosity disabled */
-	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose)
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log)
 	{
 		/* Do not log message */
 		return;
@@ -492,6 +508,30 @@ void message_add_private(game *g, int who, char *msg, char *tag)
 }
 
 /*
+ * Show an error dialog with a message.
+ */
+static void show_error(char *msg)
+{
+	GtkWidget *alert;
+
+	/* Create error dialog */
+	alert = gtk_message_dialog_new(NULL,
+	                               GTK_DIALOG_DESTROY_WITH_PARENT,
+	                               GTK_MESSAGE_ERROR,
+	                               GTK_BUTTONS_CLOSE,
+	                               msg);
+
+	/* Set title */
+	gtk_window_set_title(GTK_WINDOW(alert), TITLE);
+
+	/* Run dialog */
+	gtk_dialog_run(GTK_DIALOG(alert));
+
+	/* Destroy alert dialog */
+	gtk_widget_destroy(alert);
+}
+
+/*
  * Saves the message log to a time stamped file.
  */
 void save_log(void)
@@ -533,17 +573,9 @@ void save_log(void)
 	/* Generate file name */
 	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
 
-	/* Check if data folder is set */
-	if (!opt.data_folder)
-	{
-		/* Build autosave filename */
-		full_filename = g_build_filename(RFTGDIR, filename, NULL);
-	}
-	else
-	{
-		/* Build autosave filename */
-		full_filename = g_build_filename(opt.data_folder, filename, NULL);
-	}
+	/* Build full file name */
+	full_filename = g_build_filename(
+	    opt.data_folder ? opt.data_folder : RFTGDIR, filename, NULL);
 
 	/* Open file for writing */
 	fff = fopen(full_filename, "w");
@@ -687,7 +719,8 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 	                                      &buffer_x, &buffer_y);
 
 	/* Get start of line */
-	gtk_text_view_get_line_at_y(GTK_TEXT_VIEW(message_view), &iter_start, buffer_y, NULL);
+	gtk_text_view_get_line_at_y(GTK_TEXT_VIEW(message_view),
+	                            &iter_start, buffer_y, NULL);
 
 	/* Get end of line */
 	iter_end = iter_start;
@@ -929,7 +962,7 @@ static void load_image_bundle(void)
 static void load_images(void)
 {
 	int i;
-	char fn[1024];
+	char fn[1024], msg[1024];
 
 	/* Load card back image */
 	card_back = gdk_pixbuf_new_from_file("image/cardback.jpg",NULL);
@@ -940,7 +973,7 @@ static void load_images(void)
 		/* Try to load image data from bundle instead */
 		load_image_bundle();
 
-		/* TODO: Pack icon into images.data */
+		/* TODO: Pack extra icons into images.data */
 		for (i = ICON_VP_EMPTY; i < MAX_ICON; ++i)
 		{
 			/* Check for missing icon */
@@ -955,8 +988,11 @@ static void load_images(void)
 				/* Check for error */
 				if (!icon_cache[i])
 				{
-					/* Print error */
-					printf("Cannot open icon image %s!\n", fn);
+					/* Format message */
+					sprintf(msg, "Cannot open icon image %s!\n", fn);
+
+					/* Show error */
+					show_error(msg);
 				}
 			}
 		}
@@ -1948,8 +1984,8 @@ void redraw_hand(void)
 			}
 		}
 
-		/* Add tooltip if available */
-		if (i_ptr->tooltip)
+		/* Add tooltip if enabled and available */
+		if (opt.vp_in_hand && i_ptr->tooltip)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
@@ -2512,10 +2548,15 @@ static char *get_discount_tooltip(game *g, int who)
 	card *c_ptr;
 	power *o_ptr;
 	int i, j;
-	int base, blue, brown, green, yellow, zero;
+	int base, zero, blue, brown, green, yellow, pay_discount;
+	int non_alien_mil_0, non_alien_mil_1, rebel_mil, chromo_mil, alien_mil;
 
 	/* Start discounts at 0 */
-	base = zero = blue = brown = green = yellow = 0;
+	base = zero = blue = brown = green = yellow = pay_discount = 0;
+
+	/* Start flags at FALSE */
+	non_alien_mil_0 = non_alien_mil_1 = FALSE;
+	rebel_mil = chromo_mil = alien_mil = FALSE;
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -2542,28 +2583,57 @@ static char *get_discount_tooltip(game *g, int who)
 			if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
 				zero += 1;
 
-			/* Skip non-reduce power */
-			if (!(o_ptr->code & P3_REDUCE)) continue;
+			/* Check for reduce power */
+			if (o_ptr->code & P3_REDUCE)
+			{
+				/* Check for general discount */
+				if (o_ptr->code == P3_REDUCE)
+					base += o_ptr->value;
 
-			/* Check for general discount */
-			if (o_ptr->code == P3_REDUCE)
-				base += o_ptr->value;
+				/* Check for discount against Novelty worlds */
+				if (o_ptr->code & P3_NOVELTY)
+					blue += o_ptr->value;
 
-			/* Check for discount against Novelty worlds */
-			if (o_ptr->code & P3_NOVELTY)
-				blue += o_ptr->value;
+				/* Check for discount against Rare worlds */
+				if (o_ptr->code & P3_RARE)
+					brown += o_ptr->value;
 
-			/* Check for discount against Rare worlds */
-			if (o_ptr->code & P3_RARE)
-				brown += o_ptr->value;
+				/* Check for discount against Gene worlds */
+				if (o_ptr->code & P3_GENE)
+					green += o_ptr->value;
 
-			/* Check for discount against Gene worlds */
-			if (o_ptr->code & P3_GENE)
-				green += o_ptr->value;
+				/* Check for discount against Alien worlds */
+				if (o_ptr->code & P3_ALIEN)
+					yellow += o_ptr->value;
+			}
 
-			/* Check for discount against Alien worlds */
-			if (o_ptr->code & P3_ALIEN)
-				yellow += o_ptr->value;
+			/* Check for pay-for-military powers */
+			if (o_ptr->code & P3_PAY_MILITARY)
+			{
+				/* Check for non-alien power without discount */
+				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 0)
+					non_alien_mil_0 = TRUE;
+
+				/* Check for non-alien power with discount */
+				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 1)
+					non_alien_mil_1 = TRUE;
+
+				/* Check for rebel flag */
+				if (o_ptr->code & P3_AGAINST_REBEL)
+					rebel_mil = TRUE;
+
+				/* Check for chromo flag */
+				if (o_ptr->code & P3_AGAINST_CHROMO)
+					chromo_mil = TRUE;
+
+				/* Check for alien flag */
+				if (o_ptr->code & P3_ALIEN)
+					alien_mil = TRUE;
+			}
+
+			/* Check for pay-for-military discount */
+			if (o_ptr->code & P3_PAY_DISCOUNT)
+				pay_discount += o_ptr->value;
 		}
 	}
 
@@ -2571,18 +2641,12 @@ static char *get_discount_tooltip(game *g, int who)
 	strcpy(msg, "");
 
 	/* Add general discount */
-	if (base || blue || brown || green || yellow || zero)
+	if (base || blue || brown || green || yellow || zero || non_alien_mil_0 ||
+	    non_alien_mil_1 || rebel_mil || chromo_mil || alien_mil)
 	{
 		/* Create text */
 		sprintf(text, "Base discount: -%d", base);
 		strcat(msg, text);
-	}
-
-	/* Add discard to zero */
-	if (zero)
-	{
-		/* Create text */
-		strcat(msg, "\nMay discard to place at 0 cost");
 	}
 
 	/* Add Novelty discount */
@@ -2617,6 +2681,80 @@ static char *get_discount_tooltip(game *g, int who)
 		strcat(msg, text);
 	}
 
+	/* Add pay for non-alien military with discount */
+	if (non_alien_mil_1 || (non_alien_mil_0 && pay_discount))
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional discount when paying\n"
+		        "  for non-Alien military worlds: -%d",
+		        (non_alien_mil_1 ? 1 : 0) + pay_discount);
+		strcat(msg, text);
+	}
+
+	/* Add pay for rebel military with discount */
+	if (rebel_mil)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional discount when paying\n"
+		        "  for Rebel military worlds: -%d", 2 + pay_discount);
+		strcat(msg, text);
+	}
+
+	/* Check for discount when paying for military */
+	if (pay_discount)
+	{
+		/* Add pay for chromo military with discount */
+		if (chromo_mil)
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional discount when paying\n"
+			        "  for worlds with a Chromosome symbol: -%d", pay_discount);
+			strcat(msg, text);
+		}
+
+		/* Add pay for alien military with discount */
+		if (alien_mil)
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional discount when paying\n"
+			        "  for Alien military worlds: -%d", pay_discount);
+			strcat(msg, text);
+		}
+	}
+
+	/* No pay-for-military discount */
+	else
+	{
+		/* Add pay for non-alien military without discount */
+		if (non_alien_mil_0 && !non_alien_mil_1)
+		{
+			/* Create text */
+			strcat(msg, "\nMay pay to settle a non-Alien military world");
+		}
+
+		/* Add pay for chromo military without discount */
+		if (chromo_mil)
+		{
+			/* Create text */
+			strcat(msg, "\nMay pay to settle a military world\n"
+				   "  with a Chromosome symbol");
+		}
+
+		/* Add pay for alien military without discount */
+		if (alien_mil)
+		{
+			/* Create text */
+			strcat(msg, "\nMay pay to settle an Alien military world");
+		}
+	}
+
+	/* Add discard to zero */
+	if (zero)
+	{
+		/* Create text */
+		strcat(msg, "\nMay discard to place at 0 cost");
+	}
+
 	/* Return tooltip text */
 	return msg;
 }
@@ -2628,6 +2766,7 @@ static char *get_military_tooltip(game *g, int who)
 {
 	static char msg[1024];
 	char text[1024];
+	char card_name[1024];
 	card *c_ptr;
 	power *o_ptr;
 	int i, j;
@@ -2639,6 +2778,9 @@ static char *get_military_tooltip(game *g, int who)
 
 	/* Start strengths at 0 */
 	rebel = blue = brown = green = yellow = defense = attack_imperium = 0;
+
+	/* Clear card name */
+	strcpy(card_name, "");
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -2671,6 +2813,18 @@ static char *get_military_tooltip(game *g, int who)
 				/* Add extra defense for Rebel military worlds */
 				defense +=
 				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+
+				/* Check if card name already set */
+				if (strlen(card_name))
+				{
+					/* YYY Use name of both cards */
+					strcpy(card_name, "Rebel Alliance/Rebel Sneak Attack");
+				}
+				else
+				{
+					/* Remember name of card */
+					strcpy(card_name, c_ptr->d_ptr->name);
+				}
 			}
 
 			/* Check for takeover imperium power */
@@ -2787,11 +2941,12 @@ static char *get_military_tooltip(game *g, int who)
 	if (attack_imperium)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional attack against IMPERIUM: %+d", attack_imperium);
+		sprintf(text, "\nAdditional attack when using %s: %+d",
+		        card_name, attack_imperium);
 		strcat(msg, text);
 	}
 
-	/* Check for active Imperium card */
+	/* Check for active imperium card */
 	if (imperium)
 	{
 		/* Add vulnerability text */
@@ -2867,7 +3022,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int n, i, vp_diff;
+	int n, i, old_vp, vp_diff;
 	game sim;
 
 	/* Copy game */
@@ -2875,6 +3030,15 @@ static char *card_hand_tooltip(game *g, int who, int which)
 
 	/* Set simulated game */
 	sim.simulation = 1;
+
+	/* Simulate end of phase (for cards already placed) */
+	clear_temp(&sim);
+
+	/* Score game for player */
+	score_game(&sim);
+
+	/* Remember old score */
+	old_vp = sim.p[who].end_vp;
 
 	/* Simulate placement of card */
 	place_card(&sim, who, which);
@@ -2963,11 +3127,14 @@ static char *card_hand_tooltip(game *g, int who, int which)
 		}
 	}
 
+	/* Simulate end of phase (for self-scoring cards) */
+	clear_temp(&sim);
+
 	/* Score game for player */
 	score_game(&sim);
 
 	/* Compute score difference */
-	vp_diff = sim.p[who].end_vp - g->p[who].end_vp;
+	vp_diff = sim.p[who].end_vp - old_vp;
 
 	/* Format message */
 	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
@@ -3301,7 +3468,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	}
 
 	/* Check for discount enabled and discount tip */
-	if (opt.show_settle_discount && strlen(s_ptr->discount_tip))
+	if (opt.settle_discount && strlen(s_ptr->discount_tip))
 	{
 		/* Create discount icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_DISCOUNT], height, height,
@@ -3478,7 +3645,7 @@ void redraw_status(void)
 {
 	GtkWidget *draw_image, *discard_image, *pool_image;
 	GdkPixbuf *buf;
-	int i;
+	int i, color;
 	struct extra_info *ei;
 	const int size = 48;
 
@@ -3496,6 +3663,35 @@ void redraw_status(void)
 	buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
 	              display_deck, real_game.deck_size);
 
+#if 0
+	/* Add note if game is tampered */
+	if (game_tampered)
+	{
+		/* Check for card moved in debug */
+		if (game_tampered & TAMPERED_MOVE) color = 0x00ff0000;
+
+		/* Check for looked at debug dialog */
+		else if (game_tampered & TAMPERED_LOOK) color = 0x00ffcc00;
+
+		/* Check for undo used */
+		else if (game_tampered & TAMPERED_UNDO) color = 0x00dddd00;
+
+		/* Check for seed used */
+		else if (game_tampered & TAMPERED_SEED) color = 0x00666666;
+
+		/* Check for loaded game */
+		else if (game_tampered & TAMPERED_LOAD)	color = 0x00ffffff;
+
+		/* Add a tiny square at the bottom left */
+		gdk_pixbuf_composite_color(buf, buf,
+		                           0, size - 3, 3, 3,
+		                           0, 0, 1, 1,
+		                           GDK_INTERP_BILINEAR, 255,
+		                           0, 0, 16,
+		                           color, 0);
+	}
+#endif
+
 	/* Make image widget */
 	draw_image = gtk_image_new_from_pixbuf(buf);
 
@@ -3503,7 +3699,8 @@ void redraw_status(void)
 	ei = &game_extra_info[0];
 
 	/* Create text for deck */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>", display_deck);
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>",
+	        display_deck);
 
 	/* Set font */
 	ei->fontstr = "Sans 12";
@@ -3532,7 +3729,8 @@ void redraw_status(void)
 	ei = &game_extra_info[1];
 
 	/* Create text for discard */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>", display_discard);
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>",
+	        display_discard);
 
 	/* Set font */
 	ei->fontstr = "Sans 12";
@@ -3551,8 +3749,9 @@ void redraw_status(void)
 	gtk_box_pack_start(GTK_BOX(game_status), discard_image, TRUE, TRUE, 0);
 
 	/* Build VP image */
-	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY], size, display_pool,
-	              real_game.num_players * 12 + (real_game.expanded == 3 ? 5 : 0));
+	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
+	              size, display_pool, real_game.num_players * 12 +
+	                (real_game.expanded == 3 ? 5 : 0));
 
 	/* Make VP widget */
 	pool_image = gtk_image_new_from_pixbuf(buf);
@@ -3561,7 +3760,8 @@ void redraw_status(void)
 	ei = &game_extra_info[2];
 
 	/* Create text for VPs */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>", display_pool);
+	sprintf(ei->text, "<b>%d\n<span font=\"10\">Pool</span></b>",
+	        display_pool);
 
 	/* Set font */
 	ei->fontstr = "Sans 12";
@@ -4155,7 +4355,8 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 /*
  * Callback when action choice changes in advanced game.
  */
-static void action_choice_changed_advanced(GtkToggleButton *button, gpointer data)
+static void action_choice_changed_advanced(GtkToggleButton *button,
+                                           gpointer data)
 {
 	int i = GPOINTER_TO_INT(data), j;
 
@@ -6252,8 +6453,8 @@ void gui_choose_consume_hand(game *g, int who, int c_idx, int o_idx, int list[],
 	else
 	{
 		/* Create prompt */
-		sprintf(buf, "Choose up to %d cards to consume on %s",
-		        o_ptr->times, card_name);
+		sprintf(buf, "Choose up to %d card%s to consume on %s",
+		        o_ptr->times, PLURAL(o_ptr->times), card_name);
 	}
 
 	/* Set prompt */
@@ -7179,59 +7380,64 @@ void update_menu_items(void)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for no undo possibility */
-	if (num_undo == 0)
+	if (num_undo == 0 || (game_tampered & TAMPERED_MOVE))
 	{
+		/* Disable undo items */
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(undo_game_item, FALSE);
 	}
 	else
 	{
+		/* Enable undo items */
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
 	}
 
 	/* Check for no redo possibility */
-	if (num_undo == max_undo)
+	if (num_undo == max_undo || (game_tampered & TAMPERED_MOVE))
 	{
+		/* Disable redo items */
 		gtk_widget_set_sensitive(redo_item, FALSE);
 		gtk_widget_set_sensitive(redo_round_item, FALSE);
 		gtk_widget_set_sensitive(redo_game_item, FALSE);
 	}
 	else
 	{
+		/* Enable redo items */
 		gtk_widget_set_sensitive(redo_item, TRUE);
 		gtk_widget_set_sensitive(redo_round_item, TRUE);
 		gtk_widget_set_sensitive(redo_game_item, TRUE);
 	}
-}
 
-/*
- * Auto save the game.
- */
-static void auto_save(game *g, int who, char *id)
-{
-	char tmp[1024];
-	char *full_name;
-
-	/* Check for connected to server, auto_save enabled, and not replaying game */
-	if (client_state != CS_DISCONN || !opt.auto_save || game_replaying) return;
-
-	/* Format file */
-	sprintf(tmp, "autosave_%s.sav", id);
-
-	/* Check if data folder is set */
-	if (!opt.data_folder)
+	/* Check for game tampered */
+	if (game_tampered & TAMPERED_MOVE)
 	{
-		/* Build autosave filename */
-		full_name = g_build_filename(RFTGDIR, tmp, NULL);
+		/* Disable save item */
+		gtk_widget_set_sensitive(save_item, FALSE);
 	}
 	else
 	{
-		/* Build autosave filename */
-		full_name = g_build_filename(opt.data_folder, tmp, NULL);
+		/* Enable save item */
+		gtk_widget_set_sensitive(save_item, TRUE);
 	}
+}
+
+/*
+ * Auto save during the game.
+ */
+static void auto_save_choice(game *g, int who)
+{
+	char *full_name;
+
+	/* Check for autosave disabled */
+	if (client_state != CS_DISCONN || !opt.auto_save ||
+	    (game_tampered & TAMPERED_MOVE)) return;
+
+	/* Build full file name */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave.rftg", NULL);
 
 	/* Save to file */
 	if (save_game(g, full_name, who) < 0)
@@ -7241,6 +7447,87 @@ static void auto_save(game *g, int who, char *id)
 
 	/* Destroy filename */
 	g_free(full_name);
+}
+
+/*
+ * Auto save at the end of the game.
+ */
+static void auto_save_end(game *g, int who)
+{
+	char *full_name;
+
+	/* Check for autosave disabled */
+	if (client_state != CS_DISCONN || !opt.auto_save ||
+	    (game_tampered & TAMPERED_MOVE)) return;
+
+	/* Build file name of choice save file */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave.rftg", NULL);
+
+	/* Delete the choice save file */
+	unlink(full_name);
+
+	/* Destroy filename */
+	g_free(full_name);
+
+	/* Build file name of end auto save file */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave_end.rftg", NULL);
+
+	/* Save to file */
+	if (save_game(g, full_name, who) < 0)
+	{
+		/* Error */
+	}
+
+	/* Destroy filename */
+	g_free(full_name);
+}
+
+/*
+ * Load an auto save file.
+ */
+static int load_auto_save(game *g)
+{
+	char *full_name;
+	int i;
+
+	/* Build full file name */
+	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
+	                             "autosave.rftg", NULL);
+
+	/* Loop over players */
+	for (i = 0; i < MAX_PLAYER; i++)
+	{
+		/* Set choice log pointer */
+		g->p[i].choice_log = orig_log[i];
+	}
+
+	/* Try to load savefile into game */
+	if (load_game(g, full_name) < 0)
+	{
+		/* Destroy filename */
+		g_free(full_name);
+
+		/* Give up */
+		return FALSE;
+	}
+
+	/* Destroy filename */
+	g_free(full_name);
+
+	/* Loop over players */
+	for (i = 0; i < g->num_players; ++i)
+	{
+		/* Remember log size */
+		orig_log_size[i] = g->p[i].choice_size;
+	}
+
+	/* Force current game over */
+	g->game_over = 1;
+
+	/* Game successfully loaded */
+	return TRUE;
 }
 
 /*
@@ -7254,7 +7541,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	int *l_ptr;
 
 	/* Auto save */
-	auto_save(g, who, "choice");
+	auto_save_choice(g, who);
 
 	/* Update menu items */
 	update_menu_items();
@@ -7265,13 +7552,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 		/* Action(s) to play */
 		case CHOICE_ACTION:
 
-			/* Do not auto save for second choice in advanced game */
-			if (!g->advanced || arg1 != 2)
-			{
-				/* Auto save */
-				auto_save(g, who, "round");
-			}
-
 			/* Choose actions */
 			gui_choose_action(g, who, list, arg1);
 
@@ -7281,9 +7561,6 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 		/* Start world */
 		case CHOICE_START:
-
-			/* Auto save */
-			auto_save(g, who, "start");
 
 			/* Choose start world */
 			gui_choose_start(g, who, list, nl, special, ns);
@@ -7568,6 +7845,58 @@ decisions gui_func =
 };
 
 /*
+ * Apply options to game structure.
+ */
+static void apply_options(void)
+{
+	/* Sanity check number of players in base game */
+	if (opt.expanded < 1 && opt.num_players > 4)
+	{
+		/* Reset to four players */
+		opt.num_players = 4;
+	}
+
+	/* Sanity check number of players in first expansion */
+	if (opt.expanded < 2 && opt.num_players > 5)
+	{
+		/* Reset to five players */
+		opt.num_players = 5;
+	}
+
+	/* Set name of human player */
+	real_game.human_name = opt.player_name;
+
+	/* Set number of players */
+	real_game.num_players = opt.num_players;
+
+	/* Set expansion level */
+	real_game.expanded = opt.expanded;
+
+	/* Set advanced flag */
+	real_game.advanced = opt.advanced;
+
+	/* Set goals disabled */
+	real_game.goal_disabled = opt.disable_goal;
+
+	/* Set takeover disabled */
+	real_game.takeover_disabled = opt.disable_takeover;
+
+	/* Check for custom seed value */
+	if (opt.customize_seed)
+	{
+		/* Set start seed */
+		real_game.random_seed = opt.seed;
+	}
+
+	/* Sanity check advanced mode */
+	if (real_game.num_players > 2)
+	{
+		/* Clear advanced mode */
+		real_game.advanced = 0;
+	}
+}
+
+/*
  * Reset player structures.
  */
 void reset_gui(void)
@@ -7591,7 +7920,8 @@ void reset_gui(void)
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
 		/* Check for name already set for human player */
-		if (i == player_us && real_game.human_name && strlen(real_game.human_name))
+		if (i == player_us && real_game.human_name &&
+		    strlen(real_game.human_name))
 		{
 			/* Load name */
 			real_game.p[i].name = real_game.human_name;
@@ -7698,8 +8028,7 @@ void modify_gui(void)
 
 	/* Resize log window */
 	gtk_widget_set_size_request(message_view,
-	                            (opt.log_width ? opt.log_width : CARD_WIDTH) - 20,
-	                            -1);
+	    (opt.log_width ? opt.log_width : CARD_WIDTH) - 20, -1);
 
 	/* Resize status areas */
 	status_resize();
@@ -7726,8 +8055,17 @@ static void run_game(void)
 		/* Check for new game starting */
 		if (restart_loop == RESTART_NEW)
 		{
+			/* Read parameters from options */
+			apply_options();
+
 			/* Reset our position and GUI elements */
 			reset_gui();
+
+			/* Reset tampered state */
+			game_tampered = opt.customize_seed ? TAMPERED_SEED : 0;
+
+			/* Do not force seed for next game */
+			opt.customize_seed = FALSE;
 
 			/* Reset undo positions */
 			num_undo = 0;
@@ -7746,6 +8084,28 @@ static void run_game(void)
 
 			/* Initialize game */
 			init_game(&real_game);
+
+			/* Modify GUI for new game parameters */
+			modify_gui();
+		}
+
+		/* Check for restoring game */
+		else if (restart_loop == RESTART_RESTORE)
+		{
+			/* Check for auto save enabled and auto save present */
+			if (opt.auto_save && load_auto_save(&real_game))
+			{
+				/* Restart loaded game */
+				restart_loop = RESTART_LOAD;
+			}
+			else
+			{
+				/* Just start a new game */
+				restart_loop = RESTART_NEW;
+			}
+
+			/* Restart main loop */
+			continue;
 		}
 
 		/* Holding pattern for multiplayer */
@@ -7758,8 +8118,8 @@ static void run_game(void)
 				gtk_main();
 			}
 
-			/* Start a new game */
-			restart_loop = RESTART_NEW;
+			/* Restore single-player game */
+			restart_loop = RESTART_RESTORE;
 			continue;
 		}
 
@@ -7931,6 +8291,9 @@ static void run_game(void)
 			/* Reset our position and GUI elements */
 			reset_gui();
 
+			/* Set tampered loaded flag */
+			game_tampered = TAMPERED_LOAD;
+
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
 
@@ -7949,6 +8312,9 @@ static void run_game(void)
 		{
 			/* Reset our position and GUI elements */
 			reset_gui();
+
+			/* Set tampered loaded flag */
+			game_tampered = TAMPERED_LOAD;
 
 			/* Start with start of game random seed */
 			real_game.random_seed = real_game.start_seed;
@@ -8033,8 +8399,18 @@ static void run_game(void)
 		/* Declare winner */
 		declare_winner(&real_game);
 
+		/* Deactivate action button */
+		gtk_widget_set_sensitive(action_button, FALSE);
+
 		/* Auto save */
-		auto_save(&real_game, player_us, "end");
+		auto_save_end(&real_game, player_us);
+
+		/* Check for tampered game */
+		if (game_tampered & TAMPERED_MOVE)
+		{
+			/* Add tampered note */
+			message_add(&real_game, "(Debug game.)\n");
+		}
 
 		/* Dump log */
 		save_log();
@@ -8115,16 +8491,18 @@ static void read_prefs(void)
 	                                       "log_width", NULL);
 	opt.shrink_opponent = g_key_file_get_boolean(pref_file, "gui",
 	                                             "shrink_opponent", NULL);
-	opt.show_settle_discount = g_key_file_get_boolean(pref_file, "gui",
-	                                             "show_settle_discount", NULL);
+	opt.settle_discount = g_key_file_get_boolean(pref_file, "gui",
+	                                             "settle_discount", NULL);
+	opt.vp_in_hand = g_key_file_get_boolean(pref_file, "gui",
+	                                        "vp_in_hand", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
 	                                      "save_log", NULL);
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "colored_log", NULL);
-	opt.verbose = g_key_file_get_boolean(pref_file, "gui",
-	                                     "verbose", NULL);
+	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
+	                                        "verbose_log", NULL);
 	opt.discard_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "discard_log", NULL);
 
@@ -8196,16 +8574,18 @@ void save_prefs(void)
 	                       opt.log_width);
 	g_key_file_set_boolean(pref_file, "gui", "shrink_opponent",
 	                       opt.shrink_opponent);
-	g_key_file_set_boolean(pref_file, "gui", "show_settle_discount",
-	                       opt.show_settle_discount);
+	g_key_file_set_boolean(pref_file, "gui", "settle_discount",
+	                       opt.settle_discount);
+	g_key_file_set_boolean(pref_file, "gui", "vp_in_hand",
+	                       opt.vp_in_hand);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
 	g_key_file_set_boolean(pref_file, "gui", "save_log",
 		                   opt.save_log);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
 		                   opt.colored_log);
-	g_key_file_set_boolean(pref_file, "gui", "verbose",
-		                   opt.verbose);
+	g_key_file_set_boolean(pref_file, "gui", "verbose_log",
+		                   opt.verbose_log);
 	g_key_file_set_boolean(pref_file, "gui", "discard_log",
 		                   opt.discard_log);
 
@@ -8260,58 +8640,6 @@ void save_prefs(void)
 }
 
 /*
- * Apply options to game structure.
- */
-static void apply_options(void)
-{
-	/* Sanity check number of players in base game */
-	if (opt.expanded < 1 && opt.num_players > 4)
-	{
-		/* Reset to four players */
-		opt.num_players = 4;
-	}
-
-	/* Sanity check number of players in first expansion */
-	if (opt.expanded < 2 && opt.num_players > 5)
-	{
-		/* Reset to five players */
-		opt.num_players = 5;
-	}
-
-	/* Set name of human player */
-	real_game.human_name = opt.player_name;
-
-	/* Set number of players */
-	real_game.num_players = opt.num_players;
-
-	/* Set expansion level */
-	real_game.expanded = opt.expanded;
-
-	/* Set advanced flag */
-	real_game.advanced = opt.advanced;
-
-	/* Set goals disabled */
-	real_game.goal_disabled = opt.disable_goal;
-
-	/* Set takeover disabled */
-	real_game.takeover_disabled = opt.disable_takeover;
-
-	/* Check for custom seed value */
-	if (opt.customize_seed)
-	{
-		/* Set start seed */
-		real_game.random_seed = opt.seed;
-	}
-
-	/* Sanity check advanced mode */
-	if (real_game.num_players > 2)
-	{
-		/* Clear advanced mode */
-		real_game.advanced = 0;
-	}
-}
-
-/*
  * Set sensitivity of menu items based on client state.
  */
 void gui_client_state_changed(int playing_game)
@@ -8325,6 +8653,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(load_item, TRUE);
 		gtk_widget_set_sensitive(replay_item, TRUE);
 		gtk_widget_set_sensitive(save_item, TRUE);
+		gtk_widget_set_sensitive(export_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
@@ -8346,6 +8675,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(load_item, FALSE);
 		gtk_widget_set_sensitive(replay_item, FALSE);
 		gtk_widget_set_sensitive(save_item, FALSE);
+		gtk_widget_set_sensitive(export_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(undo_game_item, FALSE);
@@ -8397,7 +8727,7 @@ static void gui_new_game(GtkMenuItem *menu_item, gpointer data)
 static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 {
 	game load_state;
-	GtkWidget *dialog, *alert;
+	GtkWidget *dialog;
 	char *fname;
 	char *header = GPOINTER_TO_INT(data) == RESTART_LOAD ?
 	               "Load game" : "Replay game";
@@ -8443,14 +8773,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		if (load_game(&load_state, fname) < 0)
 		{
 			/* Error */
-			alert = gtk_message_dialog_new(NULL,
-			                    GTK_DIALOG_DESTROY_WITH_PARENT,
-			                    GTK_MESSAGE_ERROR,
-			                    GTK_BUTTONS_CLOSE,
-			                    "Failed to load game");
-
-			/* Run dialog */
-			gtk_dialog_run(GTK_DIALOG(alert));
+			show_error("Failed to load game");
 
 			/* Destroy filename */
 			g_free(fname);
@@ -8503,6 +8826,9 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
+	/* Check for tampered game */
+	if (game_tampered & TAMPERED_MOVE) return;
+
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Save game", NULL,
 	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
@@ -8544,6 +8870,57 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
+ * Export game.
+ */
+static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
+{
+	GtkWidget *dialog;
+	char *fname;
+
+	/* Check for connected to server */
+	if (client_state != CS_DISCONN) return;
+
+	/* Create file chooser dialog box */
+	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
+	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
+	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                     "Export", GTK_RESPONSE_ACCEPT,
+	                                     NULL);
+
+	/* Check if last save location is set */
+	if (opt.last_save)
+	{
+		/* Set current folder to last save */
+		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), opt.last_save);
+	}
+
+	/* Run dialog and check response */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Get folder used */
+		opt.last_save = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
+
+		/* Save prefs */
+		save_prefs();
+
+		/* Get filename */
+		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+
+		/* Save to file */
+		if (export_game(&real_game, fname, player_us) < 0)
+		{
+			/* Error */
+		}
+
+		/* Destroy filename */
+		g_free(fname);
+	}
+
+	/* Destroy file chooser dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
  * Undo.
  */
 static void gui_undo(GtkMenuItem *menu_item, gpointer data)
@@ -8553,6 +8930,12 @@ static void gui_undo(GtkMenuItem *menu_item, gpointer data)
 
 	/* Check for nothing to undo */
 	if (num_undo == 0) return;
+
+	/* Check for tampered game */
+	if (game_tampered & TAMPERED_MOVE) return;
+
+	/* Set the tampered undo flag */
+	game_tampered |= TAMPERED_UNDO;
 
 	/* Force game over */
 	real_game.game_over = 1;
@@ -8574,6 +8957,12 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 
 	/* Check for nothing to redo */
 	if (num_undo == max_undo) return;
+
+	/* Check for tampered game */
+	if (game_tampered & TAMPERED_MOVE) return;
+
+	/* Set the tampered undo flag */
+	game_tampered |= TAMPERED_UNDO;
 
 	/* Force game over */
 	real_game.game_over = 1;
@@ -8797,9 +9186,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_RESPONSE_REJECT, NULL);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
-
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Create hbox to hold player name label and entry */
 	name_box = gtk_hbox_new(FALSE, 0);
@@ -8820,9 +9207,11 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_widget_set_size_request(name_entry, 120, -1);
 
 	/* Set name contents */
-	gtk_entry_set_text(GTK_ENTRY(name_entry), opt.player_name ? opt.player_name : "");
+	gtk_entry_set_text(GTK_ENTRY(name_entry),
+	                   opt.player_name ? opt.player_name : "");
 
-	/* Connect the name entry's activate signal to the accept response on the dialog */
+	/* Connect the name entry's activate signal to */
+	/* the accept response on the dialog */
 	g_signal_connect(G_OBJECT(name_entry), "activate",
 	                 G_CALLBACK(enter_callback), (gpointer) dialog);
 
@@ -9008,8 +9397,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Disable seed entry box */
 	gtk_widget_set_sensitive(seed_entry, FALSE);
 
-	/* Connect the seed entry's activate signal to the accept response on the dialog */
-	g_signal_connect(G_OBJECT(name_entry), "activate",
+	/* Connect the seed entry's activate signal to */
+	/* the accept response on the dialog */
+	g_signal_connect(G_OBJECT(seed_entry), "activate",
 	                 G_CALLBACK(enter_callback), (gpointer) dialog);
 
 	/* Pack seed entry into seed value box */
@@ -9138,7 +9528,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *card_size_box, *card_size_label, *card_size_scale;
 	GtkWidget *log_width_box, *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
-	GtkWidget *shrink_button, *discount_button;
+	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
 	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
@@ -9158,8 +9548,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 4);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* ---- Game status ---- */
 	/* Create frame around buttons */
@@ -9273,18 +9662,35 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_box_pack_start(GTK_BOX(game_view_box), shrink_button, FALSE, TRUE, 0);
 
 	/* Create toggle button for settle discount */
-	discount_button = gtk_check_button_new_with_label("Show Settle discounts");
+	discount_button = gtk_check_button_new_with_label(
+	    "Display Settle discounts");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discount_button),
-	                             opt.show_settle_discount);
+	                             opt.settle_discount);
 
 	/* Connect toggle button "toggled" signal */
 	g_signal_connect(G_OBJECT(discount_button), "toggled",
-	                 G_CALLBACK(update_option), &opt.show_settle_discount);
+	                 G_CALLBACK(update_option), &opt.settle_discount);
 
 	/* Pack button into status box */
-	gtk_box_pack_start(GTK_BOX(game_view_box), discount_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(game_view_box), discount_button,
+	                   FALSE, TRUE, 0);
+
+	/* Create toggle button for hand VPs */
+	hand_vp_button = gtk_check_button_new_with_label(
+	    "Display VPs for cards in hand");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hand_vp_button),
+	                             opt.vp_in_hand);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(hand_vp_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.vp_in_hand);
+
+	/* Pack button into status box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), hand_vp_button, FALSE, TRUE, 0);
 
 	/* Create frame around buttons */
 	game_view_frame = gtk_frame_new("Game view");
@@ -9315,7 +9721,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(verbose_button),
-	                             opt.verbose);
+	                             opt.verbose_log);
 
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(log_box), verbose_button, FALSE, TRUE, 0);
@@ -9355,7 +9761,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_box_pack_start(GTK_BOX(file_box), autosave_button, FALSE, TRUE, 0);
 
 	/* Create toggle button for log saving */
-	save_log_button = gtk_check_button_new_with_label("Save log at end of game");
+	save_log_button = gtk_check_button_new_with_label(
+	    "Save log at end of game");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(save_log_button),
@@ -9372,7 +9779,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                 G_CALLBACK(file_location_pressed), NULL);
 
 	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(file_box), file_location_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(file_box), file_location_button,
+	                   FALSE, TRUE, 0);
 
 	/* Create frame around buttons */
 	file_frame = gtk_frame_new("File options");
@@ -9402,8 +9810,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.colored_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
 
-		/* Set verbose option */
-		opt.verbose =
+		/* Set verbose log option */
+		opt.verbose_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
 		/* Set log discards option */
@@ -9415,8 +9823,9 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 		/* Restart main loop if not online and log options changed */
 		if (client_state == CS_DISCONN &&
+			!(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
-		     opt.verbose != old_options.verbose ||
+		     opt.verbose_log != old_options.verbose_log ||
 		     opt.discard_log != old_options.discard_log))
 		{
 			/* Force current game over */
@@ -9512,6 +9921,12 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 	displayed *i_ptr;
 	int i;
 
+	/* Set the tampered move flag */
+	game_tampered |= TAMPERED_MOVE;
+
+	/* Disable some menu items */
+	update_menu_items();
+
 	/* Get card pointer */
 	c_ptr = &real_game.deck[c];
 
@@ -9537,7 +9952,7 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 	}
 
 	/* Check for moving from active area */
-	if (old_where == WHERE_ACTIVE)
+	if (old_where == WHERE_ACTIVE && old_owner != -1)
 	{
 		/* Loop over table area */
 		for (i = 0; i < table_size[old_owner]; i++)
@@ -9595,19 +10010,35 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 }
 
 /*
- * Called when the player cell of the debug window has been edited.
+ * The card list store of the debug dialog.
  */
-static void player_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
-                        gpointer data)
+static GtkListStore *card_list;
+
+/*
+ * The path for the last changed cell in the debug dialog.
+ */
+static GtkTreePath *previous_path;
+
+/*
+ * Called when the player cell of the debug window has been changed.
+ */
+static void player_changed(GtkCellRendererCombo *cell, char *path_str,
+                           GtkTreeIter *new_iter, gpointer data)
 {
-	GtkTreeModel *model = GTK_TREE_MODEL(data);
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
 	GtkTreePath *path;
 	GtkTreeIter iter;
 	card *c_ptr;
-	int c, i, old_owner;
+	int c, old_owner, new_owner;
+
+	/* Retrieve the new owner */
+	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_owner, -1);
 
 	/* Create path from path string */
 	path = gtk_tree_path_new_from_string(path_str);
+
+	/* Save path */
+	previous_path = path;
 
 	/* Get iterator for path */
 	gtk_tree_model_get_iter(model, &iter, path);
@@ -9621,45 +10052,33 @@ static void player_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	/* Remember current owner */
 	old_owner = c_ptr->owner;
 
-	/* Check for setting to "None" */
-	if (!strcmp(text, "None"))
-	{
-		/* Clear owner */
-		c_ptr->owner = -1;
-	}
-
-	/* Loop over players */
-	for (i = 0; i < real_game.num_players; i++)
-	{
-		/* Check for matching name */
-		if (!strcmp(text, real_game.p[i].name))
-		{
-			/* Move card */
-			move_card(&real_game, c, i, c_ptr->where);
-		}
-	}
-
-	/* Store new player number in model */
-	gtk_list_store_set(GTK_LIST_STORE(model), &iter, 2, c_ptr->owner, -1);
+	/* Move card */
+	move_card(&real_game, c, new_owner, c_ptr->where);
 
 	/* Notice card movement */
 	debug_card_moved(c, old_owner, c_ptr->where);
 }
 
 /*
- * Called when the location cell of the debug window has been edited.
+ * Called when the location cell of the debug window has been changed.
  */
-static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
-                       gpointer data)
+static void where_changed(GtkCellRendererCombo *cell, char *path_str,
+                          GtkTreeIter *new_iter, gpointer data)
 {
-	GtkTreeModel *model = GTK_TREE_MODEL(data);
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
 	GtkTreePath *path;
 	GtkTreeIter iter;
 	card *c_ptr;
 	int c, old_where, new_where;
 
+	/* Retrieve the new location */
+	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_where, -1);
+
 	/* Create path from path string */
 	path = gtk_tree_path_new_from_string(path_str);
+
+	/* Save path */
+	previous_path = path;
 
 	/* Get iterator for path */
 	gtk_tree_model_get_iter(model, &iter, path);
@@ -9673,21 +10092,71 @@ static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	/* Remember current location */
 	old_where = c_ptr->where;
 
-	/* Set location based on string */
-	if (!strcmp(text, "Deck")) new_where = WHERE_DECK;
-	else if (!strcmp(text, "Discard")) new_where = WHERE_DISCARD;
-	else if (!strcmp(text, "Hand")) new_where = WHERE_HAND;
-	else if (!strcmp(text, "Active")) new_where = WHERE_ACTIVE;
-	else if (!strcmp(text, "Good")) new_where = WHERE_GOOD;
-
 	/* Move card */
 	move_card(&real_game, c, c_ptr->owner, new_where);
 
-	/* Store new location in model */
-	gtk_list_store_set(GTK_LIST_STORE(model), &iter, 3, c_ptr->where, -1);
-
 	/* Notice card movement */
 	debug_card_moved(c, c_ptr->owner, old_where);
+}
+
+/*
+ * Called when a cell in the debug window has been edited.
+ */
+static void debug_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
+                       gpointer data)
+{
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
+	GtkTreePath *path;
+	GtkTreeIter iter;
+	card *c_ptr;
+	int c, column = GPOINTER_TO_INT(data), value;
+
+	/* Create path from path string */
+	path = gtk_tree_path_new_from_string(path_str);
+
+	/* Get iterator for path */
+	gtk_tree_model_get_iter(model, &iter, path);
+
+	/* Get card index for this row */
+	gtk_tree_model_get(model, &iter, 0, &c, -1);
+
+	/* Get card pointer */
+	c_ptr = &real_game.deck[c];
+
+	/* Find new value */
+	value = column == 2 ? c_ptr->owner : c_ptr->where;
+
+	/* Store new value in model */
+	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, value, -1);
+}
+
+/*
+ * Called when editing a cell in the debug window has been canceled.
+ */
+static void debug_canceled(GtkCellRendererCombo *cell, gpointer data)
+{
+	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
+	GtkTreeIter iter;
+	card *c_ptr;
+	int c, column = GPOINTER_TO_INT(data), value;
+
+	/* Safety check */
+	if (!previous_path) return;
+
+	/* Get iterator for path */
+	gtk_tree_model_get_iter(model, &iter, previous_path);
+
+	/* Get card index for this row */
+	gtk_tree_model_get(model, &iter, 0, &c, -1);
+
+	/* Get card pointer */
+	c_ptr = &real_game.deck[c];
+
+	/* Find new value */
+	value = column == 2 ? c_ptr->owner : c_ptr->where;
+
+	/* Store new value in model (i.e. ignore the cancel event) */
+	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, value, -1);
 }
 
 /*
@@ -9696,8 +10165,9 @@ static void where_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
-	GtkWidget *list_view, *list_scroll;
-	GtkListStore *card_list, *player_list, *where_list;
+	GtkWidget *note_label, *list_view, *list_scroll;
+	GtkListStore *player_list, *where_list;
+	GtkTreeViewColumn *tree_view_column;
 	GtkTreeIter list_iter;
 	GtkCellRenderer *render;
 	card *c_ptr;
@@ -9706,17 +10176,28 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
+	/* Set the tampered look flag */
+	game_tampered |= TAMPERED_LOOK;
+
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
-					                     GTK_STOCK_OK,
-                                         GTK_RESPONSE_ACCEPT, NULL);
+	                                     GTK_STOCK_OK,
+	                                     GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Set default height */
 	gtk_window_set_default_size(GTK_WINDOW(dialog), -1, 600);
+
+	/* Create a note label */
+	note_label = gtk_label_new(
+	    "Moving a card for debugging purposes will disable\n"
+	    "saving, undo and redo for the rest of this game.");
+
+	/* Add note label to dialog */
+	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), note_label,
+	                   FALSE, FALSE, 0);
 
 	/* Create a card list */
 	card_list = gtk_list_store_new(4, G_TYPE_INT, G_TYPE_STRING,
@@ -9803,6 +10284,12 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	                                            -1, "Card Name", render,
 	                                            "text", 1, NULL);
 
+	/* Retrieve the new column */
+	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(list_view), 0);
+
+	/* Set the column to sort on */
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, 1);
+
 	/*** Second column (card owner) ***/
 
 	/* Create combo box renderer */
@@ -9812,14 +10299,28 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	g_object_set(render, "text-column", 1, "model", player_list,
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
+	/* Connect "changed" signal */
+	g_signal_connect(render, "changed", G_CALLBACK(player_changed), player_list);
+
 	/* Connect "edited" signal */
-	g_signal_connect(render, "edited", G_CALLBACK(player_edit), card_list);
+	g_signal_connect(render, "edited", G_CALLBACK(debug_edit),
+	                 GINT_TO_POINTER(2));
+
+	/* Connect "editing-canceled" signal */
+	g_signal_connect(render, "editing-canceled", G_CALLBACK(debug_canceled),
+	                 GINT_TO_POINTER(2));
 
 	/* Create list view column */
 	gtk_tree_view_insert_column_with_data_func(GTK_TREE_VIEW(list_view),
 	                                           -1, "Owner", render,
 	                                           render_player, NULL,
 	                                           NULL);
+
+	/* Retrieve the new column */
+	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(list_view), 1);
+
+	/* Set the column to sort on */
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, 2);
 
 	/*** Third column (card location) ***/
 
@@ -9830,14 +10331,28 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	g_object_set(render, "text-column", 1, "model", where_list,
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
+	/* Connect "changed" signal */
+	g_signal_connect(render, "changed", G_CALLBACK(where_changed), where_list);
+
 	/* Connect "edited" signal */
-	g_signal_connect(render, "edited", G_CALLBACK(where_edit), card_list);
+	g_signal_connect(render, "edited", G_CALLBACK(debug_edit),
+	                 GINT_TO_POINTER(3));
+
+	/* Connect "editing-canceled" signal */
+	g_signal_connect(render, "editing-canceled", G_CALLBACK(debug_canceled),
+	                 GINT_TO_POINTER(3));
 
 	/* Create list view column */
 	gtk_tree_view_insert_column_with_data_func(GTK_TREE_VIEW(list_view),
 	                                           -1, "Location", render,
 	                                           render_where, NULL,
 	                                           NULL);
+
+	/* Retrieve the new column */
+	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(list_view), 2);
+
+	/* Set the column to sort on */
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, 3);
 
 	/* Create scrolled window for list view */
 	list_scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -9851,7 +10366,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	                               GTK_POLICY_ALWAYS);
 	
 	/* Add scrollable list view to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), list_scroll);
+	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), list_scroll,
+	                   TRUE, TRUE, 0);
 
 	/* Show everything */
 	gtk_widget_show_all(dialog);
@@ -9933,8 +10449,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_RESPONSE_ACCEPT, NULL);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Get debug information from AI */
 	ai_debug(&real_game, win_prob, role, action_score, &num_action);
@@ -10132,11 +10647,10 @@ static void about_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Create dialog */
 	dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_DESTROY_WITH_PARENT,
 	                                GTK_MESSAGE_INFO, GTK_BUTTONS_CLOSE,
-	                                "Race for the Galaxy " RELEASE);
+	                                TITLE);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Set secondary text */
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
@@ -10263,7 +10777,8 @@ int main(int argc, char *argv[])
 	GdkColor color;
 
 	char *fname = NULL;
-	int i;
+	char msg[1024];
+	int i, err;
 
 #ifdef __APPLE__        
 	/* Set cwd to OS X .app bundle Resource fork so relative paths work */
@@ -10300,13 +10815,30 @@ int main(int argc, char *argv[])
 #endif
 
 	/* Load card designs */
-	read_cards();
+	err = read_cards();
+
+	/* Check for errors */
+	if (err == -1)
+	{
+		/* Print error and exit */
+		show_error("Could not locate cards.txt");
+		exit(1);
+	}
+	else if (err == -2)
+	{
+		/* Print error and exit */
+		show_error("Error while reading cards.txt");
+		exit(1);
+	}
 
 	/* Load card images */
 	load_images();
 
 	/* Read preference file */
 	read_prefs();
+
+	/* By default restore single-player game */
+	restart_loop = RESTART_RESTORE;
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
@@ -10316,6 +10848,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set number of players */
 			opt.num_players = atoi(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for expansion level */
@@ -10323,6 +10858,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set expansion level */
 			opt.expanded = atoi(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for player name */
@@ -10330,6 +10868,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set player name */
 			opt.player_name = argv[++i];
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for advanced game */
@@ -10337,6 +10878,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set advanced */
 			opt.advanced = 1;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for random seed */
@@ -10347,6 +10891,9 @@ int main(int argc, char *argv[])
 
 			/* Set start seed */
 			opt.seed = (unsigned int) atof(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for goals on */
@@ -10354,6 +10901,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_goal = FALSE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for goals off */
@@ -10361,6 +10911,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_goal = TRUE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for takeovers on */
@@ -10368,6 +10921,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_takeover = FALSE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for takeovers off */
@@ -10375,6 +10931,9 @@ int main(int argc, char *argv[])
 		{
 			/* Set goals on */
 			opt.disable_takeover = TRUE;
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
 		}
 
 		/* Check for saved game */
@@ -10410,8 +10969,7 @@ int main(int argc, char *argv[])
 	gtk_window_set_default_size(GTK_WINDOW(window), 1024, 800);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(window),
-	                     "Race for the Galaxy " RELEASE);
+	gtk_window_set_title(GTK_WINDOW(window), TITLE);
 
 	/* Handle main window destruction */
 	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(destroy),
@@ -10476,6 +11034,7 @@ int main(int argc, char *argv[])
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	replay_item = gtk_menu_item_new_with_mnemonic("Re_play Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
+	export_item = gtk_menu_item_new_with_mnemonic("E_xport Game...");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
@@ -10490,6 +11049,8 @@ int main(int argc, char *argv[])
 	                           'P', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(save_item, "activate", window_accel,
 	                           'S', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(export_item, "activate", window_accel,
+	                           'E', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
 	                           'G', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
@@ -10501,6 +11062,7 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), load_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), replay_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), export_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
@@ -10594,6 +11156,8 @@ int main(int argc, char *argv[])
 	                 GINT_TO_POINTER(RESTART_REPLAY));
 	g_signal_connect(G_OBJECT(save_item), "activate",
 	                 G_CALLBACK(gui_save_game), NULL);
+	g_signal_connect(G_OBJECT(export_item), "activate",
+	                 G_CALLBACK(gui_export_game), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
@@ -11241,42 +11805,32 @@ int main(int argc, char *argv[])
 	/* Modify GUI for current setup */
 	modify_gui();
 
-	if (!fname)
+	if (fname)
 	{
-		/* Start new game */
-		restart_loop = RESTART_NEW;
-	}
-	else
-	{
-		/* Loop over players */
-		for (i = 0; i < MAX_PLAYER; i++)
-		{
-			/* Set choice log pointer */
-			real_game.p[i].choice_log = orig_log[i];
-		}
-
 		/* Try to load savefile into load state */
 		if (load_game(&real_game, fname) < 0)
 		{
-			/* Error */
-			printf("Failed to load game from file %s\n", fname);
+			/* Format error */
+			sprintf(msg, "Failed to load game from file %s\n", fname);
 
-			/* Give up */
-			return;
+			/* Show error */
+			show_error(msg);
 		}
-
-		/* Force current game over */
-		real_game.game_over = 1;
-
-		/* Loop over players */
-		for (i = 0; i < real_game.num_players; ++i)
+		else
 		{
-			/* Remember log size */
-			orig_log_size[i] = real_game.p[i].choice_size;
-		}
+			/* Force current game over */
+			real_game.game_over = 1;
 
-		/* Switch to loaded state when able */
-		restart_loop = RESTART_LOAD;
+			/* Loop over players */
+			for (i = 0; i < real_game.num_players; ++i)
+			{
+				/* Remember log size */
+				orig_log_size[i] = real_game.p[i].choice_size;
+			}
+
+			/* Switch to loaded state when able */
+			restart_loop = RESTART_LOAD;
+		}
 	}
 
 	/* Run games */
