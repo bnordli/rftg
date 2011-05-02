@@ -282,7 +282,7 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
 	qsort(cards, n, sizeof(card), cmp);
 
 	/* Start tag */
-	fprintf(fff, "    <%s>\n", header);
+	fprintf(fff, "    <%s count=\"%d\">\n", header, n);
 
 	/* Loop over sorted cards */
 	for (p = 0; p < n; ++p)
@@ -306,7 +306,7 @@ int export_game(game *g, char *filename, int player_us)
 	FILE *fff;
 	player *p_ptr;
 	card *c_ptr;
-	int p, i, n, deck = 0, discard = 0, act[2];
+	int p, i, n, count, deck = 0, discard = 0, act[2];
 
 	/* Open file for writing */
 	fff = fopen(filename, "w");
@@ -461,9 +461,7 @@ int export_game(game *g, char *filename, int player_us)
 		/* Write end tag */
 		fputs("    </Actions>\n", fff);
 
-		/* Write player information */
-		fprintf(fff, "    <HandSize>%d</HandSize>\n",
-		        count_player_area(g, n, WHERE_HAND));
+		/* Write chips acquired */
 		fprintf(fff, "    <Chips>%d</Chips>\n", p_ptr->vp);
 
 		/* Check for last expansion */
@@ -516,10 +514,57 @@ int export_game(game *g, char *filename, int player_us)
 		/* Write tableau */
 		export_cards(fff, "Tableau", g, p_ptr->head[WHERE_ACTIVE], cmp_table);
 
+		/* Check for saved cards */
+		if (count_active_flags(g, n, FLAG_START_SAVE))
+		{
+			/* Reset count */
+			count = 0;
+
+			/* Loop over cards in deck */
+			for (i = 0; i < g->deck_size; i++)
+			{
+				/* Count cards saved */
+				if (g->deck[i].where == WHERE_SAVED) count++;
+			}
+
+			/* Write saved start tag */
+			fprintf(fff, "    <Saved count=\"%d\">\n", count);
+
+			/* Check for saved by human player */
+			if (n == player_us)
+			{
+				/* Loop over cards in deck */
+				for (i = 0; i < g->deck_size; i++)
+				{
+					/* Write saved card */
+					if (g->deck[i].where == WHERE_SAVED)
+					{
+						/* Write card name */
+						fprintf(fff, "      <Card id=\"%d\">%s</Card>\n",
+						        g->deck[i].d_ptr->index,
+						        escape(g->deck[i].d_ptr->name));
+					}
+				}
+			}
+
+			/* Write end tag */
+			fprintf(fff, "    </Saved>\n", count);
+		}
+
+
 		if (n == player_us)
 		{
 			/* Write human player's hand */
 			export_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND], cmp_hand);
+		}
+		else
+		{
+			/* Write hand start tag */
+			fprintf(fff, "    <Hand count=\"%d\">\n",
+			        count_player_area(g, n, WHERE_HAND));
+
+			/* Write end tag */
+			fputs("    </Hand>\n", fff);
 		}
 
 		/* Write end tag */
