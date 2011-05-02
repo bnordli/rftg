@@ -3664,6 +3664,7 @@ void redraw_status(void)
 	buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
 	              display_deck, real_game.deck_size);
 
+#if 0
 	/* Add note if game is tampered */
 	if (game_tampered)
 	{
@@ -3684,12 +3685,13 @@ void redraw_status(void)
 
 		/* Add a tiny square at the bottom left */
 		gdk_pixbuf_composite_color(buf, buf,
-		                           0, size - 2, 2, 2,
+		                           0, size - 3, 3, 3,
 		                           0, 0, 1, 1,
 		                           GDK_INTERP_BILINEAR, 255,
 		                           0, 0, 16,
 		                           color, 0);
 	}
+#endif
 
 	/* Make image widget */
 	draw_image = gtk_image_new_from_pixbuf(buf);
