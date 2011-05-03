@@ -246,7 +246,7 @@ static void replace_char(char *s, char c, char *replacement)
 /*
  * XML escape a string.
  */
-char *xml_escape(char *s)
+char *xml_escape(const char *s)
 {
 	static char escaped[1024];
 
@@ -302,7 +302,7 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
  * Export the game state to the given filename.
  */
 int export_game(game *g, char *filename, int player_us,
-                void (*export_log)(FILE *fff))
+                const char *message, void (*export_log)(FILE *fff))
 {
 	FILE *fff;
 	player *p_ptr;
@@ -352,6 +352,10 @@ int export_game(game *g, char *filename, int player_us,
 
 	/* Write status start tag */
 	fputs("  <Status>\n", fff);
+
+	/* Check for messsage */
+	if (message) fprintf(fff, "    <Message>%s</Message>\n",
+	                     xml_escape(message));
 
 	/* Check for game over */
 	if (g->game_over) fputs("    <GameOver />\n", fff);

@@ -987,6 +987,6 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 
 extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
-extern char* xml_escape(char *s);
+extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, int player_us,
-                       void (*export_log)(FILE *fff));
+                       const char *message, void (*export_log)(FILE *fff));

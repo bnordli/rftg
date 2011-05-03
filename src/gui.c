@@ -8939,6 +8939,7 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	char *fname;
+	const char *line;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
@@ -8966,8 +8967,11 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 		/* Get filename */
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
+		/* Get current message */
+		line = gtk_label_get_text(GTK_LABEL(action_prompt));
+
 		/* Save to file */
-		if (export_game(&real_game, fname, player_us, export_log) < 0)
+		if (export_game(&real_game, fname, player_us, line, export_log) < 0)
 		{
 			/* Error */
 		}
@@ -11094,7 +11098,7 @@ int main(int argc, char *argv[])
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	replay_item = gtk_menu_item_new_with_mnemonic("Re_play Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
-	export_item = gtk_menu_item_new_with_mnemonic("E_xport Game...");
+	export_item = gtk_menu_item_new_with_mnemonic("E_xport to XML...");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
