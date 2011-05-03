@@ -2814,6 +2814,14 @@ static char *get_military_tooltip(game *g, int who)
 				/* Add extra defense for Rebel military worlds */
 				defense +=
 				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+			}
+
+			/* Check for takeover imperium power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
+			{
+				/* Set imperium attack */
+				attack_imperium =
+				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 
 				/* Check if card name already set */
 				if (strlen(card_name))
@@ -2826,14 +2834,6 @@ static char *get_military_tooltip(game *g, int who)
 					/* Remember name of card */
 					strcpy(card_name, c_ptr->d_ptr->name);
 				}
-			}
-
-			/* Check for takeover imperium power */
-			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
-			{
-				/* Set imperium attack */
-				attack_imperium =
-				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 			}
 
 			/* Skip non-military powers */
