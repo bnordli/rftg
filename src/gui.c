@@ -11790,7 +11790,7 @@ int main(int argc, char *argv[])
 	/* Create text buffer for chat */
 	chat_buffer = gtk_text_buffer_new(NULL);
 
-	/* Create "bold" tag for usernames */
+	/* Create "chat" tag for usernames */
 	gtk_text_buffer_create_tag(chat_buffer, FORMAT_CHAT, "weight", "bold", NULL);
 
 	/* Get end of buffer */
