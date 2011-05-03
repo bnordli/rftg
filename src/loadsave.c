@@ -268,7 +268,7 @@ char *xml_escape(const char *s)
 static void export_cards(FILE *fff, char *header, game *g, int x,
                          int (*cmp)(const void *, const void *))
 {
-	int n, p;
+	int n, p, exp;
 	card cards[MAX_DECK];
 
 	/* Loop over cards */
@@ -287,10 +287,17 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
 	/* Loop over sorted cards */
 	for (p = 0; p < n; ++p)
 	{
+		/* XXX Check whether card is a temporary explore card */
+		exp = g->cur_action == ACT_EXPLORE_5_0 &&
+		      cards[p].where == WHERE_HAND &&
+		      (cards[p].start_where != WHERE_HAND ||
+		       cards[p].start_owner != cards[p].owner);
+
 		/* Write card name and good indicator */
-		fprintf(fff, "      <Card id=\"%d\"%s>%s</Card>\n",
+		fprintf(fff, "      <Card id=\"%d\"%s%s>%s</Card>\n",
 		        cards[p].d_ptr->index,
 		        cards[p].covered != -1 ? " good=\"yes\"" : "",
+		        exp ? " explore=\"yes\"" : "",
 		        xml_escape(cards[p].d_ptr->name));
 	}
 
