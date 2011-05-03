@@ -469,8 +469,8 @@ void message_add_formatted(game *g, char *msg, char *tag)
 		return;
 	}
 
-	/* Check for bold formatting */
-	if (strcmp(tag, FORMAT_BOLD) && !opt.colored_log)
+	/* Check for emphasized message formatting */
+	if (strcmp(tag, FORMAT_EM) && !opt.colored_log)
 	{
 		/* Skip coloring when colored log is off */
 		message_add(g, msg);
@@ -8871,6 +8871,67 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
+ * Export log. Implemented as a callback to avoid loadsave.c depending on gtk.
+ */
+static void export_log(FILE *fff)
+{
+	GtkTextIter iter_start, iter_end;
+	GtkTextBuffer *message_buffer;
+	GSList *list;
+	char *tag, *line;
+
+	/* Get message buffer */
+	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Get start of buffer */
+	gtk_text_buffer_get_start_iter(message_buffer, &iter_start);
+
+	/* Loop until end of buffer */
+	while (!gtk_text_iter_is_end(&iter_start))
+	{
+		/* Find tags */
+		list = gtk_text_iter_get_tags(&iter_start);
+
+		/* Only look for first tag */
+		if (list)
+		{
+			/* Get name of tag */
+			g_object_get(G_OBJECT(list->data), "name", &tag, NULL);
+
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", tag);
+
+			/* Clean up */
+			g_free(tag);
+			g_slist_free(list);
+		}
+		else
+		{
+			/* Write xml start tag */
+			fputs("    <Message>", fff);
+		}
+
+		/* Get end of line */
+		iter_end = iter_start;
+		gtk_text_iter_forward_line(&iter_end);
+		gtk_text_iter_backward_char(&iter_end);
+
+		/* Get line contents */
+		line = gtk_text_iter_get_text(&iter_start, &iter_end);
+
+		/* Write message and xml end tag */
+		fprintf(fff, "%s</Message>\n", xml_escape(line));
+
+		/* Destroy line */
+		g_free(line);
+
+		/* Get start of next line */
+		iter_start = iter_end;
+		gtk_text_iter_forward_char(&iter_start);
+	}
+}
+
+/*
  * Export game.
  */
 static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
@@ -8908,7 +8969,7 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
 		/* Save to file */
-		if (export_game(&real_game, fname, player_us) < 0)
+		if (export_game(&real_game, fname, player_us, export_log) < 0)
 		{
 			/* Error */
 		}
@@ -11236,8 +11297,12 @@ int main(int argc, char *argv[])
 	/* Get message buffer */
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
-	/* Create "bold" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_BOLD,
+	/* Create "em" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_EM,
+	                           "weight", "bold", NULL);
+
+	/* Create "chat" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_CHAT,
 	                           "weight", "bold", NULL);
 
 	/* Create "phase" tag for message buffer */
@@ -11699,7 +11764,7 @@ int main(int argc, char *argv[])
 	chat_buffer = gtk_text_buffer_new(NULL);
 
 	/* Create "bold" tag for usernames */
-	gtk_text_buffer_create_tag(chat_buffer, FORMAT_BOLD, "weight", "bold", NULL);
+	gtk_text_buffer_create_tag(chat_buffer, FORMAT_CHAT, "weight", "bold", NULL);
 
 	/* Get end of buffer */
 	gtk_text_buffer_get_end_iter(chat_buffer, &end_iter);

@@ -246,7 +246,7 @@ static void replace_char(char *s, char c, char *replacement)
 /*
  * XML escape a string.
  */
-static char *escape(char *s)
+char *xml_escape(char *s)
 {
 	static char escaped[1024];
 
@@ -291,7 +291,7 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
 		fprintf(fff, "      <Card id=\"%d\"%s>%s</Card>\n",
 		        cards[p].d_ptr->index,
 		        cards[p].covered != -1 ? " good=\"yes\"" : "",
-		        escape(cards[p].d_ptr->name));
+		        xml_escape(cards[p].d_ptr->name));
 	}
 
 	/* End tag */
@@ -301,7 +301,8 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
 /*
  * Export the game state to the given filename.
  */
-int export_game(game *g, char *filename, int player_us)
+int export_game(game *g, char *filename, int player_us,
+                void (*export_log)(FILE *fff))
 {
 	FILE *fff;
 	player *p_ptr;
@@ -334,7 +335,7 @@ int export_game(game *g, char *filename, int player_us)
 
 	/* Write expansion */
 	fprintf(fff, "    <Expansion id=\"%d\">%s</Expansion>\n",
-	        g->expanded, escape(exp_names[g->expanded]));
+	        g->expanded, xml_escape(exp_names[g->expanded]));
 
 	/* Check for expansion with goals */
 	if (g->expanded)
@@ -353,7 +354,7 @@ int export_game(game *g, char *filename, int player_us)
 	fputs("  <Status>\n", fff);
 
 	/* Check for game over */
-	if (g->game_over) fputs("  <GameOver />\n", fff);
+	if (g->game_over) fputs("    <GameOver />\n", fff);
 
 	/* Write current round phase */
 	fprintf(fff, "    <Round>%d</Round>\n", g->round);
@@ -368,7 +369,7 @@ int export_game(game *g, char *filename, int player_us)
 		if (g->action_selected[i])
 			fprintf(fff, "      <Phase id=\"%d\"%s>%s</Phase>\n",
 			        i, i == g->cur_action ? " current=\"yes\"" : "",
-			        escape(plain_actname[i]));
+			        xml_escape(plain_actname[i]));
 	}
 
 	/* Write end tag */
@@ -405,8 +406,8 @@ int export_game(game *g, char *filename, int player_us)
 			if (!g->goal_active[i]) continue;
 
 			/* Write goal and availability */
-			fprintf(fff, "      <Goal id=\"%d\" claimed=\"%s\">%s</Goal>\n",
-			        i, g->goal_avail[i] ? "no" : "yes", escape(goal_name[i]));
+			fprintf(fff, "      <Goal id=\"%d\" claimed=\"%s\">%s</Goal>\n", i,
+			        g->goal_avail[i] ? "no" : "yes", xml_escape(goal_name[i]));
 		}
 
 		/* Write end tag */
@@ -426,10 +427,11 @@ int export_game(game *g, char *filename, int player_us)
 		p_ptr = &g->p[n];
 
 		/* Write player start tag */
-		fprintf(fff, "  <Player id=\"%d\">\n", n);
+		fprintf(fff, "  <Player id=\"%d\"%s>\n", n,
+		        p_ptr->winner ? " winner=\"yes\"" : "");
 
 		/* Write player name */
-		fprintf(fff, "    <Name>%s</Name>\n", escape(p_ptr->name));
+		fprintf(fff, "    <Name>%s</Name>\n", xml_escape(p_ptr->name));
 
 		/* Assume actions aren't known */
 		act[0] = act[1] = -1;
@@ -458,7 +460,7 @@ int export_game(game *g, char *filename, int player_us)
 			/* Write action if known */
 			if (act[i] != -1)
 				fprintf(fff, "      <Action id=\"%d\">%s</Action>\n",
-				        act[i], escape(action_name(act[i])));
+				        act[i], xml_escape(action_name(act[i])));
 		}
 
 		/* Write end tag */
@@ -493,7 +495,7 @@ int export_game(game *g, char *filename, int player_us)
 				{
 					/* Write goal */
 					fprintf(fff, "      <Goal id=\"%d\">%s</Goal>\n",
-					        i, escape(goal_name[i]));
+					        i, xml_escape(goal_name[i]));
 					continue;
 				}
 
@@ -507,7 +509,7 @@ int export_game(game *g, char *filename, int player_us)
 
 				/* Write unclaimed goal */
 				fprintf(fff, "      <Goal id=\"%d\" unclaimed=\"yes\">%s"
-				        "</Goal>\n", i, escape(goal_name[i]));
+				        "</Goal>\n", i, xml_escape(goal_name[i]));
 			}
 
 			/* Write end tag */
@@ -545,7 +547,7 @@ int export_game(game *g, char *filename, int player_us)
 						/* Write card name */
 						fprintf(fff, "      <Card id=\"%d\">%s</Card>\n",
 						        g->deck[i].d_ptr->index,
-						        escape(g->deck[i].d_ptr->name));
+						        xml_escape(g->deck[i].d_ptr->name));
 					}
 				}
 			}
@@ -572,6 +574,18 @@ int export_game(game *g, char *filename, int player_us)
 
 		/* Write end tag */
 		fputs("  </Player>\n", fff);
+	}
+
+	if (export_log)
+	{
+		/* Write log start tag */
+		fputs("  <Log>\n", fff);
+
+		/* Write log */
+		export_log(fff);
+
+		/* Write log end tag */
+		fputs("  </Log>\n", fff);
 	}
 
 	/* End top level tag */

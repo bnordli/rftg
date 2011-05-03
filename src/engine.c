@@ -267,7 +267,7 @@ static void refresh_draw(game *g)
 	if (!g->simulation)
 	{
 		/* Send message */
-		message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_BOLD);
+		message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
 	}
 
 	/* Loop over cards */
@@ -9725,7 +9725,7 @@ void begin_game(game *g)
 	}
 
 	/* Send start of game message */
-	message_add_formatted(g, "=== Start of game ===\n", FORMAT_BOLD);
+	message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -10124,7 +10124,7 @@ int game_round(game *g)
 		sprintf(msg, "=== Round %d begins ===\n", g->round);
 
 		/* Send message */
-		message_add_formatted(g, msg, FORMAT_BOLD);
+		message_add_formatted(g, msg, FORMAT_EM);
 	}
 
 	/* Award prestige bonuses */
@@ -11051,7 +11051,7 @@ void declare_winner(game *g)
 	if (!g->simulation)
 	{
 		/* Send end of game message */
-		message_add_formatted(g, "=== End of game ===\n", FORMAT_BOLD);
+		message_add_formatted(g, "=== End of game ===\n", FORMAT_EM);
 	}
 
 	/* Score game */
@@ -11149,7 +11149,7 @@ void declare_winner(game *g)
 				        g->p[i].end_vp);
 
 				/* Send message */
-				message_add_formatted(g, msg, FORMAT_BOLD);
+				message_add_formatted(g, msg, FORMAT_EM);
 			}
 		}
 
