@@ -847,12 +847,18 @@ static void handle_choose(char *ptr)
 	/* Do not update hand/table areas while player is deciding */
 	making_choice = 1;
 
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
+
 	/* Ask player for decision */
 	gui_func.make_choice(&real_game, player_us, type, list, &num,
 	                     special, &num_special, arg1, arg2, arg3);
 
 	/* Hand/table areas may be redrawn */
 	making_choice = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
 
 	/* Reset hand/table areas to default */
 	reset_cards(&real_game, TRUE, TRUE);
@@ -1008,6 +1014,9 @@ static void handle_prepare(char *ptr)
 	/* We are making choices */
 	making_choice = 1;
 
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
+
 	/* Check phase */
 	switch (phase)
 	{
@@ -1058,6 +1067,9 @@ static void handle_prepare(char *ptr)
 	/* Done making choices */
 	making_choice = 0;
 
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
+
 	/* Copy simulated game choice log to real game */
 	real_game.p[player_us].choice_size = sim.p[player_us].choice_size;
 	real_game.p[player_us].choice_pos = sim.p[player_us].choice_pos;
@@ -1103,7 +1115,7 @@ static gboolean message_read(gpointer data)
 			client_state = CS_LOBBY;
 
 			/* Notify gui */
-			gui_client_state_changed(playing_game);
+			gui_client_state_changed(playing_game, making_choice);
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1286,7 +1298,7 @@ static gboolean message_read(gpointer data)
 			playing_game = 1;
 
 			/* Notify gui */
-			gui_client_state_changed(playing_game);
+			gui_client_state_changed(playing_game, making_choice);
 
 			break;
 
@@ -1507,7 +1519,7 @@ static gboolean message_read(gpointer data)
 			playing_game = 0;
 
 			/* Notify gui */
-			gui_client_state_changed(playing_game);
+			gui_client_state_changed(playing_game, making_choice);
 
 			/* Reset displayed cards */
 			reset_cards(&real_game, TRUE, TRUE);
@@ -2018,7 +2030,7 @@ with the password you enter.");
 		client_state = CS_INIT;
 
 		/* Notify gui */
-		gui_client_state_changed(playing_game);
+		gui_client_state_changed(playing_game, making_choice);
 
 		/* Freeze server name/port once connection is established */
 		gtk_widget_set_sensitive(server, FALSE);
@@ -2086,7 +2098,7 @@ with the password you enter.");
 		client_state = CS_DISCONN;
 
 		/* Notify gui */
-		gui_client_state_changed(playing_game);
+		gui_client_state_changed(playing_game, making_choice);
 	}
 	else
 	{
@@ -2171,7 +2183,7 @@ static void disconnect(void)
 	playing_game = 0;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game);
+	gui_client_state_changed(playing_game, making_choice);
 
 	/* Quit from all nested main loops */
 	g_timeout_add(0, quit_from_main, NULL);
@@ -2560,7 +2572,7 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 	playing_game = 0;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game);
+	gui_client_state_changed(playing_game, making_choice);
 
 	/* Switch back to lobby view */
 	switch_view(1, 1);

@@ -8643,7 +8643,7 @@ void save_prefs(void)
 /*
  * Set sensitivity of menu items based on client state.
  */
-void gui_client_state_changed(int playing_game)
+void gui_client_state_changed(int playing_game, int making_choice)
 {
 	/* Check if client is disconnected */
 	if (client_state == CS_DISCONN)
@@ -8655,6 +8655,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(replay_item, TRUE);
 		gtk_widget_set_sensitive(save_item, TRUE);
 		gtk_widget_set_sensitive(export_item, TRUE);
+		gtk_widget_set_sensitive(option_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
@@ -8664,9 +8665,11 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
+		gtk_widget_set_sensitive(about_item, TRUE);
 
-		/* Deactivate disconnect menu item */
+		/* Deactivate disconnect and resign menu item */
 		gtk_widget_set_sensitive(disconnect_item, FALSE);
+		gtk_widget_set_sensitive(resign_item, FALSE);
 	}
 	else
 	{
@@ -8692,15 +8695,37 @@ void gui_client_state_changed(int playing_game)
 		/* Check if client is playing a game */
 		if (playing_game)
 		{
-			/* Activate the resign and export menu item */
+			/* Activate the resign menu item */
 			gtk_widget_set_sensitive(resign_item, TRUE);
-			gtk_widget_set_sensitive(export_item, TRUE);
+
+			/* Check if client is making a choice */
+			/* XXX Suppressing a bug where a dialog becomes unresponsive */
+			/* when receiving MSG_CHOOSE from server. This bug affects */
+			/* resign_item too, but this is deliberately left active. */
+			if (making_choice)
+			{
+				/* Activate the export, option and about items */
+				gtk_widget_set_sensitive(export_item, TRUE);
+				gtk_widget_set_sensitive(option_item, TRUE);
+				gtk_widget_set_sensitive(about_item, TRUE);
+			}
+			else
+			{
+				/* Deactivate the export, option and about items */
+				gtk_widget_set_sensitive(export_item, FALSE);
+				gtk_widget_set_sensitive(option_item, FALSE);
+				gtk_widget_set_sensitive(about_item, FALSE);
+			}
 		}
 		else
 		{
-			/* Deactivate the resign and export meny item */
-			gtk_widget_set_sensitive(resign_item, FALSE);
+			/* Activate the option and about items */
+			gtk_widget_set_sensitive(option_item, TRUE);
+			gtk_widget_set_sensitive(about_item, TRUE);
+
+			/* Deactivate the export and resign menu items */
 			gtk_widget_set_sensitive(export_item, FALSE);
+			gtk_widget_set_sensitive(resign_item, FALSE);
 		}
 	}
 }
@@ -11842,7 +11867,7 @@ int main(int argc, char *argv[])
 	gtk_container_add(GTK_CONTAINER(window), main_vbox);
 
 	/* Simulate client state changed */
-	gui_client_state_changed(FALSE);
+	gui_client_state_changed(FALSE, FALSE);
 
 	/* Show all widgets */
 	gtk_widget_show_all(window);
