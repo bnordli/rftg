@@ -468,8 +468,8 @@ void message_add_formatted(game *g, char *msg, char *tag)
 		return;
 	}
 
-	/* Check for bold formatting */
-	if (strcmp(tag, FORMAT_BOLD) && !opt.colored_log)
+	/* Check for emphasized message formatting */
+	if (strcmp(tag, FORMAT_EM) && !opt.colored_log)
 	{
 		/* Skip coloring when colored log is off */
 		message_add(g, msg);
@@ -8642,7 +8642,7 @@ void save_prefs(void)
 /*
  * Set sensitivity of menu items based on client state.
  */
-void gui_client_state_changed(int playing_game)
+void gui_client_state_changed(int playing_game, int making_choice)
 {
 	/* Check if client is disconnected */
 	if (client_state == CS_DISCONN)
@@ -8654,6 +8654,7 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(replay_item, TRUE);
 		gtk_widget_set_sensitive(save_item, TRUE);
 		gtk_widget_set_sensitive(export_item, TRUE);
+		gtk_widget_set_sensitive(option_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
@@ -8663,9 +8664,11 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
+		gtk_widget_set_sensitive(about_item, TRUE);
 
-		/* Deactivate disconnect menu item */
+		/* Deactivate disconnect and resign menu item */
 		gtk_widget_set_sensitive(disconnect_item, FALSE);
+		gtk_widget_set_sensitive(resign_item, FALSE);
 	}
 	else
 	{
@@ -8675,7 +8678,6 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(load_item, FALSE);
 		gtk_widget_set_sensitive(replay_item, FALSE);
 		gtk_widget_set_sensitive(save_item, FALSE);
-		gtk_widget_set_sensitive(export_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(undo_game_item, FALSE);
@@ -8688,18 +8690,42 @@ void gui_client_state_changed(int playing_game)
 
 		/* Activate disconnect menu item */
 		gtk_widget_set_sensitive(disconnect_item, TRUE);
-	}
 
-	/* Check if client is playing a game */
-	if (playing_game)
-	{
-		/* Activate the resign menu item */
-		gtk_widget_set_sensitive(resign_item, TRUE);
-	}
-	else
-	{
-		/* Deactivate the resign meny item */
-		gtk_widget_set_sensitive(resign_item, FALSE);
+		/* Check if client is playing a game */
+		if (playing_game)
+		{
+			/* Activate the resign menu item */
+			gtk_widget_set_sensitive(resign_item, TRUE);
+
+			/* Check if client is making a choice */
+			/* XXX Suppressing a bug where a dialog becomes unresponsive */
+			/* when receiving MSG_CHOOSE from server. This bug affects */
+			/* resign_item too, but this is deliberately left active. */
+			if (making_choice)
+			{
+				/* Activate the export, option and about items */
+				gtk_widget_set_sensitive(export_item, TRUE);
+				gtk_widget_set_sensitive(option_item, TRUE);
+				gtk_widget_set_sensitive(about_item, TRUE);
+			}
+			else
+			{
+				/* Deactivate the export, option and about items */
+				gtk_widget_set_sensitive(export_item, FALSE);
+				gtk_widget_set_sensitive(option_item, FALSE);
+				gtk_widget_set_sensitive(about_item, FALSE);
+			}
+		}
+		else
+		{
+			/* Activate the option and about items */
+			gtk_widget_set_sensitive(option_item, TRUE);
+			gtk_widget_set_sensitive(about_item, TRUE);
+
+			/* Deactivate the export and resign menu items */
+			gtk_widget_set_sensitive(export_item, FALSE);
+			gtk_widget_set_sensitive(resign_item, FALSE);
+		}
 	}
 }
 
@@ -8870,15 +8896,74 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
+ * Export log. Implemented as a callback to avoid loadsave.c depending on gtk.
+ */
+static void export_log(FILE *fff)
+{
+	GtkTextIter iter_start, iter_end;
+	GtkTextBuffer *message_buffer;
+	GSList *list;
+	char *tag, *line;
+
+	/* Get message buffer */
+	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Get start of buffer */
+	gtk_text_buffer_get_start_iter(message_buffer, &iter_start);
+
+	/* Loop until end of buffer */
+	while (!gtk_text_iter_is_end(&iter_start))
+	{
+		/* Find tags */
+		list = gtk_text_iter_get_tags(&iter_start);
+
+		/* Only look for first tag */
+		if (list)
+		{
+			/* Get name of tag */
+			g_object_get(G_OBJECT(list->data), "name", &tag, NULL);
+
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", tag);
+
+			/* Clean up */
+			g_free(tag);
+			g_slist_free(list);
+		}
+		else
+		{
+			/* Write xml start tag */
+			fputs("    <Message>", fff);
+		}
+
+		/* Get end of line */
+		iter_end = iter_start;
+		gtk_text_iter_forward_line(&iter_end);
+		gtk_text_iter_backward_char(&iter_end);
+
+		/* Get line contents */
+		line = gtk_text_iter_get_text(&iter_start, &iter_end);
+
+		/* Write message and xml end tag */
+		fprintf(fff, "%s</Message>\n", xml_escape(line));
+
+		/* Destroy line */
+		g_free(line);
+
+		/* Get start of next line */
+		iter_start = iter_end;
+		gtk_text_iter_forward_char(&iter_start);
+	}
+}
+
+/*
  * Export game.
  */
 static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	char *fname;
-
-	/* Check for connected to server */
-	if (client_state != CS_DISCONN) return;
+	const char *line;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
@@ -8906,8 +8991,11 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 		/* Get filename */
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
+		/* Get current message */
+		line = gtk_label_get_text(GTK_LABEL(action_prompt));
+
 		/* Save to file */
-		if (export_game(&real_game, fname, player_us) < 0)
+		if (export_game(&real_game, fname, player_us, line, export_log) < 0)
 		{
 			/* Error */
 		}
@@ -11034,7 +11122,7 @@ int main(int argc, char *argv[])
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	replay_item = gtk_menu_item_new_with_mnemonic("Re_play Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
-	export_item = gtk_menu_item_new_with_mnemonic("E_xport Game...");
+	export_item = gtk_menu_item_new_with_mnemonic("E_xport to XML...");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
@@ -11235,8 +11323,12 @@ int main(int argc, char *argv[])
 	/* Get message buffer */
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
 
-	/* Create "bold" tag for message buffer */
-	gtk_text_buffer_create_tag(message_buffer, FORMAT_BOLD,
+	/* Create "em" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_EM,
+	                           "weight", "bold", NULL);
+
+	/* Create "chat" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_CHAT,
 	                           "weight", "bold", NULL);
 
 	/* Create "phase" tag for message buffer */
@@ -11697,8 +11789,8 @@ int main(int argc, char *argv[])
 	/* Create text buffer for chat */
 	chat_buffer = gtk_text_buffer_new(NULL);
 
-	/* Create "bold" tag for usernames */
-	gtk_text_buffer_create_tag(chat_buffer, FORMAT_BOLD, "weight", "bold", NULL);
+	/* Create "chat" tag for usernames */
+	gtk_text_buffer_create_tag(chat_buffer, FORMAT_CHAT, "weight", "bold", NULL);
 
 	/* Get end of buffer */
 	gtk_text_buffer_get_end_iter(chat_buffer, &end_iter);
@@ -11774,7 +11866,7 @@ int main(int argc, char *argv[])
 	gtk_container_add(GTK_CONTAINER(window), main_vbox);
 
 	/* Simulate client state changed */
-	gui_client_state_changed(FALSE);
+	gui_client_state_changed(FALSE, FALSE);
 
 	/* Show all widgets */
 	gtk_widget_show_all(window);

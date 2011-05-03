@@ -479,7 +479,8 @@
 /*
  * GUI: Text formatting
  */
-#define FORMAT_BOLD "bold"
+#define FORMAT_EM "em"
+#define FORMAT_CHAT "chat"
 #define FORMAT_PHASE "phase"
 #define FORMAT_TAKEOVER "takeover"
 #define FORMAT_GOAL "goal"
@@ -980,4 +981,6 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 
 extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
-extern int export_game(game *g, char *filename, int player_us);
+extern char *xml_escape(const char *s);
+extern int export_game(game *g, char *filename, int player_us,
+                       const char *message, void (*export_log)(FILE *fff));
