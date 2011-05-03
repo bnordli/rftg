@@ -5631,19 +5631,19 @@ void resolve_takeovers(game *g)
 				{
 					/* Defeat takeover */
 					g->takeover_defeated[j] = 1;
-				}
 
-				/* Message */
-				if (!g->simulation)
-				{
-					/* Format message */
-					sprintf(msg, "Takeover of %s is defeated because "
-					             "takeover of %s failed.\n",
-					             g->deck[list[j]].d_ptr->name,
-					             g->deck[list[i]].d_ptr->name);
+					/* Message */
+					if (!g->simulation)
+					{
+						/* Format message */
+						sprintf(msg, "Takeover of %s is defeated because "
+									 "takeover of %s failed.\n",
+									 g->deck[list[j]].d_ptr->name,
+									 g->deck[list[i]].d_ptr->name);
 
-					/* Send message */
-					message_add_formatted(g, msg, FORMAT_TAKEOVER);
+						/* Send message */
+						message_add_formatted(g, msg, FORMAT_TAKEOVER);
+					}
 				}
 			}
 		}

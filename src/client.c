@@ -1512,11 +1512,17 @@ static gboolean message_read(gpointer data)
 		/* Game is over */
 		case MSG_GAMEOVER:
 
+			/* Set game over */
+			real_game.game_over = 1;
+
 			/* Clear session ID */
 			client_sid = -1;
 
 			/* Clear game played flag */
 			playing_game = 0;
+
+			/* Set making choice (to enable disabled dialogs) */
+			making_choice = 1;
 
 			/* Notify gui */
 			gui_client_state_changed(playing_game, making_choice);
@@ -1539,6 +1545,9 @@ static gboolean message_read(gpointer data)
 
 			/* Wait until done button pressed */
 			gtk_main();
+
+			/* Unset making_choice */
+			making_choice = 0;
 
 			/* Tell server we are out of the game */
 			send_msgf(server_fd, MSG_GAMEOVER, "");

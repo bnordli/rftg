@@ -2813,6 +2813,14 @@ static char *get_military_tooltip(game *g, int who)
 				/* Add extra defense for Rebel military worlds */
 				defense +=
 				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+			}
+
+			/* Check for takeover imperium power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
+			{
+				/* Set imperium attack */
+				attack_imperium =
+				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 
 				/* Check if card name already set */
 				if (strlen(card_name))
@@ -2825,14 +2833,6 @@ static char *get_military_tooltip(game *g, int who)
 					/* Remember name of card */
 					strcpy(card_name, c_ptr->d_ptr->name);
 				}
-			}
-
-			/* Check for takeover imperium power */
-			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
-			{
-				/* Set imperium attack */
-				attack_imperium =
-				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 			}
 
 			/* Skip non-military powers */
@@ -8722,9 +8722,11 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			gtk_widget_set_sensitive(option_item, TRUE);
 			gtk_widget_set_sensitive(about_item, TRUE);
 
-			/* Deactivate the export and resign menu items */
-			gtk_widget_set_sensitive(export_item, FALSE);
+			/* Deactivate the resign menu items */
 			gtk_widget_set_sensitive(resign_item, FALSE);
+
+			/* Set the export item depending on whether game is over or not */
+			gtk_widget_set_sensitive(export_item, making_choice);
 		}
 	}
 }
