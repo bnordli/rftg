@@ -8723,9 +8723,11 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			gtk_widget_set_sensitive(option_item, TRUE);
 			gtk_widget_set_sensitive(about_item, TRUE);
 
-			/* Deactivate the export and resign menu items */
-			gtk_widget_set_sensitive(export_item, FALSE);
+			/* Deactivate the resign menu items */
 			gtk_widget_set_sensitive(resign_item, FALSE);
+
+			/* Set the export item depending on whether game is over or not */
+			gtk_widget_set_sensitive(export_item, making_choice);
 		}
 	}
 }
