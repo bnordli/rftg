@@ -8676,7 +8676,6 @@ void gui_client_state_changed(int playing_game)
 		gtk_widget_set_sensitive(load_item, FALSE);
 		gtk_widget_set_sensitive(replay_item, FALSE);
 		gtk_widget_set_sensitive(save_item, FALSE);
-		gtk_widget_set_sensitive(export_item, FALSE);
 		gtk_widget_set_sensitive(undo_item, FALSE);
 		gtk_widget_set_sensitive(undo_round_item, FALSE);
 		gtk_widget_set_sensitive(undo_game_item, FALSE);
@@ -8689,18 +8688,20 @@ void gui_client_state_changed(int playing_game)
 
 		/* Activate disconnect menu item */
 		gtk_widget_set_sensitive(disconnect_item, TRUE);
-	}
 
-	/* Check if client is playing a game */
-	if (playing_game)
-	{
-		/* Activate the resign menu item */
-		gtk_widget_set_sensitive(resign_item, TRUE);
-	}
-	else
-	{
-		/* Deactivate the resign meny item */
-		gtk_widget_set_sensitive(resign_item, FALSE);
+		/* Check if client is playing a game */
+		if (playing_game)
+		{
+			/* Activate the resign and export menu item */
+			gtk_widget_set_sensitive(resign_item, TRUE);
+			gtk_widget_set_sensitive(export_item, TRUE);
+		}
+		else
+		{
+			/* Deactivate the resign and export meny item */
+			gtk_widget_set_sensitive(resign_item, FALSE);
+			gtk_widget_set_sensitive(export_item, FALSE);
+		}
 	}
 }
 
@@ -8938,9 +8939,6 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	char *fname;
-
-	/* Check for connected to server */
-	if (client_state != CS_DISCONN) return;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
