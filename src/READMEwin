@@ -4,10 +4,10 @@ Information about the project can be found at http://keldon.net/rftg/, and the
 source code can be downloaded from http://warpcore.org/rftg/rftg-0.8.1.tar.bz2.
 
 The source code for this patch can be found at
-http://dl.dropbox.com/u/7379896/rftg-0.8.1h-source.zip.
+http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1i-source.zip.
 
 Copy these files into your rftg installation directory:
- rftg8h.exe:
+ rftg8i.exe:
     The program itself
  icon0xx.png:
     The new icons
@@ -25,5 +25,5 @@ be found in the file README.
 Since you are already reading this, this is a bonus tip to you: If you download
 these two files, and put them in your installation folder (overwriting what's
 already there), loading times will be drastically reduced.
-  http://dl.dropbox.com/u/7379896/libgdk_pixbuf-2.0-0.dll
-  http://dl.dropbox.com/u/7379896/libpng12-0.dll
+  http://dl.dropbox.com/u/7379896/rftg/libgdk_pixbuf-2.0-0.dll
+  http://dl.dropbox.com/u/7379896/rftg/libpng12-0.dll
