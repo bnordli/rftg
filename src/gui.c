@@ -737,7 +737,7 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 		if (strstr(line, real_game.deck[i].d_ptr->name))
 		{
 			/* Update image */
-			update_card(image_cache[library[i].index]);
+			update_card(image_cache[real_game.deck[i].d_ptr->index]);
 
 			/* Card is found */
 			break;
