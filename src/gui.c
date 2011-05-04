@@ -730,11 +730,11 @@ static gboolean message_motion(GtkWidget *text_view, GdkEventMotion *event,
 	/* Get line contents */
 	line = gtk_text_iter_get_text(&iter_start, &iter_end);
 
-	/* Loop over designs */
-	for (i = 0; i < MAX_DESIGN; i++)
+	/* Loop over cards in game */
+	for (i = 0; i < real_game.deck_size; i++)
 	{
 		/* Check if card name is found */
-		if (strstr(line, library[i].name))
+		if (strstr(line, real_game.deck[i].d_ptr->name))
 		{
 			/* Update image */
 			update_card(image_cache[library[i].index]);
@@ -10747,7 +10747,7 @@ static void about_dialog(GtkMenuItem *menu_item, gpointer data)
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
 "This program is written by Keldon Jones, and the source code is licensed \
 under the GNU General Public License.\n\n\
-The interface enhancement release " RELEASE " is written by B. Nordli.\n\n \
+The interface enhancement release " RELEASE " is written by B. Nordli.\n\n\
 Race for the Galaxy was designed by Tom Lehmann and published by Rio Grande \
 Games.  All card and other art is copyrighted by Rio Grande Games.\n\n\
 Send bug reports to keldon@keldon.net");
