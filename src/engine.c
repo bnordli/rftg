@@ -5604,9 +5604,8 @@ void resolve_takeovers(game *g)
 			{
 				/* Format message */
 				sprintf(msg, "%s spends prestige to defeat "
-					     "takeover of %s.\n",
-					p_ptr->name,
-					g->deck[list[0]].d_ptr->name);
+				        "takeover of %s.\n",
+				        p_ptr->name, g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_TAKEOVER);
@@ -5935,6 +5934,17 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 
 		/* Set kind */
 		g->oort_kind = type;
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
+			        "kind to %s.\n", p_ptr->name, good_printable[type]);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 
 		/* Check goal loss */
 		check_goal_loss(g, who, GOAL_MOST_BLUE_BROWN);
@@ -7482,6 +7492,18 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 
 			/* Set kind */
 			g->oort_kind = c_ptr->produced;
+
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
+				        "kind to %s.\n",
+				        p_ptr->name, good_printable[c_ptr->produced]);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
 
 			/* Check goal loss */
 			check_goal_loss(g, who, GOAL_MOST_BLUE_BROWN);
@@ -9214,6 +9236,19 @@ static int check_goal_player(game *g, int goal, int who)
 	/* XXX */
 	return 0;
 }
+
+/*
+ * Printable good names (which start at cost/value 2).
+ */
+char *good_printable[MAX_GOOD] =
+{
+	"",
+	"Any",
+	"Novelty",
+	"Rare",
+	"Genes",
+	"Alien",
+};
 
 /*
  * Goal names.
@@ -11044,7 +11079,8 @@ void score_game(game *g)
 void declare_winner(game *g)
 {
 	player *p_ptr;
-	int i, th, tg, b_s = -1, b_t = -1, num_b_s = 0;
+	card *c_ptr;
+	int i, oort_owner = -1, th, tg, b_s = -1, b_t = -1, num_b_s = 0;
 	char msg[1024];
 
 	/* Check for simulation */
@@ -11057,6 +11093,19 @@ void declare_winner(game *g)
 	/* Score game */
 	score_game(g);
 
+	/* Loop over cards in deck */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Skip cards that don't have "any" good type */
+		if (c_ptr->d_ptr->good_type != GOOD_ANY) continue;
+
+		/* Remember owner of card */
+		oort_owner = c_ptr->owner;
+	}
+
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
@@ -11065,6 +11114,18 @@ void declare_winner(game *g)
 
 		/* Check for bigger score */
 		if (p_ptr->end_vp > b_s) b_s = p_ptr->end_vp;
+
+		/* Check for real game and owner of "any" good type */
+		if (!g->simulation && i == oort_owner)
+		{
+			/* Format message */
+			sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
+				    "kind to %s.\n",
+					p_ptr->name, good_printable[g->best_oort_kind]);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 	}
 
 	/* Loop over players */

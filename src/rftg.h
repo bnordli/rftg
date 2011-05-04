@@ -85,6 +85,11 @@
 #define MAX_TAKEOVER 12
 
 /*
+ * Number of goods.
+ */
+#define MAX_GOOD 6
+
+/*
  * Number of intermediate goals.
  */
 #define MAX_GOAL 20
@@ -890,6 +895,7 @@ typedef struct game
 extern design library[MAX_DESIGN];
 extern char *actname[MAX_ACTION * 2 - 1];
 extern char *plain_actname[MAX_ACTION + 1];
+extern char *good_printable[MAX_GOOD];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
