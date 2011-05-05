@@ -2752,7 +2752,7 @@ static void handle_login(int cid, char *ptr)
 	c_list[cid].state = CS_LOBBY;
 
 	/* Tell client that login was successful */
-	send_msgf(cid, MSG_HELLO, "");
+	send_msgf(cid, MSG_HELLO, "s", RELEASE);
 
 	/* Send welcome chat to client */
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);

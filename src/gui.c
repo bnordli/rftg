@@ -2215,7 +2215,9 @@ static char *goal_tooltip(game *g, int goal)
 		}
 
 		/* Report progress for one-dimensional first goals */
-		else if (goal_minimum(goal) > 1)
+		/* (if local or server supports it) */
+		else if (goal_minimum(goal) > 1 &&
+		         client_state == CS_DISCONN || new_server)
 		{
 			/* Add text to tooltip */
 			strcat(msg, "\nProgress:");

@@ -41,6 +41,11 @@ static GSource *server_src;
 int client_state = CS_DISCONN;
 
 /*
+ * Whether we play against a new server or not.
+ */
+int new_server;
+
+/*
  * Our joined session ID.
  */
 static int client_sid = -1;
@@ -1113,6 +1118,9 @@ static gboolean message_read(gpointer data)
 
 			/* Set state */
 			client_state = CS_LOBBY;
+
+			/* Only new servers send version information */
+			new_server = (size > 8);
 
 			/* Notify gui */
 			gui_client_state_changed(playing_game, making_choice);
