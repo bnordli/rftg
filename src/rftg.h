@@ -924,6 +924,7 @@ extern int next_choice(int* log, int pos);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
+extern int prestige_on_tile(game *g, int who);
 extern int random_draw(game *g);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);

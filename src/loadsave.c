@@ -480,9 +480,11 @@ int export_game(game *g, char *filename, int player_us,
 		/* Check for last expansion */
 		if (g->expanded == 3)
 		{
-			/* Write prestige and whether prestige action is used */
-			fprintf(fff, "    <Prestige used=\"%s\">%d</Prestige>\n",
+			/* Write prestige, whether prestige action is used and */
+			/* whether prestige is on the tile */
+			fprintf(fff, "    <Prestige actionUsed=\"%s\"%s>%d</Prestige>\n",
 			        p_ptr->prestige_action_used ? "yes" : "no",
+			        prestige_on_tile(g, n) ? " onTile=\"yes\"" : "",
 			        p_ptr->prestige);
 		}
 

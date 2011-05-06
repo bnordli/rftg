@@ -2974,7 +2974,6 @@ static char *get_prestige_tooltip(game *g, int who)
 {
 	static char msg[1024];
 	player *who_ptr;
-	int i, prestige_on_tile = TRUE;
 
 	/* Do nothing unless third expansion is present */
 	if (g->expanded < 3) return "";
@@ -2983,30 +2982,8 @@ static char *get_prestige_tooltip(game *g, int who)
 	sprintf(msg, "Prestige/Search action used: <b>%s</b> ",
 	             (g->p[who].prestige_action_used ? "YES" : "NO"));
 
-	/* Get current player pointer */
-	who_ptr = &g->p[who];
-
-	if (who_ptr->prestige == 0 || !who_ptr->prestige_turn)
-	{
-		/* Definitively no prestige on the tile */
-		prestige_on_tile = FALSE;
-	}
-	else
-	{
-		/* Loop over players */
-		for (i = 0; i < g->num_players; i++)
-		{
-			/* Check if another player has more or equal prestige */
-			if (i != who && g->p[i].prestige >= who_ptr->prestige)
-			{
-				/* Not Prestige leader */
-				prestige_on_tile = FALSE;
-				break;
-			}
-		}
-	}
-
-	if (prestige_on_tile)
+	/* Check if player has prestige on tile */
+	if (prestige_on_tile(g, who))
 	{
 		/* Append to message */
 		strcat(msg, "\nPrestige is on the tile");

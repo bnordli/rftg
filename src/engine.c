@@ -256,6 +256,38 @@ int player_chose(game *g, int who, int act)
 }
 
 /*
+ * Check whether a player has the prestige tile and prestige on it.
+ */
+int prestige_on_tile(game *g, int who)
+{
+	player *p_ptr;
+	int i;
+
+	/* Get player pointer */
+	p_ptr = &g->p[who];
+
+	if (p_ptr->prestige == 0 || !p_ptr->prestige_turn)
+	{
+		/* Player has not earned prestige this turn */
+		return 0;
+	}
+
+	/* Loop over players */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Check if another player has more or equal prestige */
+		if (i != who && g->p[i].prestige >= p_ptr->prestige)
+		{
+			/* Not prestige leader */
+			return 0;
+		}
+	}
+
+	/* Player is prestige leader and has prestige on the tile */
+	return 1;
+}
+
+/*
  * Refresh the draw deck.
  */
 static void refresh_draw(game *g)
