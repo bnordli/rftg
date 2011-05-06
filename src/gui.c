@@ -393,6 +393,23 @@ GtkWidget *action_prompt, *action_button;
  */
 static GtkAccelGroup *window_accel;
 
+#define MAX_ACCEL 18
+
+/*
+ * List of accelerator keys.
+ */
+static unsigned int accel_keys[MAX_ACCEL];
+
+/*
+ * List of accelerator modifiers.
+ */
+static GdkModifierType accel_mods[MAX_ACCEL];
+
+/*
+ * Map from actions to accelerators.
+ */
+static unsigned int act_to_accel[] = {5, 0, 9, 1, 10, 2, 11, 3, 12, 4};
+
 /*
  * Text buffer for message area.
  */
@@ -1838,7 +1855,7 @@ void redraw_hand(void)
 	GtkWidget *box;
 	displayed *i_ptr;
 	int count = 0, gap = 1, n, num_gap = 0;
-	int key_count = 1, key_code;
+	int key_count = 0;
 	int width, height, highlight;
 	int card_w, card_h;
 	int i, j;
@@ -1954,30 +1971,19 @@ void redraw_hand(void)
 			                 G_CALLBACK(card_selected), i_ptr);
 
 			/* Check for enough keyboard numbers */
-			if (key_count < 10)
+			if (key_count < MAX_ACCEL)
 			{
-				/* Compute keyboard code */
-				if (key_count <= 9)
-				{
-					/* Start with '1' */
-					key_code = GDK_1 + key_count - 1;
-				}
-				else
-				{
-					/* Use '0' for 10 */
-					key_code = GDK_0;
-				}
-
 				/* Add handler for keypresses */
 				gtk_widget_add_accelerator(box,
 				                           "key-signal",
-							   window_accel,
-							   key_code,
-							   0, 0);
+				                           window_accel,
+				                           accel_keys[key_count],
+				                           accel_mods[key_count],
+				                           0);
 
 				/* Connect key-signal */
 				g_signal_connect(G_OBJECT(box), "key-signal",
-						 G_CALLBACK(card_keyed),
+				                 G_CALLBACK(card_keyed),
 				                 i_ptr);
 
 				/* Increment count */
@@ -4435,14 +4441,13 @@ static void action_keyed(GtkWidget *widget, gpointer data)
 	              !gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)));
 }
 
-
 /*
  * Choose two actions.
  */
 static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 {
 	GtkWidget *prestige = NULL, *image, *label;
-	int i, a, h, n = 0, key = GDK_1;
+	int i, a, h, n = 0;
 
 	/* Deactivate action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
@@ -4523,7 +4528,9 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 
 		/* Add handler for keypresses */
 		gtk_widget_add_accelerator(action_toggle[i], "key-signal",
-		                           window_accel, key++, 0, 0);
+		                           window_accel,
+		                           accel_keys[act_to_accel[i]],
+		                           accel_mods[act_to_accel[i]], 0);
 
 		/* Connect "toggled" signal */
 		g_signal_connect(G_OBJECT(action_toggle[i]), "toggled",
@@ -4596,6 +4603,15 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		gtk_box_pack_start(GTK_BOX(action_box), prestige, FALSE,
 		                   FALSE, h);
 
+		/* Create tooltip for button */
+		gtk_widget_set_tooltip_text(prestige, "Prestige");
+
+		/* Add handler for keypresses */
+		gtk_widget_add_accelerator(prestige, "key-signal",
+		                           window_accel,
+		                           accel_keys[6],
+		                           accel_mods[6], 0);
+
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",
 		                 G_CALLBACK(redraw_action),
@@ -4603,6 +4619,10 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 
 		/* Connect "pressed" signal */
 		g_signal_connect(G_OBJECT(prestige), "pressed",
+		                 G_CALLBACK(prestige_pressed), NULL);
+
+		/* Connect key-signal */
+		g_signal_connect(G_OBJECT(prestige), "key-signal",
 		                 G_CALLBACK(prestige_pressed), NULL);
 
 		/* Show everything */
@@ -4682,7 +4702,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 void gui_choose_action(game *g, int who, int action[2], int one)
 {
 	GtkWidget *prestige = NULL, *image, *label, *group;
-	int i, h, key = GDK_1;
+	int i, h;
 
 	/* Check for advanced game */
 	if (real_game.advanced)
@@ -4757,7 +4777,8 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 
 		/* Add handler for keypresses */
 		gtk_widget_add_accelerator(action_toggle[i], "key-signal",
-		                           window_accel, key++, 0, 0);
+		                           window_accel, accel_keys[act_to_accel[i]],
+		                           accel_mods[act_to_accel[i]], 0);
 
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(action_toggle[i]), "enter-notify-event",
@@ -4796,6 +4817,15 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 		gtk_box_pack_start(GTK_BOX(action_box), prestige, FALSE,
 		                   FALSE, h);
 
+		/* Create tooltip for button */
+		gtk_widget_set_tooltip_text(prestige, "Prestige");
+
+		/* Add handler for keypresses */
+		gtk_widget_add_accelerator(prestige, "key-signal",
+		                           window_accel,
+		                           accel_keys[6],
+		                           accel_mods[6], 0);
+
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",
 		                 G_CALLBACK(redraw_action),
@@ -4803,6 +4833,10 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 
 		/* Connect "pressed" signal */
 		g_signal_connect(G_OBJECT(prestige), "pressed",
+		                 G_CALLBACK(prestige_pressed), NULL);
+
+		/* Connect key-signal */
+		g_signal_connect(G_OBJECT(prestige), "key-signal",
 		                 G_CALLBACK(prestige_pressed), NULL);
 
 		/* Show everything */
@@ -10842,7 +10876,7 @@ int main(int argc, char *argv[])
 	GtkWidget *top_box, *top_view, *top_scroll, *area;
 	GtkWidget *phase_box, *label;
 	guint accel_key;
-	GdkModifierType accel_mods;
+	GdkModifierType accel_mod;
 	GtkSizeGroup *top_size_group;
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer, *chat_buffer;
@@ -11057,11 +11091,36 @@ int main(int argc, char *argv[])
 
 	/* Create "selected by keypress" signal */
 	g_signal_new("key-signal", gtk_event_box_get_type(), G_SIGNAL_ACTION,
-                     0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
-	g_signal_new("key-signal", gtk_toggle_button_get_type(),G_SIGNAL_ACTION,
-                     0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	g_signal_new("key-signal", gtk_toggle_button_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
+	g_signal_new("key-signal", gtk_button_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
+
+	/* Parse accelerator keys */
+	i = 0;
+	gtk_accelerator_parse("F1", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F2", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F3", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F4", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F5", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F6", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F7", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F8", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("F9", &accel_keys[i], &accel_mods[i]); ++i;
+
+	gtk_accelerator_parse("<Shift>F1", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F2", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F3", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F4", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F5", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F6", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F7", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F8", &accel_keys[i], &accel_mods[i]); ++i;
+	gtk_accelerator_parse("<Shift>F9", &accel_keys[i], &accel_mods[i]); ++i;
 
 	/* Create main vbox to hold menu bar, then rest of game area */
 	main_vbox = gtk_vbox_new(FALSE, 0);
@@ -11207,12 +11266,12 @@ int main(int argc, char *argv[])
 	/* Create about menu item */
 	about_item = gtk_menu_item_new_with_mnemonic("_About...");
 
-	/* Parse the F1 key */
-	gtk_accelerator_parse("F1", &accel_key, &accel_mods);
+	/* Parse the Ctrl+F1 key */
+	gtk_accelerator_parse("<Control>F1", &accel_key, &accel_mod);
 
 	/* Add accelerators for about menu items */
 	gtk_widget_add_accelerator(about_item, "activate", window_accel,
-	                           accel_key, accel_mods, GTK_ACCEL_VISIBLE);
+	                           accel_key, accel_mod, GTK_ACCEL_VISIBLE);
 
 	/* Add item to help menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), about_item);
@@ -11551,6 +11610,10 @@ int main(int argc, char *argv[])
 	/* Attach event */
 	g_signal_connect(G_OBJECT(action_button), "clicked",
 	                 G_CALLBACK(action_pressed), NULL);
+
+	/* Also attach ctrl+Enter (for online play) */
+	gtk_widget_add_accelerator(GTK_WIDGET(action_button), "clicked",
+		window_accel, GDK_Return, GDK_CONTROL_MASK, 0);
 
 	/* Set CAN_DEFAULT flag on action button */
 	GTK_WIDGET_SET_FLAGS(action_button, GTK_CAN_DEFAULT);
