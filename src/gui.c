@@ -9618,8 +9618,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *status_box, *status_frame, *hide_card_button;
-	GtkWidget *card_size_box, *card_size_label, *card_size_scale;
-	GtkWidget *log_width_box, *log_width_label, *log_width_scale;
+	GtkWidget *sizes_table, *card_size_label, *card_size_scale;
+	GtkWidget *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
 	GtkWidget *log_box, *log_frame;
@@ -9660,14 +9660,18 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(status_box), hide_card_button, FALSE, TRUE, 0);
 
-	/* Create hbox to hold card size widgets */
-	card_size_box = gtk_hbox_new(FALSE, 11);
+	/* Create table to hold card size and log width widgets */
+	sizes_table = gtk_table_new(2, 4, FALSE);
 
 	/* Create card size label */
 	card_size_label = gtk_label_new("Card size");
 
-	/* Pack label into box */
-	gtk_box_pack_start(GTK_BOX(card_size_box), card_size_label, FALSE, TRUE, 0);
+	/* Left align label */
+	gtk_misc_set_alignment(GTK_MISC(card_size_label), 0.0, 0.5);
+
+	/* Put label into table */
+	gtk_table_attach(GTK_TABLE(sizes_table), card_size_label, 0, 1, 0, 1,
+	                 GTK_FILL, GTK_FILL, 3, 0);
 
 	/* Create card size scale */
 	card_size_scale = gtk_hscale_new_with_range(150, 360, 10);
@@ -9687,20 +9691,19 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	g_signal_connect(G_OBJECT(hide_card_button), "toggled",
 	                 G_CALLBACK(hide_card_changed), card_size_scale);
 
-	/* Pack scale into box */
-	gtk_box_pack_start(GTK_BOX(card_size_box), card_size_scale, TRUE, TRUE, 0);
-
-	/* Pack card size box into status box */
-	gtk_container_add(GTK_CONTAINER(status_box), card_size_box);
-
-	/* Create hbox to hold log width widgets */
-	log_width_box = gtk_hbox_new(FALSE, 5);
+	/* Put scale into table */
+	gtk_table_attach_defaults(GTK_TABLE(sizes_table), card_size_scale,
+	                          1, 4, 0, 1);
 
 	/* Create log width label */
 	log_width_label = gtk_label_new("Log width");
 
-	/* Pack label into box */
-	gtk_box_pack_start(GTK_BOX(log_width_box), log_width_label, FALSE, TRUE, 0);
+	/* Left align label */
+	gtk_misc_set_alignment(GTK_MISC(log_width_label), 0.0, 0.5);
+
+	/* Put label into table */
+	gtk_table_attach(GTK_TABLE(sizes_table), log_width_label, 0, 1, 1, 2,
+	                 GTK_FILL, GTK_FILL, 3, 0);
 
 	/* Create log width scale */
 	log_width_scale = gtk_hscale_new_with_range(150, 360, 10);
@@ -9712,11 +9715,12 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_range_set_value(GTK_RANGE(log_width_scale),
 	                    opt.log_width ? opt.log_width : CARD_WIDTH);
 
-	/* Pack scale into box */
-	gtk_box_pack_start(GTK_BOX(log_width_box), log_width_scale, TRUE, TRUE, 0);
+	/* Put scale into table */
+	gtk_table_attach_defaults(GTK_TABLE(sizes_table), log_width_scale,
+	                          1, 4, 1, 2);
 
-	/* Pack log width box into status box */
-	gtk_container_add(GTK_CONTAINER(status_box), log_width_box);
+	/* Pack table into status box */
+	gtk_container_add(GTK_CONTAINER(status_box), sizes_table);
 
 	/* Create card size "value-changed" signal */
 	g_signal_connect(G_OBJECT(card_size_scale), "value-changed",
