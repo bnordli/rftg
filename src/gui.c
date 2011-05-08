@@ -11637,9 +11637,9 @@ int main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(action_button), "clicked",
 	                 G_CALLBACK(action_pressed), NULL);
 
-	/* Also attach ctrl+Enter (for online play) */
+	/* Also attach Shift+Enter */
 	gtk_widget_add_accelerator(GTK_WIDGET(action_button), "clicked",
-		window_accel, GDK_Return, GDK_CONTROL_MASK, 0);
+		window_accel, GDK_Return, GDK_SHIFT_MASK, 0);
 
 	/* Set CAN_DEFAULT flag on action button */
 	GTK_WIDGET_SET_FLAGS(action_button, GTK_CAN_DEFAULT);
