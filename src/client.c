@@ -745,8 +745,8 @@ static void handle_status_misc(char *ptr)
 		reset_cards(&real_game, TRUE, TRUE);
 
 		/* Redraw hand and table areas */
-		redraw_hand();
 		redraw_table();
+		redraw_hand();
 
 		/* Clear cards updated flag */
 		cards_updated = 0;

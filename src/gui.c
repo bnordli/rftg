@@ -1778,17 +1778,9 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 		gtk_widget_set_sensitive(action_button, action_check_start());
 	}
 
-	/* Check for card in hand */
-	if (i_ptr->hand)
-	{
-		/* Redraw hand */
-		redraw_hand();
-	}
-	else
-	{
-		/* Redraw table */
-		redraw_table();
-	}
+	/* Redraw hand and table areas */
+	redraw_table();
+	redraw_hand();
 
 	/* Event handled */
 	return TRUE;
@@ -1848,6 +1840,11 @@ static int cmp_hand(const void *h1, const void *h2)
 }
 
 /*
+ * The current number of used accelerator keys.
+ */
+static int key_count;
+
+/*
  * Redraw hand area.
  */
 void redraw_hand(void)
@@ -1855,7 +1852,6 @@ void redraw_hand(void)
 	GtkWidget *box;
 	displayed *i_ptr;
 	int count = 0, gap = 1, n, num_gap = 0;
-	int key_count = 0;
 	int width, height, highlight;
 	int card_w, card_h;
 	int i, j;
@@ -2067,6 +2063,9 @@ static void redraw_table_area(int who, GtkWidget *area)
 	/* Width is card width */
 	width = card_w;
 
+	/* Reset accelerator keys */
+	if (who == player_us) key_count = 0;
+
 	/* Loop over cards */
 	for (i = 0; i < table_size[who]; i++)
 	{
@@ -2121,30 +2120,19 @@ static void redraw_table_area(int who, GtkWidget *area)
 		if (i_ptr->covered || (i_ptr->selected && i_ptr->push))
 		{
 			/* Get event box with no image */
-			good_box = new_image_box(i_ptr->d_ptr, 3 * card_w / 4,
-			                                       3 * card_h / 4,
-			                               i_ptr->eligible ||
-			                                 i_ptr->color, 0, 1);
+			good_box = new_image_box(i_ptr->d_ptr,
+			                         3 * card_w / 4, 3 * card_h / 4,
+			                         i_ptr->eligible || i_ptr->color, 0, 1);
 
 			/* Place box on card */
 			gtk_fixed_put(GTK_FIXED(area), good_box,
 			              x * width + card_w / 4,
 			              i_ptr->selected && i_ptr->push ?
 			                  y * height :
-				          y * height + card_h / 4);
+				              y * height + card_h / 4);
 
 			/* Show image */
 			gtk_widget_show_all(good_box);
-
-			/* Check for eligible card */
-			if (i_ptr->eligible)
-			{
-				/* Connect "button released" signal */
-				g_signal_connect(G_OBJECT(good_box),
-				                 "button-release-event",
-						 G_CALLBACK(card_selected),
-				                 i_ptr);
-			}
 		}
 
 		/* Check for eligible card */
@@ -2153,6 +2141,26 @@ static void redraw_table_area(int who, GtkWidget *area)
 			/* Connect "button released" signal */
 			g_signal_connect(G_OBJECT(box), "button-release-event",
 					 G_CALLBACK(card_selected), i_ptr);
+
+			/* Check for enough keyboard numbers */
+			if (key_count < MAX_ACCEL)
+			{
+				/* Add handler for keypresses */
+				gtk_widget_add_accelerator(box,
+				                           "key-signal",
+				                           window_accel,
+				                           accel_keys[key_count],
+				                           accel_mods[key_count],
+				                           0);
+
+				/* Connect key-signal */
+				g_signal_connect(G_OBJECT(box), "key-signal",
+				                 G_CALLBACK(card_keyed),
+				                 i_ptr);
+
+				/* Increment count */
+				key_count++;
+			}
 		}
 
 		/* Next slot */
@@ -3845,8 +3853,8 @@ void redraw_everything(void)
 {
 	/* Redraw hand, table, and status area */
 	redraw_status();
-	redraw_hand();
 	redraw_table();
+	redraw_hand();
 	redraw_goal();
 	redraw_phase();
 }
@@ -3939,8 +3947,8 @@ static void hand_allocated(GtkWidget *widget, GtkAllocation *allocation,
 	old_height = allocation->height;
 
 	/* Redraw hand and table */
-	redraw_hand();
 	redraw_table();
+	redraw_hand();
 }
 
 /*
@@ -5842,6 +5850,9 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
+	/* Set focus to combo box */
+	gtk_widget_grab_focus(combo);
+
 	/* Show everything */
 	gtk_widget_show_all(combo);
 
@@ -6392,6 +6403,9 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
+
+	/* Set focus to combo box */
+	gtk_widget_grab_focus(combo);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -7014,6 +7028,9 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
+	/* Set focus to combo box */
+	gtk_widget_grab_focus(combo);
+
 	/* Show everything */
 	gtk_widget_show_all(combo);
 
@@ -7204,6 +7221,9 @@ int gui_choose_search_type(game *g, int who)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
+	/* Set focus to combo box */
+	gtk_widget_grab_focus(combo);
+
 	/* Show everything */
 	gtk_widget_show_all(combo);
 
@@ -7280,6 +7300,9 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
+	/* Set focus to combo box */
+	gtk_widget_grab_focus(combo);
+
 	/* Show everything */
 	gtk_widget_show_all(combo);
 
@@ -7334,6 +7357,9 @@ int gui_choose_oort_kind(game *g, int who)
 
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
+
+	/* Set focus to combo box */
+	gtk_widget_grab_focus(combo);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
