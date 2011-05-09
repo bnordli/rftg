@@ -4479,7 +4479,7 @@ static void combo_down(GtkWidget *widget, gpointer data)
 {
 	int i = gtk_combo_box_get_active(GTK_COMBO_BOX(widget));
 
-	/* Moce selection down if we are not already at the bottom */
+	/* Move selection down if we are not already at the bottom */
 	if (i + 1 < GPOINTER_TO_INT(data))
 		gtk_combo_box_set_active(GTK_COMBO_BOX(widget), i + 1);
 }
@@ -5899,7 +5899,7 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 	g_signal_connect(G_OBJECT(combo), "up-signal",
 	                 G_CALLBACK(combo_up), NULL);
 	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num));
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num + 1));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -6466,7 +6466,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	g_signal_connect(G_OBJECT(combo), "up-signal",
 	                 G_CALLBACK(combo_up), NULL);
 	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num));
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num + optional));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
