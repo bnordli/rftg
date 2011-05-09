@@ -364,11 +364,11 @@ int export_game(game *g, char *filename, int player_us,
 	if (message) fprintf(fff, "    <Message>%s</Message>\n",
 	                     xml_escape(message));
 
-	/* Check for game over */
-	if (g->game_over) fputs("    <GameOver />\n", fff);
-
 	/* Write current round phase */
 	fprintf(fff, "    <Round>%d</Round>\n", g->round);
+
+	/* Check for game over */
+	if (g->game_over) fputs("    <GameOver />\n", fff);
 
 	/* Write phases start tag */
 	fputs("    <Phases>\n", fff);
