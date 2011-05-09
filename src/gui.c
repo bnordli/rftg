@@ -2063,9 +2063,6 @@ static void redraw_table_area(int who, GtkWidget *area)
 	/* Width is card width */
 	width = card_w;
 
-	/* Reset accelerator keys */
-	if (who == player_us) key_count = 0;
-
 	/* Loop over cards */
 	for (i = 0; i < table_size[who]; i++)
 	{
@@ -2180,13 +2177,19 @@ static void redraw_table_area(int who, GtkWidget *area)
  */
 void redraw_table(void)
 {
-	int i;
+	int i, n;
+
+	/* Reset accelerator keys */
+	key_count = 0;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
 	{
+		/* Compute index of player to redraw */
+		n = (player_us + i + 1) % real_game.num_players;
+
 		/* Redraw player area */
-		redraw_table_area(i, player_area[i]);
+		redraw_table_area(n, player_area[n]);
 	}
 }
 
