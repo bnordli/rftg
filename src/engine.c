@@ -11210,7 +11210,7 @@ void declare_winner(game *g)
 		if (!g->simulation && num_b_s > 1)
 		{
 			/* Format message */
-			sprintf(msg, "  %s has %d card%s in hand and %d good%s "
+			sprintf(msg, "%s has %d card%s in hand and %d good%s "
 			        "on worlds.\n", g->p[i].name,
 			        th, PLURAL(th), tg, PLURAL(tg));
 
