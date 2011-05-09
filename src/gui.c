@@ -4453,6 +4453,38 @@ static void action_keyed(GtkWidget *widget, gpointer data)
 }
 
 /*
+ * Callback for opening a combo's selection box.
+ */
+static void combo_open(GtkWidget *widget, gpointer data)
+{
+	/* Popup the combo box */
+	gtk_combo_box_popup(GTK_COMBO_BOX(widget));
+}
+
+/*
+ * Callback for moving a combo's selection up one item.
+ */
+static void combo_up(GtkWidget *widget, gpointer data)
+{
+	int i = gtk_combo_box_get_active(GTK_COMBO_BOX(widget));
+
+	/* Move selection up if we are not already at the top */
+	if (i > 0) gtk_combo_box_set_active(GTK_COMBO_BOX(widget), i - 1);
+}
+
+/*
+ * Callback for moving a combo's selection down one item.
+ */
+static void combo_down(GtkWidget *widget, gpointer data)
+{
+	int i = gtk_combo_box_get_active(GTK_COMBO_BOX(widget));
+
+	/* Moce selection down if we are not already at the bottom */
+	if (i + 1 < GPOINTER_TO_INT(data))
+		gtk_combo_box_set_active(GTK_COMBO_BOX(widget), i + 1);
+}
+
+/*
  * Choose two actions.
  */
 static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
@@ -5853,8 +5885,21 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Set focus to combo box */
-	gtk_widget_grab_focus(combo);
+	/* Add handler for keypresses */ 
+	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
+	                           GDK_F12, 0, 0);
+	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
+	                           GDK_Up, GDK_SHIFT_MASK, 0);
+	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
+	                           GDK_Down, GDK_SHIFT_MASK, 0);
+
+	/* Connect key signals */
+	g_signal_connect(G_OBJECT(combo), "key-signal",
+	                 G_CALLBACK(combo_open), NULL);
+	g_signal_connect(G_OBJECT(combo), "up-signal",
+	                 G_CALLBACK(combo_up), NULL);
+	g_signal_connect(G_OBJECT(combo), "down-signal",
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -6407,8 +6452,21 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Set focus to combo box */
-	gtk_widget_grab_focus(combo);
+	/* Add handler for keypresses */ 
+	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
+	                           GDK_F12, 0, 0);
+	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
+	                           GDK_Up, GDK_SHIFT_MASK, 0);
+	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
+	                           GDK_Down, GDK_SHIFT_MASK, 0);
+
+	/* Connect key signals */
+	g_signal_connect(G_OBJECT(combo), "key-signal",
+	                 G_CALLBACK(combo_open), NULL);
+	g_signal_connect(G_OBJECT(combo), "up-signal",
+	                 G_CALLBACK(combo_up), NULL);
+	g_signal_connect(G_OBJECT(combo), "down-signal",
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -7031,8 +7089,21 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Set focus to combo box */
-	gtk_widget_grab_focus(combo);
+	/* Add handler for keypresses */ 
+	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
+	                           GDK_F12, 0, 0);
+	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
+	                           GDK_Up, GDK_SHIFT_MASK, 0);
+	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
+	                           GDK_Down, GDK_SHIFT_MASK, 0);
+
+	/* Connect key signals */
+	g_signal_connect(G_OBJECT(combo), "key-signal",
+	                 G_CALLBACK(combo_open), NULL);
+	g_signal_connect(G_OBJECT(combo), "up-signal",
+	                 G_CALLBACK(combo_up), NULL);
+	g_signal_connect(G_OBJECT(combo), "down-signal",
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(num));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -7224,8 +7295,21 @@ int gui_choose_search_type(game *g, int who)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Set focus to combo box */
-	gtk_widget_grab_focus(combo);
+	/* Add handler for keypresses */ 
+	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
+	                           GDK_F12, 0, 0);
+	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
+	                           GDK_Up, GDK_SHIFT_MASK, 0);
+	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
+	                           GDK_Down, GDK_SHIFT_MASK, 0);
+
+	/* Connect key signals */
+	g_signal_connect(G_OBJECT(combo), "key-signal",
+	                 G_CALLBACK(combo_open), NULL);
+	g_signal_connect(G_OBJECT(combo), "up-signal",
+	                 G_CALLBACK(combo_up), NULL);
+	g_signal_connect(G_OBJECT(combo), "down-signal",
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(MAX_SEARCH));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -7303,8 +7387,21 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Set focus to combo box */
-	gtk_widget_grab_focus(combo);
+	/* Add handler for keypresses */ 
+	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
+	                           GDK_F12, 0, 0);
+	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
+	                           GDK_Up, GDK_SHIFT_MASK, 0);
+	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
+	                           GDK_Down, GDK_SHIFT_MASK, 0);
+
+	/* Connect key signals */
+	g_signal_connect(G_OBJECT(combo), "key-signal",
+	                 G_CALLBACK(combo_open), NULL);
+	g_signal_connect(G_OBJECT(combo), "up-signal",
+	                 G_CALLBACK(combo_up), NULL);
+	g_signal_connect(G_OBJECT(combo), "down-signal",
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(2));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -7361,8 +7458,21 @@ int gui_choose_oort_kind(game *g, int who)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Set focus to combo box */
-	gtk_widget_grab_focus(combo);
+	/* Add handler for keypresses */ 
+	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
+	                           GDK_F12, 0, 0);
+	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
+	                           GDK_Up, GDK_SHIFT_MASK, 0);
+	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
+	                           GDK_Down, GDK_SHIFT_MASK, 0);
+
+	/* Connect key signals */
+	g_signal_connect(G_OBJECT(combo), "key-signal",
+	                 G_CALLBACK(combo_open), NULL);
+	g_signal_connect(G_OBJECT(combo), "up-signal",
+	                 G_CALLBACK(combo_up), NULL);
+	g_signal_connect(G_OBJECT(combo), "down-signal",
+	                 G_CALLBACK(combo_down), GINT_TO_POINTER(4));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -11126,6 +11236,15 @@ int main(int argc, char *argv[])
 	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
 	g_signal_new("key-signal", gtk_button_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
+	g_signal_new("key-signal", gtk_combo_box_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
+	g_signal_new("up-signal", gtk_combo_box_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
+	g_signal_new("down-signal", gtk_combo_box_get_type(), G_SIGNAL_ACTION,
 	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
 

@@ -15,5 +15,28 @@ This patch introduces the following additional command line option:
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
 
+Since the numbered key shortcuts interfered with the online chat box, the
+1-9 accelerator keys have been removed, and the following accelerator keys
+have been added:
+
+	F1:            Explore: +5
+	Shift+F1:      Explore: +1, +1
+	F2:            Develop
+	Shift+F2:      Second Develop (in advanced game)
+	F3:            Settle
+	Shift+F3:      Second Settle (in advanced game)
+	F4:            Consume-Trade
+	Shift+F4:      Consume-x2
+	F5:            Produce
+	F6:            Search (in The Brink of War)
+	F7:            Prestige action (in The Brink of War)
+
+	F1-F9 and Shift+F1-Shift+F9:
+	               Activate selectable cards in tableaux and hand
+
+	Shift+Enter:   'Done' button
+	Shift+Up/Down: Change selection in drop down box
+	F12:           Open selection drop down
+
 Else the instructions and notes are equivalent to the original version and can
 be found in the file README.
