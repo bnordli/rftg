@@ -367,7 +367,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	gtk_widget_set_sensitive(kick_button, user && !self && owned);
 
 	/* Check for ability to add AI player */
-	gtk_widget_set_sensitive(addai_button, owned);
+	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned);
 }
 
 /*
@@ -2487,7 +2487,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_widget_show_all(dialog);
 
 	/* Run dialog */
-	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_REJECT)
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) != GTK_RESPONSE_ACCEPT)
 	{
 		/* Destroy dialog */
 		gtk_widget_destroy(dialog);
@@ -2752,6 +2752,9 @@ void kick_player(GtkButton *button, gpointer data)
  */
 void add_ai_player(GtkButton *button, gpointer data)
 {
+	/* Check for not joined a game */
+	if (client_sid == -1) return;
+
 	/* Send add AI message to server */
 	send_msgf(server_fd, MSG_ADD_AI, "d", client_sid);
 }
