@@ -1977,6 +1977,15 @@ void redraw_hand(void)
 				                           accel_mods[key_count],
 				                           0);
 
+				/* Check if client is disconnected and enough numeric keys */
+				if (client_state == CS_DISCONN && key_count < 9)
+				{
+					/* Add numeric key handler */
+					gtk_widget_add_accelerator(box, "key-signal",
+					                           window_accel,
+					                           GDK_1 + key_count, 0, 0);
+				}
+
 				/* Connect key-signal */
 				g_signal_connect(G_OBJECT(box), "key-signal",
 				                 G_CALLBACK(card_keyed),
@@ -2149,6 +2158,15 @@ static void redraw_table_area(int who, GtkWidget *area)
 				                           accel_keys[key_count],
 				                           accel_mods[key_count],
 				                           0);
+
+				/* Check if client is disconnected and enough numeric keys */
+				if (client_state == CS_DISCONN && key_count < 9)
+				{
+					/* Add numeric key handler */
+					gtk_widget_add_accelerator(box, "key-signal",
+					                           window_accel,
+					                           GDK_1 + key_count, 0, 0);
+				}
 
 				/* Connect key-signal */
 				g_signal_connect(G_OBJECT(box), "key-signal",
@@ -4325,8 +4343,9 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 		/* Get button for this action */
 		toggle = action_toggle[i];
 
-		/* Skip unselected */
-		if (!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(toggle)))
+		/* Skip unavailable and unselected */
+		if (!toggle || 
+		    !gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(toggle)))
 		{
 			/* Skip action */
 			continue;
@@ -4490,7 +4509,7 @@ static void combo_down(GtkWidget *widget, gpointer data)
 static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 {
 	GtkWidget *prestige = NULL, *image, *label;
-	int i, a, h, n = 0;
+	int i, a, h, n = 0, key = GDK_1;
 
 	/* Deactivate action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
@@ -4575,6 +4594,17 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		                           accel_keys[act_to_accel[i]],
 		                           accel_mods[act_to_accel[i]], 0);
 
+		/* Check if client is disconnected */
+		if (client_state == CS_DISCONN)
+		{
+			/* XXX Wrap to 0 instead of ':' */
+			if (key == GDK_1 + 9) key = GDK_0;
+
+			/* Add hander for numeric keypresses */
+			gtk_widget_add_accelerator(action_toggle[i], "key-signal",
+			                           window_accel, key++, 0, 0);
+		}
+
 		/* Connect "toggled" signal */
 		g_signal_connect(G_OBJECT(action_toggle[i]), "toggled",
 		                 G_CALLBACK(action_choice_changed_advanced),
@@ -4654,6 +4684,14 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		                           window_accel,
 		                           accel_keys[6],
 		                           accel_mods[6], 0);
+
+		/* Check if client is disconnected */
+		if (client_state == CS_DISCONN)
+		{
+			/* Add 'P' keypress */
+			gtk_widget_add_accelerator(prestige, "key-signal",
+			                           window_accel, GDK_KEY_p, 0, 0);
+		}
 
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",
@@ -4745,7 +4783,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 void gui_choose_action(game *g, int who, int action[2], int one)
 {
 	GtkWidget *prestige = NULL, *image, *label, *group;
-	int i, h;
+	int i, h, key = GDK_1;
 
 	/* Check for advanced game */
 	if (real_game.advanced)
@@ -4789,8 +4827,15 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 			continue;
 		}
 
-		/* Skip second develop/settle */
-		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
+		/* Check for unused actions */
+		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2)
+		{
+			/* Clear button */
+			action_toggle[i] = NULL;
+
+			/* Skip second develop/settle */
+			continue;
+		}
 
 		/* Create radio button */
 		action_toggle[i] = gtk_radio_button_new_from_widget(
@@ -4822,6 +4867,14 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 		gtk_widget_add_accelerator(action_toggle[i], "key-signal",
 		                           window_accel, accel_keys[act_to_accel[i]],
 		                           accel_mods[act_to_accel[i]], 0);
+
+		/* Check if client is disconnected */
+		if (client_state == CS_DISCONN)
+		{
+			/* Add hander for numeric keypresses */
+			gtk_widget_add_accelerator(action_toggle[i], "key-signal",
+			                           window_accel, key++, 0, 0);
+		}
 
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(action_toggle[i]), "enter-notify-event",
@@ -4868,6 +4921,14 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 		                           window_accel,
 		                           accel_keys[6],
 		                           accel_mods[6], 0);
+
+		/* Check if client is disconnected */
+		if (client_state == CS_DISCONN)
+		{
+			/* Add 'P' keypress */
+			gtk_widget_add_accelerator(prestige, "key-signal",
+			                           window_accel, GDK_KEY_p, 0, 0);
+		}
 
 		/* Connect "pointer enter" signal */
 		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",

@@ -19,9 +19,9 @@ This patch introduces the following additional command line option:
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
 
-Since the numbered key shortcuts interfered with the online chat box, the
-1-9 accelerator keys have been removed, and the following accelerator keys
-have been added:
+Since the numeric key shortcuts interfere with the online chat box, the
+1-9 accelerator keys have been removed for online play, and the following
+accelerator keys have been added:
 
 	F1:            Explore: +5
 	Shift+F1:      Explore: +1, +1
