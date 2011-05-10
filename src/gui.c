@@ -4316,14 +4316,6 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 	GtkWidget *toggle;
 	int i;
 
-	/* Check for search pressed */
-	if (gtk_toggle_button_get_active(
-	                          GTK_TOGGLE_BUTTON(action_toggle[ACT_SEARCH])))
-	{
-		/* Do nothing */
-		return;
-	}
-
 	/* Check for current prestige action */
 	if (prestige_action != -1)
 	{
