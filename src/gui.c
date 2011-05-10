@@ -2873,7 +2873,7 @@ static char *get_military_tooltip(game *g, int who)
 				/* Check if card name already set */
 				if (strlen(card_name))
 				{
-					/* YYY Use name of both cards */
+					/* XXX Use name of both cards */
 					strcpy(card_name, "Rebel Alliance/Rebel Sneak Attack");
 				}
 				else
@@ -11942,45 +11942,93 @@ int main(int argc, char *argv[])
 	join_hbox = gtk_hbox_new(FALSE, 5);
 
 	/* Create button for creating new game */
-	create_button = gtk_button_new_with_label("Create Game");
+	create_button = gtk_button_new_with_mnemonic("C_reate Game");
 
 	/* Connect "clicked" signal of create game button */
 	g_signal_connect(G_OBJECT(create_button), "clicked",
 	                 G_CALLBACK(create_dialog), NULL);
 
+	/* Add handler for keypresses */
+	gtk_widget_add_accelerator(create_button, "key-signal",
+	                           window_accel, GDK_r, GDK_CONTROL_MASK, 0);
+
+	/* Connect key-signal */
+	g_signal_connect(G_OBJECT(create_button), "key-signal",
+	                 G_CALLBACK(create_dialog), NULL);
+
 	/* Create join button */
-	join_button = gtk_button_new_with_label("Join Game");
+	join_button = gtk_button_new_with_mnemonic("_Join Game");
 
 	/* Connect "clicked" signal of join game button */
 	g_signal_connect(G_OBJECT(join_button), "clicked",
 	                 G_CALLBACK(join_game), NULL);
 
+	/* Add handler for keypresses */
+	gtk_widget_add_accelerator(join_button, "key-signal",
+	                           window_accel, GDK_j, GDK_CONTROL_MASK, 0);
+
+	/* Connect key-signal */
+	g_signal_connect(G_OBJECT(join_button), "key-signal",
+	                 G_CALLBACK(join_game), NULL);
+
 	/* Create leave button */
-	leave_button = gtk_button_new_with_label("Leave Game");
+	leave_button = gtk_button_new_with_mnemonic("_Leave Game");
 
 	/* Connect "clicked" signal of leave game button */
 	g_signal_connect(G_OBJECT(leave_button), "clicked",
 	                 G_CALLBACK(leave_game), NULL);
 
+	/* Add handler for keypresses */
+	gtk_widget_add_accelerator(leave_button, "key-signal",
+	                           window_accel, GDK_l, GDK_CONTROL_MASK, 0);
+
+	/* Connect key-signal */
+	g_signal_connect(G_OBJECT(leave_button), "key-signal",
+	                 G_CALLBACK(leave_game), NULL);
+
 	/* Create kick player button */
-	kick_button = gtk_button_new_with_label("Kick Player");
+	kick_button = gtk_button_new_with_mnemonic("_Kick Player");
 
 	/* Connect "clicked" signal of kick player button */
 	g_signal_connect(G_OBJECT(kick_button), "clicked",
 	                 G_CALLBACK(kick_player), NULL);
 
+	/* Add handler for keypresses */
+	gtk_widget_add_accelerator(kick_button, "key-signal",
+	                           window_accel, GDK_k, GDK_CONTROL_MASK, 0);
+
+	/* Connect key-signal */
+	g_signal_connect(G_OBJECT(kick_button), "key-signal",
+	                 G_CALLBACK(kick_player), NULL);
+
 	/* Create add AI player button */
-	addai_button = gtk_button_new_with_label("Add AI Player");
+	addai_button = gtk_button_new_with_mnemonic("Add A_I Player");
 
 	/* Connect "clicked" signal of add AI button */
 	g_signal_connect(G_OBJECT(addai_button), "clicked",
 	                 G_CALLBACK(add_ai_player), NULL);
 
+	/* Add handler for keypresses */
+	gtk_widget_add_accelerator(addai_button, "key-signal",
+	                           window_accel, GDK_i, GDK_CONTROL_MASK, 0);
+
+	/* Connect key-signal */
+	g_signal_connect(G_OBJECT(addai_button), "key-signal",
+	                 G_CALLBACK(add_ai_player), NULL);
+
 	/* Create start button */
-	start_button = gtk_button_new_with_label("Start Game");
+	start_button = gtk_button_new_with_mnemonic("_Start Game");
 
 	/* Connect "clicked" signal of start game button */
 	g_signal_connect(G_OBJECT(start_button), "clicked",
+	                 G_CALLBACK(start_game), NULL);
+
+	/* Add handler for keypresses */
+	gtk_widget_add_accelerator(start_button, "key-signal",
+	                           window_accel, GDK_s, GDK_CONTROL_MASK, 0);
+
+	/* Connect key-signal */
+	g_signal_connect(G_OBJECT(start_button), "key-signal",
 	                 G_CALLBACK(start_game), NULL);
 
 	/* Create blank filler label */
