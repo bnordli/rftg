@@ -2139,6 +2139,16 @@ static void redraw_table_area(int who, GtkWidget *area)
 
 			/* Show image */
 			gtk_widget_show_all(good_box);
+
+			/* Check for eligible card */
+			if (i_ptr->eligible)
+			{
+				/* Connect "button released" signal */
+				g_signal_connect(G_OBJECT(good_box),
+				                 "button-release-event",
+				                 G_CALLBACK(card_selected),
+				                 i_ptr);
+			}		
 		}
 
 		/* Check for eligible card */
@@ -4682,7 +4692,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		{
 			/* Add 'P' keypress */
 			gtk_widget_add_accelerator(prestige, "key-signal",
-			                           window_accel, GDK_KEY_p, 0, 0);
+			                           window_accel, GDK_p, 0, 0);
 		}
 
 		/* Connect "pointer enter" signal */
@@ -4819,13 +4829,11 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 			continue;
 		}
 
-		/* Check for unused actions */
+		/* Skip second develop/settle */
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2)
 		{
 			/* Clear button */
 			action_toggle[i] = NULL;
-
-			/* Skip second develop/settle */
 			continue;
 		}
 
@@ -4919,7 +4927,7 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 		{
 			/* Add 'P' keypress */
 			gtk_widget_add_accelerator(prestige, "key-signal",
-			                           window_accel, GDK_KEY_p, 0, 0);
+			                           window_accel, GDK_p, 0, 0);
 		}
 
 		/* Connect "pointer enter" signal */
