@@ -1,23 +1,45 @@
 This is a patch to Keldon's Race for the Galaxy AI, version 0.8.1.
 
-Information about the project can be found at http://keldon.net/rftg/, and the
-source code can be downloaded from http://warpcore.org/rftg/rftg-0.8.1.tar.bz2.
+Apart from the information in this file, the instructions and notes are
+equivalent to the original version and can be found in the file README.
+
+
+LINKS
+
+Link to the Race for the Galaxy AI main page:
+  http://keldon.net/rftg/
+Direct link to the Race for the Galaxy AI source:
+  http://warpcore.org/rftg/rftg-0.8.1.tar.bz2.
+
+Link to the main page of this patch:
+  http://dl.dropbox.com/u/7379896/rftg/index.html
+Direct link to the source code of this patch:
+  http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1i-source.zip.
+
+
+INSTRUCTIONS
 
 These source files replace the corresponding files from the 0.8.1 version.
 
-You must also copy the new icon files (icon0xx.png) to your installation folder
-in order to get the new icons.
+After you have built the patch, you must also copy the new icon files
+(icon0xx.png) to your installation folder.
 
-This patch introduces the following additional command line option:
+
+NEW COMMAND LINE OPTIONS
+
+This patch introduces the following additional command line options:
 
 	-n <name>      -- Set the name of the human player
 	-s <savegame>  -- A save game to load when starting the program
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
 
+
+NEW KEYBOARD ACCELERATORS
+
 Since the numeric key shortcuts interfere with the online chat box, the
-1-9 accelerator keys have been removed for online play, and the following
-accelerator keys have been added:
+1-9 accelerator keys have been removed for online play, and the
+following accelerator keys have been added:
 
 	F1:            Explore: +5
 	Shift+F1:      Explore: +1, +1
@@ -28,8 +50,8 @@ accelerator keys have been added:
 	F4:            Consume-Trade
 	Shift+F4:      Consume-x2
 	F5:            Produce
-	F6:            Search (in The Brink of War)
-	F7:            Prestige action (in The Brink of War)
+	F6:            Search (The Brink of War)
+	F7:            Prestige action (The Brink of War)
 
 	F1-F9 and Shift+F1-Shift+F9:
 	               Activate selectable cards in tableaux and hand
@@ -37,6 +59,3 @@ accelerator keys have been added:
 	Shift+Enter:   'Done' button
 	Shift+Up/Down: Change selection in drop down
 	F12:           Open selection drop down
-
-Else the instructions and notes are equivalent to the original version and can
-be found in the file README.
