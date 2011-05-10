@@ -2147,7 +2147,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 					        "reduce cost.\n", p_ptr->name);
 
 					/* Send message */
-					message_add_formatted(g, msg, FORMAT_VERBOSE);
+					message_add(g, msg);
 				}
 			}
 		}
@@ -3368,7 +3368,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 					        "reduce cost.\n", p_ptr->name);
 
 					/* Send message */
-					message_add_formatted(g, msg, FORMAT_VERBOSE);
+					message_add(g, msg);
 				}
 			}
 
@@ -3392,10 +3392,10 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Rare good for "
-					        "extra military.\n", p_ptr->name);
+					        "extra strength.\n", p_ptr->name);
 
 					/* Send message */
-					message_add_formatted(g, msg, FORMAT_VERBOSE);
+					message_add(g, msg);
 				}
 
 				/* Need one more rare good */
@@ -5004,7 +5004,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Rare good for "
-					        "extra military.\n", p_ptr->name);
+					        "extra strength.\n", p_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -5423,9 +5423,9 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Format defense message */
 		sprintf(msg, "%s defends %s with %d military.\n",
-		             g->p[c_ptr->owner].name,
-		             c_ptr->d_ptr->name,
-		             defense);
+		        g->p[c_ptr->owner].name,
+		        c_ptr->d_ptr->name,
+		        defense);
 
 		/* Send defense message */
 		message_add(g, msg);
@@ -5668,9 +5668,9 @@ void resolve_takeovers(game *g)
 					{
 						/* Format message */
 						sprintf(msg, "Takeover of %s is defeated because "
-									 "takeover of %s failed.\n",
-									 g->deck[list[j]].d_ptr->name,
-									 g->deck[list[i]].d_ptr->name);
+						        "takeover of %s failed.\n",
+						        g->deck[list[j]].d_ptr->name,
+						        g->deck[list[i]].d_ptr->name);
 
 						/* Send message */
 						message_add_formatted(g, msg, FORMAT_TAKEOVER);
@@ -11152,8 +11152,8 @@ void declare_winner(game *g)
 		{
 			/* Format message */
 			sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
-				    "kind to %s.\n",
-					p_ptr->name, good_printable[g->best_oort_kind]);
+			        "kind to %s.\n",
+			        p_ptr->name, good_printable[g->best_oort_kind]);
 
 			/* Send message */
 			message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -11246,7 +11246,7 @@ void declare_winner(game *g)
 			}
 		}
 
-		/* YYY Print seed if the game was local */
+		/* Print seed if the game was local */
 		if (g->start_seed)
 		{
 			/* Format message */
