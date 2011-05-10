@@ -299,7 +299,7 @@ int read_cards(void)
 	/* Check for failure */
 	if (!fff)
 	{
-		/* Print error and exit */
+		/* Error */
 		perror("cards.txt");
 		return -1;
 	}

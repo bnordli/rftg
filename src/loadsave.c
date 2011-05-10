@@ -449,13 +449,13 @@ int export_game(game *g, char *filename, int player_us,
 
 		/* Check for actions known */
 		if (g->advanced && g->cur_action < ACT_SEARCH && n == player_us &&
-			count_active_flags(g, player_us, FLAG_SELECT_LAST))
+		    count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy first action only */
 			act[0] = p_ptr->action[0];
 		}
 		else if (g->cur_action >= ACT_SEARCH ||
-				 count_active_flags(g, player_us, FLAG_SELECT_LAST))
+		         count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy both actions */
 			act[0] = p_ptr->action[0];
@@ -577,7 +577,7 @@ int export_game(game *g, char *filename, int player_us,
 		}
 		else
 		{
-			/* Write hand start tag */
+			/* Write hand size */
 			fprintf(fff, "    <Hand count=\"%d\">\n",
 			        count_player_area(g, n, WHERE_HAND));
 

@@ -1116,11 +1116,11 @@ static gboolean message_read(gpointer data)
 		/* Login successful */
 		case MSG_HELLO:
 
-			/* Set state */
-			client_state = CS_LOBBY;
-
 			/* Only new servers send version information */
 			new_server = (size > 8);
+
+			/* Set state */
+			client_state = CS_LOBBY;
 
 			/* Notify gui */
 			gui_client_state_changed(playing_game, making_choice);

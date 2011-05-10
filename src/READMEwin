@@ -3,7 +3,6 @@ This is a patch to Keldon's Race for the Galaxy AI, version 0.8.1.
 Apart from the information in this file, the instructions and notes are
 equivalent to the original version and can be found in the file README.
 
-
 LINKS
 
 Link to the Race for the Galaxy AI main page:
@@ -16,7 +15,6 @@ Link to the main page of this patch:
 Direct link to the source code of this patch:
   http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1i-source.zip.
 
-
 INSTRUCTIONS
 
 Copy these files into your rftg installation directory:
@@ -24,8 +22,7 @@ Copy these files into your rftg installation directory:
  rftg8i.exe:  The program itself
  icon0xx.png: The new icons
 
-Start the patch by opening rftg8i.exe.
-
+Start the patch by running rftg8i.exe.
 
 NEW COMMAND LINE OPTIONS
 
@@ -35,7 +32,6 @@ This patch introduces the following additional command line options:
 	-s <savegame>  -- A save game to load when starting the program
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
-
 
 NEW KEYBOARD ACCELERATORS
 
@@ -61,7 +57,6 @@ following accelerator keys have been added:
 	Shift+Enter:   'Done' button
 	Shift+Up/Down: Change selection in drop down
 	F12:           Open selection drop down
-
 
 BONUS
 
