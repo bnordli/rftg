@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2752,7 +2752,7 @@ static void handle_login(int cid, char *ptr)
 	c_list[cid].state = CS_LOBBY;
 
 	/* Tell client that login was successful */
-	send_msgf(cid, MSG_HELLO, "");
+	send_msgf(cid, MSG_HELLO, "s", RELEASE);
 
 	/* Send welcome chat to client */
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
@@ -3907,7 +3907,7 @@ int main(int argc, char *argv[])
 
 	/* Reconnect automatically when connection to database is lost */
 	mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
- 
+
 	/* Read game states from database */
 	db_load_sessions();
 	db_load_attendance();

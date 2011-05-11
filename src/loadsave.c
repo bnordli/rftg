@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -231,7 +231,7 @@ static void replace_char(char *s, char c, char *replacement)
 
 		/* Write replacement entity */
 		strcat(tmp, replacement);
-		
+
 		/* Increase pointer */
 		++p;
 
@@ -364,11 +364,11 @@ int export_game(game *g, char *filename, int player_us,
 	if (message) fprintf(fff, "    <Message>%s</Message>\n",
 	                     xml_escape(message));
 
-	/* Check for game over */
-	if (g->game_over) fputs("    <GameOver />\n", fff);
-
 	/* Write current round phase */
 	fprintf(fff, "    <Round>%d</Round>\n", g->round);
+
+	/* Check for game over */
+	if (g->game_over) fputs("    <GameOver />\n", fff);
 
 	/* Write phases start tag */
 	fputs("    <Phases>\n", fff);
@@ -449,13 +449,13 @@ int export_game(game *g, char *filename, int player_us,
 
 		/* Check for actions known */
 		if (g->advanced && g->cur_action < ACT_SEARCH && n == player_us &&
-			count_active_flags(g, player_us, FLAG_SELECT_LAST))
+		    count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy first action only */
 			act[0] = p_ptr->action[0];
 		}
 		else if (g->cur_action >= ACT_SEARCH ||
-				 count_active_flags(g, player_us, FLAG_SELECT_LAST))
+		         count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy both actions */
 			act[0] = p_ptr->action[0];
@@ -480,9 +480,11 @@ int export_game(game *g, char *filename, int player_us,
 		/* Check for last expansion */
 		if (g->expanded == 3)
 		{
-			/* Write prestige and whether prestige action is used */
-			fprintf(fff, "    <Prestige used=\"%s\">%d</Prestige>\n",
+			/* Write prestige, whether prestige action is used and */
+			/* whether prestige is on the tile */
+			fprintf(fff, "    <Prestige actionUsed=\"%s\"%s>%d</Prestige>\n",
 			        p_ptr->prestige_action_used ? "yes" : "no",
+			        prestige_on_tile(g, n) ? " onTile=\"yes\"" : "",
 			        p_ptr->prestige);
 		}
 
@@ -575,7 +577,7 @@ int export_game(game *g, char *filename, int player_us,
 		}
 		else
 		{
-			/* Write hand start tag */
+			/* Write hand size */
 			fprintf(fff, "    <Hand count=\"%d\">\n",
 			        count_player_area(g, n, WHERE_HAND));
 

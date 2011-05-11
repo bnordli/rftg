@@ -37,13 +37,13 @@ You may move your pointer over any card to see a full-sized version in
 the upper-left.
 
 In between your hand and active area is a prompt asking for your next
-play.  Typically this is a request to choose a role, choose a card to
-play or cards to discard, etc.  Select a role (or two roles if playing
-the two-player advanced game) by using the drop-down box.  Select cards
-to play or discard by clicking on them in your hand area.  When you
-are satisfied, click the "Ok" button at the far right of the prompt
-area.  This button will not be clickable if your current selection is
-not legal.
+play.  Typically this is a request to choose an action, choose a card
+to play or cards to discard, etc.  Select an action (or two actions if
+playing the two-player advanced game) by using the action buttons.
+Select cards to play or discard by clicking on them in your hand area.
+When you are satisfied, click the "Done" button at the far right of the
+prompt area.  This button will not be clickable if your current
+selection is not legal.
 
 BUGS
 

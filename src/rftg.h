@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "h"
+#define RELEASE VERSION "i"
 #endif
 
 #include <stdio.h>
@@ -77,6 +77,11 @@
  * Maximum number of pending takeovers.
  */
 #define MAX_TAKEOVER 12
+
+/*
+ * Number of goods.
+ */
+#define MAX_GOOD 6
 
 /*
  * Number of intermediate goals.
@@ -884,6 +889,7 @@ typedef struct game
 extern design library[MAX_DESIGN];
 extern char *actname[MAX_ACTION * 2 - 1];
 extern char *plain_actname[MAX_ACTION + 1];
+extern char *good_printable[MAX_GOOD];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
@@ -912,6 +918,7 @@ extern int next_choice(int* log, int pos);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
+extern int prestige_on_tile(game *g, int who);
 extern int random_draw(game *g);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -299,7 +299,7 @@ int read_cards(void)
 	/* Check for failure */
 	if (!fff)
 	{
-		/* Print error and exit */
+		/* Error */
 		perror("cards.txt");
 		return -1;
 	}
@@ -412,7 +412,7 @@ int read_cards(void)
 
 				/* Done with flag line */
 				break;
-			
+
 			/* Good */
 			case 'G':
 

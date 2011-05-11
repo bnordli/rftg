@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,11 @@ static GSource *server_src;
  * Our current connection state.
  */
 int client_state = CS_DISCONN;
+
+/*
+ * Whether we play against a new server or not.
+ */
+int new_server;
 
 /*
  * Our joined session ID.
@@ -362,7 +367,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	gtk_widget_set_sensitive(kick_button, user && !self && owned);
 
 	/* Check for ability to add AI player */
-	gtk_widget_set_sensitive(addai_button, owned);
+	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned);
 }
 
 /*
@@ -389,7 +394,7 @@ static void handle_open_game(char *ptr)
 
 	/* Read description */
 	get_string(buf, &ptr);
-	
+
 	/* Set description */
 	gtk_tree_store_set(game_list, &list_iter, 1, buf, -1);
 
@@ -740,8 +745,8 @@ static void handle_status_misc(char *ptr)
 		reset_cards(&real_game, TRUE, TRUE);
 
 		/* Redraw hand and table areas */
-		redraw_hand();
 		redraw_table();
+		redraw_hand();
 
 		/* Clear cards updated flag */
 		cards_updated = 0;
@@ -1111,6 +1116,9 @@ static gboolean message_read(gpointer data)
 		/* Login successful */
 		case MSG_HELLO:
 
+			/* Only new servers send version information */
+			new_server = (size > 8);
+
 			/* Set state */
 			client_state = CS_LOBBY;
 
@@ -1353,7 +1361,7 @@ static gboolean message_read(gpointer data)
 			/* Get chat buffer */
 			chat_buffer = gtk_text_view_get_buffer(
 			                           GTK_TEXT_VIEW(message_view));
-			
+
 			/* Get end mark */
 			gtk_text_buffer_get_iter_at_mark(chat_buffer, &end_iter,
 			                                 message_end);
@@ -2479,7 +2487,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_widget_show_all(dialog);
 
 	/* Run dialog */
-	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_REJECT)
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) != GTK_RESPONSE_ACCEPT)
 	{
 		/* Destroy dialog */
 		gtk_widget_destroy(dialog);
@@ -2653,7 +2661,7 @@ void join_game(GtkButton *button, gpointer data)
 		gtk_box_pack_start(GTK_BOX(hbox), password, TRUE, TRUE, 0);
 
 		/* Add hbox to dialog */
-		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),hbox);
+		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), hbox);
 
 		/* Connect the entry's activate signal to the accept response on the dialog */
 		g_signal_connect(G_OBJECT(password), "activate", G_CALLBACK(enter_callback),
@@ -2726,7 +2734,7 @@ void kick_player(GtkButton *button, gpointer data)
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 0, &x, -1);
 
 	/* Get name of user to kick */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf, 
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf,
 	                   10, &self, -1);
 
 	/* Check for self selected */
@@ -2744,6 +2752,9 @@ void kick_player(GtkButton *button, gpointer data)
  */
 void add_ai_player(GtkButton *button, gpointer data)
 {
+	/* Check for not joined a game */
+	if (client_sid == -1) return;
+
 	/* Send add AI message to server */
 	send_msgf(server_fd, MSG_ADD_AI, "d", client_sid);
 }
