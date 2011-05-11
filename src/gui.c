@@ -435,7 +435,7 @@ int is_round_boundary(int advanced, int *p)
 	if (*p != CHOICE_START && *p != CHOICE_ACTION) return FALSE;
 
 	/* Second choice of Psi-Crystal is not a boundary */
-	/* XXX This works only in newer save games */
+	/* XXX This only works in newer save games */
 	if (advanced && *(p + 1) == 2) return FALSE;
 
 	/* Everything else is */
