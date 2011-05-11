@@ -61,19 +61,20 @@ game real_game;
 /*
  * Flags for game tampered state.
  */
-#define TAMPERED_LOAD 0x1
-#define TAMPERED_SEED 0x2
-#define TAMPERED_UNDO 0x4
-#define TAMPERED_LOOK 0x8
-#define TAMPERED_MOVE 0x10
+#define TAMPERED_SAVE 0x1
+#define TAMPERED_LOAD 0x2
+#define TAMPERED_SEED 0x4
+#define TAMPERED_UNDO 0x8
+#define TAMPERED_LOOK 0x10
+#define TAMPERED_MOVE 0x20
 
 /*
- * Whether the current game has been tampered with in debug mode.
+ * Whether the current game has been "tampered" with in some way.
  */
 static int game_tampered;
 
 /*
- * The number of the current undo positions.
+ * Current undo position.
  */
 static int num_undo;
 
@@ -426,15 +427,15 @@ GtkTextMark *message_end;
 static int message_last_y;
 
 /*
- * Check whether a position in a log marks a round boundary.
+ * Check whether a log position marks a round boundary.
  */
 int is_round_boundary(int advanced, int *p)
 {
 	/* Only start and action choices are boundary */
 	if (*p != CHOICE_START && *p != CHOICE_ACTION) return FALSE;
 
-	/* !This works only in newer save games! */
 	/* Second choice of Psi-Crystal is not a boundary */
+	/* XXX This works only in newer save games */
 	if (advanced && *(p + 1) == 2) return FALSE;
 
 	/* Everything else is */
@@ -598,8 +599,16 @@ void save_log(void)
 	/* Open file for writing */
 	fff = fopen(full_filename, "w");
 
+	/* Destroy filename */
+	g_free(full_filename);
+
 	/* Check for failure */
-	if (!fff) return;
+	if (!fff)
+	{
+		/* Destroy text */
+		g_free(all_text);
+		return;
+	}
 
 	/* Write log */
 	fprintf(fff, "%s", all_text);
@@ -609,9 +618,6 @@ void save_log(void)
 
 	/* Destroy text */
 	g_free(all_text);
-
-	/* Destroy filename */
-	g_free(full_filename);
 }
 
 /*
@@ -1966,7 +1972,7 @@ void redraw_hand(void)
 			g_signal_connect(G_OBJECT(box), "button-release-event",
 			                 G_CALLBACK(card_selected), i_ptr);
 
-			/* Check for enough keyboard numbers */
+			/* Check for enough accelerator keys */
 			if (key_count < MAX_ACCEL)
 			{
 				/* Add handler for keypresses */
@@ -2158,7 +2164,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 			g_signal_connect(G_OBJECT(box), "button-release-event",
 					 G_CALLBACK(card_selected), i_ptr);
 
-			/* Check for enough keyboard numbers */
+			/* Check for enough accelerator keys */
 			if (key_count < MAX_ACCEL)
 			{
 				/* Add handler for keypresses */
@@ -2262,7 +2268,7 @@ static char *goal_tooltip(game *g, int goal)
 		/* Report progress for one-dimensional first goals */
 		/* (if local or server supports it) */
 		else if (goal_minimum(goal) > 1 &&
-		         client_state == CS_DISCONN || new_server)
+		         (client_state == CS_DISCONN || new_server))
 		{
 			/* Add text to tooltip */
 			strcat(msg, "\nProgress:");
@@ -2592,10 +2598,11 @@ static char *get_vp_tooltip(game *g, int who)
 static char *get_discount_tooltip(game *g, int who)
 {
 	static char msg[1024];
-	char text[1024];
+	player *p_ptr = &g->p[who];
 	card *c_ptr;
 	power *o_ptr;
-	int i, j;
+	char text[1024];
+	int x, i;
 	int base, zero, blue, brown, green, yellow, pay_discount;
 	int non_alien_mil_0, non_alien_mil_1, rebel_mil, chromo_mil, alien_mil;
 
@@ -2606,23 +2613,20 @@ static char *get_discount_tooltip(game *g, int who)
 	non_alien_mil_0 = non_alien_mil_1 = FALSE;
 	rebel_mil = chromo_mil = alien_mil = FALSE;
 
-	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
+	/* Loop over active cards */
+	for ( ; x != -1; x = g->deck[x].next)
 	{
 		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip cards not belonging to current player */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->start_where != WHERE_ACTIVE) continue;
+		c_ptr = &g->deck[x];
 
 		/* Loop over card's powers */
-		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
+		for (i = 0; i < c_ptr->d_ptr->num_power; i++)
 		{
 			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[j];
+			o_ptr = &c_ptr->d_ptr->powers[i];
 
 			/* Skip incorrect phase */
 			if (o_ptr->phase != PHASE_SETTLE) continue;
@@ -2646,7 +2650,7 @@ static char *get_discount_tooltip(game *g, int who)
 				if (o_ptr->code & P3_RARE)
 					brown += o_ptr->value;
 
-				/* Check for discount against Gene worlds */
+				/* Check for discount against Genes worlds */
 				if (o_ptr->code & P3_GENE)
 					green += o_ptr->value;
 
@@ -2713,11 +2717,11 @@ static char *get_discount_tooltip(game *g, int who)
 		strcat(msg, text);
 	}
 
-	/* Add Gene discount */
+	/* Add Genes discount */
 	if (green)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional Gene discount: %d", -green);
+		sprintf(text, "\nAdditional Genes discount: %d", -green);
 		strcat(msg, text);
 	}
 
@@ -2898,7 +2902,7 @@ static char *get_military_tooltip(game *g, int who)
 			if (o_ptr->code & P3_RARE)
 				brown += o_ptr->value;
 
-			/* Check for strength against Gene worlds */
+			/* Check for strength against Genes worlds */
 			if (o_ptr->code & P3_GENE)
 				green += o_ptr->value;
 
@@ -2961,11 +2965,11 @@ static char *get_military_tooltip(game *g, int who)
 		strcat(msg, text);
 	}
 
-	/* Add Gene strength */
+	/* Add Genes strength */
 	if (green)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional Gene strength: %+d", green);
+		sprintf(text, "\nAdditional Genes strength: %+d", green);
 		strcat(msg, text);
 	}
 
@@ -3018,7 +3022,6 @@ static char *get_military_tooltip(game *g, int who)
 static char *get_prestige_tooltip(game *g, int who)
 {
 	static char msg[1024];
-	player *who_ptr;
 
 	/* Do nothing unless third expansion is present */
 	if (g->expanded < 3) return "";
@@ -3629,7 +3632,7 @@ GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
 	/* Compute fill ratio */
 	ratio = current / max;
 
-	/* Check if ratio is empty */
+	/* Check if ratio is negative */
 	if (ratio <= 0)
 	{
 		/* Use the scaled overlay */
@@ -3705,7 +3708,10 @@ void redraw_status(void)
 		else if (game_tampered & TAMPERED_SEED) color = 0x00666666;
 
 		/* Check for loaded game */
-		else if (game_tampered & TAMPERED_LOAD)	color = 0x00ffffff;
+		else if (game_tampered & TAMPERED_LOAD) color = 0x00ffffff;
+
+		/* Check for saved game */
+		else if (game_tampered & TAMPERED_SAVE) color = 0x00ffffff;
 
 		/* Add a tiny square at the bottom left */
 		gdk_pixbuf_composite_color(buf, buf,
@@ -4599,7 +4605,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		/* Check if client is disconnected */
 		if (client_state == CS_DISCONN)
 		{
-			/* XXX Wrap to 0 instead of ':' */
+			/* XXX Wrap to '0' instead of ':' */
 			if (key == GDK_1 + 9) key = GDK_0;
 
 			/* Add hander for numeric keypresses */
@@ -6388,8 +6394,8 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 			}
 			else if (o_ptr->code & P4_CONSUME_GENE)
 			{
-				/* Gene good */
-				name = "Gene ";
+				/* Genes good */
+				name = "Genes ";
 			}
 			else if (o_ptr->code & P4_CONSUME_ALIEN)
 			{
@@ -7078,7 +7084,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		else if (o_ptr->code & P5_DRAW_EACH_GENE)
 		{
 			/* Make string */
-			sprintf(buf, "Draw per Gene produced");
+			sprintf(buf, "Draw per Genes produced");
 		}
 		else if (o_ptr->code & P5_DRAW_EACH_ALIEN)
 		{
@@ -7370,7 +7376,8 @@ int gui_choose_search_type(game *g, int who)
 	g_signal_connect(G_OBJECT(combo), "up-signal",
 	                 G_CALLBACK(combo_up), NULL);
 	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(MAX_SEARCH));
+	                 G_CALLBACK(combo_down),
+	                 GINT_TO_POINTER(MAX_SEARCH - real_game.takeover_disabled));
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -7658,6 +7665,11 @@ static void auto_save_choice(game *g, int who)
 	{
 		/* Error */
 	}
+	else
+	{
+		/* Set the tampered saved flag */
+		game_tampered |= TAMPERED_SAVE;
+	}
 
 	/* Destroy filename */
 	g_free(full_name);
@@ -7692,6 +7704,11 @@ static void auto_save_end(game *g, int who)
 	if (save_game(g, full_name, who) < 0)
 	{
 		/* Error */
+	}
+	else
+	{
+		/* Set the tampered saved flag */
+		game_tampered |= TAMPERED_SAVE;
 	}
 
 	/* Destroy filename */
@@ -8349,14 +8366,11 @@ static void run_game(void)
 			/* Initialize game */
 			init_game(&real_game);
 
-			if (num_undo > 0)
-			{
-				/* Step backwards one point */
-				num_undo--;
-			}
+			/* Remove one state from undo list */
+			if (num_undo > 0) num_undo--;
 		}
 
-		/* Undo previous turn */
+		/* Undo current round */
 		else if (restart_loop == RESTART_UNDO_ROUND)
 		{
 			/* Reset our position and GUI elements */
@@ -8409,7 +8423,7 @@ static void run_game(void)
 			num_undo = 0;
 		}
 
-		/* Redo previous choice */
+		/* Redo current choice */
 		else if (restart_loop == RESTART_REDO)
 		{
 			/* Reset our position and GUI elements */
@@ -8425,7 +8439,7 @@ static void run_game(void)
 			++num_undo;
 		}
 
-		/* Redo previous round */
+		/* Redo current round */
 		else if (restart_loop == RESTART_REDO_ROUND)
 		{
 			/* Reset our position and GUI elements */
@@ -8483,7 +8497,7 @@ static void run_game(void)
 			}
 		}
 
-		/* Redo previous choice */
+		/* Redo to end of current game */
 		else if (restart_loop == RESTART_REDO_GAME)
 		{
 			/* Reset our position and GUI elements */
@@ -8521,7 +8535,7 @@ static void run_game(void)
 			modify_gui();
 		}
 
-		/* Replay a new game */
+		/* Replay a loaded game */
 		else if (restart_loop == RESTART_REPLAY)
 		{
 			/* Reset our position and GUI elements */
@@ -8554,9 +8568,6 @@ static void run_game(void)
 
 			/* Initialize game */
 			init_game(&real_game);
-
-			/* Modify GUI for new game parameters */
-			modify_gui();
 		}
 
 		/* Reset counts */
@@ -8610,14 +8621,11 @@ static void run_game(void)
 			continue;
 		}
 
-		/* Declare winner */
-		declare_winner(&real_game);
-
 		/* Deactivate action button */
 		gtk_widget_set_sensitive(action_button, FALSE);
 
-		/* Auto save */
-		auto_save_end(&real_game, player_us);
+		/* Declare winner */
+		declare_winner(&real_game);
 
 		/* Check for tampered game */
 		if (game_tampered & TAMPERED_MOVE)
@@ -8625,6 +8633,9 @@ static void run_game(void)
 			/* Add tampered note */
 			message_add(&real_game, "(Debug game.)\n");
 		}
+
+		/* Auto save */
+		auto_save_end(&real_game, player_us);
 
 		/* Dump log */
 		save_log();
@@ -9102,6 +9113,11 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 		{
 			/* Error */
 		}
+		else
+		{
+			/* Set the tampered saved flag */
+			game_tampered |= TAMPERED_SAVE;
+		}
 
 		/* Destroy filename */
 		g_free(fname);
@@ -9133,7 +9149,7 @@ static void export_log(FILE *fff)
 		/* Find tags */
 		list = gtk_text_iter_get_tags(&iter_start);
 
-		/* Only look for first tag */
+		/* XXX Only look for first tag */
 		if (list)
 		{
 			/* Get name of tag */
@@ -9787,7 +9803,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
- * Choose a location for autosaves and saved logs
+ * Choose a location for autosaves and saved logs.
  */
 static void file_location_pressed(GtkButton *button, gpointer data)
 {
@@ -9844,7 +9860,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	dialog = gtk_dialog_new_with_buttons("GUI Options", NULL,
 	                                     GTK_DIALOG_MODAL,
 	                                     GTK_STOCK_OK,
-                                         GTK_RESPONSE_ACCEPT,
+	                                     GTK_RESPONSE_ACCEPT,
 	                                     GTK_STOCK_CANCEL,
 	                                     GTK_RESPONSE_REJECT, NULL);
 
@@ -10131,7 +10147,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 		/* Restart main loop if not online and log options changed */
 		if (client_state == CS_DISCONN &&
-			!(game_tampered & TAMPERED_MOVE) &&
+		    !(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose_log != old_options.verbose_log ||
 		     opt.discard_log != old_options.discard_log))
@@ -11217,7 +11233,7 @@ int main(int argc, char *argv[])
 		/* Check for goals off */
 		else if (!strcmp(argv[i], "-nog"))
 		{
-			/* Set goals on */
+			/* Set goals off */
 			opt.disable_goal = TRUE;
 
 			/* Start new game */
@@ -11227,7 +11243,7 @@ int main(int argc, char *argv[])
 		/* Check for takeovers on */
 		else if (!strcmp(argv[i], "-t"))
 		{
-			/* Set goals on */
+			/* Set takeovers on */
 			opt.disable_takeover = FALSE;
 
 			/* Start new game */
@@ -11237,7 +11253,7 @@ int main(int argc, char *argv[])
 		/* Check for takeovers off */
 		else if (!strcmp(argv[i], "-not"))
 		{
-			/* Set goals on */
+			/* Set takeovers off */
 			opt.disable_takeover = TRUE;
 
 			/* Start new game */
