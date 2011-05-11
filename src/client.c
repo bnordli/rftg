@@ -1554,11 +1554,14 @@ static gboolean message_read(gpointer data)
 			/* Wait until done button pressed */
 			gtk_main();
 
+			/* Tell server we are out of the game */
+			send_msgf(server_fd, MSG_GAMEOVER, "");
+
 			/* Unset making_choice */
 			making_choice = 0;
 
-			/* Tell server we are out of the game */
-			send_msgf(server_fd, MSG_GAMEOVER, "");
+			/* Notify gui */
+			gui_client_state_changed(playing_game, making_choice);
 
 			/* Check for disconnected */
 			if (client_state != CS_DISCONN)
