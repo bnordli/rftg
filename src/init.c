@@ -412,7 +412,7 @@ int read_cards(void)
 
 				/* Done with flag line */
 				break;
-			
+
 			/* Good */
 			case 'G':
 

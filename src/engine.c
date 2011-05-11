@@ -1914,7 +1914,7 @@ void phase_explore(game *g)
 			c_ptr = &g->deck[x];
 
 			/* Skip cards already in hand unless discarding any */
-			if (c_ptr->start_where == WHERE_HAND && 
+			if (c_ptr->start_where == WHERE_HAND &&
 			    c_ptr->start_owner == i && !discard_any)
 				continue;
 
@@ -3041,7 +3041,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only)
 				/* Cannot pay for alien production world */
 				if (good == GOOD_ALIEN) continue;
 			}
-			
+
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
 			    !(c_ptr->d_ptr->flags & FLAG_REBEL))
@@ -3621,7 +3621,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				num_goods = get_goods(g, who, g_list,
 				                      GOOD_GENE);
 			}
-			
+
 			/* Check for needing rare good */
 			else if (o_ptr->code & P3_CONSUME_RARE)
 			{
@@ -5164,7 +5164,7 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
-	
+
 	/* Get settle powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
 
@@ -6023,7 +6023,7 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 			value += count_active_flags(g, who, FLAG_CHROMO);
 		}
 	}
-	
+
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
@@ -6141,7 +6141,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 	char *name;
 	int i, types[6], num_types, times, vp, vp_mult;
 	char msg[1024];
-	
+
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
@@ -6692,7 +6692,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 			/* Count reward */
 			p_ptr->phase_vp += o_ptr->value;
 		}
-		
+
 		/* Give card rewards */
 		if (o_ptr->code & P4_GET_CARD)
 		{
@@ -7381,7 +7381,7 @@ void phase_consume(game *g)
 		/* Check for aborted game */
 		if (g->game_over) return;
 	}
-	
+
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
@@ -7394,7 +7394,7 @@ void phase_consume(game *g)
 		{
 			/* Begin message */
 			sprintf(msg, "%s receives ", p_ptr->name);
-			
+
 			/* Check for cards received */
 			if (p_ptr->phase_cards)
 			{
@@ -8603,7 +8603,7 @@ void phase_produce(game *g)
 		{
 			/* Begin message */
 			sprintf(msg, "%s receives ", p_ptr->name);
-			
+
 			/* Check for cards received */
 			if (p_ptr->phase_cards)
 			{
@@ -8741,7 +8741,7 @@ void phase_discard(game *g)
 
 		/* Get discard choice */
 		extract_choice(g, i, CHOICE_DISCARD, list, &n, NULL, NULL);
-		
+
 		/* Make discards */
 		discard_callback(g, i, list, n);
 
@@ -9112,7 +9112,7 @@ static int check_goal_player(game *g, int goal, int who)
 					/* Count world */
 					count++;
 				}
-				
+
 				/* Check for "any" kind */
 				if (c_ptr->d_ptr->good_type == GOOD_ANY &&
 				    (g->oort_kind == GOOD_ANY ||
@@ -9394,7 +9394,7 @@ void check_goals(game *g)
 		{
 			/* End of turn only */
 			case GOAL_FIRST_DISCARD:
-			
+
 				/* Only check at end of turn */
 				if (g->cur_action != ACT_ROUND_END) continue;
 				break;
@@ -9870,7 +9870,7 @@ void begin_game(game *g)
 
 			/* Reset list of cards in hand */
 			n = 0;
-			
+
 			/* Loop over cards */
 			for (j = 0; j < g->deck_size; j++)
 			{
@@ -10045,7 +10045,7 @@ void begin_game(game *g)
 
 		/* Get discard choice */
 		extract_choice(g, i, CHOICE_DISCARD, hand, &n, NULL, NULL);
-		
+
 		/* Make discards */
 		discard_callback(g, i, hand, n);
 	}
@@ -10445,7 +10445,7 @@ int game_round(game *g)
 				/* Run explore phase */
 				phase_explore(g);
 				break;
-			
+
 			/* Develop */
 			case ACT_DEVELOP:
 			case ACT_DEVELOP2:
@@ -10453,7 +10453,7 @@ int game_round(game *g)
 				/* Run develop phase */
 				phase_develop(g);
 				break;
-			
+
 			/* Settle */
 			case ACT_SETTLE:
 			case ACT_SETTLE2:
@@ -10461,14 +10461,14 @@ int game_round(game *g)
 				/* Run settle phase */
 				phase_settle(g);
 				break;
-			
+
 			/* Consume */
 			case ACT_CONSUME_TRADE:
 
 				/* Run consume phase */
 				phase_consume(g);
 				break;
-			
+
 			/* Produce */
 			case ACT_PRODUCE:
 
@@ -10613,7 +10613,7 @@ int total_military(game *g, int who)
 			}
 		}
 	}
-	
+
 	/* Return amount of military */
 	return amt;
 }

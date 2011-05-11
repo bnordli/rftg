@@ -231,7 +231,7 @@ static void replace_char(char *s, char c, char *replacement)
 
 		/* Write replacement entity */
 		strcat(tmp, replacement);
-		
+
 		/* Increase pointer */
 		++p;
 

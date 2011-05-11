@@ -394,7 +394,7 @@ static void handle_open_game(char *ptr)
 
 	/* Read description */
 	get_string(buf, &ptr);
-	
+
 	/* Set description */
 	gtk_tree_store_set(game_list, &list_iter, 1, buf, -1);
 
@@ -1361,7 +1361,7 @@ static gboolean message_read(gpointer data)
 			/* Get chat buffer */
 			chat_buffer = gtk_text_view_get_buffer(
 			                           GTK_TEXT_VIEW(message_view));
-			
+
 			/* Get end mark */
 			gtk_text_buffer_get_iter_at_mark(chat_buffer, &end_iter,
 			                                 message_end);
@@ -2734,7 +2734,7 @@ void kick_player(GtkButton *button, gpointer data)
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 0, &x, -1);
 
 	/* Get name of user to kick */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf, 
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf,
 	                   10, &self, -1);
 
 	/* Check for self selected */

@@ -27,7 +27,7 @@
 #include "comm.h"
 
 /* Apple OS X specific-code */
-#ifdef __APPLE__     
+#ifdef __APPLE__
 #include "CoreFoundation/CoreFoundation.h"
 #include "ige-mac-menu.h"
 #endif
@@ -37,7 +37,7 @@
 /*
  * Our default options.
  */
-options opt = 
+options opt =
 {
 	// .num_players = 3
 	3
@@ -1020,7 +1020,7 @@ static void load_images(void)
 				}
 			}
 		}
-		
+
 		/* Done */
 		return;
 	}
@@ -1311,7 +1311,7 @@ static gboolean action_check_takeover(void)
 
 			/* Check for too many targets */
 			if (target != -1) return 0;
-			
+
 			/* Remember target world */
 			target = i_ptr->index;
 		}
@@ -1622,7 +1622,7 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 
 		/* Copy blank space onto middle of border buffer */
 		gdk_pixbuf_copy_area(blank_buf, bw, bw, w - 2 * bw, h - 2 * bw,
-		                     border_buf, bw, bw); 
+		                     border_buf, bw, bw);
 
 		/* Composite border onto card image buffer */
 		gdk_pixbuf_composite(border_buf, buf, 0, 0, w, h, 0, 0, 1, 1,
@@ -1697,7 +1697,7 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 				if (i_ptr == j_ptr) continue;
 
 				/* Clear selected */
-				j_ptr->selected = 0;		
+				j_ptr->selected = 0;
 			}
 		}
 		else
@@ -2154,7 +2154,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 				                 "button-release-event",
 				                 G_CALLBACK(card_selected),
 				                 i_ptr);
-			}		
+			}
 		}
 
 		/* Check for eligible card */
@@ -4352,7 +4352,7 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 		toggle = action_toggle[i];
 
 		/* Skip unavailable and unselected */
-		if (!toggle || 
+		if (!toggle ||
 		    !gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(toggle)))
 		{
 			/* Skip action */
@@ -5806,7 +5806,7 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
-				
+
 				/* Highlight card in red when selected */
 				i_ptr->highlight = HIGH_RED;
 
@@ -5952,7 +5952,7 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Add handler for keypresses */ 
+	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
 	                           GDK_F12, 0, 0);
 	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
@@ -6519,7 +6519,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Add handler for keypresses */ 
+	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
 	                           GDK_F12, 0, 0);
 	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
@@ -7156,7 +7156,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Add handler for keypresses */ 
+	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
 	                           GDK_F12, 0, 0);
 	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
@@ -7362,7 +7362,7 @@ int gui_choose_search_type(game *g, int who)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Add handler for keypresses */ 
+	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
 	                           GDK_F12, 0, 0);
 	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
@@ -7455,7 +7455,7 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Add handler for keypresses */ 
+	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
 	                           GDK_F12, 0, 0);
 	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
@@ -7526,7 +7526,7 @@ int gui_choose_oort_kind(game *g, int who)
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
-	/* Add handler for keypresses */ 
+	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
 	                           GDK_F12, 0, 0);
 	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
@@ -8966,7 +8966,7 @@ static void gui_new_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Force game over */
 	real_game.game_over = 1;
-	
+
 	/* Start new game immediately */
 	restart_loop = RESTART_NEW;
 
@@ -10688,7 +10688,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(list_scroll),
 	                               GTK_POLICY_NEVER,
 	                               GTK_POLICY_ALWAYS);
-	
+
 	/* Add scrollable list view to dialog */
 	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), list_scroll,
 	                   TRUE, TRUE, 0);
@@ -11104,7 +11104,7 @@ int main(int argc, char *argv[])
 	char msg[1024];
 	int i, err;
 
-#ifdef __APPLE__        
+#ifdef __APPLE__
 	/* Set cwd to OS X .app bundle Resource fork so relative paths work */
 	CFBundleRef mainBundle = CFBundleGetMainBundle();
 	CFURLRef resourcesURL = CFBundleCopyResourcesDirectoryURL(mainBundle);
@@ -11113,10 +11113,10 @@ int main(int argc, char *argv[])
 	{
 		// error! Resources (cards and ai nets) will not load.
 	}
-	CFRelease(resourcesURL);	
+	CFRelease(resourcesURL);
 	chdir(path);
 #endif
-	
+
 	/* Set random seed */
 	real_game.random_seed = time(NULL);
 
@@ -11747,7 +11747,7 @@ int main(int argc, char *argv[])
 
 	/* Request sizes for status areas */
 	status_resize();
-	
+
 	/* Create viewport for opponent boxes */
 	top_view = gtk_viewport_new(NULL, NULL);
 
@@ -12197,25 +12197,25 @@ int main(int argc, char *argv[])
 	switch_view(0, 0);
 
 #ifdef __APPLE__
-	/* Setup OS X style menus */	
+	/* Setup OS X style menus */
 	IgeMacMenuGroup *group = ige_mac_menu_add_app_menu_group();
 	ige_mac_menu_add_app_menu_item(group,
 	                               GTK_MENU_ITEM(about_item), NULL);
-	
+
 	group = ige_mac_menu_add_app_menu_group();
 	ige_mac_menu_add_app_menu_item(group,
 	                               GTK_MENU_ITEM(option_item),
 	                               "Preferences...");
-	
+
 	ige_mac_menu_set_quit_menu_item(GTK_MENU_ITEM(quit_item));
-	
+
 	gtk_widget_hide(menu_bar);
-	ige_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));	
+	ige_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));
 #endif
 
 	/* Reset GUI */
 	reset_gui();
-	
+
 	/* Modify GUI for current setup */
 	modify_gui();
 

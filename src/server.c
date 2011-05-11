@@ -3907,7 +3907,7 @@ int main(int argc, char *argv[])
 
 	/* Reconnect automatically when connection to database is lost */
 	mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
- 
+
 	/* Read game states from database */
 	db_load_sessions();
 	db_load_attendance();
