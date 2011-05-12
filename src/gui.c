@@ -1784,9 +1784,17 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 		gtk_widget_set_sensitive(action_button, action_check_start());
 	}
 
-	/* Redraw hand and table areas */
-	redraw_table();
-	redraw_hand();
+	/* Check for card in hand */
+	if (i_ptr->hand)
+	{
+		/* Redraw hand */
+		redraw_hand();
+	}
+	else
+	{
+		/* Redraw table */
+		redraw_table();
+	}
 
 	/* Event handled */
 	return TRUE;
@@ -1851,6 +1859,11 @@ static int cmp_hand(const void *h1, const void *h2)
 static int key_count;
 
 /*
+ * The first accelerator key for cards in hand.
+ */
+static int hand_first_key;
+
+/*
  * Redraw hand area.
  */
 void redraw_hand(void)
@@ -1861,6 +1874,18 @@ void redraw_hand(void)
 	int width, height, highlight;
 	int card_w, card_h;
 	int i, j;
+
+	/* Check if hand previously drawn */
+	if (hand_first_key != -1)
+	{
+		/* Reset key count */
+		key_count = hand_first_key;
+	}
+	else
+	{
+		/* Save key count */
+		hand_first_key = key_count;
+	}
 
 	/* Sort hand */
 	qsort(hand, hand_size, sizeof(displayed), cmp_hand);
@@ -2215,6 +2240,7 @@ void redraw_table(void)
 
 	/* Reset accelerator keys */
 	key_count = 0;
+	hand_first_key = -1;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
