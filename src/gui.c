@@ -4415,23 +4415,6 @@ static void action_choice_changed_advanced(GtkToggleButton *button,
 	{
 		/* Increment count of buttons pressed */
 		actions_chosen++;
-
-		/* Check for pressed search button */
-		if (i == ACT_SEARCH)
-		{
-			/* Clear prestige action, if any */
-			if (prestige_action != -1)
-			{
-				/* Get current prestige action */
-				j = prestige_action;
-
-				/* Reset icon */
-				reset_action_icon(action_toggle[j], j);
-
-				/* Clear prestige action */
-				prestige_action = -1;
-			}
-		}
 	}
 	else
 	{
