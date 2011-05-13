@@ -9910,7 +9910,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                 GTK_FILL, GTK_FILL, 3, 0);
 
 	/* Create card size scale */
-	card_size_scale = gtk_hscale_new_with_range(150, 360, 10);
+	card_size_scale = gtk_hscale_new_with_range(150, CARD_WIDTH, 10);
 
 	/* Do not display value */
 	gtk_scale_set_draw_value(GTK_SCALE(card_size_scale), FALSE);
@@ -9942,14 +9942,17 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                 GTK_FILL, GTK_FILL, 3, 0);
 
 	/* Create log width scale */
-	log_width_scale = gtk_hscale_new_with_range(150, 360, 10);
+	log_width_scale = gtk_hscale_new_with_range(150, CARD_WIDTH, 10);
 
 	/* Do not display value */
 	gtk_scale_set_draw_value(GTK_SCALE(log_width_scale), FALSE);
 
+	/* Set default value for log width */
+	if (!opt.log_width)
+		opt.log_width = opt.card_size ? opt.card_size : CARD_WIDTH;
+
 	/* Set value */
-	gtk_range_set_value(GTK_RANGE(log_width_scale),
-	                    opt.log_width ? opt.log_width : CARD_WIDTH);
+	gtk_range_set_value(GTK_RANGE(log_width_scale), opt.log_width);
 
 	/* Put scale into table */
 	gtk_table_attach_defaults(GTK_TABLE(sizes_table), log_width_scale,
