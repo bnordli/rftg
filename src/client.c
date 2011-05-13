@@ -1744,10 +1744,12 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	struct hostent *server_host;
 	struct sockaddr_in server_addr;
 	int portno;
+	char *old_server_name;
 	GtkWidget *dialog, *connect_button, *cancel_button;
 	GtkWidget *label, *hsep;
 	GtkWidget *server, *port, *user, *pass;
 	GtkWidget *table;
+	GtkTextBuffer *chat_buffer;
 	GIOChannel *io;
 	unsigned int id;
 #ifdef WIN32
@@ -1795,6 +1797,9 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Check for no server name in preferences */
 	if (!opt.server_name) opt.server_name = "keldon.net";
+
+	/* Save previous server */
+	old_server_name = opt.server_name;
 
 	/* Set default server name */
 	gtk_entry_set_text(GTK_ENTRY(server), opt.server_name);
@@ -1917,6 +1922,16 @@ with the password you enter.");
 
 		/* Save change to file */
 		save_prefs();
+
+		/* Check for changed server */
+		if (strcmp(opt.server_name, old_server_name))
+		{
+			/* Get chat buffer */
+			chat_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(chat_view));
+
+			/* Clear text */
+			gtk_text_buffer_set_text(chat_buffer, "", 0);
+		}
 
 		/* Clear status label */
 		gtk_label_set_text(GTK_LABEL(login_status), "");
