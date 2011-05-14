@@ -523,7 +523,7 @@ int export_game(game *g, char *filename, int player_us,
 					continue;
 
 				/* Write unclaimed goal */
-				fprintf(fff, "      <Goal id=\"%d\" unclaimed=\"yes\">%s"
+				fprintf(fff, "      <Goal id=\"%d\" shared=\"yes\">%s"
 				        "</Goal>\n", i, xml_escape(goal_name[i]));
 			}
 
