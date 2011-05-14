@@ -309,7 +309,9 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
  * Export the game state to the given filename.
  */
 int export_game(game *g, char *filename, int player_us,
-                const char *message, void (*export_log)(FILE *fff))
+                const char *message,
+                int num_special_cards, int* special_cards,
+                void (*export_log)(FILE *fff))
 {
 	FILE *fff;
 	player *p_ptr;
@@ -374,7 +376,7 @@ int export_game(game *g, char *filename, int player_us,
 	fputs("    <Phases>\n", fff);
 
 	/* Loop over phases */
-	for (i = ACT_EXPLORE_5_0; i <= ACT_PRODUCE; ++i)
+	for (i = ACT_SEARCH; i <= ACT_PRODUCE; ++i)
 	{
 		/* Write phase if selected */
 		if (g->action_selected[i])
@@ -521,7 +523,7 @@ int export_game(game *g, char *filename, int player_us,
 					continue;
 
 				/* Write unclaimed goal */
-				fprintf(fff, "      <Goal id=\"%d\" unclaimed=\"yes\">%s"
+				fprintf(fff, "      <Goal id=\"%d\" shared=\"yes\">%s"
 				        "</Goal>\n", i, xml_escape(goal_name[i]));
 			}
 
@@ -574,6 +576,30 @@ int export_game(game *g, char *filename, int player_us,
 		{
 			/* Write human player's hand */
 			export_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND], cmp_hand);
+
+			if (num_special_cards)
+			{
+				/* Write start tag */
+				fprintf(fff, "    <%s count=\"%d\">\n",
+				        g->cur_action == ACT_SEARCH ? "Search" : "Discards",
+				        num_special_cards);
+
+				/* Loop over special cards */
+				for (i = 0; i < num_special_cards; i++)
+				{
+					/* Get card pointer */
+					c_ptr = &g->deck[special_cards[i]];
+
+					/* Write card id and name */
+					fprintf(fff, "      <Card id=\"%d\">%s</Card>\n",
+					        c_ptr->d_ptr->index,
+					        xml_escape(c_ptr->d_ptr->name));
+				}
+
+				/* Write end tag */
+				fprintf(fff, "    </%s>\n",
+				        g->cur_action == ACT_SEARCH ? "Search" : "Discards");
+			}
 		}
 		else
 		{
