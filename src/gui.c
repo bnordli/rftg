@@ -4418,7 +4418,7 @@ static void prestige_pressed(GtkButton *button, gpointer data)
 static void action_choice_changed_advanced(GtkToggleButton *button,
                                            gpointer data)
 {
-	int i = GPOINTER_TO_INT(data), j;
+	int i = GPOINTER_TO_INT(data);
 
 	/* Check for toggled button */
 	if (gtk_toggle_button_get_active(button))
