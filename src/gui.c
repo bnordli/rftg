@@ -412,6 +412,17 @@ static GdkModifierType accel_mods[MAX_ACCEL];
 static unsigned int act_to_accel[] = {5, 0, 9, 1, 10, 2, 11, 3, 12, 4};
 
 /*
+ * Number of candidates to keep (during search), or save.
+ * TODO: Make a WHERE_REVEALED location.
+ */
+static int num_special_cards;
+
+/*
+ * List of special gui cards.
+ */
+static int special_cards[20];
+
+/*
  * Text buffer for message area.
  */
 GtkWidget *message_view;
@@ -5225,6 +5236,10 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 	card *c_ptr;
 	int i, j, n = 0;
 
+	/* Save special cards */
+	num_special_cards = *num;
+	for (i = 0; i < *num; ++i) special_cards[i] = list[i];
+
 	/* Create prompt */
 	sprintf(buf, "Choose card to save for later");
 
@@ -5319,6 +5334,9 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 			list[n++] = i_ptr->index;
 		}
 	}
+
+	/* Clear special cards */
+	num_special_cards = 0;
 
 	/* Set number of cards selected */
 	*num = n;
@@ -7415,6 +7433,10 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	char buf[1024];
 	int i;
 
+	/* Save special card */
+	num_special_cards = 1;
+	special_cards[0] = arg1;
+
 	/* Get card pointer */
 	c_ptr = &g->deck[arg1];
 
@@ -7488,6 +7510,9 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 
 	/* Process events */
 	gtk_main();
+
+	/* Clear special cards */
+	num_special_cards = 0;
 
 	/* Get selection */
 	i = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
@@ -9236,7 +9261,8 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 		line = gtk_label_get_text(GTK_LABEL(action_prompt));
 
 		/* Save to file */
-		if (export_game(&real_game, fname, player_us, line, export_log) < 0)
+		if (export_game(&real_game, fname, player_us, line,
+		                num_special_cards, special_cards, export_log) < 0)
 		{
 			/* Error */
 		}
