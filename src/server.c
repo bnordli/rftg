@@ -224,6 +224,15 @@ static int num_conn;
 static session s_list[1024];
 static int num_session;
 
+/*
+ * Timeout value (in seconds).
+ */
+static int timeout = 60;
+
+/*
+ * Kick timeout value (in ten seconds)
+ */
+static int kick_timeout = 30;
 
 /*
  * Connection to the database server.
@@ -2317,10 +2326,14 @@ static void kick_player(int cid, char *reason)
 		/* Send to remaining players in session */
 		send_gamechat(sid, "", text);
 
-		/* Format time to AI control message */
-		sprintf(text, "%s will be set to AI control in %d seconds.",
-		        c_list[cid].user,
-			(30 - s_list[sid].wait_ticks[i]) / 5 * 10);
+		/* Check for kick timeout */
+		if (kick_timeout)
+		{
+			/* Format time to AI control message */
+			sprintf(text, "%s will be set to AI control in %d seconds.",
+			        c_list[cid].user,
+			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * 10);
+		}
 
 		/* Send to remaining players in session */
 		send_gamechat(sid, "", text);
@@ -3719,7 +3732,9 @@ static void do_housekeeping(void)
 		if (c_list[i].ai) continue;
 
 		/* Check for no data from client in quite some time */
-		if (c_list[i].ping_sent && cur_time - c_list[i].last_seen > 60)
+		if (timeout &&
+		    c_list[i].ping_sent &&
+		    cur_time - c_list[i].last_seen > timeout)
 		{
 			/* Remove client */
 			kick_player(i, "Timeout");
@@ -3727,7 +3742,8 @@ static void do_housekeeping(void)
 		}
 
 		/* Check for no recent data from client */
-		if (cur_time - c_list[i].last_seen > 20)
+		if (timeout &&
+		    cur_time - c_list[i].last_seen > timeout - 40)
 		{
 			/* Send client a ping */
 			send_msgf(i, MSG_PING, "");
@@ -3824,7 +3840,7 @@ static void do_housekeeping(void)
 			}
 
 			/* Check for warning given */
-			if (s_ptr->wait_ticks[j] >= 30)
+			if (kick_timeout && s_ptr->wait_ticks[j] >= kick_timeout)
 			{
 				/* Check for player connected */
 				if (s_ptr->cids[j] >= 0)
@@ -3845,19 +3861,21 @@ static void do_housekeeping(void)
 			}
 
 			/* Check for too much time elasped */
-			if (s_ptr->cids[j] >= 0 && s_ptr->wait_ticks[j] > 25 &&
-			    s_ptr->wait_ticks[j] < 30)
+			if (kick_timeout &&
+			    s_ptr->cids[j] >= 0 &&
+			    s_ptr->wait_ticks[j] > kick_timeout - 5 &&
+			    s_ptr->wait_ticks[j] < kick_timeout)
 			{
 				/* Create warning message */
 				sprintf(msg, "WARNING: %s will be set to AI "
-				             "control in 10 seconds.",
+				        "control in 10 seconds.",
 				        c_list[s_ptr->cids[j]].user);
 
 				/* Give warning */
 				send_gamechat(i, "", msg);
 
 				/* Remember warning given */
-				s_ptr->wait_ticks[j] = 30;
+				s_ptr->wait_ticks[j] = kick_timeout;
 			}
 		}
 
@@ -3897,6 +3915,20 @@ int main(int argc, char *argv[])
 		{
 			/* Set database name */
 			db = argv[++i];
+		}
+
+		/* Check for timeout settings */
+		if (!strcmp(argv[i], "-t"))
+		{
+			/* Set database name */
+			timeout = atoi(argv[++i]);
+		}
+
+		/* Check for kick timeout settings */
+		if (!strcmp(argv[i], "-k"))
+		{
+			/* Set database name */
+			kick_timeout = atoi(argv[++i]);
 		}
 	}
 
