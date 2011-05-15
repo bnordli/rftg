@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -542,7 +542,11 @@ int main(int argc, char *argv[])
 	int i;
 
 	/* Read card database */
-	read_cards();
+	if (read_cards() < 0)
+	{
+		/* Exit */
+		exit(1);
+	}
 
 	/* Create choice logs */
 	for (i = 0; i < MAX_PLAYER; i++)

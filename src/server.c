@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file patched to *b version by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2116,6 +2116,36 @@ static void handle_prepare(int cid, char *ptr)
 }
 
 /*
+ * Send a private message to a client.
+ */
+void server_private_message(game *g, int who, char *txt, char *tag)
+{
+	char msg[1024], *ptr = msg;
+	int cid;
+
+	/* Get connection ID of this user */
+	cid = s_list[g->session_id].cids[who];
+
+	/* Check for no connection */
+	if (cid < 0) return;
+
+	/* Create log message */
+	start_msg(&ptr, MSG_LOG);
+
+	/* Add text of message */
+	put_string(txt, &ptr);
+
+	/* Add format of message */
+	put_string(tag, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send to client */
+	send_msg(cid, msg);
+}
+
+/*
  * Set of functions called by game engine to notify/ask clients.
  */
 decisions server_func =
@@ -2129,6 +2159,7 @@ decisions server_func =
 	server_verify_choice,
 	NULL,
 	NULL,
+	server_private_message,
 };
 
 /*
@@ -2741,7 +2772,7 @@ static void handle_login(int cid, char *ptr)
 	c_list[cid].state = CS_LOBBY;
 
 	/* Tell client that login was successful */
-	send_msgf(cid, MSG_HELLO, "");
+	send_msgf(cid, MSG_HELLO, "s", RELEASE);
 
 	/* Send welcome chat to client */
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
@@ -3870,7 +3901,11 @@ int main(int argc, char *argv[])
 	}
 
 	/* Read card library */
-	read_cards();
+	if (read_cards() < 0)
+	{
+		/* Exit */
+		exit(1);
+	}
 
 	/* Initialize database library */
 	mysql = mysql_init(NULL);

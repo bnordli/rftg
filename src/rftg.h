@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2011.
+ * Source file modified by B. Nordli, May 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "e"
+#define RELEASE VERSION "i"
 #endif
 
 #include <stdio.h>
@@ -79,6 +79,11 @@
 #define MAX_TAKEOVER 12
 
 /*
+ * Number of goods.
+ */
+#define MAX_GOOD 6
+
+/*
  * Number of intermediate goals.
  */
 #define MAX_GOAL 20
@@ -118,6 +123,7 @@
 /*
  * Player action choices.
  */
+#define ACT_ROUND_START    -1
 #define ACT_SEARCH         0
 #define ACT_EXPLORE_5_0    1
 #define ACT_EXPLORE_1_1    2
@@ -128,6 +134,7 @@
 #define ACT_CONSUME_TRADE  7
 #define ACT_CONSUME_X2     8
 #define ACT_PRODUCE        9
+#define ACT_ROUND_END      10
 
 #define ACT_MASK           0x7f
 #define ACT_PRESTIGE       0x80
@@ -477,12 +484,14 @@
 /*
  * GUI: Text formatting
  */
-#define FORMAT_BOLD "bold"
+#define FORMAT_EM "em"
+#define FORMAT_CHAT "chat"
 #define FORMAT_PHASE "phase"
 #define FORMAT_TAKEOVER "takeover"
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
+#define FORMAT_DISCARD "discard"
 
 /*
  * Forward declaration.
@@ -670,6 +679,9 @@ typedef struct decisions
 
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
+
+	/* Private message */
+	void (*private_message)(struct game *g, int who, char *msg, char *tag);
 
 } decisions;
 
@@ -876,12 +888,19 @@ typedef struct game
  */
 extern design library[MAX_DESIGN];
 extern char *actname[MAX_ACTION * 2 - 1];
+extern char *plain_actname[MAX_ACTION + 1];
+extern char *good_printable[MAX_GOOD];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
 extern char *player_labels[MAX_PLAYER];
 extern decisions ai_func;
 extern decisions gui_func;
+
+/*
+ * Macro functions.
+ */
+#define PLURAL(x) ((x) == 1 ? "" : "s")
 
 /*
  * External functions.
@@ -892,13 +911,14 @@ extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
 extern void save_log(void);
 extern int game_rand(game *g);
-extern void read_cards(void);
+extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
+extern int prestige_on_tile(game *g, int who);
 extern int random_draw(game *g);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);
@@ -908,6 +928,7 @@ extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
+extern int get_powers(game *g, int who, int phase, power_where *w_list);
 extern void add_good(game *g, card *c_ptr);
 extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);
@@ -967,3 +988,8 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 
 extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
+extern char *xml_escape(const char *s);
+extern int export_game(game *g, char *filename, int player_us,
+                       const char *message,
+                       int num_special, int* special_cards,
+                       void (*export_log)(FILE *fff));
