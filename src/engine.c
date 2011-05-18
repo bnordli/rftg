@@ -11046,6 +11046,9 @@ void score_game(game *g)
 		/* Skip cards that don't have "any" good type */
 		if (c_ptr->d_ptr->good_type != GOOD_ANY) continue;
 
+		/* Skip the card if it is not active */
+		if (c_ptr->where != WHERE_ACTIVE) break;
+
 		/* Remember owner of card */
 		oort_owner = c_ptr->owner;
 	}
@@ -11133,6 +11136,9 @@ void declare_winner(game *g)
 
 		/* Skip cards that don't have "any" good type */
 		if (c_ptr->d_ptr->good_type != GOOD_ANY) continue;
+
+		/* Skip the card if it is not active */
+		if (c_ptr->where != WHERE_ACTIVE) break;
 
 		/* Remember owner of card */
 		oort_owner = c_ptr->owner;
