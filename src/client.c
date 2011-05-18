@@ -2595,7 +2595,7 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 	gtk_widget_destroy(dialog);
 
 	/* Check for "no" answer */
-	if (response == GTK_RESPONSE_NO) return;
+	if (response != GTK_RESPONSE_YES) return;
 
 	/* Ask server to resign */
 	send_msgf(server_fd, MSG_RESIGN, "");
