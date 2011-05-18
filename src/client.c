@@ -2362,6 +2362,9 @@ void create_dialog(GtkButton *button, gpointer data)
 	label = gtk_label_new("Description:");
 	desc = gtk_entry_new();
 
+	/* Cap the description length */
+	gtk_entry_set_max_length(GTK_ENTRY(desc), 40);
+
 	/* Check for no game description in preferences */
 	if (!opt.game_desc) opt.game_desc = "";
 
@@ -2375,6 +2378,9 @@ void create_dialog(GtkButton *button, gpointer data)
 	/* Create label and text entry for password */
 	label = gtk_label_new("Game password:");
 	pass = gtk_entry_new();
+
+	/* Cap the password length */
+	gtk_entry_set_max_length(GTK_ENTRY(pass), 20);
 
 	/* Check for no game password in preferences */
 	if (!opt.game_pass) opt.game_pass = "";
@@ -2673,6 +2679,9 @@ void join_game(GtkButton *button, gpointer data)
 		/* Create label and text entry for game password */
 		label = gtk_label_new("Game password:");
 		password = gtk_entry_new();
+
+		/* Cap the password length */
+		gtk_entry_set_max_length(GTK_ENTRY(password), 20);
 
 		/* Add widgets to hbox */
 		gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);
