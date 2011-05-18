@@ -571,7 +571,7 @@ int export_game(game *g, char *filename, int player_us,
 			fprintf(fff, "    </Saved>\n");
 		}
 
-
+		/* Check for human player */
 		if (n == player_us)
 		{
 			/* Write human player's hand */
@@ -579,10 +579,28 @@ int export_game(game *g, char *filename, int player_us,
 
 			if (num_special_cards)
 			{
-				/* Write start tag */
-				fprintf(fff, "    <%s count=\"%d\">\n",
-				        g->cur_action == ACT_SEARCH ? "Search" : "Discards",
-				        num_special_cards);
+				/* Check action */
+				switch (g->cur_action)
+				{
+					/* Start world choice */
+					case ACT_ROUND_START:
+						fprintf(fff, "    <Start count=\"%d\">\n",
+						        num_special_cards);
+						break;
+
+					/* Search */
+					case ACT_SEARCH:
+						fprintf(fff, "    <Search count=\"%d\">\n",
+						        num_special_cards);
+						break;
+
+					/* Save discarded cards */
+					case ACT_DEVELOP:
+					case ACT_SETTLE:
+						fprintf(fff, "    <Discards count=\"%d\">\n",
+						        num_special_cards);
+						break;
+				}
 
 				/* Loop over special cards */
 				for (i = 0; i < num_special_cards; i++)
@@ -596,9 +614,25 @@ int export_game(game *g, char *filename, int player_us,
 					        xml_escape(c_ptr->d_ptr->name));
 				}
 
-				/* Write end tag */
-				fprintf(fff, "    </%s>\n",
-				        g->cur_action == ACT_SEARCH ? "Search" : "Discards");
+				/* Check action */
+				switch (g->cur_action)
+				{
+					/* Start world choice */
+					case ACT_ROUND_START:
+						fprintf(fff, "    </Start>\n");
+						break;
+
+					/* Search */
+					case ACT_SEARCH:
+						fprintf(fff, "    </Search>\n");
+						break;
+
+					/* Save discarded cards */
+					case ACT_DEVELOP:
+					case ACT_SETTLE:
+						fprintf(fff, "    </Discards>\n");
+						break;
+				}
 			}
 		}
 		else

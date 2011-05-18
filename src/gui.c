@@ -5038,6 +5038,10 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 	card *c_ptr;
 	int i, j, n = 0;
 
+	/* Save special cards */
+	num_special_cards = *num_special;
+	for (i = 0; i < *num_special; ++i) special_cards[i] = special[i];
+
 	/* Create prompt */
 	sprintf(buf, "Choose start world and hand discards");
 
@@ -5107,6 +5111,9 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 
 	/* Process events */
 	gtk_main();
+
+	/* Clear special cards */
+	num_special_cards = 0;
 
 	/* Loop over table cards */
 	for (i = 0; i < table_size[player_us]; i++)
