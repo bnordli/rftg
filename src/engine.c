@@ -3721,6 +3721,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Check for payment */
 		else
 		{
+			/* Check for extra military activated */
+			if (hand_military)
+			{
+				/* Format message */
+				sprintf(msg, "%s pays %d for extra strength.\n",
+				        p_ptr->name, hand_military);
+
+				/* Send message */
+				message_add(g, msg);
+			}
+
 			/* Format message */
 			sprintf(msg, "%s pays %d for %s.\n", p_ptr->name, num,
 			        t_ptr->d_ptr->name);
