@@ -278,6 +278,16 @@ static status_display status_player[MAX_PLAYER];
  */
 static int display_deck, display_discard, display_pool;
 
+/*
+ * Extra text and font string to be drawn on an image.
+ */
+struct extra_info
+{
+	char text[1024];
+	char *fontstr;
+	int border;
+	int top_left;
+};
 
 /*
  * Restriction types on action button sensitivity.
@@ -410,6 +420,11 @@ static GdkModifierType accel_mods[MAX_ACCEL];
  * Map from actions to accelerators.
  */
 static unsigned int act_to_accel[] = {5, 0, 9, 1, 10, 2, 11, 3, 12, 4};
+
+/*
+ * Whether user has used accel keys during this choice.
+ */
+static int accel_used;
 
 /*
  * Number of candidates to keep (during search), or save.
@@ -1548,6 +1563,92 @@ static int action_check_start(void)
 }
 
 /*
+ * Set of "extra info" structures for player statuses.
+ */
+static struct extra_info status_extra_info[MAX_PLAYER][5];
+
+/*
+ * Set of "extra info" structures for game status.
+ */
+static struct extra_info game_extra_info[3];
+
+/*
+ * Set of "extra info" structures for selectable cards.
+ */
+static struct extra_info card_extra_info[MAX_ACCEL];
+
+/*
+ * The current number of used accelerator keys.
+ */
+static int key_count;
+
+/*
+ * The first accelerator key for cards in hand.
+ */
+static int hand_first_key;
+
+/*
+ * Draw extra text on top of a GtkImage's window.
+ */
+static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
+                                gpointer data)
+{
+	GdkWindow *w;
+	PangoLayout *layout;
+	PangoFontDescription *font;
+	int tw, th;
+	int x = 0, y = 0;
+	struct extra_info *ei = (struct extra_info *)data;
+
+	/* Get window to draw on */
+	w = gtk_widget_get_window(image);
+
+	/* Create pango layout */
+	layout = gtk_widget_create_pango_layout(image, NULL);
+
+	/* Set marked-up text */
+	pango_layout_set_markup(layout, ei->text, -1);
+
+	/* Set alignment to center */
+	pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
+
+	/* Create font description for text */
+	font = pango_font_description_from_string(ei->fontstr);
+
+	/* Set layout's font */
+	pango_layout_set_font_description(layout, font);
+
+	/* Get size of text */
+	pango_layout_get_pixel_size(layout, &tw, &th);
+
+	/* Check for centered text */
+	if (!ei->top_left)
+	{
+		/* Compute point to start drawing */
+		x = (image->allocation.width - tw) / 2 + image->allocation.x;
+		y = (image->allocation.height - th) / 2 + image->allocation.y;
+	}
+
+	/* Draw border around text if asked */
+	if (ei->border)
+	{
+		gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1,layout);
+	}
+
+	/* Draw layout on top of image */
+	gdk_draw_layout(w, image->style->black_gc, x, y, layout);
+
+	/* Free font description */
+	pango_font_description_free(font);
+
+	/* Continue handling event */
+	return FALSE;
+}
+
+/*
  * Refresh the full-size card image.
  *
  * Called when the pointer moves over a small card image.
@@ -1583,7 +1684,7 @@ static gboolean redraw_action(GtkWidget *widget, GdkEventCrossing *event,
  * Create an event box containing the given card's image.
  */
 static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
-                                int highlight, int back)
+                                int highlight, int back, int accel_key)
 {
 	GdkPixbuf *buf, *border_buf, *blank_buf;
 	GtkWidget *image, *box;
@@ -1661,6 +1762,15 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 
 	/* Make image widget */
 	image = gtk_image_new_from_pixbuf(buf);
+
+	/* Check for accelerator key */
+	if (accel_key >= 0 && accel_key < MAX_ACCEL)
+	{
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(image), "expose-event",
+		                       G_CALLBACK(draw_extra_text),
+		                       &card_extra_info[accel_key]);
+	}
 
 	/* Destroy our copy of the pixbuf */
 	g_object_unref(G_OBJECT(buf));
@@ -1795,16 +1905,18 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 		gtk_widget_set_sensitive(action_button, action_check_start());
 	}
 
-	/* Check for card in hand */
-	if (i_ptr->hand)
+
+	/* Check for card in hand and no eligible cards on table */
+	if (i_ptr->hand && key_count == 0)
 	{
 		/* Redraw hand */
 		redraw_hand();
 	}
 	else
 	{
-		/* Redraw table */
+		/* Redraw table and hand */
 		redraw_table();
+		redraw_hand();
 	}
 
 	/* Event handled */
@@ -1816,6 +1928,9 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
  */
 static void card_keyed(GtkWidget *widget, gpointer data)
 {
+	/* Mark accelerator key used */
+	accel_used = TRUE;
+
 	/* Call regular handler */
 	card_selected(widget, NULL, data);
 }
@@ -1863,16 +1978,6 @@ static int cmp_hand(const void *h1, const void *h2)
 	/* Otherwise sort by index */
 	return i_ptr1->index - i_ptr2->index;
 }
-
-/*
- * The current number of used accelerator keys.
- */
-static int key_count;
-
-/*
- * The first accelerator key for cards in hand.
- */
-static int hand_first_key;
 
 /*
  * Redraw hand area.
@@ -1994,7 +2099,8 @@ void redraw_hand(void)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    highlight, 0);
+		                    highlight, 0,
+		                    i_ptr->eligible && accel_used ? key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(hand_area), box, count * width,
@@ -2149,7 +2255,8 @@ static void redraw_table_area(int who, GtkWidget *area)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    highlight, 0);
+		                    highlight, 0,
+		                    i_ptr->eligible && accel_used ? key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
@@ -2170,7 +2277,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 			/* Get event box with no image */
 			good_box = new_image_box(i_ptr->d_ptr,
 			                         3 * card_w / 4, 3 * card_h / 4,
-			                         i_ptr->eligible || i_ptr->color, 0, 1);
+			                         i_ptr->eligible || i_ptr->color, 0, 1, -1);
 
 			/* Place box on card */
 			gtk_fixed_put(GTK_FIXED(area), good_box,
@@ -2428,83 +2535,6 @@ void redraw_goal(void)
 			y += 20;
 		}
 	}
-}
-
-/*
- * Extra text and font string to be drawn on an image.
- */
-struct extra_info
-{
-	char text[1024];
-	char *fontstr;
-	int border;
-};
-
-/*
- * Set of "extra info" structures for player statuses.
- */
-static struct extra_info status_extra_info[MAX_PLAYER][5];
-
-/*
- * Set of "extra info" structures for game status.
- */
-static struct extra_info game_extra_info[3];
-
-/*
- * Draw extra text on top of a GtkImage's window.
- */
-static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
-                                gpointer data)
-{
-	GdkWindow *w;
-	PangoLayout *layout;
-	PangoFontDescription *font;
-	int tw, th;
-	int x, y;
-	struct extra_info *ei = (struct extra_info *)data;
-
-	/* Get window to draw on */
-	w = gtk_widget_get_window(image);
-
-	/* Create pango layout */
-	layout = gtk_widget_create_pango_layout(image, NULL);
-
-	/* Set marked-up text */
-	pango_layout_set_markup(layout, ei->text, -1);
-
-	/* Set alignment to center */
-	pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
-
-	/* Create font description for text */
-	font = pango_font_description_from_string(ei->fontstr);
-
-	/* Set layout's font */
-	pango_layout_set_font_description(layout, font);
-
-	/* Get size of text */
-	pango_layout_get_pixel_size(layout, &tw, &th);
-
-	/* Compute point to start drawing */
-	x = (image->allocation.width - tw) / 2 + image->allocation.x;
-	y = (image->allocation.height - th) / 2 + image->allocation.y;
-
-	/* Draw border around text if asked */
-	if (ei->border)
-	{
-		gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1,layout);
-	}
-
-	/* Draw layout on top of image */
-	gdk_draw_layout(w, image->style->black_gc, x, y, layout);
-
-	/* Free font description */
-	pango_font_description_free(font);
-
-	/* Continue handling event */
-	return FALSE;
 }
 
 /*
@@ -7818,6 +7848,9 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Update menu items */
 	update_menu_items();
 
+	/* Reset accel keys */
+	accel_used = FALSE;
+
 	/* Determine type of choice */
 	switch (type)
 	{
@@ -11372,27 +11405,27 @@ int main(int argc, char *argv[])
 	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
 
-	/* Parse accelerator keys */
-	i = 0;
-	gtk_accelerator_parse("F1", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F2", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F3", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F4", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F5", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F6", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F7", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F8", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F9", &accel_keys[i], &accel_mods[i]); ++i;
+	/* Loop over accelerator keys */
+	for (i = 0; i < MAX_ACCEL; ++i)
+	{
+		/* Create key description */
+		sprintf(msg, "%sF%d", i > 8 ? "<Shift>" : "", (i % 9) + 1);
 
-	gtk_accelerator_parse("<Shift>F1", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F2", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F3", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F4", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F5", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F6", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F7", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F8", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F9", &accel_keys[i], &accel_mods[i]); ++i;
+		/* Parse key */
+		gtk_accelerator_parse(msg, &accel_keys[i], &accel_mods[i]);
+
+		/* Create key description */
+		sprintf(card_extra_info[i].text,
+		        "<b><span background=\"black\" foreground=\"white\">"
+		        "%sF%d</span></b>",
+		        i > 8 ? "S+" : "", (i % 9) + 1);
+
+		/* Set font */
+		card_extra_info[i].fontstr = "Sans 8";
+
+		/* Set position */
+		card_extra_info[i].top_left = 1;
+	}
 
 	/* Create main vbox to hold menu bar, then rest of game area */
 	main_vbox = gtk_vbox_new(FALSE, 0);
