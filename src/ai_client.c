@@ -512,6 +512,15 @@ static void data_ready(void)
 }
 
 /*
+ * Print errors to standard output.
+ */
+void display_error(char *msg)
+{
+	/* Forward message */
+	printf("%s", msg);
+}
+
+/*
  * Handle a message.
  */
 void message_add(game *g, char *msg)

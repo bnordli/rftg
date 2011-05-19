@@ -538,9 +538,9 @@ void message_add_private(game *g, int who, char *msg, char *tag)
 }
 
 /*
- * Show an error dialog with a message.
+ * Handle an error dialog with a message.
  */
-static void show_error(char *msg)
+void display_error(char *msg)
 {
 	GtkWidget *alert;
 
@@ -855,7 +855,7 @@ static void load_image_bundle(void)
 	if (!fs)
 	{
 		/* Error */
-		printf("Can't open raw images or image bundle!\n");
+		display_error("Error: Can't open raw images or image bundle!\n");
 		return;
 	}
 
@@ -866,7 +866,7 @@ static void load_image_bundle(void)
 	if (strncmp(buf, "RFTG", 4))
 	{
 		/* Error */
-		printf("Image bundle missing header!\n");
+		display_error("Error: Image bundle missing header!\n");
 		return;
 	}
 
@@ -942,7 +942,7 @@ static void load_image_bundle(void)
 		else
 		{
 			/* Error */
-			printf("Bad image type!\n");
+			display_error("Error: Bad image type!\n");
 			break;
 		}
 
@@ -962,7 +962,7 @@ static void load_image_bundle(void)
 		if (count < x)
 		{
 			/* Error */
-			printf("Did not read enough image data!\n");
+			display_error("Error: Did not read enough image data!\n");
 			break;
 		}
 
@@ -982,7 +982,7 @@ static void load_image_bundle(void)
 		if (!(*pix_ptr))
 		{
 			/* Print error */
-			printf("Error reading image from bundle!\n");
+			display_error("Error: Could not read image from bundle!\n");
 			break;
 		}
 	}
@@ -1024,10 +1024,10 @@ static void load_images(void)
 				if (!icon_cache[i])
 				{
 					/* Format message */
-					sprintf(msg, "Cannot open icon image %s!\n", fn);
+					sprintf(msg, "Error: Cannot open icon image %s!\n", fn);
 
 					/* Show error */
-					show_error(msg);
+					display_error(msg);
 				}
 			}
 		}
@@ -8812,6 +8812,7 @@ void save_prefs(void)
 {
 	FILE *fff;
 	char *path, *data;
+	char msg[1024];
 
 	/* Build user preference filename */
 #ifdef __APPLE__
@@ -8888,7 +8889,8 @@ void save_prefs(void)
 	if (!fff)
 	{
 		/* Error */
-		printf("Can't save preferences to %s!\n", path);
+		sprintf(msg, "Warning: Can't save preferences to %s!\n", path);
+		display_error(msg);
 		return;
 	}
 
@@ -9067,7 +9069,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		if (load_game(&load_state, fname) < 0)
 		{
 			/* Error */
-			show_error("Failed to load game");
+			display_error("Warning: Failed to load game");
 
 			/* Destroy filename */
 			g_free(fname);
@@ -11190,13 +11192,13 @@ int main(int argc, char *argv[])
 	if (err == -1)
 	{
 		/* Print error and exit */
-		show_error("Could not locate cards.txt");
+		display_error("Error: Could not locate cards.txt");
 		exit(1);
 	}
 	else if (err == -2)
 	{
 		/* Print error and exit */
-		show_error("Error while reading cards.txt");
+		display_error("Error: Could not parse cards.txt");
 		exit(1);
 	}
 
@@ -12273,7 +12275,7 @@ int main(int argc, char *argv[])
 			sprintf(msg, "Failed to load game from file %s\n", fname);
 
 			/* Show error */
-			show_error(msg);
+			display_error(msg);
 		}
 		else
 		{

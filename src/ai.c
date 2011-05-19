@@ -89,7 +89,7 @@ static void fill_adv_combo(void);
  */
 static void ai_initialize(game *g, int who, double factor)
 {
-	char fname[1024];
+	char fname[1024], msg[1024];
 	static int loaded_p, loaded_e, loaded_a;
 
 	/* Create table of advanced action combinations */
@@ -125,13 +125,14 @@ static void ai_initialize(game *g, int who, double factor)
 	{
 		/* Try looking under current directory */
 		sprintf(fname, "network/rftg.eval.%d.%d%s.net", g->expanded,
-			g->num_players, g->advanced ? "a" : "");
+		        g->num_players, g->advanced ? "a" : "");
 
 		/* Attempt to load again */
 		if (load_net(&eval, fname))
 		{
 			/* Print warning */
-			printf("Warning: Couldn't open %s\n", fname);
+			sprintf(msg, "Warning: Couldn't open %s\n", fname);
+			display_error(msg);
 
 			/* Perform initial training on new network */
 			initial_training(g);
@@ -153,13 +154,14 @@ static void ai_initialize(game *g, int who, double factor)
 	{
 		/* Try looking under current directory */
 		sprintf(fname, "network/rftg.role.%d.%d%s.net", g->expanded,
-			g->num_players, g->advanced ? "a" : "");
+		        g->num_players, g->advanced ? "a" : "");
 
 		/* Attempt to load again */
 		if (load_net(&role, fname))
 		{
 			/* Print warning */
-			printf("Warning: Couldn't open %s\n", fname);
+			sprintf(msg, "Warning: Couldn't open %s\n", fname);
+			display_error(msg);
 		}
 	}
 

@@ -28,6 +28,15 @@
 int verbose = 0;
 
 /*
+ * Print errors to standard output.
+ */
+void display_error(char *msg)
+{
+	/* Forward message */
+	printf("%s", msg);
+}
+
+/*
  * Print messages to standard output.
  */
 void message_add(game *g, char *msg)

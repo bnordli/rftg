@@ -911,6 +911,7 @@ extern decisions gui_func;
 /*
  * External functions.
  */
+extern void display_error(char *msg);
 extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);

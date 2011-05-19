@@ -1165,6 +1165,15 @@ static int session_uid(int sid, int uid)
 }
 
 /*
+ * Print errors to standard output.
+ */
+void display_error(char *msg)
+{
+	/* Forward message */
+	printf("%s", msg);
+}
+
+/*
  * Handle a game message.
  */
 void message_add(game *g, char *txt)
