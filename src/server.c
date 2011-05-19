@@ -821,6 +821,35 @@ static void db_save_results(int sid)
 }
 
 /*
+ * Saves a game message to the database.
+ */
+static void db_save_message(int sid, int uid, char* txt, char* tag)
+{
+	char query[1024];
+	char etxt[1024], etag[1024];
+	
+	/* Escape message and format */
+	mysql_real_escape_string(mysql, etxt, txt, strlen(txt));
+	mysql_real_escape_string(mysql, etag, tag, strlen(tag));
+
+	/* Create insertion query */
+	sprintf(query, "INSERT INTO messages (gid, uid, message, format) \
+	                VALUES (%d, %d, '%s', '%s')",
+	        s_list[sid].gid, uid, etxt, etag);
+
+	/* Send query */
+	mysql_query(mysql, query);
+
+	/* Check for error */
+	if (*mysql_error(mysql))
+	{
+		/* Print error */
+		printf("%s\n", mysql_error(mysql));
+		exit(1);
+	}
+}
+
+/*
  * Send a message to a client.
  */
 void send_msg(int cid, char *msg)
@@ -1207,6 +1236,9 @@ void message_add(game *g, char *txt)
 
 	/* Send message to all clients in game */
 	send_to_session(g->session_id, msg);
+
+	/* Save message to db */
+	db_save_message(g->session_id, -1, txt, "");
 }
 
 /*
@@ -1231,6 +1263,9 @@ void message_add_formatted(game *g, char *txt, char *tag)
 
 	/* Send message to all clients in game */
 	send_to_session(g->session_id, msg);
+	
+	/* Save message to db */
+	db_save_message(g->session_id, -1, txt, tag);
 }
 
 /*
@@ -2130,7 +2165,7 @@ static void handle_prepare(int cid, char *ptr)
 void server_private_message(game *g, int who, char *txt, char *tag)
 {
 	char msg[1024], *ptr = msg;
-	int cid;
+	int cid, uid;
 
 	/* Get connection ID of this user */
 	cid = s_list[g->session_id].cids[who];
@@ -2152,6 +2187,12 @@ void server_private_message(game *g, int who, char *txt, char *tag)
 
 	/* Send to client */
 	send_msg(cid, msg);
+
+	/* Get user ID of this user */
+	uid = s_list[g->session_id].uids[who];
+
+	/* Save message to db */
+	db_save_message(g->session_id, uid, txt, tag);
 }
 
 /*
