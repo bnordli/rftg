@@ -32,8 +32,6 @@
 #define WELCOME "Welcome to the Race for the Galaxy " RELEASE " server!"
 #endif
 
-#define FORCE_MYSQL_TCP_CONNECTION
-
 /*
  * Session status types.
  */
@@ -2862,11 +2860,13 @@ static void handle_login(int cid, char *ptr)
 			/* Lock session mutex */
 			pthread_mutex_lock(&s_ptr->session_mutex);
 
-			/* Client is playing */
-			c_list[cid].state = CS_PLAYING;
-
 			/* Tell client that game has started */
 			send_msgf(cid, MSG_START, "");
+			
+			// Replay game messages here
+
+			/* Client is playing */
+			c_list[cid].state = CS_PLAYING;
 
 			/* Format message */
 			sprintf(text, "%s reconnected.", user);
