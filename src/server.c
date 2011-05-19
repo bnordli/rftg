@@ -848,6 +848,73 @@ static void db_save_message(int sid, int uid, char* txt, char* tag)
 }
 
 /*
+ * Replays game messages to a client.
+ */
+static void replay_messages(int gid, int cid)
+{
+	MYSQL_RES *res;
+	MYSQL_ROW row;
+	char query[1024];
+	char msg[1024], *ptr;
+
+	/* Create lookup query */
+	sprintf(query, "SELECT message, format \
+	                FROM messages \
+	                WHERE gid=%d AND (uid=%d OR uid=-1) \
+	                ORDER BY mid",
+	                gid, c_list[cid].uid);
+
+	/* Run query */
+	mysql_query(mysql, query);
+
+	/* Fetch results */
+	res = mysql_store_result(mysql);
+
+	/* Loop over rows returned */
+	while ((row = mysql_fetch_row(res)))
+	{
+		/* Reset message */
+		ptr = msg;
+
+		/* Check for no format */
+		if (!strlen(row[1]))
+		{
+			/* Create log message */
+			start_msg(&ptr, MSG_LOG);
+
+			/* Add text of message */
+			put_string(row[0], &ptr);
+
+			/* Finish message */
+			finish_msg(msg, ptr);
+
+			/* Send to client */
+			send_msg(cid, msg);
+		}
+		else
+		{
+			/* Create log message */
+			start_msg(&ptr, MSG_LOG);
+
+			/* Add text of message */
+			put_string(row[0], &ptr);
+
+			/* Add format of message */
+			put_string(row[1], &ptr);
+
+			/* Finish message */
+			finish_msg(msg, ptr);
+
+			/* Send to client */
+			send_msg(cid, msg);
+		}
+	}
+
+	/* Free results */
+	mysql_free_result(res);
+}
+
+/*
  * Send a message to a client.
  */
 void send_msg(int cid, char *msg)
@@ -2863,7 +2930,8 @@ static void handle_login(int cid, char *ptr)
 			/* Tell client that game has started */
 			send_msgf(cid, MSG_START, "");
 			
-			// Replay game messages here
+			/* Replay game messages */
+			replay_messages(s_ptr->gid, cid);
 
 			/* Client is playing */
 			c_list[cid].state = CS_PLAYING;
