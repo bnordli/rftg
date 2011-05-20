@@ -2250,8 +2250,15 @@ void disconnect_server(GtkMenuItem *menu_item, gpointer data)
 		/* Destroy dialog */
 		gtk_widget_destroy(dialog);
 
+		/* Check for escape pressed */
+		if (response == GTK_RESPONSE_DELETE_EVENT)
+		{
+			/* Stay in game */
+			return;
+		}
+
 		/* Check for "yes" answer */
-		if (response == GTK_RESPONSE_YES)
+		else if (response == GTK_RESPONSE_YES)
 		{
 			/* Ask server to resign */
 			send_msgf(server_fd, MSG_RESIGN, "");
