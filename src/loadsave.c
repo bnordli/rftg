@@ -544,7 +544,8 @@ int export_game(game *g, char *filename, int player_us,
 		}
 
 		/* Write tableau */
-		export_linked_cards(fff, "Tableau", g, p_ptr->head[WHERE_ACTIVE], cmp_table);
+		export_linked_cards(fff, "Tableau", g, p_ptr->head[WHERE_ACTIVE],
+		                    cmp_table);
 
 		/* Check for saved cards */
 		if (count_active_flags(g, n, FLAG_START_SAVE))
@@ -587,7 +588,8 @@ int export_game(game *g, char *filename, int player_us,
 		if (n == player_us)
 		{
 			/* Write human player's hand */
-			export_linked_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND], cmp_hand);
+			export_linked_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND],
+			                    cmp_hand);
 
 			/* Check for special cards passed */
 			if (num_special_cards)
@@ -597,8 +599,12 @@ int export_game(game *g, char *filename, int player_us,
 				{
 					/* Start world choice */
 					case ACT_ROUND_START:
-						export_cards(fff, "Start", g, num_special_cards,
-						             special_cards, NULL);
+						/* XXX Check for start world choice */
+						if (num_special_cards == 2)
+						{
+							export_cards(fff, "Start", g, num_special_cards,
+							             special_cards, NULL);
+						}
 						break;
 
 					/* Search */
