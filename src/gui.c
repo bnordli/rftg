@@ -435,7 +435,7 @@ static int num_special_cards;
 /*
  * List of special gui cards.
  */
-static int special_cards[20];
+static card *special_cards[20];
 
 /*
  * Text buffer for message area.
@@ -5070,7 +5070,7 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 
 	/* Save special cards */
 	num_special_cards = *num_special;
-	for (i = 0; i < *num_special; ++i) special_cards[i] = special[i];
+	for (i = 0; i < *num_special; ++i) special_cards[i] = &g->deck[special[i]];
 
 	/* Create prompt */
 	sprintf(buf, "Choose start world and hand discards");
@@ -5275,7 +5275,7 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 
 	/* Save special cards */
 	num_special_cards = *num;
-	for (i = 0; i < *num; ++i) special_cards[i] = list[i];
+	for (i = 0; i < *num; ++i) special_cards[i] = &g->deck[list[i]];
 
 	/* Create prompt */
 	sprintf(buf, "Choose card to save for later");
@@ -6943,6 +6943,10 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 	/* Check for only one choice */
 	if (num == 1) return list[0];
 
+	/* Save special cards */
+	num_special_cards = num;
+	for (i = 0; i < num; ++i) special_cards[i] = &g->deck[list[i]];
+
 	/* Create prompt */
 	sprintf(buf, "Choose card to keep");
 
@@ -6996,6 +7000,9 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 
 	/* Process events */
 	gtk_main();
+
+	/* Clear special cards */
+	num_special_cards = 0;
 
 	/* Loop over cards in hand */
 	for (i = 0; i < hand_size; i++)
@@ -7472,7 +7479,7 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 
 	/* Save special card */
 	num_special_cards = 1;
-	special_cards[0] = arg1;
+	special_cards[0] = &g->deck[arg1];
 
 	/* Get card pointer */
 	c_ptr = &g->deck[arg1];
