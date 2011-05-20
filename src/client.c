@@ -2574,6 +2574,9 @@ void create_dialog(GtkButton *button, gpointer data)
  */
 void send_chat(GtkEntry *entry, gpointer data)
 {
+	/* Do not send empty messages */
+	if (!strlen(gtk_entry_get_text(entry))) return;
+
 	/* Send message to server */
 	send_msgf(server_fd, MSG_CHAT, "s", gtk_entry_get_text(entry));
 
