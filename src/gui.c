@@ -5848,7 +5848,7 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 
 	/* Reset displayed cards */
-	reset_cards(g, FALSE, TRUE);
+	reset_cards(g, FALSE, FALSE);
 
 	/* Set button restriction */
 	action_restrict = RESTRICT_DEFEND;
