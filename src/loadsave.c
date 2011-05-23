@@ -622,7 +622,7 @@ int export_game(game *g, char *filename, int player_us,
 
 					/* Gamble */
 					case ACT_CONSUME_TRADE:
-						export_cards(fff, "Flipped", g, num_special_cards,
+						export_cards(fff, "Flips", g, num_special_cards,
 						             special_cards, cmp_hand);
 						break;
 				}
