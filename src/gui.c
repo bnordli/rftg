@@ -3201,7 +3201,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 			{
 				/* Check for rebel military world placed */
 				if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
-					(c_ptr->d_ptr->flags & FLAG_MILITARY))
+				    (c_ptr->d_ptr->flags & FLAG_MILITARY))
 				{
 					/* Reward prestige */
 					sim.p[who].prestige += o_ptr->value;
@@ -3213,7 +3213,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 			{
 				/* Check for production world */
 				if (c_ptr->d_ptr->good_type > 0 &&
-					!(c_ptr->d_ptr->flags & FLAG_WINDFALL))
+				    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
 				{
 					/* Reward prestige */
 					sim.p[who].prestige += o_ptr->value;
@@ -3314,6 +3314,112 @@ static char *card_table_tooltip(game *g, int who, int which)
 
 	/* Nothing to display */
 	return NULL;
+}
+
+/*
+ * Create a tooltip for a card displayed on a table
+ * which is eligible for takeover.
+ */
+static char *card_takeover_tooltip(game *g, int defender, int attacker,
+                                   displayed *i_ptr)
+{
+	char text[1024];
+	card *c_ptr;
+	power_where w_list[100];
+	power *o_ptr;
+	int n, i, which, old_vp[2], vp_diff[2];
+	game sim;
+
+	/* Get card index */
+	which = i_ptr->index;
+
+	/* Get card pointer */
+	c_ptr = &g->deck[which];
+
+	/* Copy game */
+	memcpy(&sim, g, sizeof(game));
+
+	/* Set simulated game */
+	sim.simulation = 1;
+
+	/* Simulate end of phase (for cards already placed) */
+	clear_temp(&sim);
+
+	/* Score game for players */
+	score_game(&sim);
+
+	/* Remember old scores */
+	old_vp[0] = sim.p[defender].end_vp;
+	old_vp[1] = sim.p[attacker].end_vp;
+
+	/* Move card in the simulated game */
+	move_card(&sim, which, attacker, WHERE_ACTIVE);
+
+	/* Get settle phase powers */
+	n = get_powers(g, attacker, PHASE_SETTLE, w_list);
+
+	/* Loop over pre-existing powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for prestige after rebel power */
+		if (o_ptr->code & P3_PRESTIGE_REBEL)
+		{
+			/* Check for rebel military world placed */
+			if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
+			    (c_ptr->d_ptr->flags & FLAG_MILITARY))
+			{
+				/* Reward prestige */
+				sim.p[attacker].prestige += o_ptr->value;
+			}
+		}
+
+		/* Check for prestige after production world */
+		if (o_ptr->code & P3_PRODUCE_PRESTIGE)
+		{
+			/* Check for production world */
+			if (c_ptr->d_ptr->good_type > 0 &&
+			    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
+			{
+				/* Reward prestige */
+				sim.p[attacker].prestige += o_ptr->value;
+			}
+		}
+	}
+
+	/* Simulate end of phase (for self-scoring cards) */
+	clear_temp(&sim);
+
+	/* Score game for players */
+	score_game(&sim);
+
+	/* Compute score differences */
+	vp_diff[0] = sim.p[defender].end_vp - old_vp[0];
+	vp_diff[1] = sim.p[attacker].end_vp - old_vp[1];
+
+	/* Check for old tool tip */
+	if (i_ptr->tooltip)
+	{
+		/* Format tool tip */
+		sprintf(text, "%s\n%s: %d VP%s\n%s: %d VP%s", i_ptr->tooltip,
+		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
+		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+
+		/* Free old tool tip */
+		free(i_ptr->tooltip);
+	}
+	else
+	{
+		/* Format tool tip */
+		sprintf(text, "%s: %d VP%s\n%s: %d VP%s",
+				g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
+				g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+	}
+
+	/* Return the text */
+	return strdup(text);
 }
 
 /*
@@ -5729,6 +5835,8 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 					/* Card is eligible */
 					i_ptr->eligible = 1;
 					i_ptr->highlight = HIGH_YELLOW;
+					i_ptr->tooltip = card_takeover_tooltip(g, j, player_us,
+					                                       i_ptr);
 				}
 			}
 		}
