@@ -375,7 +375,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
  */
 static void handle_open_game(char *ptr)
 {
-	int x, y;
+	int x, y, new_game = FALSE;
 	char buf[1024];
 	GtkTreeIter list_iter;
 
@@ -390,6 +390,9 @@ static void handle_open_game(char *ptr)
 
 		/* Set ID in game tree */
 		gtk_tree_store_set(game_list, &list_iter, 0, x, -1);
+
+		/* Remember game is new */
+		new_game = TRUE;
 	}
 
 	/* Read description */
@@ -459,6 +462,16 @@ static void handle_open_game(char *ptr)
 
 	/* Set owner information */
 	gtk_tree_store_set(game_list, &list_iter, 10, x, -1);
+
+	/* Check for owner */
+	if (x && new_game)
+	{
+		/* Set the cursor at the new game */
+		gtk_tree_view_set_cursor(
+			GTK_TREE_VIEW(games_view),
+			gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
+			NULL, FALSE);
+	}
 
 	/* Make checkboxes visible */
 	gtk_tree_store_set(game_list, &list_iter, 11, 1, -1);
