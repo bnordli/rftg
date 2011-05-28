@@ -31,6 +31,12 @@ This patch introduces the following additional command line options:
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
 
+RIGHT-CLICK
+
+If you need to select a lot of cards (for instance for discarding), you
+can now select a card to keep by right-clicking it.  Then all other
+cards will be selected.
+
 NEW KEYBOARD ACCELERATORS
 
 Since the numeric key shortcuts interfere with the online chat box, the

@@ -1797,13 +1797,28 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 {
 	displayed *i_ptr = (displayed *)data;
 	displayed *j_ptr;
-	int i, j;
+	int i, j, select_others = -1;
 
-	/* Change selection status */
-	i_ptr->selected = !i_ptr->selected;
+	/* Check for right-click */
+	if (event && event->button == 3 && !i_ptr->greedy)
+	{
+		i_ptr->selected = 0;
+		select_others = 1;
+	}
+	else
+	{
+		/* Change selection status */
+		i_ptr->selected = !i_ptr->selected;
 
-	/* Check for greedy card */
-	if (i_ptr->greedy && i_ptr->selected)
+		/* Check for greedy card */
+		if (i_ptr->greedy && i_ptr->selected)
+		{
+			select_others = 0;
+		}
+	}
+
+	/* Check for modifying other cards */
+	if (select_others >= 0)
 	{
 		/* Check for hand */
 		if (i_ptr->hand)
@@ -1814,11 +1829,14 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 				/* Get displayed card pointer */
 				j_ptr = &hand[i];
 
+				/* Skip non-eligible cards */
+				if (!j_ptr->eligible) continue;
+
 				/* Skip current card */
 				if (i_ptr == j_ptr) continue;
 
 				/* Clear selected */
-				j_ptr->selected = 0;
+				j_ptr->selected = select_others;
 			}
 		}
 		else
@@ -1832,11 +1850,14 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 					/* Get displayed card pointer */
 					j_ptr = &table[i][j];
 
+					/* Skip non-eligible cards */
+					if (!j_ptr->eligible) continue;
+
 					/* Skip current card */
 					if (i_ptr == j_ptr) continue;
 
 					/* Clear selected */
-					j_ptr->selected = 0;
+					j_ptr->selected = select_others;
 				}
 			}
 		}
@@ -5525,6 +5546,7 @@ void gui_choose_discard_prestige(game *g, int who, int list[], int *num)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Highlight in red when selected */
 				i_ptr->highlight = HIGH_RED;
@@ -6205,6 +6227,7 @@ void gui_choose_upgrade(game *g, int who, int list[], int *num, int special[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = HIGH_YELLOW;
@@ -6226,6 +6249,7 @@ void gui_choose_upgrade(game *g, int who, int list[], int *num, int special[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = HIGH_RED;
@@ -6313,6 +6337,7 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
@@ -7007,6 +7032,7 @@ int gui_choose_ante(game *g, int who, int list[], int num)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be pushed up when selected */
 				i_ptr->push = 1;
@@ -7409,6 +7435,7 @@ void gui_choose_discard_produce(game *g, int who, int list[], int *num,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be red when selected */
 				i_ptr->highlight = HIGH_RED;
