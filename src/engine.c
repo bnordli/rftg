@@ -2263,8 +2263,16 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				        g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
 			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 			/* Move saved card */
 			move_card(g, list[0], who, WHERE_SAVED);
@@ -3778,8 +3786,16 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				        g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
 			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 			/* Move card to saved area */
 			move_card(g, list[0], who, WHERE_SAVED);
@@ -10091,8 +10107,16 @@ void begin_game(game *g)
 				        g->deck[hand[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[i].control->private_message(g, i, msg, FORMAT_DISCARD);
+				g->p[i].control->private_message(g, i, msg,
+				                                 FORMAT_DISCARD);
 			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 			/* Move card to saved area */
 			move_card(g, hand[0], i, WHERE_SAVED);
