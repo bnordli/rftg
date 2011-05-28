@@ -7228,6 +7228,77 @@ void gui_choose_windfall(game *g, int who, int list[], int *num)
 }
 
 /*
+ * Return a "score" for sorting produce powers.
+ */
+static int score_produce(power *o_ptr)
+{
+	int score = 0;
+
+	/* List non-discard powers first */
+	if (!(o_ptr->code & P5_DISCARD)) score += 50;
+
+	/* List draw powers between non-discards and discards */
+	if (o_ptr->code & P5_DRAW_EACH_NOVELTY) score = 48;
+	if (o_ptr->code & P5_DRAW_EACH_RARE) score = 46;
+	if (o_ptr->code & P5_DRAW_EACH_GENE) score = 44;
+	if (o_ptr->code & P5_DRAW_EACH_ALIEN) score = 42;
+	if (o_ptr->code & P5_DRAW_DIFFERENT) return 40;
+
+	/* Score not this slightly above */
+	if (o_ptr->code & P5_NOT_THIS) score += 1;
+
+	/* Score specific powers before generic */
+	if (o_ptr->code & P5_WINDFALL_NOVELTY) score += 8;
+	if (o_ptr->code & P5_WINDFALL_RARE) score += 6;
+	if (o_ptr->code & P5_WINDFALL_GENE) score += 4;
+	if (o_ptr->code & P5_WINDFALL_ALIEN) score += 2;
+
+	/* Return score */
+	return score;
+}
+
+/*
+ * Compare two produce powers for sorting.
+ */
+static int cmp_produce(const void *l1, const void *l2)
+{
+	pow_loc *l_ptr1 = (pow_loc *)l1;
+	pow_loc *l_ptr2 = (pow_loc *)l2;
+	power *o_ptr1;
+	power *o_ptr2;
+	power bonus;
+
+	/* Check first power */
+	if (l_ptr1->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.code = P5_WINDFALL_ANY;
+		o_ptr1 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr1 = &real_game.deck[l_ptr1->c_idx].d_ptr->powers[l_ptr1->o_idx];
+	}
+
+	/* Check second power */
+	if (l_ptr2->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.code = P5_WINDFALL_ANY;
+		o_ptr2 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr2 = &real_game.deck[l_ptr2->c_idx].d_ptr->powers[l_ptr2->o_idx];
+	}
+
+	/* Compare produce powers */
+	return score_produce(o_ptr2) - score_produce(o_ptr1);
+}
+
+/*
  * Choose a produce power to use.
  */
 void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
@@ -7235,6 +7306,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	GtkWidget *combo;
 	card *c_ptr = NULL;
 	power *o_ptr, bonus;
+	pow_loc l_list[MAX_DECK];
 	char buf[1024];
 	int i;
 
@@ -7256,8 +7328,19 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	/* Loop over powers */
 	for (i = 0; i < num; i++)
 	{
+		/* Create power location */
+		l_list[i].c_idx = cidx[i];
+		l_list[i].o_idx = oidx[i];
+	}
+
+	/* Sort produce powers */
+	qsort(l_list, num, sizeof(pow_loc), cmp_produce);
+
+	/* Loop over powers */
+	for (i = 0; i < num; i++)
+	{
 		/* Check for produce or prestige bonus */
-		if (cidx[i] < 0)
+		if (l_list[i].c_idx < 0)
 		{
 			/* Create fake produce power */
 			bonus.code = P5_WINDFALL_ANY;
@@ -7266,10 +7349,10 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		else
 		{
 			/* Get card pointer */
-			c_ptr = &g->deck[cidx[i]];
+			c_ptr = &g->deck[l_list[i].c_idx];
 
 			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[oidx[i]];
+			o_ptr = &c_ptr->d_ptr->powers[l_list[i].o_idx];
 		}
 
 		/* Clear string describing power */
@@ -7390,8 +7473,8 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	gtk_widget_destroy(combo);
 
 	/* Select chosen power */
-	cidx[0] = cidx[i];
-	oidx[0] = oidx[i];
+	cidx[0] = l_list[i].c_idx;
+	oidx[0] = l_list[i].o_idx;
 }
 
 /*
