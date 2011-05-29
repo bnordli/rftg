@@ -6389,16 +6389,57 @@ typedef struct pow_loc
 static int score_consume(power *o_ptr)
 {
 	int vp = 0, card = 0, prestige = 0, goods = 1;
-	int score;
+	int vp_mult = 1, score = 0;
 
-	/* Always discard from hand last */
-	if (o_ptr->code & P4_DISCARD_HAND) return 0;
+	/* Check for discard form hand */
+	if (o_ptr->code & P4_DISCARD_HAND)
+	{
+		/* Always discard from hand last */
+		score -= 1000;
 
-	/* Check for free card draw */
-	if (o_ptr->code & P4_DRAW) return o_ptr->value * 500;
+		/* Check for VP awarded */
+		if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
+
+		/* Check for card awarded */
+		if (o_ptr->code & P4_GET_CARD) card += o_ptr->value;
+
+		/* Check for prestige awarded */
+		if (o_ptr->code & P4_GET_PRESTIGE) prestige += o_ptr->value;
+
+		/* Check for consuming two cards */
+		if (o_ptr->code & P4_CONSUME_TWO) goods = 2;
+
+		/* Compute score */
+		score += (card * 150 + prestige * 100 + vp * 75) / goods;
+
+		/* Use multi-use powers later */
+		if (o_ptr->times > 1) score -= 2 * o_ptr->times;
+
+		/* Return score */
+		return score;
+	}
+
+	/* Check for consume prestige */
+	if (o_ptr->code & P4_CONSUME_PRESTIGE)
+	{
+		/* Consume prestige next to last */
+		score -= 500;
+
+		/* Check for VP awarded */
+		if (o_ptr->code & P4_GET_VP) score += o_ptr->value * 2;
+
+		/* Check for cards awarded */
+		if (o_ptr->code & P4_GET_CARD) score += o_ptr->value;
+
+		/* Return score */
+		return score;
+	}
 
 	/* Check for free VP */
 	if (o_ptr->code & P4_VP) return o_ptr->value * 1000;
+
+	/* Check for free card draw */
+	if (o_ptr->code & P4_DRAW) return o_ptr->value * 750;
 
 	/* Check for VP awarded */
 	if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
@@ -6427,17 +6468,29 @@ static int score_consume(power *o_ptr)
 	/* Check for consuming all goods */
 	if (o_ptr->code & P4_CONSUME_ALL) goods = 4;
 
-	/* Check for "Consume x2" chosen */
-	if (player_chose(&real_game, player_us, ACT_CONSUME_X2)) vp *= 2;
+	/* Check for double VP action */
+	if (player_chose(&real_game, player_us, ACT_CONSUME_X2) ||
+	    player_chose(&real_game, player_us, ACT_CONSUME_TRADE | ACT_PRESTIGE))
+	{
+		/* Multiplier is two */
+		vp_mult = 2;
+	}
+
+	/* Check for triple VP action */
+	if (player_chose(&real_game, player_us, ACT_PRESTIGE | ACT_CONSUME_X2))
+	{
+		/* Multiplier is three */
+		vp_mult = 3;
+	}
 
 	/* Compute score */
-	score = (prestige * 150 + vp * 100 + card * 50) / goods;
+	score = (prestige * 150 + vp * vp_mult * 100 + card * 52) / goods;
 
 	/* Use specific consume powers first */
-	if (!(o_ptr->code & P4_CONSUME_ANY)) score++;
+	if (!(o_ptr->code & P4_CONSUME_ANY)) score += 10;
 
 	/* Use multi-use powers later */
-	if (o_ptr->times > 1) score -= 5 * o_ptr->times;
+	if (o_ptr->times > 1) score -= 2 * o_ptr->times;
 
 	/* Return score */
 	return score;
@@ -6450,16 +6503,43 @@ static int cmp_consume(const void *l1, const void *l2)
 {
 	pow_loc *l_ptr1 = (pow_loc *)l1;
 	pow_loc *l_ptr2 = (pow_loc *)l2;
-	power *o_ptr1;
-	power *o_ptr2;
+	power *o_ptr1, *o_ptr2, bonus;
 
-	/* Check for prestige trade bonus */
-	if (l_ptr1->c_idx < 0) return 1;
-	if (l_ptr2->c_idx < 0) return -1;
+	/* Check first power */
+	if (l_ptr1->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.phase = PHASE_CONSUME;
+		bonus.code = P4_DISCARD_HAND | P4_GET_VP;
+		bonus.value = 1;
+		bonus.times = 2;
 
-	/* Get first power */
-	o_ptr1 = &real_game.deck[l_ptr1->c_idx].d_ptr->powers[l_ptr1->o_idx];
-	o_ptr2 = &real_game.deck[l_ptr2->c_idx].d_ptr->powers[l_ptr2->o_idx];
+		/* Use fake power */
+		o_ptr1 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr1 = &real_game.deck[l_ptr1->c_idx].d_ptr->powers[l_ptr1->o_idx];
+	}
+
+	/* Check second power */
+	if (l_ptr2->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.phase = PHASE_CONSUME;
+		bonus.code = P4_DISCARD_HAND | P4_GET_VP;
+		bonus.value = 1;
+		bonus.times = 2;
+
+		/* Use fake power */
+		o_ptr2 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr2 = &real_game.deck[l_ptr2->c_idx].d_ptr->powers[l_ptr2->o_idx];
+	}
 
 	/* Compare consume powers */
 	return score_consume(o_ptr2) - score_consume(o_ptr1);
