@@ -11231,8 +11231,8 @@ void declare_winner(game *g)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s ends with %d.\n", g->p[i].name,
-			                                   g->p[i].end_vp);
+			sprintf(msg, "%s ends with %d VP%s.\n", g->p[i].name,
+			        g->p[i].end_vp, PLURAL(g->p[i].end_vp));
 
 			/* Send message */
 			message_add(g, msg);
@@ -11278,9 +11278,21 @@ void declare_winner(game *g)
 			/* Check for winner */
 			if (p_ptr->winner)
 			{
-				/* Format message */
-				sprintf(msg, "%s wins with %d.\n", g->p[i].name,
-				        g->p[i].end_vp);
+				/* Check for tie breaker needed */
+				if (num_b_s > 1)
+				{
+					/* Format message */
+					sprintf(msg, "%s wins with %d VP%s "
+					        "and %d as tie breaker.\n",
+					        g->p[i].name, g->p[i].end_vp,
+					        PLURAL(g->p[i].end_vp), b_t);
+				}
+				else
+				{
+					/* Format message */
+					sprintf(msg, "%s wins with %d VP%s.\n", g->p[i].name,
+							g->p[i].end_vp, PLURAL(g->p[i].end_vp));
+				}
 
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_EM);
