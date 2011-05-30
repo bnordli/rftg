@@ -1835,7 +1835,7 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 				/* Skip current card */
 				if (i_ptr == j_ptr) continue;
 
-				/* Clear selected */
+				/* Select/deselect card */
 				j_ptr->selected = select_others;
 			}
 		}
@@ -1856,7 +1856,7 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 					/* Skip current card */
 					if (i_ptr == j_ptr) continue;
 
-					/* Clear selected */
+					/* Select/deselect card */
 					j_ptr->selected = select_others;
 				}
 			}
@@ -1957,6 +1957,44 @@ static void card_keyed(GtkWidget *widget, gpointer data)
 }
 
 /*
+ * Select/deselect all cards by keypress.
+ */
+static void card_select_all(GtkWidget *widget, gpointer data)
+{
+	displayed *i_ptr;
+	int i, select_all = GPOINTER_TO_INT(data);
+
+	/* Mark accelerator key used */
+	accel_used = TRUE;
+
+	/* Loop over cards in hand */
+	for (i = 0; i < hand_size; i++)
+	{
+		/* Get displayed card pointer */
+		i_ptr = &hand[i];
+
+		/* Skip non-eligible cards */
+		if (!i_ptr->eligible) continue;
+
+		/* Select/deselect card */
+		i_ptr->selected = select_all;
+	}
+
+	/* Check for no eligible cards on table */
+	if (key_count == 0)
+	{
+		/* Redraw hand */
+		redraw_hand();
+	}
+	else
+	{
+		/* Redraw table (to add key reminders) and hand */
+		redraw_table();
+		redraw_hand();
+	}
+}
+
+/*
  * Callback to destroy child widgets so that new ones can take their place.
  */
 static void destroy_widget(GtkWidget *widget, gpointer data)
@@ -2010,7 +2048,7 @@ void redraw_hand(void)
 	int count = 0, gap = 1, n, num_gap = 0;
 	int width, height, highlight;
 	int card_w, card_h;
-	int i, j;
+	int i, j, select_all_added = FALSE;
 
 	/* Check if hand previously drawn */
 	if (hand_first_key != -1)
@@ -2134,6 +2172,33 @@ void redraw_hand(void)
 			/* Connect "button released" signal */
 			g_signal_connect(G_OBJECT(box), "button-release-event",
 			                 G_CALLBACK(card_selected), i_ptr);
+
+			/* Check for not greedy and not select-all added */
+			if (!i_ptr->greedy && !select_all_added)
+			{
+				/* Add key handler for select all */
+				gtk_widget_add_accelerator(box, "key-select-all",
+				                           window_accel,
+				                           GDK_F12, 0, 0);
+
+				/* Connect key-select-all */
+				g_signal_connect(G_OBJECT(box), "key-select-all",
+				                 G_CALLBACK(card_select_all),
+				                 GINT_TO_POINTER(1));
+
+				/* Add key handler for deselect all */
+				gtk_widget_add_accelerator(box, "key-deselect-all",
+				                           window_accel,
+				                           GDK_F12, GDK_SHIFT_MASK, 0);
+
+				/* Connect key-deselect-all */
+				g_signal_connect(G_OBJECT(box), "key-deselect-all",
+				                 G_CALLBACK(card_select_all),
+				                 GINT_TO_POINTER(0));
+
+				/* Remember event is added */
+				select_all_added = TRUE;
+			}
 
 			/* Check for enough accelerator keys */
 			if (key_count < MAX_ACCEL)
@@ -11707,6 +11772,14 @@ int main(int argc, char *argv[])
 	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
 	g_signal_new("down-signal", gtk_combo_box_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
+
+	/* Create select/deselect all signals */
+	g_signal_new("key-select-all", gtk_event_box_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
+	g_signal_new("key-deselect-all", gtk_event_box_get_type(), G_SIGNAL_ACTION,
 	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
 

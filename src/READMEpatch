@@ -57,6 +57,8 @@ following accelerator keys have been added:
 
 	F1-F9 and Shift+F1-Shift+F9:
 	               Activate selectable cards in tableaux and hand
+	F12/Shift+F12:
+	               Select/deselect all selectable cards in hand
 
 	Shift+Enter:   'Done' button
 	Shift+Up/Down: Change selection in drop down
