@@ -3311,6 +3311,18 @@ static char *card_hand_tooltip(game *g, int who, int which)
 					sim.p[who].prestige += o_ptr->value;
 				}
 			}
+
+			/* Check for "auto-production" */
+			if (o_ptr->code & P3_AUTO_PRODUCE)
+			{
+				/* Check for production world placed */
+				if (c_ptr->d_ptr->good_type > 0 &&
+				    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
+				{
+					/* Add good to world */
+					add_good(&sim, c_ptr);
+				}
+			}
 		}
 
 		/* Check goals for settle phase */
