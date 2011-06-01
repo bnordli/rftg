@@ -1165,6 +1165,15 @@ static int session_uid(int sid, int uid)
 }
 
 /*
+ * Print errors to standard output.
+ */
+void display_error(char *msg)
+{
+	/* Forward message */
+	printf("%s", msg);
+}
+
+/*
  * Handle a game message.
  */
 void message_add(game *g, char *txt)
@@ -2875,17 +2884,15 @@ static void handle_create(int cid, char *ptr)
 	/* Check for too-long password */
 	if (strlen(pass) > 20)
 	{
-		/* Kick player */
-		kick_player(cid, "Game password too long!");
-		return;
+		/* Truncate password */
+		pass[20] = '\0';
 	}
 
 	/* Check for too-long description */
 	if (strlen(desc) > 40)
 	{
-		/* Kick player */
-		kick_player(cid, "Game description too long!");
-		return;
+		/* Truncate description */
+		pass[40] = '\0';
 	}
 
 	/* Set session state */
@@ -3010,6 +3017,13 @@ static void handle_join(int cid, char *ptr)
 
 	/* Get client-supplied password */
 	get_string(pass, &ptr);
+
+	/* Check for too-long password */
+	if (strlen(pass) > 20)
+	{
+		/* Truncate password */
+		pass[20] = '\0';
+	}
 
 	/* Check for password mismatch */
 	if (strlen(s_list[sid].pass) > 0 && strcmp(pass, s_list[sid].pass))

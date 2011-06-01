@@ -13,7 +13,7 @@ Direct link to the Race for the Galaxy AI source:
 Link to the main page of this patch:
   http://dl.dropbox.com/u/7379896/rftg/index.html
 Direct link to the source code of this patch:
-  http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1i-source.zip.
+  http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1j-source.zip.
 
 INSTRUCTIONS
 
@@ -30,6 +30,12 @@ This patch introduces the following additional command line options:
 	-s <savegame>  -- A save game to load when starting the program
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
+
+RIGHT-CLICK
+
+If you need to select a lot of cards (for instance for discarding), you
+can now select a card to keep by right-clicking it.  Then all other
+cards will be selected.
 
 NEW KEYBOARD ACCELERATORS
 
@@ -51,6 +57,8 @@ following accelerator keys have been added:
 
 	F1-F9 and Shift+F1-Shift+F9:
 	               Activate selectable cards in tableaux and hand
+	F12/Shift+F12:
+	               Select/deselect all selectable cards in hand
 
 	Shift+Enter:   'Done' button
 	Shift+Up/Down: Change selection in drop down

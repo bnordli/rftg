@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "i"
+#define RELEASE VERSION "j"
 #endif
 
 #include <stdio.h>
@@ -905,6 +905,7 @@ extern decisions gui_func;
 /*
  * External functions.
  */
+extern void display_error(char *msg);
 extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
@@ -991,5 +992,5 @@ extern int save_game(game *g, char *filename, int player_us);
 extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, int player_us,
                        const char *message,
-                       int num_special, int* special_cards,
+                       int num_special, card** special_cards,
                        void (*export_log)(FILE *fff));

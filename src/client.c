@@ -375,7 +375,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
  */
 static void handle_open_game(char *ptr)
 {
-	int x, y;
+	int x, y, new_game = FALSE;
 	char buf[1024];
 	GtkTreeIter list_iter;
 
@@ -390,6 +390,9 @@ static void handle_open_game(char *ptr)
 
 		/* Set ID in game tree */
 		gtk_tree_store_set(game_list, &list_iter, 0, x, -1);
+
+		/* Remember game is new */
+		new_game = TRUE;
 	}
 
 	/* Read description */
@@ -459,6 +462,16 @@ static void handle_open_game(char *ptr)
 
 	/* Set owner information */
 	gtk_tree_store_set(game_list, &list_iter, 10, x, -1);
+
+	/* Check for owner */
+	if (x && new_game)
+	{
+		/* Set the cursor at the new game */
+		gtk_tree_view_set_cursor(
+			GTK_TREE_VIEW(games_view),
+			gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
+			NULL, FALSE);
+	}
 
 	/* Make checkboxes visible */
 	gtk_tree_store_set(game_list, &list_iter, 11, 1, -1);
@@ -2250,8 +2263,15 @@ void disconnect_server(GtkMenuItem *menu_item, gpointer data)
 		/* Destroy dialog */
 		gtk_widget_destroy(dialog);
 
+		/* Check for escape pressed */
+		if (response == GTK_RESPONSE_DELETE_EVENT)
+		{
+			/* Stay in game */
+			return;
+		}
+
 		/* Check for "yes" answer */
-		if (response == GTK_RESPONSE_YES)
+		else if (response == GTK_RESPONSE_YES)
 		{
 			/* Ask server to resign */
 			send_msgf(server_fd, MSG_RESIGN, "");
@@ -2362,6 +2382,9 @@ void create_dialog(GtkButton *button, gpointer data)
 	label = gtk_label_new("Description:");
 	desc = gtk_entry_new();
 
+	/* Cap the description length */
+	gtk_entry_set_max_length(GTK_ENTRY(desc), 40);
+
 	/* Check for no game description in preferences */
 	if (!opt.game_desc) opt.game_desc = "";
 
@@ -2375,6 +2398,9 @@ void create_dialog(GtkButton *button, gpointer data)
 	/* Create label and text entry for password */
 	label = gtk_label_new("Game password:");
 	pass = gtk_entry_new();
+
+	/* Cap the password length */
+	gtk_entry_set_max_length(GTK_ENTRY(pass), 20);
 
 	/* Check for no game password in preferences */
 	if (!opt.game_pass) opt.game_pass = "";
@@ -2561,6 +2587,9 @@ void create_dialog(GtkButton *button, gpointer data)
  */
 void send_chat(GtkEntry *entry, gpointer data)
 {
+	/* Do not send empty messages */
+	if (!strlen(gtk_entry_get_text(entry))) return;
+
 	/* Send message to server */
 	send_msgf(server_fd, MSG_CHAT, "s", gtk_entry_get_text(entry));
 
@@ -2595,7 +2624,7 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 	gtk_widget_destroy(dialog);
 
 	/* Check for "no" answer */
-	if (response == GTK_RESPONSE_NO) return;
+	if (response != GTK_RESPONSE_YES) return;
 
 	/* Ask server to resign */
 	send_msgf(server_fd, MSG_RESIGN, "");
@@ -2673,6 +2702,9 @@ void join_game(GtkButton *button, gpointer data)
 		/* Create label and text entry for game password */
 		label = gtk_label_new("Game password:");
 		password = gtk_entry_new();
+
+		/* Cap the password length */
+		gtk_entry_set_max_length(GTK_ENTRY(password), 20);
 
 		/* Add widgets to hbox */
 		gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);

@@ -2263,8 +2263,16 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				        g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
 			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 			/* Move saved card */
 			move_card(g, list[0], who, WHERE_SAVED);
@@ -3721,6 +3729,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Check for payment */
 		else
 		{
+			/* Check for extra military activated */
+			if (hand_military)
+			{
+				/* Format message */
+				sprintf(msg, "%s pays %d for extra strength.\n",
+				        p_ptr->name, hand_military);
+
+				/* Send message */
+				message_add(g, msg);
+			}
+
 			/* Format message */
 			sprintf(msg, "%s pays %d for %s.\n", p_ptr->name, num,
 			        t_ptr->d_ptr->name);
@@ -3767,8 +3786,16 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				        g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
 			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 			/* Move card to saved area */
 			move_card(g, list[0], who, WHERE_SAVED);
@@ -10080,8 +10107,16 @@ void begin_game(game *g)
 				        g->deck[hand[0]].d_ptr->name);
 
 				/* Send message */
-				g->p[i].control->private_message(g, i, msg, FORMAT_DISCARD);
+				g->p[i].control->private_message(g, i, msg,
+				                                 FORMAT_DISCARD);
 			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 			/* Move card to saved area */
 			move_card(g, hand[0], i, WHERE_SAVED);
@@ -11046,6 +11081,9 @@ void score_game(game *g)
 		/* Skip cards that don't have "any" good type */
 		if (c_ptr->d_ptr->good_type != GOOD_ANY) continue;
 
+		/* Skip the card if it is not active */
+		if (c_ptr->where != WHERE_ACTIVE) break;
+
 		/* Remember owner of card */
 		oort_owner = c_ptr->owner;
 	}
@@ -11134,6 +11172,9 @@ void declare_winner(game *g)
 		/* Skip cards that don't have "any" good type */
 		if (c_ptr->d_ptr->good_type != GOOD_ANY) continue;
 
+		/* Skip the card if it is not active */
+		if (c_ptr->where != WHERE_ACTIVE) break;
+
 		/* Remember owner of card */
 		oort_owner = c_ptr->owner;
 	}
@@ -11190,8 +11231,8 @@ void declare_winner(game *g)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s ends with %d.\n", g->p[i].name,
-			                                   g->p[i].end_vp);
+			sprintf(msg, "%s ends with %d VP%s.\n", g->p[i].name,
+			        g->p[i].end_vp, PLURAL(g->p[i].end_vp));
 
 			/* Send message */
 			message_add(g, msg);
@@ -11237,9 +11278,21 @@ void declare_winner(game *g)
 			/* Check for winner */
 			if (p_ptr->winner)
 			{
-				/* Format message */
-				sprintf(msg, "%s wins with %d.\n", g->p[i].name,
-				        g->p[i].end_vp);
+				/* Check for tie breaker needed */
+				if (num_b_s > 1)
+				{
+					/* Format message */
+					sprintf(msg, "%s wins with %d VP%s "
+					        "and %d as tie breaker.\n",
+					        g->p[i].name, g->p[i].end_vp,
+					        PLURAL(g->p[i].end_vp), b_t);
+				}
+				else
+				{
+					/* Format message */
+					sprintf(msg, "%s wins with %d VP%s.\n", g->p[i].name,
+							g->p[i].end_vp, PLURAL(g->p[i].end_vp));
+				}
 
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_EM);

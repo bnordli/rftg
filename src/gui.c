@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -277,6 +277,16 @@ static status_display status_player[MAX_PLAYER];
  */
 static int display_deck, display_discard, display_pool;
 
+/*
+ * Extra text and font string to be drawn on an image.
+ */
+struct extra_info
+{
+	char text[1024];
+	char *fontstr;
+	int border;
+	int top_left;
+};
 
 /*
  * Restriction types on action button sensitivity.
@@ -411,6 +421,11 @@ static GdkModifierType accel_mods[MAX_ACCEL];
 static unsigned int act_to_accel[] = {5, 0, 9, 1, 10, 2, 11, 3, 12, 4};
 
 /*
+ * Whether user has used accel keys during this choice.
+ */
+static int accel_used;
+
+/*
  * Number of candidates to keep (during search), or save.
  * TODO: Make a WHERE_REVEALED location.
  */
@@ -419,7 +434,7 @@ static int num_special_cards;
 /*
  * List of special gui cards.
  */
-static int special_cards[20];
+static card *special_cards[20];
 
 /*
  * Text buffer for message area.
@@ -537,9 +552,9 @@ void message_add_private(game *g, int who, char *msg, char *tag)
 }
 
 /*
- * Show an error dialog with a message.
+ * Handle an error dialog with a message.
  */
-static void show_error(char *msg)
+void display_error(char *msg)
 {
 	GtkWidget *alert;
 
@@ -854,7 +869,7 @@ static void load_image_bundle(void)
 	if (!fs)
 	{
 		/* Error */
-		printf("Can't open raw images or image bundle!\n");
+		display_error("Error: Can't open raw images or image bundle!\n");
 		return;
 	}
 
@@ -865,7 +880,7 @@ static void load_image_bundle(void)
 	if (strncmp(buf, "RFTG", 4))
 	{
 		/* Error */
-		printf("Image bundle missing header!\n");
+		display_error("Error: Image bundle missing header!\n");
 		return;
 	}
 
@@ -941,7 +956,7 @@ static void load_image_bundle(void)
 		else
 		{
 			/* Error */
-			printf("Bad image type!\n");
+			display_error("Error: Bad image type!\n");
 			break;
 		}
 
@@ -961,7 +976,7 @@ static void load_image_bundle(void)
 		if (count < x)
 		{
 			/* Error */
-			printf("Did not read enough image data!\n");
+			display_error("Error: Did not read enough image data!\n");
 			break;
 		}
 
@@ -981,7 +996,7 @@ static void load_image_bundle(void)
 		if (!(*pix_ptr))
 		{
 			/* Print error */
-			printf("Error reading image from bundle!\n");
+			display_error("Error: Could not read image from bundle!\n");
 			break;
 		}
 	}
@@ -1023,10 +1038,10 @@ static void load_images(void)
 				if (!icon_cache[i])
 				{
 					/* Format message */
-					sprintf(msg, "Cannot open icon image %s!\n", fn);
+					sprintf(msg, "Error: Cannot open icon image %s!\n", fn);
 
 					/* Show error */
-					show_error(msg);
+					display_error(msg);
 				}
 			}
 		}
@@ -1547,6 +1562,92 @@ static int action_check_start(void)
 }
 
 /*
+ * Set of "extra info" structures for player statuses.
+ */
+static struct extra_info status_extra_info[MAX_PLAYER][5];
+
+/*
+ * Set of "extra info" structures for game status.
+ */
+static struct extra_info game_extra_info[3];
+
+/*
+ * Set of "extra info" structures for selectable cards.
+ */
+static struct extra_info card_extra_info[MAX_ACCEL];
+
+/*
+ * The current number of used accelerator keys.
+ */
+static int key_count;
+
+/*
+ * The first accelerator key for cards in hand.
+ */
+static int hand_first_key;
+
+/*
+ * Draw extra text on top of a GtkImage's window.
+ */
+static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
+                                gpointer data)
+{
+	GdkWindow *w;
+	PangoLayout *layout;
+	PangoFontDescription *font;
+	int tw, th;
+	int x = 0, y = 0;
+	struct extra_info *ei = (struct extra_info *)data;
+
+	/* Get window to draw on */
+	w = gtk_widget_get_window(image);
+
+	/* Create pango layout */
+	layout = gtk_widget_create_pango_layout(image, NULL);
+
+	/* Set marked-up text */
+	pango_layout_set_markup(layout, ei->text, -1);
+
+	/* Set alignment to center */
+	pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
+
+	/* Create font description for text */
+	font = pango_font_description_from_string(ei->fontstr);
+
+	/* Set layout's font */
+	pango_layout_set_font_description(layout, font);
+
+	/* Get size of text */
+	pango_layout_get_pixel_size(layout, &tw, &th);
+
+	/* Check for centered text */
+	if (!ei->top_left)
+	{
+		/* Compute point to start drawing */
+		x = (image->allocation.width - tw) / 2 + image->allocation.x;
+		y = (image->allocation.height - th) / 2 + image->allocation.y;
+	}
+
+	/* Draw border around text if asked */
+	if (ei->border)
+	{
+		gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1,layout);
+		gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1,layout);
+	}
+
+	/* Draw layout on top of image */
+	gdk_draw_layout(w, image->style->black_gc, x, y, layout);
+
+	/* Free font description */
+	pango_font_description_free(font);
+
+	/* Continue handling event */
+	return FALSE;
+}
+
+/*
  * Refresh the full-size card image.
  *
  * Called when the pointer moves over a small card image.
@@ -1582,7 +1683,7 @@ static gboolean redraw_action(GtkWidget *widget, GdkEventCrossing *event,
  * Create an event box containing the given card's image.
  */
 static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
-                                int highlight, int back)
+                                int highlight, int back, int accel_key)
 {
 	GdkPixbuf *buf, *border_buf, *blank_buf;
 	GtkWidget *image, *box;
@@ -1661,6 +1762,15 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 	/* Make image widget */
 	image = gtk_image_new_from_pixbuf(buf);
 
+	/* Check for accelerator key */
+	if (accel_key >= 0 && accel_key < MAX_ACCEL)
+	{
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(image), "expose-event",
+		                       G_CALLBACK(draw_extra_text),
+		                       &card_extra_info[accel_key]);
+	}
+
 	/* Destroy our copy of the pixbuf */
 	g_object_unref(G_OBJECT(buf));
 
@@ -1686,13 +1796,28 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 {
 	displayed *i_ptr = (displayed *)data;
 	displayed *j_ptr;
-	int i, j;
+	int i, j, select_others = -1;
 
-	/* Change selection status */
-	i_ptr->selected = !i_ptr->selected;
+	/* Check for right-click */
+	if (event && event->button == 3 && !i_ptr->greedy)
+	{
+		i_ptr->selected = 0;
+		select_others = 1;
+	}
+	else
+	{
+		/* Change selection status */
+		i_ptr->selected = !i_ptr->selected;
 
-	/* Check for greedy card */
-	if (i_ptr->greedy && i_ptr->selected)
+		/* Check for greedy card */
+		if (i_ptr->greedy && i_ptr->selected)
+		{
+			select_others = 0;
+		}
+	}
+
+	/* Check for modifying other cards */
+	if (select_others >= 0)
 	{
 		/* Check for hand */
 		if (i_ptr->hand)
@@ -1703,11 +1828,14 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 				/* Get displayed card pointer */
 				j_ptr = &hand[i];
 
+				/* Skip non-eligible cards */
+				if (!j_ptr->eligible) continue;
+
 				/* Skip current card */
 				if (i_ptr == j_ptr) continue;
 
-				/* Clear selected */
-				j_ptr->selected = 0;
+				/* Select/deselect card */
+				j_ptr->selected = select_others;
 			}
 		}
 		else
@@ -1721,11 +1849,14 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 					/* Get displayed card pointer */
 					j_ptr = &table[i][j];
 
+					/* Skip non-eligible cards */
+					if (!j_ptr->eligible) continue;
+
 					/* Skip current card */
 					if (i_ptr == j_ptr) continue;
 
-					/* Clear selected */
-					j_ptr->selected = 0;
+					/* Select/deselect card */
+					j_ptr->selected = select_others;
 				}
 			}
 		}
@@ -1794,16 +1925,18 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 		gtk_widget_set_sensitive(action_button, action_check_start());
 	}
 
-	/* Check for card in hand */
-	if (i_ptr->hand)
+
+	/* Check for card in hand and no eligible cards on table */
+	if (i_ptr->hand && key_count == 0)
 	{
 		/* Redraw hand */
 		redraw_hand();
 	}
 	else
 	{
-		/* Redraw table */
+		/* Redraw table and hand */
 		redraw_table();
+		redraw_hand();
 	}
 
 	/* Event handled */
@@ -1815,8 +1948,49 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
  */
 static void card_keyed(GtkWidget *widget, gpointer data)
 {
+	/* Mark accelerator key used */
+	accel_used = TRUE;
+
 	/* Call regular handler */
 	card_selected(widget, NULL, data);
+}
+
+/*
+ * Select/deselect all cards by keypress.
+ */
+static void card_select_all(GtkWidget *widget, gpointer data)
+{
+	displayed *i_ptr;
+	int i, select_all = GPOINTER_TO_INT(data);
+
+	/* Mark accelerator key used */
+	accel_used = TRUE;
+
+	/* Loop over cards in hand */
+	for (i = 0; i < hand_size; i++)
+	{
+		/* Get displayed card pointer */
+		i_ptr = &hand[i];
+
+		/* Skip non-eligible cards */
+		if (!i_ptr->eligible) continue;
+
+		/* Select/deselect card */
+		i_ptr->selected = select_all;
+	}
+
+	/* Check for no eligible cards on table */
+	if (key_count == 0)
+	{
+		/* Redraw hand */
+		redraw_hand();
+	}
+	else
+	{
+		/* Redraw table (to add key reminders) and hand */
+		redraw_table();
+		redraw_hand();
+	}
 }
 
 /*
@@ -1864,16 +2038,6 @@ static int cmp_hand(const void *h1, const void *h2)
 }
 
 /*
- * The current number of used accelerator keys.
- */
-static int key_count;
-
-/*
- * The first accelerator key for cards in hand.
- */
-static int hand_first_key;
-
-/*
  * Redraw hand area.
  */
 void redraw_hand(void)
@@ -1883,7 +2047,7 @@ void redraw_hand(void)
 	int count = 0, gap = 1, n, num_gap = 0;
 	int width, height, highlight;
 	int card_w, card_h;
-	int i, j;
+	int i, j, select_all_added = FALSE;
 
 	/* Check if hand previously drawn */
 	if (hand_first_key != -1)
@@ -1993,7 +2157,8 @@ void redraw_hand(void)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    highlight, 0);
+		                    highlight, 0,
+		                    i_ptr->eligible && accel_used ? key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(hand_area), box, count * width,
@@ -2006,6 +2171,33 @@ void redraw_hand(void)
 			/* Connect "button released" signal */
 			g_signal_connect(G_OBJECT(box), "button-release-event",
 			                 G_CALLBACK(card_selected), i_ptr);
+
+			/* Check for not greedy and not select-all added */
+			if (!i_ptr->greedy && !select_all_added)
+			{
+				/* Add key handler for select all */
+				gtk_widget_add_accelerator(box, "key-select-all",
+				                           window_accel,
+				                           GDK_F12, 0, 0);
+
+				/* Connect key-select-all */
+				g_signal_connect(G_OBJECT(box), "key-select-all",
+				                 G_CALLBACK(card_select_all),
+				                 GINT_TO_POINTER(1));
+
+				/* Add key handler for deselect all */
+				gtk_widget_add_accelerator(box, "key-deselect-all",
+				                           window_accel,
+				                           GDK_F12, GDK_SHIFT_MASK, 0);
+
+				/* Connect key-deselect-all */
+				g_signal_connect(G_OBJECT(box), "key-deselect-all",
+				                 G_CALLBACK(card_select_all),
+				                 GINT_TO_POINTER(0));
+
+				/* Remember event is added */
+				select_all_added = TRUE;
+			}
 
 			/* Check for enough accelerator keys */
 			if (key_count < MAX_ACCEL)
@@ -2148,7 +2340,8 @@ static void redraw_table_area(int who, GtkWidget *area)
 		/* Get event box with image */
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
-		                    highlight, 0);
+		                    highlight, 0,
+		                    i_ptr->eligible && accel_used ? key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
@@ -2169,7 +2362,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 			/* Get event box with no image */
 			good_box = new_image_box(i_ptr->d_ptr,
 			                         3 * card_w / 4, 3 * card_h / 4,
-			                         i_ptr->eligible || i_ptr->color, 0, 1);
+			                         i_ptr->eligible || i_ptr->color, 0, 1, -1);
 
 			/* Place box on card */
 			gtk_fixed_put(GTK_FIXED(area), good_box,
@@ -2427,83 +2620,6 @@ void redraw_goal(void)
 			y += 20;
 		}
 	}
-}
-
-/*
- * Extra text and font string to be drawn on an image.
- */
-struct extra_info
-{
-	char text[1024];
-	char *fontstr;
-	int border;
-};
-
-/*
- * Set of "extra info" structures for player statuses.
- */
-static struct extra_info status_extra_info[MAX_PLAYER][5];
-
-/*
- * Set of "extra info" structures for game status.
- */
-static struct extra_info game_extra_info[3];
-
-/*
- * Draw extra text on top of a GtkImage's window.
- */
-static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
-                                gpointer data)
-{
-	GdkWindow *w;
-	PangoLayout *layout;
-	PangoFontDescription *font;
-	int tw, th;
-	int x, y;
-	struct extra_info *ei = (struct extra_info *)data;
-
-	/* Get window to draw on */
-	w = gtk_widget_get_window(image);
-
-	/* Create pango layout */
-	layout = gtk_widget_create_pango_layout(image, NULL);
-
-	/* Set marked-up text */
-	pango_layout_set_markup(layout, ei->text, -1);
-
-	/* Set alignment to center */
-	pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
-
-	/* Create font description for text */
-	font = pango_font_description_from_string(ei->fontstr);
-
-	/* Set layout's font */
-	pango_layout_set_font_description(layout, font);
-
-	/* Get size of text */
-	pango_layout_get_pixel_size(layout, &tw, &th);
-
-	/* Compute point to start drawing */
-	x = (image->allocation.width - tw) / 2 + image->allocation.x;
-	y = (image->allocation.height - th) / 2 + image->allocation.y;
-
-	/* Draw border around text if asked */
-	if (ei->border)
-	{
-		gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1,layout);
-	}
-
-	/* Draw layout on top of image */
-	gdk_draw_layout(w, image->style->black_gc, x, y, layout);
-
-	/* Free font description */
-	pango_font_description_free(font);
-
-	/* Continue handling event */
-	return FALSE;
 }
 
 /*
@@ -3086,7 +3202,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int n, i, old_vp, vp_diff;
+	int n, i, old_vp, vp_diff, goal_diff = 0, goal_action;
 	game sim;
 
 	/* Copy game */
@@ -3097,6 +3213,9 @@ static char *card_hand_tooltip(game *g, int who, int which)
 
 	/* Simulate end of phase (for cards already placed) */
 	clear_temp(&sim);
+
+	/* Apply goals */
+	check_goals(&sim);
 
 	/* Score game for player */
 	score_game(&sim);
@@ -3151,6 +3270,9 @@ static char *card_hand_tooltip(game *g, int who, int which)
 				sim.p[who].prestige += o_ptr->value;
 			}
 		}
+
+		/* Check goals for develop phase */
+		goal_action = ACT_DEVELOP;
 	}
 
 	/* Check for world type */
@@ -3170,7 +3292,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 			{
 				/* Check for rebel military world placed */
 				if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
-					(c_ptr->d_ptr->flags & FLAG_MILITARY))
+				    (c_ptr->d_ptr->flags & FLAG_MILITARY))
 				{
 					/* Reward prestige */
 					sim.p[who].prestige += o_ptr->value;
@@ -3182,13 +3304,16 @@ static char *card_hand_tooltip(game *g, int who, int which)
 			{
 				/* Check for production world */
 				if (c_ptr->d_ptr->good_type > 0 &&
-					!(c_ptr->d_ptr->flags & FLAG_WINDFALL))
+				    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
 				{
 					/* Reward prestige */
 					sim.p[who].prestige += o_ptr->value;
 				}
 			}
 		}
+
+		/* Check goals for settle phase */
+		goal_action = ACT_SETTLE;
 	}
 
 	/* Simulate end of phase (for self-scoring cards) */
@@ -3200,8 +3325,34 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	/* Compute score difference */
 	vp_diff = sim.p[who].end_vp - old_vp;
 
-	/* Format message */
-	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
+	/* Check for goals */
+	if (goals_enabled(g))
+	{
+		/* Set placement phase */
+		sim.cur_action = goal_action;
+
+		/* Apply goals */
+		check_goals(&sim);
+
+		/* Score game for player */
+		score_game(&sim);
+
+		/* Compute extra goal points */
+		goal_diff = sim.p[who].end_vp - old_vp - vp_diff;
+	}
+
+	/* Check for points from goals */
+	if (goal_diff)
+	{
+		/* Format message */
+		sprintf(text, "%d VP%s\nGoals: %+d VP%s", vp_diff, PLURAL(vp_diff),
+		        goal_diff, PLURAL(goal_diff));
+	}
+	else
+	{
+		/* Format message */
+		sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
+	}
 
 	/* Return tool tip */
 	return strdup(text);
@@ -3283,6 +3434,112 @@ static char *card_table_tooltip(game *g, int who, int which)
 
 	/* Nothing to display */
 	return NULL;
+}
+
+/*
+ * Create a tooltip for a card displayed on a table
+ * which is eligible for takeover.
+ */
+static char *card_takeover_tooltip(game *g, int defender, int attacker,
+                                   displayed *i_ptr)
+{
+	char text[1024];
+	card *c_ptr;
+	power_where w_list[100];
+	power *o_ptr;
+	int n, i, which, old_vp[2], vp_diff[2];
+	game sim;
+
+	/* Get card index */
+	which = i_ptr->index;
+
+	/* Get card pointer */
+	c_ptr = &g->deck[which];
+
+	/* Copy game */
+	memcpy(&sim, g, sizeof(game));
+
+	/* Set simulated game */
+	sim.simulation = 1;
+
+	/* Simulate end of phase (for cards already placed) */
+	clear_temp(&sim);
+
+	/* Score game for players */
+	score_game(&sim);
+
+	/* Remember old scores */
+	old_vp[0] = sim.p[defender].end_vp;
+	old_vp[1] = sim.p[attacker].end_vp;
+
+	/* Move card in the simulated game */
+	move_card(&sim, which, attacker, WHERE_ACTIVE);
+
+	/* Get settle phase powers */
+	n = get_powers(g, attacker, PHASE_SETTLE, w_list);
+
+	/* Loop over pre-existing powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for prestige after rebel power */
+		if (o_ptr->code & P3_PRESTIGE_REBEL)
+		{
+			/* Check for rebel military world placed */
+			if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
+			    (c_ptr->d_ptr->flags & FLAG_MILITARY))
+			{
+				/* Reward prestige */
+				sim.p[attacker].prestige += o_ptr->value;
+			}
+		}
+
+		/* Check for prestige after production world */
+		if (o_ptr->code & P3_PRODUCE_PRESTIGE)
+		{
+			/* Check for production world */
+			if (c_ptr->d_ptr->good_type > 0 &&
+			    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
+			{
+				/* Reward prestige */
+				sim.p[attacker].prestige += o_ptr->value;
+			}
+		}
+	}
+
+	/* Simulate end of phase (for self-scoring cards) */
+	clear_temp(&sim);
+
+	/* Score game for players */
+	score_game(&sim);
+
+	/* Compute score differences */
+	vp_diff[0] = sim.p[defender].end_vp - old_vp[0];
+	vp_diff[1] = sim.p[attacker].end_vp - old_vp[1];
+
+	/* Check for old tool tip */
+	if (i_ptr->tooltip)
+	{
+		/* Format tool tip */
+		sprintf(text, "%s\n%s: %d VP%s\n%s: %d VP%s", i_ptr->tooltip,
+		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
+		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+
+		/* Free old tool tip */
+		free(i_ptr->tooltip);
+	}
+	else
+	{
+		/* Format tool tip */
+		sprintf(text, "%s: %d VP%s\n%s: %d VP%s",
+		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
+		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+	}
+
+	/* Return the text */
+	return strdup(text);
 }
 
 /*
@@ -5037,6 +5294,10 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 	card *c_ptr;
 	int i, j, n = 0;
 
+	/* Save special cards */
+	num_special_cards = *num_special;
+	for (i = 0; i < *num_special; ++i) special_cards[i] = &g->deck[special[i]];
+
 	/* Create prompt */
 	sprintf(buf, "Choose start world and hand discards");
 
@@ -5106,6 +5367,9 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 
 	/* Process events */
 	gtk_main();
+
+	/* Clear special cards */
+	num_special_cards = 0;
 
 	/* Loop over table cards */
 	for (i = 0; i < table_size[player_us]; i++)
@@ -5237,7 +5501,7 @@ void gui_choose_save(game *g, int who, int list[], int *num)
 
 	/* Save special cards */
 	num_special_cards = *num;
-	for (i = 0; i < *num; ++i) special_cards[i] = list[i];
+	for (i = 0; i < *num; ++i) special_cards[i] = &g->deck[list[i]];
 
 	/* Create prompt */
 	sprintf(buf, "Choose card to save for later");
@@ -5381,6 +5645,7 @@ void gui_choose_discard_prestige(game *g, int who, int list[], int *num)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Highlight in red when selected */
 				i_ptr->highlight = HIGH_RED;
@@ -5691,6 +5956,8 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 					/* Card is eligible */
 					i_ptr->eligible = 1;
 					i_ptr->highlight = HIGH_YELLOW;
+					i_ptr->tooltip = card_takeover_tooltip(g, j, player_us,
+					                                       i_ptr);
 				}
 			}
 		}
@@ -5810,7 +6077,7 @@ void gui_choose_defend(game *g, int who, int which, int opponent, int deficit,
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 
 	/* Reset displayed cards */
-	reset_cards(g, FALSE, TRUE);
+	reset_cards(g, FALSE, FALSE);
 
 	/* Set button restriction */
 	action_restrict = RESTRICT_DEFEND;
@@ -6059,6 +6326,7 @@ void gui_choose_upgrade(game *g, int who, int list[], int *num, int special[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = HIGH_YELLOW;
@@ -6080,6 +6348,7 @@ void gui_choose_upgrade(game *g, int who, int list[], int *num, int special[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = HIGH_RED;
@@ -6167,6 +6436,7 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
@@ -6218,16 +6488,57 @@ typedef struct pow_loc
 static int score_consume(power *o_ptr)
 {
 	int vp = 0, card = 0, prestige = 0, goods = 1;
-	int score;
+	int vp_mult = 1, score = 0;
 
-	/* Always discard from hand last */
-	if (o_ptr->code & P4_DISCARD_HAND) return 0;
+	/* Check for discard form hand */
+	if (o_ptr->code & P4_DISCARD_HAND)
+	{
+		/* Always discard from hand last */
+		score -= 1000;
 
-	/* Check for free card draw */
-	if (o_ptr->code & P4_DRAW) return o_ptr->value * 500;
+		/* Check for VP awarded */
+		if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
+
+		/* Check for card awarded */
+		if (o_ptr->code & P4_GET_CARD) card += o_ptr->value;
+
+		/* Check for prestige awarded */
+		if (o_ptr->code & P4_GET_PRESTIGE) prestige += o_ptr->value;
+
+		/* Check for consuming two cards */
+		if (o_ptr->code & P4_CONSUME_TWO) goods = 2;
+
+		/* Compute score */
+		score += (card * 150 + prestige * 100 + vp * 75) / goods;
+
+		/* Use multi-use powers later */
+		if (o_ptr->times > 1) score -= 2 * o_ptr->times;
+
+		/* Return score */
+		return score;
+	}
+
+	/* Check for consume prestige */
+	if (o_ptr->code & P4_CONSUME_PRESTIGE)
+	{
+		/* Consume prestige next to last */
+		score -= 500;
+
+		/* Check for VP awarded */
+		if (o_ptr->code & P4_GET_VP) score += o_ptr->value * 2;
+
+		/* Check for cards awarded */
+		if (o_ptr->code & P4_GET_CARD) score += o_ptr->value;
+
+		/* Return score */
+		return score;
+	}
 
 	/* Check for free VP */
 	if (o_ptr->code & P4_VP) return o_ptr->value * 1000;
+
+	/* Check for free card draw */
+	if (o_ptr->code & P4_DRAW) return o_ptr->value * 750;
 
 	/* Check for VP awarded */
 	if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
@@ -6256,17 +6567,29 @@ static int score_consume(power *o_ptr)
 	/* Check for consuming all goods */
 	if (o_ptr->code & P4_CONSUME_ALL) goods = 4;
 
-	/* Check for "Consume x2" chosen */
-	if (player_chose(&real_game, player_us, ACT_CONSUME_X2)) vp *= 2;
+	/* Check for double VP action */
+	if (player_chose(&real_game, player_us, ACT_CONSUME_X2) ||
+	    player_chose(&real_game, player_us, ACT_CONSUME_TRADE | ACT_PRESTIGE))
+	{
+		/* Multiplier is two */
+		vp_mult = 2;
+	}
+
+	/* Check for triple VP action */
+	if (player_chose(&real_game, player_us, ACT_PRESTIGE | ACT_CONSUME_X2))
+	{
+		/* Multiplier is three */
+		vp_mult = 3;
+	}
 
 	/* Compute score */
-	score = (prestige * 150 + vp * 100 + card * 50) / goods;
+	score = (prestige * 150 + vp * vp_mult * 100 + card * 52) / goods;
 
 	/* Use specific consume powers first */
-	if (!(o_ptr->code & P4_CONSUME_ANY)) score++;
+	if (!(o_ptr->code & P4_CONSUME_ANY)) score += 10;
 
 	/* Use multi-use powers later */
-	if (o_ptr->times > 1) score -= 5 * o_ptr->times;
+	if (o_ptr->times > 1) score -= 2 * o_ptr->times;
 
 	/* Return score */
 	return score;
@@ -6279,16 +6602,43 @@ static int cmp_consume(const void *l1, const void *l2)
 {
 	pow_loc *l_ptr1 = (pow_loc *)l1;
 	pow_loc *l_ptr2 = (pow_loc *)l2;
-	power *o_ptr1;
-	power *o_ptr2;
+	power *o_ptr1, *o_ptr2, bonus;
 
-	/* Check for prestige trade bonus */
-	if (l_ptr1->c_idx < 0) return 1;
-	if (l_ptr2->c_idx < 0) return -1;
+	/* Check first power */
+	if (l_ptr1->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.phase = PHASE_CONSUME;
+		bonus.code = P4_DISCARD_HAND | P4_GET_VP;
+		bonus.value = 1;
+		bonus.times = 2;
 
-	/* Get first power */
-	o_ptr1 = &real_game.deck[l_ptr1->c_idx].d_ptr->powers[l_ptr1->o_idx];
-	o_ptr2 = &real_game.deck[l_ptr2->c_idx].d_ptr->powers[l_ptr2->o_idx];
+		/* Use fake power */
+		o_ptr1 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr1 = &real_game.deck[l_ptr1->c_idx].d_ptr->powers[l_ptr1->o_idx];
+	}
+
+	/* Check second power */
+	if (l_ptr2->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.phase = PHASE_CONSUME;
+		bonus.code = P4_DISCARD_HAND | P4_GET_VP;
+		bonus.value = 1;
+		bonus.times = 2;
+
+		/* Use fake power */
+		o_ptr2 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr2 = &real_game.deck[l_ptr2->c_idx].d_ptr->powers[l_ptr2->o_idx];
+	}
 
 	/* Compare consume powers */
 	return score_consume(o_ptr2) - score_consume(o_ptr1);
@@ -6861,6 +7211,7 @@ int gui_choose_ante(game *g, int who, int list[], int num)
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be pushed up when selected */
 				i_ptr->push = 1;
@@ -6904,6 +7255,10 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 
 	/* Check for only one choice */
 	if (num == 1) return list[0];
+
+	/* Save special cards */
+	num_special_cards = num;
+	for (i = 0; i < num; ++i) special_cards[i] = &g->deck[list[i]];
 
 	/* Create prompt */
 	sprintf(buf, "Choose card to keep");
@@ -6958,6 +7313,9 @@ int gui_choose_keep(game *g, int who, int list[], int num)
 
 	/* Process events */
 	gtk_main();
+
+	/* Clear special cards */
+	num_special_cards = 0;
 
 	/* Loop over cards in hand */
 	for (i = 0; i < hand_size; i++)
@@ -7049,6 +7407,77 @@ void gui_choose_windfall(game *g, int who, int list[], int *num)
 }
 
 /*
+ * Return a "score" for sorting produce powers.
+ */
+static int score_produce(power *o_ptr)
+{
+	int score = 0;
+
+	/* List non-discard powers first */
+	if (!(o_ptr->code & P5_DISCARD)) score += 50;
+
+	/* List draw powers between non-discards and discards */
+	if (o_ptr->code & P5_DRAW_EACH_NOVELTY) score = 48;
+	if (o_ptr->code & P5_DRAW_EACH_RARE) score = 46;
+	if (o_ptr->code & P5_DRAW_EACH_GENE) score = 44;
+	if (o_ptr->code & P5_DRAW_EACH_ALIEN) score = 42;
+	if (o_ptr->code & P5_DRAW_DIFFERENT) return 40;
+
+	/* Score not this slightly above */
+	if (o_ptr->code & P5_NOT_THIS) score += 1;
+
+	/* Score specific powers before generic */
+	if (o_ptr->code & P5_WINDFALL_NOVELTY) score += 8;
+	if (o_ptr->code & P5_WINDFALL_RARE) score += 6;
+	if (o_ptr->code & P5_WINDFALL_GENE) score += 4;
+	if (o_ptr->code & P5_WINDFALL_ALIEN) score += 2;
+
+	/* Return score */
+	return score;
+}
+
+/*
+ * Compare two produce powers for sorting.
+ */
+static int cmp_produce(const void *l1, const void *l2)
+{
+	pow_loc *l_ptr1 = (pow_loc *)l1;
+	pow_loc *l_ptr2 = (pow_loc *)l2;
+	power *o_ptr1;
+	power *o_ptr2;
+	power bonus;
+
+	/* Check first power */
+	if (l_ptr1->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.code = P5_WINDFALL_ANY;
+		o_ptr1 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr1 = &real_game.deck[l_ptr1->c_idx].d_ptr->powers[l_ptr1->o_idx];
+	}
+
+	/* Check second power */
+	if (l_ptr2->c_idx < 0)
+	{
+		/* Use bonus power */
+		bonus.code = P5_WINDFALL_ANY;
+		o_ptr2 = &bonus;
+	}
+	else
+	{
+		/* Get power */
+		o_ptr2 = &real_game.deck[l_ptr2->c_idx].d_ptr->powers[l_ptr2->o_idx];
+	}
+
+	/* Compare produce powers */
+	return score_produce(o_ptr2) - score_produce(o_ptr1);
+}
+
+/*
  * Choose a produce power to use.
  */
 void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
@@ -7056,6 +7485,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	GtkWidget *combo;
 	card *c_ptr = NULL;
 	power *o_ptr, bonus;
+	pow_loc l_list[MAX_DECK];
 	char buf[1024];
 	int i;
 
@@ -7077,8 +7507,19 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	/* Loop over powers */
 	for (i = 0; i < num; i++)
 	{
+		/* Create power location */
+		l_list[i].c_idx = cidx[i];
+		l_list[i].o_idx = oidx[i];
+	}
+
+	/* Sort produce powers */
+	qsort(l_list, num, sizeof(pow_loc), cmp_produce);
+
+	/* Loop over powers */
+	for (i = 0; i < num; i++)
+	{
 		/* Check for produce or prestige bonus */
-		if (cidx[i] < 0)
+		if (l_list[i].c_idx < 0)
 		{
 			/* Create fake produce power */
 			bonus.code = P5_WINDFALL_ANY;
@@ -7087,10 +7528,10 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		else
 		{
 			/* Get card pointer */
-			c_ptr = &g->deck[cidx[i]];
+			c_ptr = &g->deck[l_list[i].c_idx];
 
 			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[oidx[i]];
+			o_ptr = &c_ptr->d_ptr->powers[l_list[i].o_idx];
 		}
 
 		/* Clear string describing power */
@@ -7211,8 +7652,8 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	gtk_widget_destroy(combo);
 
 	/* Select chosen power */
-	cidx[0] = cidx[i];
-	oidx[0] = oidx[i];
+	cidx[0] = l_list[i].c_idx;
+	oidx[0] = l_list[i].o_idx;
 }
 
 /*
@@ -7256,6 +7697,7 @@ void gui_choose_discard_produce(game *g, int who, int list[], int *num,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be red when selected */
 				i_ptr->highlight = HIGH_RED;
@@ -7434,7 +7876,7 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 
 	/* Save special card */
 	num_special_cards = 1;
-	special_cards[0] = arg1;
+	special_cards[0] = &g->deck[arg1];
 
 	/* Get card pointer */
 	c_ptr = &g->deck[arg1];
@@ -7809,6 +8251,9 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Update menu items */
 	update_menu_items();
+
+	/* Reset accel keys */
+	accel_used = FALSE;
 
 	/* Determine type of choice */
 	switch (type)
@@ -8804,6 +9249,7 @@ void save_prefs(void)
 {
 	FILE *fff;
 	char *path, *data;
+	char msg[1024];
 
 	/* Build user preference filename */
 #ifdef __APPLE__
@@ -8880,7 +9326,8 @@ void save_prefs(void)
 	if (!fff)
 	{
 		/* Error */
-		printf("Can't save preferences to %s!\n", path);
+		sprintf(msg, "Warning: Can't save preferences to %s!\n", path);
+		display_error(msg);
 		return;
 	}
 
@@ -9059,7 +9506,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		if (load_game(&load_state, fname) < 0)
 		{
 			/* Error */
-			show_error("Failed to load game");
+			display_error("Warning: Failed to load game");
 
 			/* Destroy filename */
 			g_free(fname);
@@ -11182,13 +11629,13 @@ int main(int argc, char *argv[])
 	if (err == -1)
 	{
 		/* Print error and exit */
-		show_error("Could not locate cards.txt");
+		display_error("Error: Could not locate cards.txt");
 		exit(1);
 	}
 	else if (err == -2)
 	{
 		/* Print error and exit */
-		show_error("Error while reading cards.txt");
+		display_error("Error: Could not parse cards.txt");
 		exit(1);
 	}
 
@@ -11362,27 +11809,35 @@ int main(int argc, char *argv[])
 	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
 	             0);
 
-	/* Parse accelerator keys */
-	i = 0;
-	gtk_accelerator_parse("F1", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F2", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F3", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F4", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F5", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F6", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F7", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F8", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("F9", &accel_keys[i], &accel_mods[i]); ++i;
+	/* Create select/deselect all signals */
+	g_signal_new("key-select-all", gtk_event_box_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
+	g_signal_new("key-deselect-all", gtk_event_box_get_type(), G_SIGNAL_ACTION,
+	             0, NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE,
+	             0);
 
-	gtk_accelerator_parse("<Shift>F1", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F2", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F3", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F4", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F5", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F6", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F7", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F8", &accel_keys[i], &accel_mods[i]); ++i;
-	gtk_accelerator_parse("<Shift>F9", &accel_keys[i], &accel_mods[i]); ++i;
+	/* Loop over accelerator keys */
+	for (i = 0; i < MAX_ACCEL; ++i)
+	{
+		/* Create key description */
+		sprintf(msg, "%sF%d", i > 8 ? "<Shift>" : "", (i % 9) + 1);
+
+		/* Parse key */
+		gtk_accelerator_parse(msg, &accel_keys[i], &accel_mods[i]);
+
+		/* Create key description */
+		sprintf(card_extra_info[i].text,
+		        "<b><span background=\"black\" foreground=\"white\">"
+		        "%sF%d</span></b>",
+		        i > 8 ? "S+" : "", (i % 9) + 1);
+
+		/* Set font */
+		card_extra_info[i].fontstr = "Sans 8";
+
+		/* Set position */
+		card_extra_info[i].top_left = 1;
+	}
 
 	/* Create main vbox to hold menu bar, then rest of game area */
 	main_vbox = gtk_vbox_new(FALSE, 0);
@@ -12265,7 +12720,7 @@ int main(int argc, char *argv[])
 			sprintf(msg, "Failed to load game from file %s\n", fname);
 
 			/* Show error */
-			show_error(msg);
+			display_error(msg);
 		}
 		else
 		{

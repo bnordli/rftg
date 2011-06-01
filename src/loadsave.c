@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -182,7 +182,7 @@ int save_game(game *g, char *filename, int player_us)
  */
 static int cmp_table(const void *h1, const void *h2)
 {
-	card *c_ptr1 = (card *)h1, *c_ptr2 = (card *)h2;
+	card *c_ptr1 = *(card **)h1, *c_ptr2 = *(card **)h2;
 
 	/* Sort by order played */
 	return c_ptr1->order - c_ptr2->order;
@@ -193,7 +193,7 @@ static int cmp_table(const void *h1, const void *h2)
  */
 static int cmp_hand(const void *h1, const void *h2)
 {
-	card *c_ptr1 = (card *)h1, *c_ptr2 = (card *)h2;
+	card *c_ptr1 = *(card **)h1, *c_ptr2 = *(card **)h2;
 
 	/* Worlds come before developments */
 	if (c_ptr1->d_ptr->type != c_ptr2->d_ptr->type)
@@ -263,23 +263,15 @@ char *xml_escape(const char *s)
 }
 
 /*
- * Write cards of the linked list starting with x, in a specified order.
+ * Write the listed cards in a specified order.
  */
-static void export_cards(FILE *fff, char *header, game *g, int x,
+static void export_cards(FILE *fff, char *header, game *g, int n, card **cards,
                          int (*cmp)(const void *, const void *))
 {
-	int n, p, exp;
-	card cards[MAX_DECK];
-
-	/* Loop over cards */
-	for (n = 0 ; x != -1; x = g->deck[x].next, ++n)
-	{
-		/* Save card */
-		cards[n] = g->deck[x];
-	}
+	int p, exp;
 
 	/* Sort the cards */
-	qsort(cards, n, sizeof(card), cmp);
+	if (cmp) qsort(cards, n, sizeof(card*), cmp);
 
 	/* Start tag */
 	fprintf(fff, "    <%s count=\"%d\">\n", header, n);
@@ -289,16 +281,16 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
 	{
 		/* XXX Check whether card is a temporary explore card */
 		exp = g->cur_action == ACT_EXPLORE_5_0 &&
-		      cards[p].where == WHERE_HAND &&
-		      (cards[p].start_where != WHERE_HAND ||
-		       cards[p].start_owner != cards[p].owner);
+		      cards[p]->where == WHERE_HAND &&
+		      (cards[p]->start_where != WHERE_HAND ||
+		       cards[p]->start_owner != cards[p]->owner);
 
 		/* Write card name and good indicator */
 		fprintf(fff, "      <Card id=\"%d\"%s%s>%s</Card>\n",
-		        cards[p].d_ptr->index,
-		        cards[p].covered != -1 ? " good=\"yes\"" : "",
+		        cards[p]->d_ptr->index,
+		        cards[p]->covered != -1 ? " good=\"yes\"" : "",
 		        exp ? " explore=\"yes\"" : "",
-		        xml_escape(cards[p].d_ptr->name));
+		        xml_escape(cards[p]->d_ptr->name));
 	}
 
 	/* End tag */
@@ -306,11 +298,31 @@ static void export_cards(FILE *fff, char *header, game *g, int x,
 }
 
 /*
+ * Write cards of the linked list starting with x, in a specified order.
+ */
+static void export_linked_cards(FILE *fff, char *header, game *g, int x,
+                                int (*cmp)(const void *, const void *))
+{
+	int n;
+	card *cards[MAX_DECK];
+
+	/* Loop over cards */
+	for (n = 0 ; x != -1; x = g->deck[x].next, ++n)
+	{
+		/* Save card */
+		cards[n] = &g->deck[x];
+	}
+
+	/* Export the cards */
+	export_cards(fff, header, g, n, cards, cmp);
+}
+
+/*
  * Export the game state to the given filename.
  */
 int export_game(game *g, char *filename, int player_us,
                 const char *message,
-                int num_special_cards, int* special_cards,
+                int num_special_cards, card **special_cards,
                 void (*export_log)(FILE *fff))
 {
 	FILE *fff;
@@ -532,7 +544,8 @@ int export_game(game *g, char *filename, int player_us,
 		}
 
 		/* Write tableau */
-		export_cards(fff, "Tableau", g, p_ptr->head[WHERE_ACTIVE], cmp_table);
+		export_linked_cards(fff, "Tableau", g, p_ptr->head[WHERE_ACTIVE],
+		                    cmp_table);
 
 		/* Check for saved cards */
 		if (count_active_flags(g, n, FLAG_START_SAVE))
@@ -571,34 +584,48 @@ int export_game(game *g, char *filename, int player_us,
 			fprintf(fff, "    </Saved>\n");
 		}
 
-
+		/* Check for human player */
 		if (n == player_us)
 		{
 			/* Write human player's hand */
-			export_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND], cmp_hand);
+			export_linked_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND],
+			                    cmp_hand);
 
+			/* Check for special cards passed */
 			if (num_special_cards)
 			{
-				/* Write start tag */
-				fprintf(fff, "    <%s count=\"%d\">\n",
-				        g->cur_action == ACT_SEARCH ? "Search" : "Discards",
-				        num_special_cards);
-
-				/* Loop over special cards */
-				for (i = 0; i < num_special_cards; i++)
+				/* Check action */
+				switch (g->cur_action)
 				{
-					/* Get card pointer */
-					c_ptr = &g->deck[special_cards[i]];
+					/* Start world choice */
+					case ACT_ROUND_START:
+						/* XXX Check for start world choice */
+						if (num_special_cards == 2)
+						{
+							export_cards(fff, "Start", g, num_special_cards,
+							             special_cards, NULL);
+						}
+						break;
 
-					/* Write card id and name */
-					fprintf(fff, "      <Card id=\"%d\">%s</Card>\n",
-					        c_ptr->d_ptr->index,
-					        xml_escape(c_ptr->d_ptr->name));
+					/* Search */
+					case ACT_SEARCH:
+						export_cards(fff, "Search", g, num_special_cards,
+						             special_cards, cmp_hand);
+						break;
+
+					/* Save discarded cards */
+					case ACT_DEVELOP:
+					case ACT_SETTLE:
+						export_cards(fff, "Discards", g, num_special_cards,
+						             special_cards, cmp_hand);
+						break;
+
+					/* Gamble */
+					case ACT_CONSUME_TRADE:
+						export_cards(fff, "Flips", g, num_special_cards,
+						             special_cards, cmp_hand);
+						break;
 				}
-
-				/* Write end tag */
-				fprintf(fff, "    </%s>\n",
-				        g->cur_action == ACT_SEARCH ? "Search" : "Discards");
 			}
 		}
 		else
