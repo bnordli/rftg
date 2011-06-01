@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@
 #endif
 
 #ifndef RELEASE
-#define RELEASE VERSION "i"
+#define RELEASE VERSION "j"
 #endif
 
 #include <stdio.h>
