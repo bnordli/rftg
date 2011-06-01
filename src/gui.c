@@ -3535,8 +3535,8 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	{
 		/* Format tool tip */
 		sprintf(text, "%s: %d VP%s\n%s: %d VP%s",
-				g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
-				g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
+		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
 	}
 
 	/* Return the text */

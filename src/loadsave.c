@@ -182,10 +182,10 @@ int save_game(game *g, char *filename, int player_us)
  */
 static int cmp_table(const void *h1, const void *h2)
 {
-	card **c_hnd1 = (card **)h1, **c_hnd2 = (card **)h2;
+	card *c_ptr1 = *(card **)h1, *c_ptr2 = *(card **)h2;
 
 	/* Sort by order played */
-	return (*c_hnd1)->order - (*c_hnd2)->order;
+	return c_ptr1->order - c_ptr2->order;
 }
 
 /*
@@ -193,25 +193,25 @@ static int cmp_table(const void *h1, const void *h2)
  */
 static int cmp_hand(const void *h1, const void *h2)
 {
-	card **c_hnd1 = (card **)h1, **c_hnd2 = (card **)h2;
+	card *c_ptr1 = *(card **)h1, *c_ptr2 = *(card **)h2;
 
 	/* Worlds come before developments */
-	if ((*c_hnd1)->d_ptr->type != (*c_hnd2)->d_ptr->type)
+	if (c_ptr1->d_ptr->type != c_ptr2->d_ptr->type)
 	{
 		/* Check for development */
-		if ((*c_hnd1)->d_ptr->type == TYPE_DEVELOPMENT) return 1;
-		if ((*c_hnd2)->d_ptr->type == TYPE_DEVELOPMENT) return -1;
+		if (c_ptr1->d_ptr->type == TYPE_DEVELOPMENT) return 1;
+		if (c_ptr2->d_ptr->type == TYPE_DEVELOPMENT) return -1;
 	}
 
 	/* Sort by cost */
-	if ((*c_hnd1)->d_ptr->cost != (*c_hnd2)->d_ptr->cost)
+	if (c_ptr1->d_ptr->cost != c_ptr2->d_ptr->cost)
 	{
 		/* Return cost difference */
-		return (*c_hnd1)->d_ptr->cost - (*c_hnd2)->d_ptr->cost;
+		return c_ptr1->d_ptr->cost - c_ptr2->d_ptr->cost;
 	}
 
 	/* Otherwise sort by index */
-	return (*c_hnd1)->d_ptr->index - (*c_hnd2)->d_ptr->index;
+	return c_ptr1->d_ptr->index - c_ptr2->d_ptr->index;
 }
 
 /*
@@ -266,7 +266,7 @@ char *xml_escape(const char *s)
  * Write the listed cards in a specified order.
  */
 static void export_cards(FILE *fff, char *header, game *g, int n, card **cards,
-	                     int (*cmp)(const void *, const void *))
+                         int (*cmp)(const void *, const void *))
 {
 	int p, exp;
 
