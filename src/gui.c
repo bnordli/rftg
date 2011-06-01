@@ -3203,7 +3203,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int n, i, old_vp, vp_diff;
+	int n, i, old_vp, vp_diff, goal_diff = 0, goal_action;
 	game sim;
 
 	/* Copy game */
@@ -3214,6 +3214,9 @@ static char *card_hand_tooltip(game *g, int who, int which)
 
 	/* Simulate end of phase (for cards already placed) */
 	clear_temp(&sim);
+
+	/* Apply goals */
+	check_goals(&sim);
 
 	/* Score game for player */
 	score_game(&sim);
@@ -3268,6 +3271,9 @@ static char *card_hand_tooltip(game *g, int who, int which)
 				sim.p[who].prestige += o_ptr->value;
 			}
 		}
+
+		/* Check goals for develop phase */
+		goal_action = ACT_DEVELOP;
 	}
 
 	/* Check for world type */
@@ -3306,6 +3312,9 @@ static char *card_hand_tooltip(game *g, int who, int which)
 				}
 			}
 		}
+
+		/* Check goals for settle phase */
+		goal_action = ACT_SETTLE;
 	}
 
 	/* Simulate end of phase (for self-scoring cards) */
@@ -3317,8 +3326,34 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	/* Compute score difference */
 	vp_diff = sim.p[who].end_vp - old_vp;
 
-	/* Format message */
-	sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
+	/* Check for goals */
+	if (goals_enabled(g))
+	{
+		/* Set placement phase */
+		sim.cur_action = goal_action;
+
+		/* Apply goals */
+		check_goals(&sim);
+
+		/* Score game for player */
+		score_game(&sim);
+
+		/* Compute extra goal points */
+		goal_diff = sim.p[who].end_vp - old_vp - vp_diff;
+	}
+
+	/* Check for points from goals */
+	if (goal_diff)
+	{
+		/* Format message */
+		sprintf(text, "%d VP%s\nGoals: %+d VP%s", vp_diff, PLURAL(vp_diff),
+		        goal_diff, PLURAL(goal_diff));
+	}
+	else
+	{
+		/* Format message */
+		sprintf(text, "%d VP%s", vp_diff, PLURAL(vp_diff));
+	}
 
 	/* Return tool tip */
 	return strdup(text);
