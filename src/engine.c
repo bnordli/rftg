@@ -3400,7 +3400,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Rare good for "
-					        "extra strength.\n", p_ptr->name);
+					        "extra military.\n", p_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -3695,11 +3695,11 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	/* Message */
 	if (!g->simulation)
 	{
-		/* Check for takeover attempt and payment for extra strength */
+		/* Check for takeover attempt and payment for extra military */
 		if (takeover && hand_military > 0)
 		{
 			/* Format message */
-			sprintf(msg, "%s pays %d for extra strength.\n",
+			sprintf(msg, "%s pays %d for extra military.\n",
 			        p_ptr->name, num);
 		}
 
@@ -3733,7 +3733,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (hand_military)
 			{
 				/* Format message */
-				sprintf(msg, "%s pays %d for extra strength.\n",
+				sprintf(msg, "%s pays %d for extra military.\n",
 				        p_ptr->name, hand_military);
 
 				/* Send message */
@@ -4986,7 +4986,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg, "%s discards %s.\n",
+					sprintf(msg, "%s discards %s for extra military.\n",
 					        p_ptr->name,
 					        c_ptr->d_ptr->name);
 
@@ -5031,7 +5031,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards a Rare good for "
-					        "extra strength.\n", p_ptr->name);
+					        "extra military.\n", p_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -5094,7 +5094,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 		}
 
 		/* Format message */
-		sprintf(msg, "%s pays %d for extra strength.\n",
+		sprintf(msg, "%s pays %d for extra military.\n",
 			p_ptr->name, num);
 
 		/* Send message */
