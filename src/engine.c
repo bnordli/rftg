@@ -5954,6 +5954,76 @@ int payment_callback(game *g, int who, int which, int list[], int num,
 	}
 }
 
+int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus)
+{
+	power_where w_list[100];
+	power *o_ptr;
+	int i, n, value;
+
+	/* Value is equal to type */
+	value = type;
+
+	/* Get consume phase powers (including trade powers) */
+	n = get_powers(g, who, PHASE_CONSUME, w_list);
+
+	/* Loop over powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for any type bonus */
+		if (!no_bonus && (o_ptr->code & P4_TRADE_ANY))
+		{
+			/* Add bonus */
+			value += o_ptr->value;
+		}
+
+		/* Check for matching specific type bonus */
+		if (!no_bonus &&
+		    ((type == GOOD_NOVELTY &&(o_ptr->code & P4_TRADE_NOVELTY))||
+		    (type == GOOD_RARE && (o_ptr->code & P4_TRADE_RARE)) ||
+		    (type == GOOD_GENE && (o_ptr->code & P4_TRADE_GENE)) ||
+		    (type == GOOD_ALIEN && (o_ptr->code & P4_TRADE_ALIEN))))
+		{
+			/* Add bonus */
+			value += o_ptr->value;
+		}
+
+		/* Check for Chromosome bonus and gene good */
+		if (!no_bonus && (type == GOOD_GENE) &&
+		    (o_ptr->code & P4_TRADE_BONUS_CHROMO))
+		{
+			/* Increase value */
+			value += count_active_flags(g, who, FLAG_CHROMO);
+		}
+	}
+
+	/* Loop over powers on card holding good */
+	for (i = 0; i < c_ptr->d_ptr->num_power; i++)
+	{
+		/* Get power pointer */
+		o_ptr = &c_ptr->d_ptr->powers[i];
+
+		/* Skip non-consume power */
+		if (o_ptr->phase != PHASE_CONSUME) continue;
+
+		/* Check for "trade this" power */
+		if (!no_bonus && (o_ptr->code & P4_TRADE_THIS))
+		{
+			/* Add bonus */
+			value += o_ptr->value;
+		}
+	}
+
+	/* Check for prestige trade chosen */
+	if (player_chose(g, who, ACT_PRESTIGE | ACT_CONSUME_TRADE)) value += 3;
+
+	/* Return computed value */
+	return value;
+}
+
+
 /*
  * Called when player has chosen which good to trade.
  */
@@ -5961,9 +6031,7 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 {
 	player *p_ptr;
 	card *c_ptr;
-	power_where w_list[100];
-	power *o_ptr;
-	int i, n, type, value;
+	int type, value;
 	char msg[1024];
 
 	/* Get player pointer */
@@ -6012,67 +6080,8 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 		g->oort_kind = GOOD_ANY;
 	}
 
-	/* Value is equal to type */
-	value = type;
-
-	/* Get consume phase powers (including trade powers) */
-	n = get_powers(g, who, PHASE_CONSUME, w_list);
-
-	/* Loop over powers */
-	for (i = 0; i < n; i++)
-	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
-
-		/* Check for any type bonus */
-		if (!no_bonus && (o_ptr->code & P4_TRADE_ANY))
-		{
-			/* Add bonus */
-			value += o_ptr->value;
-		}
-
-		/* Check for matching specific type bonus */
-		if (!no_bonus &&
-		    ((type == GOOD_NOVELTY &&(o_ptr->code & P4_TRADE_NOVELTY))||
-		    (type == GOOD_RARE && (o_ptr->code & P4_TRADE_RARE)) ||
-		    (type == GOOD_GENE && (o_ptr->code & P4_TRADE_GENE)) ||
-		    (type == GOOD_ALIEN && (o_ptr->code & P4_TRADE_ALIEN))))
-		{
-			/* Add bonus */
-			value += o_ptr->value;
-		}
-
-		/* Check for Chromosome bonus and gene good */
-		if (!no_bonus && (type == GOOD_GENE) &&
-		    (o_ptr->code & P4_TRADE_BONUS_CHROMO))
-		{
-			/* Increase value */
-			value += count_active_flags(g, who, FLAG_CHROMO);
-		}
-	}
-
-	/* Get card pointer */
-	c_ptr = &g->deck[which];
-
-	/* Loop over powers on card holding good */
-	for (i = 0; i < c_ptr->d_ptr->num_power; i++)
-	{
-		/* Get power pointer */
-		o_ptr = &c_ptr->d_ptr->powers[i];
-
-		/* Skip non-consume power */
-		if (o_ptr->phase != PHASE_CONSUME) continue;
-
-		/* Check for "trade this" power */
-		if (!no_bonus && (o_ptr->code & P4_TRADE_THIS))
-		{
-			/* Add bonus */
-			value += o_ptr->value;
-		}
-	}
-
-	/* Check for prestige trade chosen */
-	if (player_chose(g, who, ACT_PRESTIGE | ACT_CONSUME_TRADE)) value += 3;
+	/* Compute trade value */
+	value = trade_value(g, who, c_ptr, type, no_bonus);
 
 	/* Message */
 	if (!g->simulation)

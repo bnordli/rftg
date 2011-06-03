@@ -2372,6 +2372,13 @@ static void redraw_table_area(int who, GtkWidget *area)
 			                  y * height :
 				              y * height + card_h / 4);
 
+			/* Add tooltip if available */
+			if (i_ptr->tooltip)
+			{
+				/* Add tooltip to widget */
+				gtk_widget_set_tooltip_text(good_box, i_ptr->tooltip);
+			}
+
 			/* Show image */
 			gtk_widget_show_all(good_box);
 
@@ -3552,6 +3559,44 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	}
 
 	/* Return the text */
+	return strdup(text);
+}
+
+/*
+ * Create a tooltip for a card displayed on a table during trade.
+ */
+static char *card_trade_tooltip(game *g, int who, displayed *i_ptr,
+                                int no_bonus)
+{
+	char text[1024];
+	card *c_ptr;
+	int type;
+
+	/* Get card pointer */
+	c_ptr = &g->deck[i_ptr->index];
+
+	/* Get good type */
+	type = c_ptr->d_ptr->good_type;
+
+	/* Check for "any" kind */
+	if (type == GOOD_ANY)
+	{
+		/* Format tool tip for all kinds */
+		sprintf(text, "Trade value:\n  Novelty: %d\n  Rare: %d\n"
+		        "  Genes: %d\n  Alien: %d",
+		        trade_value(g, who, c_ptr, GOOD_NOVELTY, no_bonus),
+		        trade_value(g, who, c_ptr, GOOD_RARE, no_bonus),
+		        trade_value(g, who, c_ptr, GOOD_GENE, no_bonus),
+		        trade_value(g, who, c_ptr, GOOD_ALIEN, no_bonus));
+	}
+	else
+	{
+		/* Format tool tip */
+		sprintf(text, "Trade value: %d",
+		        trade_value(g, who, c_ptr, type, no_bonus));
+	}
+
+	/* Return text */
 	return strdup(text);
 }
 
@@ -6450,6 +6495,7 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 				i_ptr->greedy = 1;
+				i_ptr->tooltip = card_trade_tooltip(g, player_us, i_ptr, no_bonus);
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
