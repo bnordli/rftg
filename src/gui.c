@@ -2211,7 +2211,8 @@ void redraw_hand(void)
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
 		                    highlight, 0,
-		                    i_ptr->eligible && accel_used ? key_count : -1);
+		                    i_ptr->eligible && (accel_used || opt.key_cues) ?
+		                                       key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(hand_area), box, count * width,
@@ -2394,7 +2395,8 @@ static void redraw_table_area(int who, GtkWidget *area)
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
 		                    highlight, 0,
-		                    i_ptr->eligible && accel_used ? key_count : -1);
+		                    i_ptr->eligible && (accel_used || opt.key_cues) ?
+		                                       key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
@@ -9309,6 +9311,8 @@ static void read_prefs(void)
 	                                             "settle_discount", NULL);
 	opt.vp_in_hand = g_key_file_get_boolean(pref_file, "gui",
 	                                        "vp_in_hand", NULL);
+	opt.key_cues = g_key_file_get_boolean(pref_file, "gui",
+	                                      "key_cues", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
@@ -9393,6 +9397,8 @@ void save_prefs(void)
 	                       opt.settle_discount);
 	g_key_file_set_boolean(pref_file, "gui", "vp_in_hand",
 	                       opt.vp_in_hand);
+	g_key_file_set_boolean(pref_file, "gui", "key_cues",
+	                       opt.key_cues);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
 	g_key_file_set_boolean(pref_file, "gui", "save_log",
@@ -10441,7 +10447,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
-	GtkWidget *log_box, *log_frame;
+	GtkWidget *key_cues_button, *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
@@ -10610,6 +10616,21 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Pack button into status box */
 	gtk_box_pack_start(GTK_BOX(game_view_box), hand_vp_button, FALSE, TRUE, 0);
+
+	/* Create toggle button for hand VPs */
+	key_cues_button = gtk_check_button_new_with_label(
+	    "Always display key cues");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(key_cues_button),
+	                             opt.key_cues);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(key_cues_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.key_cues);
+
+	/* Pack button into status box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), key_cues_button, FALSE, TRUE, 0);
 
 	/* Create frame around buttons */
 	game_view_frame = gtk_frame_new("Game view");
