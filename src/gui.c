@@ -8649,6 +8649,9 @@ static void apply_options(void)
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
 
+	/* Set drafting disabled */
+	real_game.drafting = FALSE;
+
 	/* Check for custom seed value */
 	if (opt.customize_seed)
 	{
@@ -9236,6 +9239,8 @@ static void read_prefs(void)
 	                                          "no_goals", NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
+	opt.drafting = g_key_file_get_boolean(pref_file, "drafting",
+	                                      "drafting", NULL);
 
 	/* Check length of human name */
 	if (opt.player_name && strlen(opt.player_name) > 50)
@@ -9327,6 +9332,7 @@ void save_prefs(void)
 	g_key_file_set_boolean(pref_file, "game", "no_goals", opt.disable_goal);
 	g_key_file_set_boolean(pref_file, "game", "no_takeover",
 	                       opt.disable_takeover);
+	g_key_file_set_boolean(pref_file, "game", "drafting", opt.drafting);
 
 	/* Set GUI options */
 	g_key_file_set_integer(pref_file, "gui", "full_reduced",
@@ -12437,13 +12443,13 @@ int main(int argc, char *argv[])
 	lobby_vbox = gtk_vbox_new(FALSE, 5);
 
 	/* Create list of open games */
-	game_list = gtk_tree_store_new(13, G_TYPE_INT, G_TYPE_STRING,
+	game_list = gtk_tree_store_new(14, G_TYPE_INT, G_TYPE_STRING,
 	                                   G_TYPE_STRING, G_TYPE_INT,
 	                                   G_TYPE_STRING, G_TYPE_STRING,
 	                                   G_TYPE_INT, G_TYPE_INT,
 	                                   G_TYPE_INT, G_TYPE_INT,
 	                                   G_TYPE_INT, G_TYPE_INT,
-	                                   G_TYPE_INT);
+	                                   G_TYPE_INT, G_TYPE_INT);
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));
@@ -12483,6 +12489,10 @@ int main(int argc, char *argv[])
 	                                            -1, "Disable Takeovers",
 	                                            toggle_render, "active",
 	                                            8, "visible", 11, NULL);
+	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
+	                                            -1, "Drafting",
+	                                            toggle_render, "active",
+	                                            9, "visible", 11, NULL);
 
 	/* Get first column of game view */
 	desc_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);

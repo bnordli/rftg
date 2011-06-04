@@ -347,15 +347,15 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	}
 
 	/* Get game owned flag and minimum number of players */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 10, &owned,
-	                   12, &minp, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 11, &owned,
+	                   13, &minp, -1);
 
 	/* Check for user */
 	if (user)
 	{
 		/* Check whether cursor is on ourself */
 		gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter,
-		                   10, &self, -1);
+		                   11, &self, -1);
 	}
 
 	/* Check for ability to start game */
@@ -430,7 +430,7 @@ static void handle_open_game(char *ptr)
 	}
 
 	/* Set number of players string */
-	gtk_tree_store_set(game_list, &list_iter, 4, buf, 12, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, 4, buf, 13, x, -1);
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
@@ -451,17 +451,32 @@ static void handle_open_game(char *ptr)
 	/* Set disable options */
 	gtk_tree_store_set(game_list, &list_iter, 7, x, 8, y, -1);
 
+	/* Check for new server */
+	if (new_server)
+	{
+		/* Read drafting option */
+		x = get_integer(&ptr);
+	}
+	else
+	{
+		/* No draft */
+		x = 0;
+	}
+
+	/* Set draft option */
+	gtk_tree_store_set(game_list, &list_iter, 9, x, -1);
+
 	/* Read game speed option */
 	x = get_integer(&ptr);
 
 	/* Set speed option */
-	gtk_tree_store_set(game_list, &list_iter, 9, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, 10, x, -1);
 
 	/* Read owner flag */
 	x = get_integer(&ptr);
 
 	/* Set owner information */
-	gtk_tree_store_set(game_list, &list_iter, 10, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, 11, x, -1);
 
 	/* Check for owner */
 	if (x && new_game)
@@ -474,7 +489,7 @@ static void handle_open_game(char *ptr)
 	}
 
 	/* Make checkboxes visible */
-	gtk_tree_store_set(game_list, &list_iter, 11, 1, -1);
+	gtk_tree_store_set(game_list, &list_iter, 12, 1, -1);
 
 	/* Sort game list by session ID */
 	gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(game_list), 0,
@@ -547,10 +562,10 @@ static void handle_game_player(char *ptr)
 	x = get_integer(&ptr);
 
 	/* Store note of self */
-	gtk_tree_store_set(game_list, &child_iter, 10, x, -1);
+	gtk_tree_store_set(game_list, &child_iter, 11, x, -1);
 
 	/* Make checkboxes invisible on this row */
-	gtk_tree_store_set(game_list, &child_iter, 11, 0, -1);
+	gtk_tree_store_set(game_list, &child_iter, 12, 0, -1);
 
 	/* Reset button state */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
@@ -570,6 +585,13 @@ static void handle_status_meta(char *ptr)
 	real_game.advanced = get_integer(&ptr);
 	real_game.goal_disabled = get_integer(&ptr);
 	real_game.takeover_disabled = get_integer(&ptr);
+
+	/* Check for new server */
+	if (new_server)
+	{
+		/* Read draft parameter */
+		real_game.drafting = get_integer(&ptr);
+	}
 
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
@@ -2289,6 +2311,7 @@ static GtkWidget *min_player, *max_player;
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
+static GtkWidget *drafting_check;
 
 /*
  * React to an expansion level being toggled.
@@ -2314,6 +2337,9 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 
 		/* Set takeover disabled checkbox sensitivity */
 		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
+
+		/* Set drafting variant checkbox sensitivity */
+		gtk_widget_set_sensitive(drafting_check, i > 0);
 	}
 }
 
@@ -2376,7 +2402,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	                                     GTK_RESPONSE_REJECT, NULL);
 
 	/* Create a table for laying out widgets */
-	table = gtk_table_new(8, 2, FALSE);
+	table = gtk_table_new(9, 2, FALSE);
 
 	/* Create label and text entry for game description */
 	label = gtk_label_new("Description:");
@@ -2512,6 +2538,20 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_table_attach_defaults(GTK_TABLE(table), disable_takeover_check,
 	                          0, 2, 7, 8);
 
+	/* Create check box for drafting variant */
+	drafting_check = gtk_check_button_new_with_label("Drafting variant");
+
+	/* Set default */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(drafting_check),
+	                             opt.drafting);
+
+	/* Make checkbox insensitive */
+	gtk_widget_set_sensitive(drafting_check, FALSE);
+
+	/* Add checkbox to table */
+	gtk_table_attach_defaults(GTK_TABLE(table), drafting_check,
+	                          0, 2, 8, 9);
+
 	/* Add table to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
 
@@ -2562,12 +2602,14 @@ void create_dialog(GtkButton *button, gpointer data)
 	                             GTK_TOGGLE_BUTTON(disable_goal_check));
 	opt.disable_takeover = gtk_toggle_button_get_active(
 	                             GTK_TOGGLE_BUTTON(disable_takeover_check));
+	opt.drafting = gtk_toggle_button_get_active(
+	                             GTK_TOGGLE_BUTTON(drafting_check));
 
 	/* Save change to file */
 	save_prefs();
 
 	/* Send create message to server */
-	send_msgf(server_fd, MSG_CREATE, "ssddddddd",
+	send_msgf(server_fd, MSG_CREATE, "ssdddddddd",
 	          gtk_entry_get_text(GTK_ENTRY(pass)),
 	          gtk_entry_get_text(GTK_ENTRY(desc)),
 	          (int)gtk_range_get_value(GTK_RANGE(min_player)),
@@ -2576,6 +2618,7 @@ void create_dialog(GtkButton *button, gpointer data)
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
+		gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(drafting_check)),
 	          0);
 
 	/* Destroy dialog */
@@ -2785,7 +2828,7 @@ void kick_player(GtkButton *button, gpointer data)
 
 	/* Get name of user to kick */
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf,
-	                   10, &self, -1);
+	                   11, &self, -1);
 
 	/* Check for self selected */
 	if (self) return;

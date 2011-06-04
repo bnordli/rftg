@@ -832,6 +832,9 @@ typedef struct game
 	/* Disable takeovers in second (or later) expansion */
 	int takeover_disabled;
 
+	/* Enable drafting in second (or later) expansion (only online */
+	int drafting;
+
 	/* Size of deck in use */
 	int deck_size;
 

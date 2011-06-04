@@ -188,6 +188,7 @@ typedef struct session
 	int advanced;
 	int disable_goal;
 	int disable_takeover;
+	int drafting;
 
 	/* Game speed */
 	int speed;
@@ -361,13 +362,13 @@ static int db_new_game(int sid)
 	sprintf(query, "INSERT INTO games (description, pass, created, state, \
 	                                   minp, maxp, \
 	                                   exp, adv, dis_goal, dis_takeover, \
-	                                   speed, version) \
+	                                   drafting, speed, version) \
 	             VALUES ('%s', '%s', %d, 'WAITING', %d, %d, %d, %d, \
-	                     %d, %d, %d, '%s')",
+	                     %d, %d, %d, %d, '%s')",
 	        edesc, epass, s_ptr->created,
 	        s_ptr->min_player, s_ptr->max_player,
 	        s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-	        s_ptr->disable_takeover, s_ptr->speed, VERSION);
+	        s_ptr->disable_takeover, s_ptr->drafting, s_ptr->speed, VERSION);
 
 	/* Send query */
 	mysql_query(mysql, query);
@@ -415,7 +416,7 @@ static void db_load_sessions(void)
 	/* Run query */
 	mysql_query(mysql, "SELECT gid, description, pass, created, state, \
 	                           minp, maxp, exp, adv, dis_goal, \
-	                           dis_takeover, speed \
+	                           dis_takeover, drafting, speed \
 	                    FROM games \
 	                    WHERE state='WAITING' OR state='STARTED'");
 
@@ -453,7 +454,8 @@ static void db_load_sessions(void)
 		s_ptr->advanced = strtol(row[8], NULL, 0);
 		s_ptr->disable_goal = strtol(row[9], NULL, 0);
 		s_ptr->disable_takeover = strtol(row[10], NULL, 0);
-		s_ptr->speed = strtol(row[11], NULL, 0);
+		s_ptr->drafting = strtol(row[11], NULL, 0);
+		s_ptr->speed = strtol(row[12], NULL, 0);
 
 		/* Set last join time */
 		s_ptr->last_join = time(NULL);
@@ -1043,12 +1045,13 @@ static void send_session_one(int sid, int cid)
 	/* Get username of game creator */
 	db_user_name(s_ptr->created, name);
 
+	// TODO: Compatibility with older clients
 	/* Send message to client */
-	send_msgf(cid, MSG_OPENGAME, "dssddddddddd",
+	send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
 	          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
 	          s_ptr->min_player, s_ptr->max_player,
 	          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-	          s_ptr->disable_takeover, s_ptr->speed,
+	          s_ptr->disable_takeover, s_ptr->drafting, s_ptr->speed,
 	          c_list[cid].uid == s_ptr->created);
 
 	/* Loop over player spots */
@@ -1336,6 +1339,9 @@ static void update_meta(int sid)
 	put_integer(s_ptr->advanced, &ptr);
 	put_integer(s_ptr->disable_goal, &ptr);
 	put_integer(s_ptr->disable_takeover, &ptr);
+
+	/* TODO: Compatibility */
+	put_integer(s_ptr->drafting, &ptr);
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
@@ -2553,6 +2559,7 @@ static void start_session(int sid)
 	s_ptr->g.advanced = s_ptr->advanced;
 	s_ptr->g.goal_disabled = s_ptr->disable_goal;
 	s_ptr->g.takeover_disabled = s_ptr->disable_takeover;
+	s_ptr->g.drafting = s_ptr->drafting;
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = sid;
@@ -2925,6 +2932,8 @@ static void handle_create(int cid, char *ptr)
 	s_ptr->advanced = get_integer(&ptr);
 	s_ptr->disable_goal = get_integer(&ptr);
 	s_ptr->disable_takeover = get_integer(&ptr);
+	// TODO: Compatibility
+	s_ptr->drafting = get_integer(&ptr);
 
 	/* Read preferred game speed */
 	s_ptr->speed = get_integer(&ptr);
@@ -2955,6 +2964,7 @@ static void handle_create(int cid, char *ptr)
 	/* Validate disabled flags */
 	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
 	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
+	if (s_ptr->expanded < 1) s_ptr->drafting = 0;
 
 	/* Insert game into database */
 	s_list[sid].gid = db_new_game(sid);
