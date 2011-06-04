@@ -7527,14 +7527,7 @@ static int score_produce(power *o_ptr)
 	int score = 0;
 
 	/* List non-discard powers first */
-	if (!(o_ptr->code & P5_DISCARD)) score += 50;
-
-	/* List draw powers between non-discards and discards */
-	if (o_ptr->code & P5_DRAW_EACH_NOVELTY) score = 48;
-	if (o_ptr->code & P5_DRAW_EACH_RARE) score = 46;
-	if (o_ptr->code & P5_DRAW_EACH_GENE) score = 44;
-	if (o_ptr->code & P5_DRAW_EACH_ALIEN) score = 42;
-	if (o_ptr->code & P5_DRAW_DIFFERENT) return 40;
+	if (!(o_ptr->code & P5_DISCARD)) score += 10;
 
 	/* Score not this slightly above */
 	if (o_ptr->code & P5_NOT_THIS) score += 1;
@@ -7544,6 +7537,13 @@ static int score_produce(power *o_ptr)
 	if (o_ptr->code & P5_WINDFALL_RARE) score += 6;
 	if (o_ptr->code & P5_WINDFALL_GENE) score += 4;
 	if (o_ptr->code & P5_WINDFALL_ALIEN) score += 2;
+
+	/* List draw powers last */
+	if (o_ptr->code & P5_DRAW_EACH_NOVELTY) score = -2;
+	if (o_ptr->code & P5_DRAW_EACH_RARE) score = -4;
+	if (o_ptr->code & P5_DRAW_EACH_GENE) score = -6;
+	if (o_ptr->code & P5_DRAW_EACH_ALIEN) score = -8;
+	if (o_ptr->code & P5_DRAW_DIFFERENT) score = -10;
 
 	/* Return score */
 	return score;
