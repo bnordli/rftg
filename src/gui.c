@@ -1803,7 +1803,59 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 	if (event && event->button == 3 && !i_ptr->greedy)
 	{
 		i_ptr->selected = 0;
-		select_others = 1;
+		select_others = 0;
+
+		/* Check for hand */
+		if (i_ptr->hand)
+		{
+			/* Loop over other cards in hand */
+			for (i = 0; i < hand_size; i++)
+			{
+				/* Get displayed card pointer */
+				j_ptr = &hand[i];
+
+				/* Skip non-eligible cards */
+				if (!j_ptr->eligible) continue;
+
+				/* Skip current card */
+				if (i_ptr == j_ptr) continue;
+
+				/* Check for deselected card */
+				if (!j_ptr->selected)
+				{
+					/* Remember to select all others */
+					select_others = 1;
+					break;
+				}
+			}
+		}
+		else
+		{
+			/* Loop over all table areas */
+			for (i = 0; i < MAX_PLAYER; i++)
+			{
+				/* Loop over cards in table area */
+				for (j = 0; j < table_size[i]; j++)
+				{
+					/* Get displayed card pointer */
+					j_ptr = &table[i][j];
+
+					/* Skip non-eligible cards */
+					if (!j_ptr->eligible) continue;
+
+					/* Skip current card */
+					if (i_ptr == j_ptr) continue;
+
+					/* Check for deselected card */
+					if (!j_ptr->selected)
+					{
+						/* Remember to select all others */
+						select_others = 1;
+						break;
+					}
+				}
+			}
+		}
 	}
 	else
 	{
