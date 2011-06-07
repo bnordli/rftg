@@ -2283,8 +2283,8 @@ void redraw_hand(void)
 			}
 		}
 
-		/* Add tooltip if enabled and available */
-		if (opt.vp_in_hand && i_ptr->tooltip)
+		/* Add tooltip if available */
+		if (i_ptr->tooltip)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
@@ -4620,8 +4620,12 @@ static void reset_hand(game *g, int color)
 		/* Set color flag */
 		i_ptr->color = color;
 
-		/* Get tooltip */
-		i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
+		/* Check for vp in hand enabled */
+		if (opt.vp_in_hand)
+		{
+			/* Get tool tip */
+			i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
+		}
 	}
 }
 
@@ -10913,7 +10917,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		    !(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose_log != old_options.verbose_log ||
-		     opt.discard_log != old_options.discard_log))
+		     opt.discard_log != old_options.discard_log ||
+		     opt.vp_in_hand != old_options.vp_in_hand))
 		{
 			/* Force current game over */
 			real_game.game_over = 1;
