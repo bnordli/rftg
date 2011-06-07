@@ -2796,8 +2796,9 @@ void phase_develop(game *g)
 
 /*
  * Return player's military strength against the given world.
+ * Includes cost of world if defending.
  */
-static int strength_against(game *g, int who, int world, int defend)
+int strength_against(game *g, int who, int world, int attack, int defend)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -2862,6 +2863,39 @@ static int strength_against(game *g, int who, int world, int defend)
 			military += count_active_flags(g, who,
 			                          (FLAG_REBEL | FLAG_MILITARY));
 		}
+	}
+
+	/* Check for attack used */
+	if (attack >= 0)
+	{
+		/* Get attack card */
+		c_ptr = &g->deck[attack];
+
+		/* Loop over powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
+		{
+			/* Get power */
+			o_ptr = &c_ptr->d_ptr->powers[i];
+
+			/* Skip non-Settle powers */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for "takeover imperium" power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
+			{
+				/* Add bonus military */
+				military += o_ptr->value *
+				         count_active_flags(g, who, FLAG_REBEL | 
+				                                    FLAG_MILITARY);
+			}
+		}
+	}
+
+	/* Check for defense */
+	if (defend)
+	{
+		/* Add cost of world */
+		military += c_ptr->d_ptr->cost;
 	}
 
 	/* Add in bonus temporary military strength */
@@ -3116,8 +3150,8 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only)
 	/* Apply bonus military from takeover power, if any */
 	if (takeover) military += mil_bonus;
 
-	/* Add owner's military strength to defense on takeovers */
-	if (takeover) defense += strength_against(g, c_ptr->owner, world, 1);
+	/* Compute owner's military strength for defense on takeovers */
+	if (takeover) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Check for military world and sufficient strength */
 	if (conquer && military + hand_military >= defense) return 1;
@@ -5292,8 +5326,8 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 /*
  * Resolve a takeover.
  */
-static int resolve_takeover(game *g, int who, int world, int special,
-                            int defeated)
+int resolve_takeover(game *g, int who, int world, int special,
+                     int defeated)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -5303,7 +5337,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	int prestige = 0;
 	char prestige_reason[1024];
 	char msg[1024];
-	int bonus = 0, attack;
+	int attack;
 	int i;
 
 	/* Get player pointer */
@@ -5327,12 +5361,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		/* Check for "takeover imperium" power */
 		if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
 		{
-			/* Add bonus military to attacker */
-			bonus += o_ptr->value *
-			         count_active_flags(g, who, FLAG_REBEL |
-			                                    FLAG_MILITARY);
-
-			/* Done looking */
+			/* Found takeover power */
 			break;
 		}
 
@@ -5389,13 +5418,10 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Compute current owner's defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, 1);
-
-	/* Add world's defense */
-	defense += c_ptr->d_ptr->cost;
+	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Compute total attack strength */
-	if (!defeated) attack = bonus + strength_against(g, who, world, 0);
+	if (!defeated) attack = strength_against(g, who, world, special, 0);
 
 	/* Message */
 	if (!g->simulation && !defeated)
@@ -5421,10 +5447,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Recompute defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, 1);
-
-	/* Add world's defense */
-	defense += c_ptr->d_ptr->cost;
+	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Check for non-military target */
 	if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))

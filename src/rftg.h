@@ -943,6 +943,7 @@ extern void phase_explore(game *g);
 extern void place_card(game *g, int who, int which);
 extern void develop_action(game *g, int who, int placing);
 extern void phase_develop(game *g);
+extern int strength_against(game *g, int who, int world, int attack, int defend);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
                             int special[], int num_special, int mil_only);
 extern int settle_legal(game *g, int who, int which, int mil_bonus,
@@ -953,6 +954,8 @@ extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
+extern int resolve_takeover(game *g, int who, int world, int special,
+                            int defeated);
 extern void resolve_takeovers(game *g);
 extern void phase_settle(game *g);
 extern int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus);

@@ -3511,17 +3511,37 @@ static char *card_table_tooltip(game *g, int who, int which)
 }
 
 /*
+ * Information about a pending takeover.
+ */
+typedef struct takeover_info
+{
+	/* The card to be used when attacking */
+	int card;
+
+	/* The current attack strength */
+	int attack;
+
+	/* The VP diff (including goals) */
+	int vp_diff[2];
+
+} takeover_info;
+
+/*
  * Create a tooltip for a card displayed on a table
  * which is eligible for takeover.
  */
 static char *card_takeover_tooltip(game *g, int defender, int attacker,
                                    displayed *i_ptr)
 {
-	char text[1024];
+	char text[1024], *p;
 	card *c_ptr;
+	design *d_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int n, i, which, old_vp[2], vp_diff[2];
+	displayed *j_ptr;
+	takeover_info takeovers[10], *t_ptr;
+	int num_takeovers = 0;
+	int n, i, j, k, which, defense, old_vp[2];
 	game sim;
 
 	/* Get card index */
@@ -3529,6 +3549,9 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
+
+	/* Compute defense */
+	defense = strength_against(g, defender, which, -1, 1);
 
 	/* Copy game */
 	memcpy(&sim, g, sizeof(game));
@@ -3539,6 +3562,9 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	/* Simulate end of phase (for cards already placed) */
 	clear_temp(&sim);
 
+	/* Apply goals */
+	check_goals(&sim);
+
 	/* Score game for players */
 	score_game(&sim);
 
@@ -3546,71 +3572,148 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	old_vp[0] = sim.p[defender].end_vp;
 	old_vp[1] = sim.p[attacker].end_vp;
 
-	/* Move card in the simulated game */
-	move_card(&sim, which, attacker, WHERE_ACTIVE);
-
-	/* Get settle phase powers */
-	n = get_powers(g, attacker, PHASE_SETTLE, w_list);
-
-	/* Loop over pre-existing powers */
-	for (i = 0; i < n; i++)
+	/* Loop over table cards for the attacker */
+	for (i = 0; i < table_size[attacker]; i++)
 	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
+		/* Get displayed card pointer */
+		j_ptr = &table[attacker][i];
 
-		/* Check for prestige after rebel power */
-		if (o_ptr->code & P3_PRESTIGE_REBEL)
+		/* Skip non-eligible cards */
+		if (!j_ptr->eligible) continue;
+
+		/* Get next takeover struct */
+		t_ptr = takeovers + num_takeovers;
+		num_takeovers += 1;
+
+		/* Store card */
+		t_ptr->card = j_ptr->index;
+
+		/* Compute attack strength */
+		t_ptr->attack = strength_against(g, attacker, which, j_ptr->index, 0);
+
+		/* Copy game */
+		memcpy(&sim, g, sizeof(game));
+
+		/* Set simulated game */
+		sim.simulation = 1;
+
+		/* Assume the takeover always succeeds */
+		sim.p[attacker].bonus_military = 100;
+
+		/* Simulate usage of the takeover callback */
+		takeover_callback(&sim, t_ptr->card, which);
+
+		/* Check for non-military target */
+		if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
 		{
-			/* Check for rebel military world placed */
-			if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
-			    (c_ptr->d_ptr->flags & FLAG_MILITARY))
+			/* Loop over cards in table */
+			for (j = 0; j < table_size[attacker]; ++j)
 			{
-				/* Reward prestige */
-				sim.p[attacker].prestige += o_ptr->value;
+				/* Get card */
+				d_ptr = g->deck[table[attacker][j].index].d_ptr;
+
+				/* Loop over powers */
+				for (k = 0; k < d_ptr->num_power; ++k)
+				{
+					/* Check for "conquer peaceful" power */
+					if (d_ptr->powers[k].code & P3_CONQUER_SETTLE &&
+					    !(d_ptr->powers[k].code & P3_NO_TAKEOVER))
+					{
+						/* XXX Discard card */
+						move_card(&sim, table[attacker][j].index,
+						          -1, WHERE_DISCARD);
+						break;
+					}
+				}
 			}
 		}
 
-		/* Check for prestige after production world */
-		if (o_ptr->code & P3_PRODUCE_PRESTIGE)
-		{
-			/* Check for production world */
-			if (c_ptr->d_ptr->good_type > 0 &&
-			    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
-			{
-				/* Reward prestige */
-				sim.p[attacker].prestige += o_ptr->value;
-			}
-		}
+		/* Simulate the takeover resolution */
+		resolve_takeover(&sim, attacker, which, t_ptr->card, 0);
+
+		/* Simulate end of phase (for self-scoring cards) */
+		clear_temp(&sim);
+
+		/* Apply goals */
+		check_goals(&sim);
+
+		/* Score game for players */
+		score_game(&sim);
+
+		/* Compute score differences */
+		t_ptr->vp_diff[0] = sim.p[defender].end_vp - old_vp[0];
+		t_ptr->vp_diff[1] = sim.p[attacker].end_vp - old_vp[1];
 	}
 
-	/* Simulate end of phase (for self-scoring cards) */
-	clear_temp(&sim);
-
-	/* Score game for players */
-	score_game(&sim);
-
-	/* Compute score differences */
-	vp_diff[0] = sim.p[defender].end_vp - old_vp[0];
-	vp_diff[1] = sim.p[attacker].end_vp - old_vp[1];
+	/* Set text pointer */
+	p = text;
 
 	/* Check for old tool tip */
 	if (i_ptr->tooltip)
 	{
-		/* Format tool tip */
-		sprintf(text, "%s\n%s: %d VP%s\n%s: %d VP%s", i_ptr->tooltip,
-		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
-		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+		/* Keep previous tool tip */
+		strcpy(p, i_ptr->tooltip);
+
+		/* Advance text pointer */
+		p += strlen(p);
+
+		/* Add newline */
+		p += sprintf(p, "\n");
 
 		/* Free old tool tip */
 		free(i_ptr->tooltip);
 	}
+
+	/* Add defense */
+	p += sprintf(p, "Current defense: %d\n", defense);
+
+	/* Check for only one power */
+	if (num_takeovers == 1)
+	{
+		/* Get takeover struct */
+		t_ptr = &takeovers[0];
+
+		/* Add attack strength */
+		p += sprintf(p, "Current attack: %d\n", t_ptr->attack);
+
+		/* Add defender vp diff */
+		p += sprintf(p, "%s: %d VP%s\n",
+		             g->p[defender].name,
+		             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
+
+		/* Add attacker vp diff */
+		p += sprintf(p, "%s: %d VP%s\n",
+		             g->p[attacker].name,
+		             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+	}
 	else
 	{
-		/* Format tool tip */
-		sprintf(text, "%s: %d VP%s\n%s: %d VP%s",
-		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
-		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+		/* Loop over all takeovers powers */
+		for (i = 0; i < num_takeovers; ++i)
+		{
+			/* Get takeover struct */
+			t_ptr = &takeovers[i];
+
+			/* Add name of card */
+			p += sprintf(p, "Using %s:\n", g->deck[t_ptr->card].d_ptr->name);
+
+			/* Add attack strength */
+			p += sprintf(p, "  Current attack: %d\n", t_ptr->attack);
+
+			/* Add defender vp diff */
+			p += sprintf(p, "  %s: %d VP%s\n",
+			             g->p[defender].name,
+			             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
+
+			/* Add attacker vp diff */
+			p += sprintf(p, "  %s: %d VP%s\n",
+			             g->p[attacker].name,
+			             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+		}
 	}
+
+	/* Trim the last newline */
+	text[strlen(text) - 1] = '\0';
 
 	/* Return the text */
 	return strdup(text);
@@ -6047,34 +6150,6 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 	/* Activate action button */
 	gtk_widget_set_sensitive(action_button, TRUE);
 
-	/* Loop over cards in list */
-	for (i = 0; i < *num; i++)
-	{
-		/* Loop over opponents */
-		for (j = 0; j < g->num_players; j++)
-		{
-			/* Skip our own cards */
-			if (j == player_us) continue;
-
-			/* Loop over opponent's table cards */
-			for (k = 0; k < table_size[j]; k++)
-			{
-				/* Get displayed card's pointer */
-				i_ptr = &table[j][k];
-
-				/* Check for matching index */
-				if (i_ptr->index == list[i])
-				{
-					/* Card is eligible */
-					i_ptr->eligible = 1;
-					i_ptr->highlight = HIGH_YELLOW;
-					i_ptr->tooltip = card_takeover_tooltip(g, j, player_us,
-					                                       i_ptr);
-				}
-			}
-		}
-	}
-
 	/* Loop over special cards */
 	for (i = 0; i < *num_special; i++)
 	{
@@ -6114,6 +6189,34 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = high_color;
+			}
+		}
+	}
+
+	/* Loop over cards in list */
+	for (i = 0; i < *num; i++)
+	{
+		/* Loop over opponents */
+		for (j = 0; j < g->num_players; j++)
+		{
+			/* Skip our own cards */
+			if (j == player_us) continue;
+
+			/* Loop over opponent's table cards */
+			for (k = 0; k < table_size[j]; k++)
+			{
+				/* Get displayed card's pointer */
+				i_ptr = &table[j][k];
+
+				/* Check for matching index */
+				if (i_ptr->index == list[i])
+				{
+					/* Card is eligible */
+					i_ptr->eligible = 1;
+					i_ptr->highlight = HIGH_YELLOW;
+					i_ptr->tooltip = card_takeover_tooltip(g, j, player_us,
+					                                       i_ptr);
+				}
 			}
 		}
 	}
