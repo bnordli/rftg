@@ -941,6 +941,9 @@ extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);
 extern void phase_explore(game *g);
 extern void place_card(game *g, int who, int which);
+extern int devel_cost(game *g, int who, int which);
+extern int devel_callback(game *g, int who, int which, int list[], int num,
+                          int special[], int num_special);
 extern void develop_action(game *g, int who, int placing);
 extern void phase_develop(game *g);
 extern int strength_against(game *g, int who, int world, int attack, int defend);

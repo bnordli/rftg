@@ -3511,6 +3511,43 @@ static char *card_table_tooltip(game *g, int who, int which)
 }
 
 /*
+ * Create a tooltip for a development that can be placed.
+ */
+static char *card_develop_tooltip(game *g, int who, displayed *i_ptr)
+{
+	char text[1024], *p;
+	int cost;
+
+	/* Set text pointer */
+	p = text;
+
+	/* Check for old tool tip */
+	if (i_ptr->tooltip)
+	{
+		/* Keep previous tool tip */
+		strcpy(p, i_ptr->tooltip);
+
+		/* Advance text pointer */
+		p += strlen(p);
+
+		/* Add newline */
+		p += sprintf(p, "\n");
+
+		/* Free old tool tip */
+		free(i_ptr->tooltip);
+	}
+
+	/* Compute cost */
+	cost = devel_cost(g, who, i_ptr->index);
+
+ 	/* Add cost */
+	p += sprintf(p, "Cost to place: %d", cost);
+
+	/* Return the text */
+	return strdup(text);
+}
+
+/*
  * Information about a pending takeover.
  */
 typedef struct takeover_info
@@ -5949,6 +5986,13 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = HIGH_YELLOW;
+
+				/* Check for develop phase */
+				if (phase == PHASE_DEVELOP)
+				{
+					/* Set tool tip */
+					i_ptr->tooltip = card_develop_tooltip(g, player_us, i_ptr);
+				}
 			}
 		}
 	}

@@ -2040,6 +2040,49 @@ void place_card(game *g, int who, int which)
 }
 
 /*
+ * Computes the current cost for a development.
+ * Assumes the current phase of the game is develop.
+ */
+int devel_cost(game *g, int who, int which)
+{
+	card *c_ptr;
+	power_where w_list[100];
+	power *o_ptr;
+	int i, n, cost;
+
+	/* Get pointer to card being played */
+	c_ptr = &g->deck[which];
+
+	/* Start with card cost */
+	cost = c_ptr->d_ptr->cost;
+
+	/* Check for develop action chosen */
+	if (player_chose(g, who, g->cur_action)) cost -= 1;
+
+	/* Check for prestige develop */
+	if (player_chose(g, who, ACT_PRESTIGE | g->cur_action)) cost -= 2;
+
+	/* Get list of develop powers */
+	n = get_powers(g, who, PHASE_DEVELOP, w_list);
+
+	/* Loop over develop powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for reduce power */
+		if (o_ptr->code & P2_REDUCE) cost -= o_ptr->value;
+	}
+
+	/* Cost cannot be less than zero */
+	if (cost < 0) cost = 0;
+
+	/* Return the computed cost */
+	return cost;
+}
+
+/*
  * Called when a player has chosen how to pay for a development.
  *
  * We return 0 if the payment would not succeed.
@@ -2053,37 +2096,15 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 	power *o_ptr;
 	int i, j, n;
 	int g_list[MAX_DECK], num_goods = 0;
-	int cost, reduce = 0, consume = 0;
+	int cost, consume = 0;
 	int consume_special[2], num_consume_special;
 	char msg[1024];
 
+	/* Get cost */
+	cost = devel_cost(g, who, which);
+
 	/* Get player pointer */
 	p_ptr = &g->p[who];
-
-	/* Get pointer to card being played */
-	c_ptr = &g->deck[which];
-
-	/* Get card cost */
-	cost = c_ptr->d_ptr->cost;
-
-	/* Get list of develop powers */
-	n = get_powers(g, who, PHASE_DEVELOP, w_list);
-
-	/* Check for develop action chosen */
-	if (player_chose(g, who, g->cur_action)) reduce += 1;
-
-	/* Check for prestige develop */
-	if (player_chose(g, who, ACT_PRESTIGE | g->cur_action)) reduce += 2;
-
-	/* Loop over develop powers */
-	for (i = 0; i < n; i++)
-	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
-
-		/* Check for reduce power */
-		if (o_ptr->code & P2_REDUCE) reduce += o_ptr->value;
-	}
 
 	/* Loop over special cards used */
 	for (i = 0; i < num_special; i++)
@@ -2121,8 +2142,8 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				/* Check goal losses */
 				check_goal_loss(g, who, GOAL_MOST_CONSUME);
 
-				/* Reduce cost */
-				reduce += o_ptr->value;
+				/* Reduce cost by value */
+				cost -= o_ptr->value;
 			}
 
 			/* Check for consume good to reduce cost */
@@ -2132,7 +2153,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				consume = 1;
 
 				/* Reduce cost by value */
-				reduce += o_ptr->value;
+				cost -= o_ptr->value;
 
 				/* Track location of consume power */
 				consume_special[0] = special[i];
@@ -2155,9 +2176,6 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 
 	/* Get pointer to card being played */
 	c_ptr = &g->deck[p_ptr->placing];
-
-	/* Reduce cost */
-	cost -= reduce;
 
 	/* Do not reduce below zero */
 	if (cost < 0) cost = 0;
@@ -2228,6 +2246,9 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 		/* Move to discard */
 		move_card(g, list[i], -1, WHERE_DISCARD);
 	}
+
+	/* Get list of develop powers */
+	n = get_powers(g, who, PHASE_DEVELOP, w_list);
 
 	/* Loop over develop powers */
 	for (i = 0; i < n; i++)
