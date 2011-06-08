@@ -10622,36 +10622,6 @@ int game_round(game *g)
 }
 
 /*
- * Return non-specific discount
- */
-int total_discount(game *g, int who)
-{
-	power_where w_list[100];
-	power *o_ptr;
-	int i, n, amt = 0;
-
-	/* Get list of settle powers */
-	n = get_powers(g, who, PHASE_SETTLE, w_list);
-
-	/* Loop over powers */
-	for (i = 0; i < n; i++)
-	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
-
-		/* Check for generic discount */
-		if (o_ptr->code == P3_REDUCE)
-		{
-			/* Add to discount */
-			amt += o_ptr->value;
-		}
-	}
-
-	/* Return discount */
-	return amt;
-}
-
-/*
  * Return non-specific military strength.
  */
 int total_military(game *g, int who)

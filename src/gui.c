@@ -216,6 +216,73 @@ static int hand_size;
 static displayed table[MAX_PLAYER][MAX_DECK];
 static int table_size[MAX_PLAYER];
 
+typedef struct discounts {
+	/* The base discount */
+	int base;
+
+	/* Additional specific discount */
+	int specific[6];
+
+	/* May discard to place at zero count */
+	int zero;
+
+	/* Additional discount when paying for military */
+	int pay_discount;
+
+	/* May pay for military with 0 discount (Rebel Cantina) */
+	int non_alien_mil_0;
+
+	/* May pay for military with 1 discount (Contact Specialist) */
+	int non_alien_mil_1;
+
+	/* May pay for rebel worlds with 2 discount (Rebel Alliance) */
+	int rebel_mil_2;
+
+	/* May pay for chromosome worlds (Ravaged Uplift World) */
+	int chromo_mil;
+
+	/* May pay for alien worlds (Alien Research Team) */
+	int alien_mil;
+
+	/* Any value is set */
+	int has_data;
+
+} discounts;
+
+typedef struct mil_strength
+{
+	/* Base military */
+	int base;
+
+	/* Current temporary military */
+	int bonus;
+
+	/* Additional military against rebel worlds */
+	int rebel;
+
+	/* Additional specific military */
+	int specific[6];
+
+	/* Additional extra defense during takeovers */
+	int defense;
+
+	/* Additional military when using attack imperium TO power */
+	int attack_imperium;
+
+	/* Name of attack imperium TO power */
+	char imp_card[64];
+
+	/* Imperium world played */
+	int imperium;
+
+	/* Rebel military world played */
+	int military_rebel;
+
+	/* Any value is set */
+	int has_data;
+
+} mil_strength;
+
 /*
  * Cached status information to be displayed per player.
  */
@@ -240,10 +307,10 @@ typedef struct status_display
 	int prestige;
 
 	/* Settle discount */
-	int discount;
+	discounts discount;
 
 	/* Military strength */
-	int military;
+	mil_strength military;
 
 	/* Text of VP tooltip */
 	char vp_tip[1024];
@@ -2806,237 +2873,81 @@ static char *get_vp_tooltip(game *g, int who)
 	return msg + 1;
 }
 
-typedef struct discounts {
-	/* The base discount */
-	int base;
-
-	/* Additional Novelty discount */
-	int blue;
-
-	/* Additional Rare discount */
-	int brown;
-
-	/* Additional Genes discount */
-	int green;
-
-	/* Additional Alien discount */
-	int yellow;
-
-	/* May discard to place at zero count */
-	int zero;
-
-	/* Additional discount when paying for military */
-	int pay_discount;
-
-	/* May pay for military with 0 discount (Rebel Cantina) */
-	int non_alien_mil_0;
-
-	/* May pay for military with 1 discount (Contact Specialist) */
-	int non_alien_mil_1;
-
-	/* May pay for rebel worlds with 2 discount (Rebel Alliance) */
-	int rebel_mil_2;
-
-	/* May pay for chromosome worlds (Ravaged Uplift World) */
-	int chromo_mil;
-
-	/* May pay for alien worlds (Alien Research Team) */
-	int alien_mil;
-
-} discounts;
-
-/*
- * Compute settle discounts for a player.
- */
-static void compute_discounts(game *g, int who, discounts *d_ptr)
-{
-	player *p_ptr = &g->p[who];
-	card *c_ptr;
-	power *o_ptr;
-	int x, i;
-
-	/* Start discounts at 0 */
-	d_ptr->base = d_ptr->blue = d_ptr->brown = d_ptr->green = d_ptr->yellow =
-		d_ptr->zero = d_ptr->pay_discount = 0;
-
-	/* Start flags at FALSE */
-	d_ptr->non_alien_mil_0 = d_ptr->non_alien_mil_1 = FALSE;
-	d_ptr->rebel_mil_2 = d_ptr->chromo_mil = d_ptr->alien_mil = FALSE;
-
-	/* Start at first active card */
-	x = p_ptr->head[WHERE_ACTIVE];
-
-	/* Loop over active cards */
-	for ( ; x != -1; x = g->deck[x].next)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[x];
-
-		/* Loop over card's powers */
-		for (i = 0; i < c_ptr->d_ptr->num_power; i++)
-		{
-			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[i];
-
-			/* Skip incorrect phase */
-			if (o_ptr->phase != PHASE_SETTLE) continue;
-
-			/* Check discard for 0 */
-			if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
-				d_ptr->zero += 1;
-
-			/* Check for reduce power */
-			if (o_ptr->code & P3_REDUCE)
-			{
-				/* Check for general discount */
-				if (o_ptr->code == P3_REDUCE)
-					d_ptr->base += o_ptr->value;
-
-				/* Check for discount against Novelty worlds */
-				if (o_ptr->code & P3_NOVELTY)
-					d_ptr->blue += o_ptr->value;
-
-				/* Check for discount against Rare worlds */
-				if (o_ptr->code & P3_RARE)
-					d_ptr->brown += o_ptr->value;
-
-				/* Check for discount against Genes worlds */
-				if (o_ptr->code & P3_GENE)
-					d_ptr->green += o_ptr->value;
-
-				/* Check for discount against Alien worlds */
-				if (o_ptr->code & P3_ALIEN)
-					d_ptr->yellow += o_ptr->value;
-			}
-
-			/* Check for pay-for-military powers */
-			if (o_ptr->code & P3_PAY_MILITARY)
-			{
-				/* Check for non-alien power without discount */
-				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 0)
-					d_ptr->non_alien_mil_0 = TRUE;
-
-				/* Check for non-alien power with discount */
-				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 1)
-					d_ptr->non_alien_mil_1 = TRUE;
-
-				/* Check for rebel flag */
-				if (o_ptr->code & P3_AGAINST_REBEL)
-					d_ptr->rebel_mil_2 = TRUE;
-
-				/* Check for chromo flag */
-				if (o_ptr->code & P3_AGAINST_CHROMO)
-					d_ptr->chromo_mil = TRUE;
-
-				/* Check for alien flag */
-				if (o_ptr->code & P3_ALIEN)
-					d_ptr->alien_mil = TRUE;
-			}
-
-			/* Check for pay-for-military discount */
-			if (o_ptr->code & P3_PAY_DISCOUNT)
-				d_ptr->pay_discount += o_ptr->value;
-		}
-	}
-}
-
 /*
  * Create a tooltip for a discount icon.
  */
-static char *get_discount_tooltip(game *g, int who)
+static char *get_discount_tooltip(discounts *discount)
 {
 	static char msg[1024];
 	char text[1024];
-	discounts discount;
-
-	/* Compute discounts */
-	compute_discounts(g, who, &discount);
+	int i;
 
 	/* Clear text */
 	strcpy(msg, "");
 
+	/* Compute discounts */
+	if (!discount->has_data)
+	{
+		/* Return empty message */
+		return msg;
+	}
+
 	/* Add general discount */
-	if (discount.base || discount.blue || discount.brown || discount.green ||
-	    discount.yellow || discount.zero || discount.non_alien_mil_0 ||
-	    discount.non_alien_mil_1 || discount.rebel_mil_2 ||
-	    discount.chromo_mil || discount.alien_mil)
-	{
-		/* Create text */
-		sprintf(text, "Base discount: -%d", discount.base);
-		strcat(msg, text);
-	}
+	sprintf(text, "Base discount: -%d", discount->base);
+	strcat(msg, text);
 
-	/* Add Novelty discount */
-	if (discount.blue)
+	/* Add specific discounts */
+	for (i = GOOD_NOVELTY; i <= GOOD_ALIEN; ++i)
 	{
-		/* Create text */
-		sprintf(text, "\nAdditional Novelty discount: %d", -discount.blue);
-		strcat(msg, text);
-	}
-
-	/* Add Rare discount */
-	if (discount.brown)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Rare discount: %d", -discount.brown);
-		strcat(msg, text);
-	}
-
-	/* Add Genes discount */
-	if (discount.green)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Genes discount: %d", -discount.green);
-		strcat(msg, text);
-	}
-
-	/* Add Alien discount */
-	if (discount.yellow)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Alien discount: %d", -discount.yellow);
-		strcat(msg, text);
+		/* Check for discount */
+		if (discount->specific[i])
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional %s discount: %d",
+			        good_printable[i], -discount->specific[i]);
+			strcat(msg, text);
+		}
 	}
 
 	/* Add pay for non-alien military with discount */
-	if (discount.non_alien_mil_1 ||
-	    (discount.non_alien_mil_0 && discount.pay_discount))
+	if (discount->non_alien_mil_1 ||
+	    (discount->non_alien_mil_0 && discount->pay_discount))
 	{
 		/* Create text */
 		sprintf(text, "\nAdditional discount when paying\n"
 		        "  for non-Alien military worlds: -%d",
-		        (discount.non_alien_mil_1 ? 1 : 0) + discount.pay_discount);
+		        (discount->non_alien_mil_1 ? 1 : 0) + discount->pay_discount);
 		strcat(msg, text);
 	}
 
 	/* Add pay for rebel military with discount */
-	if (discount.rebel_mil_2)
+	if (discount->rebel_mil_2)
 	{
 		/* Create text */
 		sprintf(text, "\nAdditional discount when paying\n"
-		        "  for Rebel military worlds: -%d", 2 + discount.pay_discount);
+		        "  for Rebel military worlds: -%d", 2 + discount->pay_discount);
 		strcat(msg, text);
 	}
 
 	/* Check for discount when paying for military */
-	if (discount.pay_discount)
+	if (discount->pay_discount)
 	{
 		/* Add pay for chromo military with discount */
-		if (discount.chromo_mil)
+		if (discount->chromo_mil)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying\n"
 			        "  for worlds with a Chromosome symbol: -%d",
-			        discount.pay_discount);
+			        discount->pay_discount);
 			strcat(msg, text);
 		}
 
 		/* Add pay for alien military with discount */
-		if (discount.alien_mil)
+		if (discount->alien_mil)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying\n"
-			        "  for Alien military worlds: -%d", discount.pay_discount);
+			        "  for Alien military worlds: -%d", discount->pay_discount);
 			strcat(msg, text);
 		}
 	}
@@ -3045,14 +2956,14 @@ static char *get_discount_tooltip(game *g, int who)
 	else
 	{
 		/* Add pay for non-alien military without discount */
-		if (discount.non_alien_mil_0 && !discount.non_alien_mil_1)
+		if (discount->non_alien_mil_0 && !discount->non_alien_mil_1)
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle a non-Alien military world");
 		}
 
 		/* Add pay for chromo military without discount */
-		if (discount.chromo_mil)
+		if (discount->chromo_mil)
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle a military world\n"
@@ -3060,7 +2971,7 @@ static char *get_discount_tooltip(game *g, int who)
 		}
 
 		/* Add pay for alien military without discount */
-		if (discount.alien_mil)
+		if (discount->alien_mil)
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle an Alien military world");
@@ -3068,7 +2979,7 @@ static char *get_discount_tooltip(game *g, int who)
 	}
 
 	/* Add discard to zero */
-	if (discount.zero)
+	if (discount->zero)
 	{
 		/* Create text */
 		strcat(msg, "\nMay discard to place at 0 cost");
@@ -3078,254 +2989,85 @@ static char *get_discount_tooltip(game *g, int who)
 	return msg;
 }
 
-typedef struct mil_strength
-{
-	/* Base military */
-	int base;
-
-	/* Current temporary military */
-	int bonus;
-
-	/* Additional military against rebel worlds */
-	int rebel;
-
-	/* Additional military against Novelty worlds */
-	int blue;
-
-	/* Additional military against Rare worlds */
-	int brown;
-
-	/* Additional military against Genes worlds */
-	int green;
-
-	/* Additional military against Alien worlds */
-	int yellow;
-
-	/* Additional extra defense during takeovers */
-	int defense;
-
-	/* Additional military when using attack imperium TO power */
-	int attack_imperium;
-
-	/* Imperium world played */
-	int imperium;
-
-	/* Rebel military world played */
-	int military_rebel;
-
-} mil_strength;
-
-/*
- * Compute military strength for a player.
- */
-static void compute_military(game *g, int who, mil_strength *m_ptr,
-                             char *imp_name)
-{
-	card *c_ptr;
-	power *o_ptr;
-	int i, j;
-
-	/* Begin with base military strength */
-	m_ptr->base = total_military(g, who);
-
-	/* Start strengths at 0 */
-	m_ptr->rebel = m_ptr->blue = m_ptr->brown = m_ptr->green = m_ptr->yellow =
-		m_ptr->defense = m_ptr->attack_imperium = 0;
-
-	/* Clear card name */
-	strcpy(imp_name, "");
-
-	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip cards not belonging to current player */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->start_where != WHERE_ACTIVE) continue;
-
-		/* Loop over card's powers */
-		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
-		{
-			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[j];
-
-			/* Skip incorrect phase */
-			if (o_ptr->phase != PHASE_SETTLE) continue;
-
-			/* Check for defense power */
-			if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
-			{
-				/* Add defense for military worlds */
-				m_ptr->defense +=
-				    count_active_flags(g, who, FLAG_MILITARY);
-
-				/* Add extra defense for Rebel military worlds */
-				m_ptr->defense +=
-				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
-			}
-
-			/* Check for takeover imperium power */
-			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
-			{
-				/* Set imperium attack */
-				m_ptr->attack_imperium =
-				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
-
-				/* Check if card name already set */
-				if (strlen(imp_name))
-				{
-					/* XXX Use name of both cards */
-					strcpy(imp_name, "Rebel Alliance/Rebel Sneak Attack");
-				}
-				else
-				{
-					/* Remember name of card */
-					strcpy(imp_name, c_ptr->d_ptr->name);
-				}
-			}
-
-			/* Skip non-military powers */
-			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
-
-			/* Check for strength against rebels */
-			if (o_ptr->code & P3_AGAINST_REBEL)
-				m_ptr->rebel += o_ptr->value;
-
-			/* Check for strength against Novelty worlds */
-			if (o_ptr->code & P3_NOVELTY)
-				m_ptr->blue += o_ptr->value;
-
-			/* Check for strength against Rare worlds */
-			if (o_ptr->code & P3_RARE)
-				m_ptr->brown += o_ptr->value;
-
-			/* Check for strength against Genes worlds */
-			if (o_ptr->code & P3_GENE)
-				m_ptr->green += o_ptr->value;
-
-			/* Check for strength against Alien worlds */
-			if (o_ptr->code & P3_ALIEN)
-				m_ptr->yellow += o_ptr->value;
-		}
-	}
-
-	/* Check for takeovers enabled and imperium card played */
-	m_ptr->imperium = takeovers_enabled(g) &&
-		count_active_flags(g, who, FLAG_IMPERIUM);
-
-	/* Check for takeovers enabled and rebel military world played */
-	m_ptr->military_rebel = takeovers_enabled(g) &&
-		count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
-
-	/* Set bonus military */
-	m_ptr->bonus = g->p[who].bonus_military;
-}
-
 /*
  * Create a tooltip for a military strength icon.
  */
-static char *get_military_tooltip(game *g, int who)
+static char *get_military_tooltip(mil_strength *military)
 {
 	static char msg[1024];
 	char text[1024];
-	char card_name[1024];
-	mil_strength military; 
-
-	/* Compute current military */
-	compute_military(g, who, &military, card_name);
+	int i;
 
 	/* Clear text */
 	strcpy(msg, "");
 
-	/* Check for any modifiers */
-	if (military.base || military.bonus || military.rebel || military.blue ||
-	    military.brown || military.green || military.yellow || military.defense ||
-	    military.attack_imperium || military.imperium || military.military_rebel)
+	/* Check for values */
+	if (!military->has_data)
 	{
-		/* Create text */
-		sprintf(text, "Base strength: %+d", military.base);
-		strcat(msg, text);
+		/* Return empty message */
+		return msg;
 	}
 
+	/* Add base strength */
+	sprintf(text, "Base strength: %+d", military->base);
+	strcat(msg, text);
+
 	/* Add temporary military */
-	if (military.bonus)
+	if (military->bonus)
 	{
 		/* Create text */
 		sprintf(text, "\nActivated temporary military: %+d",
-		        military.bonus);
+		        military->bonus);
 		strcat(msg, text);
 	}
 
 	/* Add rebel strength */
-	if (military.rebel)
+	if (military->rebel)
 	{
 		/* Create rebel text */
-		sprintf(text, "\nAdditional Rebel strength: %+d", military.rebel);
+		sprintf(text, "\nAdditional Rebel strength: %+d", military->rebel);
 		strcat(msg, text);
 	}
 
-	/* Add Novelty strength */
-	if (military.blue)
+	/* Add specific strength */
+	for (i = GOOD_NOVELTY; i <= GOOD_ALIEN; ++i)
 	{
-		/* Create text */
-		sprintf(text, "\nAdditional Novelty strength: %+d", military.blue);
-		strcat(msg, text);
-	}
-
-	/* Add Rare strength */
-	if (military.brown)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Rare strength: %+d", military.brown);
-		strcat(msg, text);
-	}
-
-	/* Add Genes strength */
-	if (military.green)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Genes strength: %+d", military.green);
-		strcat(msg, text);
-	}
-
-	/* Add Alien strength */
-	if (military.yellow)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Alien strength: %+d", military.yellow);
-		strcat(msg, text);
+		/* Check for strength */
+		if (military->specific[i])
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional %s strength: %+d",
+			        good_printable[i], military->specific[i]);
+			strcat(msg, text);
+		}
 	}
 
 	/* Add defense strength */
-	if (military.defense)
+	if (military->defense)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional Takeover defense: %+d", military.defense);
+		sprintf(text, "\nAdditional Takeover defense: %+d", military->defense);
 		strcat(msg, text);
 	}
 
 	/* Add attack imperium */
-	if (military.attack_imperium)
+	if (military->attack_imperium)
 	{
 		/* Create text */
 		sprintf(text, "\nAdditional attack when using %s: %+d",
-		        card_name, military.attack_imperium);
+		        military->imp_card, military->attack_imperium);
 		strcat(msg, text);
 	}
 
 	/* Check for active imperium card */
-	if (military.imperium)
+	if (military->imperium)
 	{
 		/* Add vulnerability text */
 		strcat(msg, "\nIMPERIUM card played");
 	}
 
 	/* Check for active Rebel military world */
-	if (military.military_rebel)
+	if (military->military_rebel)
 	{
 		/* Add vulnerability text */
 		strcat(msg, "\nREBEL Military world played");
@@ -4156,7 +3898,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		ei = &status_extra_info[who][3];
 
 		/* Create text for general discount */
-		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount);
+		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount.base);
 
 		/* Set font */
 		ei->fontstr = "Sans 10";
@@ -4192,7 +3934,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 
 		/* Create text for military strength */
 		sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
-		        s_ptr->military);
+		        s_ptr->military.base);
 
 		/* Set font */
 		ei->fontstr = "Sans 10";
@@ -4659,6 +4401,215 @@ static void goal_allocated(GtkWidget *widget, GtkAllocation *allocation,
 }
 
 /*
+ * Compute settle discounts for a player.
+ */
+static void compute_discounts(game *g, int who, discounts *d_ptr)
+{
+	player *p_ptr = &g->p[who];
+	card *c_ptr;
+	power *o_ptr;
+	int x, i;
+
+	/* Clear discounts */
+	memset(d_ptr, 0, sizeof(discounts));
+
+	/* Start at first active card */
+	x = p_ptr->head[WHERE_ACTIVE];
+
+	/* Loop over active cards */
+	for ( ; x != -1; x = g->deck[x].next)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[x];
+
+		/* Loop over card's powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; i++)
+		{
+			/* Get power pointer */
+			o_ptr = &c_ptr->d_ptr->powers[i];
+
+			/* Skip incorrect phase */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check discard for 0 */
+			if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
+				d_ptr->zero += 1;
+
+			/* Check for reduce power */
+			if (o_ptr->code & P3_REDUCE)
+			{
+				/* Check for general discount */
+				if (o_ptr->code == P3_REDUCE)
+					d_ptr->base += o_ptr->value;
+
+				/* Check for discount against Novelty worlds */
+				if (o_ptr->code & P3_NOVELTY)
+					d_ptr->specific[GOOD_NOVELTY] += o_ptr->value;
+
+				/* Check for discount against Rare worlds */
+				if (o_ptr->code & P3_RARE)
+					d_ptr->specific[GOOD_RARE] += o_ptr->value;
+
+				/* Check for discount against Genes worlds */
+				if (o_ptr->code & P3_GENE)
+					d_ptr->specific[GOOD_GENE] += o_ptr->value;
+
+				/* Check for discount against Alien worlds */
+				if (o_ptr->code & P3_ALIEN)
+					d_ptr->specific[GOOD_ALIEN] += o_ptr->value;
+			}
+
+			/* Check for pay-for-military powers */
+			if (o_ptr->code & P3_PAY_MILITARY)
+			{
+				/* Check for non-alien power without discount */
+				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 0)
+					d_ptr->non_alien_mil_0 = TRUE;
+
+				/* Check for non-alien power with discount */
+				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 1)
+					d_ptr->non_alien_mil_1 = TRUE;
+
+				/* Check for rebel flag */
+				if (o_ptr->code & P3_AGAINST_REBEL)
+					d_ptr->rebel_mil_2 = TRUE;
+
+				/* Check for chromo flag */
+				if (o_ptr->code & P3_AGAINST_CHROMO)
+					d_ptr->chromo_mil = TRUE;
+
+				/* Check for alien flag */
+				if (o_ptr->code & P3_ALIEN)
+					d_ptr->alien_mil = TRUE;
+			}
+
+			/* Check for pay-for-military discount */
+			if (o_ptr->code & P3_PAY_DISCOUNT)
+				d_ptr->pay_discount += o_ptr->value;
+		}
+	}
+
+	/* Check for any modifiers */
+	d_ptr->has_data = d_ptr->base || d_ptr->specific[GOOD_NOVELTY] ||
+	    d_ptr->specific[GOOD_RARE] || d_ptr->specific[GOOD_GENE] ||
+	    d_ptr->specific[GOOD_ALIEN] || d_ptr->zero || d_ptr->pay_discount ||
+	    d_ptr->non_alien_mil_0 || d_ptr->non_alien_mil_1 ||
+	    d_ptr->rebel_mil_2 || d_ptr->chromo_mil || d_ptr->alien_mil;
+}
+
+/*
+ * Compute military strength for a player.
+ */
+static void compute_military(game *g, int who, mil_strength *m_ptr)
+{
+	card *c_ptr;
+	power *o_ptr;
+	int i, j;
+
+	/* Start strengths at 0 */
+	memset(m_ptr, 0, sizeof(mil_strength));
+
+	/* Begin with base military strength */
+	m_ptr->base = total_military(g, who);
+
+	/* Set bonus military */
+	m_ptr->bonus = g->p[who].bonus_military;
+
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Skip cards not belonging to current player */
+		if (c_ptr->owner != who) continue;
+
+		/* Skip inactive cards */
+		if (c_ptr->start_where != WHERE_ACTIVE) continue;
+
+		/* Loop over card's powers */
+		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
+		{
+			/* Get power pointer */
+			o_ptr = &c_ptr->d_ptr->powers[j];
+
+			/* Skip incorrect phase */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for defense power */
+			if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
+			{
+				/* Add defense for military worlds */
+				m_ptr->defense +=
+				    count_active_flags(g, who, FLAG_MILITARY);
+
+				/* Add extra defense for Rebel military worlds */
+				m_ptr->defense +=
+				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+			}
+
+			/* Check for takeover imperium power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
+			{
+				/* Set imperium attack */
+				m_ptr->attack_imperium =
+				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+
+				/* Check if card name already set */
+				if (strlen(m_ptr->imp_card))
+				{
+					/* XXX Use name of both cards */
+					strcpy(m_ptr->imp_card, "Rebel Alliance/Rebel Sneak Attack");
+				}
+				else
+				{
+					/* Remember name of card */
+					strcpy(m_ptr->imp_card, c_ptr->d_ptr->name);
+				}
+			}
+
+			/* Skip non-military powers */
+			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
+
+			/* Check for strength against rebels */
+			if (o_ptr->code & P3_AGAINST_REBEL)
+				m_ptr->rebel += o_ptr->value;
+
+			/* Check for strength against Novelty worlds */
+			if (o_ptr->code & P3_NOVELTY)
+				m_ptr->specific[GOOD_NOVELTY] += o_ptr->value;
+
+			/* Check for strength against Rare worlds */
+			if (o_ptr->code & P3_RARE)
+				m_ptr->specific[GOOD_RARE] += o_ptr->value;
+
+			/* Check for strength against Genes worlds */
+			if (o_ptr->code & P3_GENE)
+				m_ptr->specific[GOOD_GENE] += o_ptr->value;
+
+			/* Check for strength against Alien worlds */
+			if (o_ptr->code & P3_ALIEN)
+				m_ptr->specific[GOOD_ALIEN] += o_ptr->value;
+		}
+	}
+
+	/* Check for takeovers enabled and imperium card played */
+	m_ptr->imperium = takeovers_enabled(g) &&
+		count_active_flags(g, who, FLAG_IMPERIUM);
+
+	/* Check for takeovers enabled and rebel military world played */
+	m_ptr->military_rebel = takeovers_enabled(g) &&
+		count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
+
+	/* Check for any modifiers */
+	m_ptr->has_data = m_ptr->base || m_ptr->bonus || m_ptr->rebel ||
+	    m_ptr->specific[GOOD_NOVELTY] || m_ptr->specific[GOOD_RARE] ||
+	    m_ptr->specific[GOOD_GENE] || m_ptr->specific[GOOD_ALIEN] ||
+	    m_ptr->defense || m_ptr->attack_imperium || m_ptr->imperium ||
+	    m_ptr->military_rebel;
+}
+
+/*
  * Reset a displayed card structure.
  */
 static void reset_display(displayed *i_ptr)
@@ -4825,19 +4776,21 @@ static void reset_status(game *g, int who)
 	status_player[who].prestige = g->p[who].prestige;
 
 	/* Count general discount */
-	status_player[who].discount = total_discount(g, who);
+	compute_discounts(g, who, &status_player[who].discount);
 
 	/* Count military strength */
-	status_player[who].military = total_military(g, who);
+	compute_military(g, who, &status_player[who].military);
 
 	/* Get text of vp tooltip */
 	strcpy(status_player[who].vp_tip, get_vp_tooltip(g, who));
 
 	/* Get text of discount tooltip */
-	strcpy(status_player[who].discount_tip, get_discount_tooltip(g, who));
+	strcpy(status_player[who].discount_tip,
+	       get_discount_tooltip(&status_player[who].discount));
 
 	/* Get text of military tooltip */
-	strcpy(status_player[who].military_tip, get_military_tooltip(g, who));
+	strcpy(status_player[who].military_tip,
+	       get_military_tooltip(&status_player[who].military));
 
 	/* Get text of prestige tooltip */
 	strcpy(status_player[who].prestige_tip, get_prestige_tooltip(g, who));

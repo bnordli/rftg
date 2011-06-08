@@ -985,7 +985,6 @@ extern void phase_discard(game *g);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
-extern int total_discount(game *g, int who);
 extern int total_military(game *g, int who);
 extern int compute_card_vp(game *g, int who, int which);
 extern void score_game(game *g);
