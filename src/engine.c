@@ -8127,6 +8127,18 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		{
 			/* Move card */
 			move_card(g, list[i], who, WHERE_HAND);
+
+			/* Private message */
+			if (g->p[who].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s takes %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
+			}
 		}
 
 		/* Message */
@@ -8664,7 +8676,7 @@ void phase_produce(game *g)
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
-		/* Hanele player's produce phase */
+		/* Handle player's produce phase */
 		produce_player(g, i);
 	}
 

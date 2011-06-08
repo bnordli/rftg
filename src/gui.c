@@ -11137,7 +11137,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                  log_frame);
 
 	/* Create toggle button for discard log */
-	discard_log_button = gtk_check_button_new_with_label("Log discards");
+	discard_log_button = gtk_check_button_new_with_label(
+		"Log discarded and saved cards");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discard_log_button),
