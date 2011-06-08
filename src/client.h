@@ -55,6 +55,9 @@ typedef struct options
 	/* Display the VP value for cards in hand */
 	int vp_in_hand;
 
+	/* Display cost for cards during placement */
+	int cost_in_hand;
+
 	/* Always display key cues */
 	int key_cues;
 

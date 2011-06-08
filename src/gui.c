@@ -3651,8 +3651,6 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	char text[1024], *p;
 	card *c_ptr;
 	design *d_ptr;
-	power_where w_list[100];
-	power *o_ptr;
 	displayed *j_ptr;
 	takeover_info takeovers[10], *t_ptr;
 	int num_takeovers = 0;
@@ -6276,14 +6274,14 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 				i_ptr->highlight = HIGH_YELLOW;
 
 				/* Check for develop phase */
-				if (phase == PHASE_DEVELOP)
+				if (opt.cost_in_hand && phase == PHASE_DEVELOP)
 				{
 					/* Set develop tool tip */
 					i_ptr->tooltip = card_develop_tooltip(g, player_us, i_ptr);
 				}
 
 				/* Check for settle phase */
-				else if (phase == PHASE_SETTLE)
+				else if (opt.cost_in_hand && phase == PHASE_SETTLE)
 				{
 					/* Set settle tool tip */
 					i_ptr->tooltip = card_settle_tooltip(g, player_us, i_ptr);
@@ -9753,6 +9751,8 @@ static void read_prefs(void)
 	                                             "settle_discount", NULL);
 	opt.vp_in_hand = g_key_file_get_boolean(pref_file, "gui",
 	                                        "vp_in_hand", NULL);
+	opt.cost_in_hand = g_key_file_get_boolean(pref_file, "gui",
+	                                          "cost_in_hand", NULL);
 	opt.key_cues = g_key_file_get_boolean(pref_file, "gui",
 	                                      "key_cues", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
@@ -9839,6 +9839,8 @@ void save_prefs(void)
 	                       opt.settle_discount);
 	g_key_file_set_boolean(pref_file, "gui", "vp_in_hand",
 	                       opt.vp_in_hand);
+	g_key_file_set_boolean(pref_file, "gui", "cost_in_hand",
+	                       opt.cost_in_hand);
 	g_key_file_set_boolean(pref_file, "gui", "key_cues",
 	                       opt.key_cues);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
@@ -10889,7 +10891,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
-	GtkWidget *key_cues_button, *log_box, *log_frame;
+	GtkWidget *hand_cost_button, *key_cues_button;
+	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
@@ -11059,7 +11062,22 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack button into status box */
 	gtk_box_pack_start(GTK_BOX(game_view_box), hand_vp_button, FALSE, TRUE, 0);
 
-	/* Create toggle button for hand VPs */
+	/* Create toggle button for hand cost */
+	hand_cost_button = gtk_check_button_new_with_label(
+	    "Display costs during placement");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hand_cost_button),
+	                             opt.cost_in_hand);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(hand_cost_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.cost_in_hand);
+
+	/* Pack button into status box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), hand_cost_button, FALSE, TRUE, 0);
+
+	/* Create toggle button for key cues */
 	key_cues_button = gtk_check_button_new_with_label(
 	    "Always display key cues");
 
@@ -11209,7 +11227,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose_log != old_options.verbose_log ||
 		     opt.discard_log != old_options.discard_log ||
-		     opt.vp_in_hand != old_options.vp_in_hand))
+		     opt.vp_in_hand != old_options.vp_in_hand ||
+		     opt.cost_in_hand != old_options.cost_in_hand))
 		{
 			/* Force current game over */
 			real_game.game_over = 1;
