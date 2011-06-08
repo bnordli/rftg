@@ -11757,6 +11757,9 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Set the column to sort on */
 	gtk_tree_view_column_set_sort_column_id(tree_view_column, 3);
 
+	/* Enable interactive search on first column */
+	gtk_tree_view_set_search_column(GTK_TREE_VIEW(list_view), 1);
+
 	/* Create scrolled window for list view */
 	list_scroll = gtk_scrolled_window_new(NULL, NULL);
 
