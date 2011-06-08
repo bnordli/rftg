@@ -216,9 +216,13 @@ static int hand_size;
 static displayed table[MAX_PLAYER][MAX_DECK];
 static int table_size[MAX_PLAYER];
 
-typedef struct discounts {
+typedef struct discounts
+{
 	/* The base discount */
 	int base;
+
+	/* The current temporary discount */
+	int bonus;
 
 	/* Additional specific discount */
 	int specific[6];
@@ -2896,6 +2900,13 @@ static char *get_discount_tooltip(discounts *discount)
 	sprintf(text, "Base discount: -%d", discount->base);
 	strcat(msg, text);
 
+	/* Add bonus discount */
+	if (discount->bonus)
+	{
+		sprintf(text, "\nAdditional bonus discount: -%d", discount->bonus);
+		strcat(msg, text);
+	}
+
 	/* Add specific discounts */
 	for (i = GOOD_NOVELTY; i <= GOOD_ALIEN; ++i)
 	{
@@ -4413,6 +4424,9 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 	/* Clear discounts */
 	memset(d_ptr, 0, sizeof(discounts));
 
+	/* Set bonus discounts */
+	d_ptr->bonus = g->p[who].bonus_reduce;
+
 	/* Start at first active card */
 	x = p_ptr->head[WHERE_ACTIVE];
 
@@ -4490,9 +4504,10 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 	}
 
 	/* Check for any modifiers */
-	d_ptr->has_data = d_ptr->base || d_ptr->specific[GOOD_NOVELTY] ||
-	    d_ptr->specific[GOOD_RARE] || d_ptr->specific[GOOD_GENE] ||
-	    d_ptr->specific[GOOD_ALIEN] || d_ptr->zero || d_ptr->pay_discount ||
+	d_ptr->has_data = d_ptr->base || d_ptr->bonus ||
+	    d_ptr->specific[GOOD_NOVELTY] || d_ptr->specific[GOOD_RARE] ||
+	    d_ptr->specific[GOOD_GENE] || d_ptr->specific[GOOD_ALIEN] ||
+	    d_ptr->zero || d_ptr->pay_discount ||
 	    d_ptr->non_alien_mil_0 || d_ptr->non_alien_mil_1 ||
 	    d_ptr->rebel_mil_2 || d_ptr->chromo_mil || d_ptr->alien_mil;
 }
