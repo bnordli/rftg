@@ -3525,8 +3525,8 @@ static void military_world_payment(game *g, int who, int which,
  * Compute the cost/military needed for a non-military world.
  */
 static void peaceful_world_payment(game *g, int who, int which,
-                                   discounts *d_ptr, int *cost,
-                                   int *ict_mil, int *iif_mil)
+                                   int mil_only, discounts *d_ptr,
+                                   int *cost, int *ict_mil, int *iif_mil)
 {
 	card *c_ptr;
 	int strength;
@@ -3534,12 +3534,21 @@ static void peaceful_world_payment(game *g, int who, int which,
 	/* Get card */
 	c_ptr = &g->deck[which];
 
-	/* Compute cost */
-	*cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
-	        d_ptr->specific[c_ptr->d_ptr->good_type];
+	/* Check for no normal payment available */
+	if (mil_only)
+	{
+		/* Disable payment */
+		*cost = -1;
+	}
+	else
+	{
+		/* Compute cost */
+		*cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
+				d_ptr->specific[c_ptr->d_ptr->good_type];
 
-	/* Do not reduce below 0 */
-	if (*cost < 0) *cost = 0;
+		/* Do not reduce below 0 */
+		if (*cost < 0) *cost = 0;
+	}
 
 	/* Compute strength */
 	strength = strength_against(g, who, which, -1, 0);
@@ -3607,13 +3616,13 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	which = i_ptr->index;
 	c_ptr = &g->deck[which];
 
+	/* XXX Check for no pay-for-military available */
+	mil_only = special >= 0 &&
+	           !strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack");
+
 	/* Check for military world */
 	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
-		/* XXX Check for no pay-for-military available */
-		mil_only = special >= 0 &&
-		           !strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack");
-
 		/* Compute payment */
 		military_world_payment(g, who, which, mil_only, d_ptr,
 		                       &mil_needed, &cost, &cost_card);
@@ -3642,11 +3651,15 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	else
 	{
 		/* Compute peaceful payment */
-		peaceful_world_payment(g, who, which, d_ptr,
+		peaceful_world_payment(g, who, which, mil_only, d_ptr,
 		                       &cost, &ict_mil, &iif_mil);
 
-		/* Format text */
-		p += sprintf(p, "Cost to place: %d\n", cost);
+		/* Check for normal payment available */
+		if (cost >= 0)
+		{
+			/* Format text */
+			p += sprintf(p, "Cost to place: %d\n", cost);
+		}
 
 		/* Check for Imperium Cloaking Technology */
 		if (ict_mil >= 0)
@@ -6395,7 +6408,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	displayed *i_ptr;
 	power *o_ptr;
 	char *cost_card;
-	char buf[1024];
+	char buf[1024], *p;
 	int i, j, n = 0, ns = 0, high_color;
 	int military, cost, ict_mil, iif_mil;
 
@@ -6405,6 +6418,12 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	/* Reset displayed cards */
 	reset_cards(g, FALSE, FALSE);
 
+	/* Start at beginning of buffer */
+	p = buf;
+
+	/* Create prompt */
+	p += sprintf(p, "Choose payment for %s ", c_ptr->d_ptr->name);
+
 	/* Check for development */
 	if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
 	{
@@ -6412,12 +6431,11 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 		cost = devel_cost(g, who, which);
 
 		/* Create prompt */
-		sprintf(buf, "Choose payment (%d card%s) for %s",
-		        cost, PLURAL(cost), c_ptr->d_ptr->name);
+		p += sprintf(p, "(%d card%s)", cost, PLURAL(cost));
 	}
 
 	/* Check for world */
-	if (c_ptr->d_ptr->type == TYPE_WORLD)
+	else if (c_ptr->d_ptr->type == TYPE_WORLD)
 	{
 		/* Check for takeover */
 		if (c_ptr->owner != who)
@@ -6431,25 +6449,22 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			/* Check for ahead in strength */
 			if (military > 0)
 			{
-				/* Create prompt */
-				sprintf(buf, "Choose payment for %s (currently %d military "
-				        "ahead)", c_ptr->d_ptr->name, military);
+				/* Format text */
+				p += sprintf(p, "(currently %d military ahead)", military);
 			}
 
 			/* Check for equal strength */
 			else if (military == 0)
 			{
-				/* Create prompt */
-				sprintf(buf, "Choose payment for %s (currently equal "
-				        "strength)", c_ptr->d_ptr->name);
+				/* Format text */
+				p += sprintf(p, "(currently equal strength)");
 			}
 
 			/* Behind in strength */
 			else
 			{
-				/* Create prompt */
-				sprintf(buf, "Choose payment for %s (currently %d military "
-				        "behind)", c_ptr->d_ptr->name, -military);
+				/* Format text */
+				p += sprintf(p, "(currently %d military behind)", -military);
 			}
 		}
 
@@ -6464,61 +6479,69 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			/* Check for no pay-for-military power */
 			if (cost == -1)
 			{
-				/* Create prompt */
-				sprintf(buf, "Choose payment (%d military) for %s", military,
-				        c_ptr->d_ptr->name);
+				/* Format text */
+				p += sprintf(p, "(%d military)", military);
 			}
 			else
 			{
-				/* Create prompt */
-				sprintf(buf, "Choose payment (%d military or %d card%s) "
-				        "for %s", military, cost, PLURAL(cost),
-				        c_ptr->d_ptr->name);
+				/* Format text */
+				p += sprintf(p, "(%d military or %d card%s)",
+				             military, cost, PLURAL(cost));
 			}
 		}
 		else
 		{
 			/* Compute payment */
-			peaceful_world_payment(g, who, which, &status_player[who].discount,
+			peaceful_world_payment(g, who, which, mil_only,
+			                       &status_player[who].discount,
 			                       &cost, &ict_mil, &iif_mil);
 
-			/* Check for both ICT and IIF and different military needed */
-			if (ict_mil >= 0 && iif_mil >= 0 && ict_mil != iif_mil)
+			/* Format text */
+			p += sprintf(p, "(");
+
+			/* Check for cost available */
+			if (cost >= 0)
 			{
-				/* Create prompt */
-				sprintf(buf, "Choose payment (%d card%s or %d/%d military) "
-				        "for %s", cost, PLURAL(cost), ict_mil, iif_mil,
-				        c_ptr->d_ptr->name);
+				/* Format text */
+				p += sprintf(p, "%d card%s", cost, PLURAL(cost));
 			}
 
-			/* Check for only ICT */
-			else if (ict_mil >= 0)
+			/* Check for ICT or IIF */
+			if (ict_mil >= 0 || iif_mil >= 0)
 			{
-				/* Create prompt */
-				sprintf(buf,"Choose payment (%d card%s or %d military) for %s",
-				        cost, PLURAL(cost), ict_mil, c_ptr->d_ptr->name);
+				/* Check for cost */
+				if (cost >= 0) p += sprintf(p, " or ");
+
+				/* Check for both ICT and IIF and different military needed */
+				if (ict_mil >= 0 && iif_mil >= 0 && ict_mil != iif_mil)
+				{
+					/* Format text */
+					p += sprintf(p, "%d/%d military", ict_mil, iif_mil);
+				}
+
+				/* Check for only ICT, or equal military needed */
+				else if (ict_mil >= 0)
+				{
+					/* Format text */
+					p += sprintf(p, "%d military", ict_mil);
+				}
+
+				/* Check for only IIF */
+				else if (iif_mil >= 0)
+				{
+					/* Format text */
+					p += sprintf(p, "%d military", iif_mil);
+				}
 			}
 
-			/* Check for only IIF */
-			else if (iif_mil >= 0)
-			{
-				/* Create prompt */
-				sprintf(buf,"Choose payment (%d card%s or %d military) for %s",
-				        cost, PLURAL(cost), iif_mil, c_ptr->d_ptr->name);
-			}
-
-			/* Only normal payment */
-			else
-			{
-				/* Create prompt */
-				sprintf(buf, "Choose payment (%d card%s) for %s",
-				        cost, PLURAL(cost), c_ptr->d_ptr->name);
-			}
+			/* Format text */
+			p += sprintf(p, ")");
 		}
 	}
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
+
 	/* Set button restriction */
 	action_restrict = RESTRICT_PAY;
 	action_payment_which = which;
