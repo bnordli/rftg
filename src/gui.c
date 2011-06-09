@@ -3428,15 +3428,155 @@ static char *card_develop_tooltip(game *g, int who, displayed *i_ptr)
 }
 
 /*
+ * Compute the military/cost needed for a military world.
+ */
+static void military_world_payment(game *g, int who, int which,
+                                   int mil_only, discounts *d_ptr,
+                                   int *military, int *cost, char **cost_card)
+{
+	card *c_ptr;
+	int strength, mil_needed, pay_for_mil;
+
+	/* Get card */
+	c_ptr = &g->deck[which];
+
+	/* Get current strength */
+	strength = strength_against(g, who, which, -1, 0);
+
+	/* Compute extra military needed */
+	*military = c_ptr->d_ptr->cost - strength;
+
+	/* Do not reduce below 0 */
+	if (*military <= 0) *military = 0;
+
+	/* Reset cost and pay-for-military */
+	pay_for_mil = *cost = -1;
+
+	/* Check for no pay-for-military available */
+	if (mil_only) return;
+
+	/* Check for Rebel Alliance */
+	if (d_ptr->rebel_mil_2 && (c_ptr->d_ptr->flags & FLAG_REBEL))
+	{
+		/* Set reduction to 2 */
+		pay_for_mil = 2;
+
+		/* Save card name */
+		*cost_card = "Rebel Alliance";
+	}
+
+	/* Check for Contact Specialist */
+	else if (d_ptr->non_alien_mil_1 &&
+	         c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	{
+		/* Set reduction to 1 */
+		pay_for_mil = 1;
+
+		/* Save card name */
+		*cost_card = "Contact Specialist";
+	}
+
+	/* Check for Rebel Cantina */
+	else if (d_ptr->non_alien_mil_0 &&
+	         c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	{
+		/* Set reduction to 0 */
+		pay_for_mil = 0;
+
+		/* Save card name */
+		*cost_card = "Rebel Cantina";
+	}
+
+	/* Check for Alien Research Team */
+	else if (d_ptr->alien_mil &&
+	         c_ptr->d_ptr->good_type == GOOD_ALIEN)
+	{
+		/* Set reduction to 0 */
+		pay_for_mil = 0;
+
+		/* Save card name */
+		*cost_card = "Alien Research Team";
+	}
+
+	/* Check for Ravaged Uplift World */
+	else if (d_ptr->chromo_mil && c_ptr->d_ptr->flags & FLAG_CHROMO)
+	{
+		/* Set reduction to 0 */
+		pay_for_mil = 0;
+
+		/* Save card name */
+		*cost_card = "Ravaged Uplift World";
+	}
+
+	/* Check for any pay-for-military power */
+	if (pay_for_mil >= 0)
+	{
+		/* Compute cost */
+		*cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
+		        d_ptr->specific[c_ptr->d_ptr->good_type] -
+		        pay_for_mil - d_ptr->pay_discount;
+
+		/* Do not reduce below 0 */
+		if (*cost < 0) *cost = 0;
+	}
+}
+
+/*
+ * Compute the cost/military needed for a non-military world.
+ */
+static void peaceful_world_payment(game *g, int who, int which,
+                                   discounts *d_ptr, int *cost,
+                                   int *ict_mil, int *iif_mil)
+{
+	card *c_ptr;
+	int strength;
+
+	/* Get card */
+	c_ptr = &g->deck[which];
+
+	/* Compute cost */
+	*cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
+	        d_ptr->specific[c_ptr->d_ptr->good_type];
+
+	/* Do not reduce below 0 */
+	if (*cost < 0) *cost = 0;
+
+	/* Compute strength */
+	strength = strength_against(g, who, which, -1, 0);
+
+	/* Reset ICT/IIF military */
+	*ict_mil = *iif_mil = -1;
+
+	/* Check for Imperium Cloaking Technology */
+	if (d_ptr->conquer_settle_2)
+	{
+		/* Compute extra military needed */
+		*ict_mil = c_ptr->d_ptr->cost - strength - 2;
+
+		/* Do not reduce below 0 */
+		if (*ict_mil < 0) *ict_mil = 0;
+	}
+
+	/* Check for Imperium Invasion Fleet */
+	if (d_ptr->conquer_settle_0)
+	{
+		/* Compute extra military needed */
+		*iif_mil = c_ptr->d_ptr->cost - strength;
+
+		/* Do not reduce below 0 */
+		if (*iif_mil < 0) *iif_mil = 0;
+	}
+}
+/*
  * Create a tooltip for a world that can be placed.
  */
-static char *card_settle_tooltip(game *g, int who, displayed *i_ptr)
+static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr)
 {
 	card *c_ptr;
 	discounts *d_ptr;
 	mil_strength *m_ptr;
-	char *card, text[1024], *p;
-	int which, strength, mil_needed, pay_for_mil, cost;
+	char text[1024], *p, *cost_card;
+	int which, strength, mil_only, mil_needed, ict_mil, iif_mil, cost;
 
 	/* Get discounts */
 	d_ptr = &status_player[who].discount;
@@ -3470,11 +3610,13 @@ static char *card_settle_tooltip(game *g, int who, displayed *i_ptr)
 	/* Check for military world */
 	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
-		/* Get current strength */
-		strength = strength_against(g, who, which, -1, 0);
+		/* XXX Check for no pay-for-military available */
+		mil_only = special >= 0 &&
+		           !strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack");
 
-		/* Compute extra military needed */
-		mil_needed = c_ptr->d_ptr->cost - strength;
+		/* Compute payment */
+		military_world_payment(g, who, which, mil_only, d_ptr,
+		                       &mil_needed, &cost, &cost_card);
 
 		/* Check for no extra military */
 		if (mil_needed <= 0)
@@ -3489,100 +3631,28 @@ static char *card_settle_tooltip(game *g, int who, displayed *i_ptr)
 			             mil_needed);
 		}
 
-		/* Reset pay-for-military */
-		pay_for_mil = -1;
-
-		/* Check for Rebel Alliance */
-		if (d_ptr->rebel_mil_2 && (c_ptr->d_ptr->flags & FLAG_REBEL))
-		{
-			/* Set reduction to 2 */
-			pay_for_mil = 2;
-
-			/* Save card name */
-			card = "Rebel Alliance";
-		}
-
-		/* Check for Contact Specialist */
-		else if (d_ptr->non_alien_mil_1 &&
-		         c_ptr->d_ptr->good_type != GOOD_ALIEN)
-		{
-			/* Set reduction to 1 */
-			pay_for_mil = 1;
-
-			/* Save card name */
-			card = "Contact Specialist";
-		}
-
-		/* Check for Rebel Cantina */
-		else if (d_ptr->non_alien_mil_0 &&
-		         c_ptr->d_ptr->good_type != GOOD_ALIEN)
-		{
-			/* Set reduction to 0 */
-			pay_for_mil = 0;
-
-			/* Save card name */
-			card = "Rebel Cantina";
-		}
-
-		/* Check for Alien Research Team */
-		else if (d_ptr->alien_mil &&
-		         c_ptr->d_ptr->good_type == GOOD_ALIEN)
-		{
-			/* Set reduction to 0 */
-			pay_for_mil = 0;
-
-			/* Save card name */
-			card = "Alien Research Team";
-		}
-
-		/* Check for Ravaged Uplift World */
-		else if (d_ptr->chromo_mil && c_ptr->d_ptr->flags & FLAG_CHROMO)
-		{
-			/* Set reduction to 0 */
-			pay_for_mil = 0;
-
-			/* Save card name */
-			card = "Ravaged Uplift World";
-		}
-
 		/* Check for any pay-for-military power */
-		if (pay_for_mil >= 0)
+		if (cost >= 0)
 		{
-			/* Compute cost */
-			cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
-				   d_ptr->specific[c_ptr->d_ptr->good_type] -
-				   pay_for_mil - d_ptr->pay_discount;
-
-			/* Do not reduce below 0 */
-			if (cost < 0) cost = 0;
-
 			/* Format text */
-			p += sprintf(p, "Cost to place if using %s: %d\n", card, cost);
+			p += sprintf(p, "Cost to place if using %s: %d\n",
+			             cost_card, cost);
 		}
 	}
 	else
 	{
-		/* Compute cost */
-		cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
-		       d_ptr->specific[c_ptr->d_ptr->good_type];
-
-		/* Do not reduce below 0 */
-		if (cost < 0) cost = 0;
+		/* Compute peaceful payment */
+		peaceful_world_payment(g, who, which, d_ptr,
+		                       &cost, &ict_mil, &iif_mil);
 
 		/* Format text */
 		p += sprintf(p, "Cost to place: %d\n", cost);
 
-		/* Compute strength */
-		strength = strength_against(g, who, which, -1, 0);
-
 		/* Check for Imperium Cloaking Technology */
-		if (d_ptr->conquer_settle_2)
+		if (ict_mil >= 0)
 		{
-			/* Compute extra military needed */
-			mil_needed = c_ptr->d_ptr->cost - strength - 2;
-
 			/* Check for no extra military */
-			if (mil_needed <= 0)
+			if (ict_mil == 0)
 			{
 				/* Format text */
 				p += sprintf(p, "No extra military needed to place\n  if using "
@@ -3592,18 +3662,15 @@ static char *card_settle_tooltip(game *g, int who, displayed *i_ptr)
 			{
 				/* Format text */
 				p += sprintf(p, "Extra military needed to place\n  if using "
-				             "Imperium Cloaking Technology: %+d\n", mil_needed);
+				             "Imperium Cloaking Technology: %+d\n", ict_mil);
 			}
 		}
 
 		/* Check for Imperium Invasion Fleet */
-		if (d_ptr->conquer_settle_0)
+		if (iif_mil >= 0)
 		{
-			/* Compute extra military needed */
-			mil_needed = c_ptr->d_ptr->cost - strength;
-
 			/* Check for no extra military */
-			if (mil_needed <= 0)
+			if (iif_mil == 0)
 			{
 				/* Format text */
 				p += sprintf(p, "No extra military needed to place\n  if using "
@@ -3613,7 +3680,7 @@ static char *card_settle_tooltip(game *g, int who, displayed *i_ptr)
 			{
 				/* Format text */
 				p += sprintf(p, "Extra military needed to place\n  if using "
-				             "Imperium Invasion Fleet: %+d\n", mil_needed);
+				             "Imperium Invasion Fleet: %+d\n", iif_mil);
 			}
 		}
 	}
@@ -6284,7 +6351,8 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 				else if (opt.cost_in_hand && phase == PHASE_SETTLE)
 				{
 					/* Set settle tool tip */
-					i_ptr->tooltip = card_settle_tooltip(g, player_us, i_ptr);
+					i_ptr->tooltip = card_settle_tooltip(g, player_us, special,
+					                                     i_ptr);
 				}
 			}
 		}
@@ -6326,21 +6394,131 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	card *c_ptr;
 	displayed *i_ptr;
 	power *o_ptr;
+	char *cost_card;
 	char buf[1024];
 	int i, j, n = 0, ns = 0, high_color;
+	int military, cost, ict_mil, iif_mil;
 
 	/* Get card we are paying for */
 	c_ptr = &real_game.deck[which];
 
-	/* Create prompt */
-	sprintf(buf, "Choose payment for %s", c_ptr->d_ptr->name);
-
-	/* Set prompt */
-	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
-
 	/* Reset displayed cards */
 	reset_cards(g, FALSE, FALSE);
 
+	/* Check for development */
+	if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
+	{
+		/* Compute cost */
+		cost = devel_cost(g, who, which);
+
+		/* Create prompt */
+		sprintf(buf, "Choose payment (%d card%s) for %s",
+		        cost, PLURAL(cost), c_ptr->d_ptr->name);
+	}
+
+	/* Check for world */
+	if (c_ptr->d_ptr->type == TYPE_WORLD)
+	{
+		/* Check for takeover */
+		if (c_ptr->owner != who)
+		{
+			/* Compute strength difference */
+			military =
+				strength_against(g, who, which,
+				                 g->takeover_power[g->num_takeover - 1], 0) -
+				strength_against(g, c_ptr->owner, which, -1, 1);
+
+			/* Check for ahead in strength */
+			if (military > 0)
+			{
+				/* Create prompt */
+				sprintf(buf, "Choose payment for %s (currently %d military "
+				        "ahead)", c_ptr->d_ptr->name, military);
+			}
+
+			/* Check for equal strength */
+			else if (military == 0)
+			{
+				/* Create prompt */
+				sprintf(buf, "Choose payment for %s (currently equal "
+				        "strength)", c_ptr->d_ptr->name);
+			}
+
+			/* Behind in strength */
+			else
+			{
+				/* Create prompt */
+				sprintf(buf, "Choose payment for %s (currently %d military "
+				        "behind)", c_ptr->d_ptr->name, -military);
+			}
+		}
+
+		/* Check for military world */
+		else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
+		{
+			/* Compute payment */
+			military_world_payment(g, who, which, mil_only,
+			                       &status_player[who].discount,
+			                       &military, &cost, &cost_card);
+
+			/* Check for no pay-for-military power */
+			if (cost == -1)
+			{
+				/* Create prompt */
+				sprintf(buf, "Choose payment (%d military) for %s", military,
+				        c_ptr->d_ptr->name);
+			}
+			else
+			{
+				/* Create prompt */
+				sprintf(buf, "Choose payment (%d military or %d card%s) "
+				        "for %s", military, cost, PLURAL(cost),
+				        c_ptr->d_ptr->name);
+			}
+		}
+		else
+		{
+			/* Compute payment */
+			peaceful_world_payment(g, who, which, &status_player[who].discount,
+			                       &cost, &ict_mil, &iif_mil);
+
+			/* Check for both ICT and IIF and different military needed */
+			if (ict_mil >= 0 && iif_mil >= 0 && ict_mil != iif_mil)
+			{
+				/* Create prompt */
+				sprintf(buf, "Choose payment (%d card%s or %d/%d military) "
+				        "for %s", cost, PLURAL(cost), ict_mil, iif_mil,
+				        c_ptr->d_ptr->name);
+			}
+
+			/* Check for only ICT */
+			else if (ict_mil >= 0)
+			{
+				/* Create prompt */
+				sprintf(buf,"Choose payment (%d card%s or %d military) for %s",
+				        cost, PLURAL(cost), ict_mil, c_ptr->d_ptr->name);
+			}
+
+			/* Check for only IIF */
+			else if (iif_mil >= 0)
+			{
+				/* Create prompt */
+				sprintf(buf,"Choose payment (%d card%s or %d military) for %s",
+				        cost, PLURAL(cost), iif_mil, c_ptr->d_ptr->name);
+			}
+
+			/* Only normal payment */
+			else
+			{
+				/* Create prompt */
+				sprintf(buf, "Choose payment (%d card%s) for %s",
+				        cost, PLURAL(cost), c_ptr->d_ptr->name);
+			}
+		}
+	}
+
+	/* Set prompt */
+	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 	/* Set button restriction */
 	action_restrict = RESTRICT_PAY;
 	action_payment_which = which;
