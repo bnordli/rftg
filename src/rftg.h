@@ -944,8 +944,12 @@ extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);
 extern void phase_explore(game *g);
 extern void place_card(game *g, int who, int which);
+extern int devel_cost(game *g, int who, int which);
+extern int devel_callback(game *g, int who, int which, int list[], int num,
+                          int special[], int num_special);
 extern void develop_action(game *g, int who, int placing);
 extern void phase_develop(game *g);
+extern int strength_against(game *g, int who, int world, int attack, int defend);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
                             int special[], int num_special, int mil_only);
 extern int settle_legal(game *g, int who, int which, int mil_bonus,
@@ -956,6 +960,8 @@ extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
+extern int resolve_takeover(game *g, int who, int world, int special,
+                            int defeated);
 extern void resolve_takeovers(game *g);
 extern void phase_settle(game *g);
 extern int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus);
@@ -982,7 +988,6 @@ extern void phase_discard(game *g);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
-extern int total_discount(game *g, int who);
 extern int total_military(game *g, int who);
 extern int compute_card_vp(game *g, int who, int which);
 extern void score_game(game *g);

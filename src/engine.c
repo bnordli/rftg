@@ -2040,6 +2040,49 @@ void place_card(game *g, int who, int which)
 }
 
 /*
+ * Computes the current cost for a development.
+ * Assumes the current phase of the game is develop.
+ */
+int devel_cost(game *g, int who, int which)
+{
+	card *c_ptr;
+	power_where w_list[100];
+	power *o_ptr;
+	int i, n, cost;
+
+	/* Get pointer to card being played */
+	c_ptr = &g->deck[which];
+
+	/* Start with card cost */
+	cost = c_ptr->d_ptr->cost;
+
+	/* Check for develop action chosen */
+	if (player_chose(g, who, g->cur_action)) cost -= 1;
+
+	/* Check for prestige develop */
+	if (player_chose(g, who, ACT_PRESTIGE | g->cur_action)) cost -= 2;
+
+	/* Get list of develop powers */
+	n = get_powers(g, who, PHASE_DEVELOP, w_list);
+
+	/* Loop over develop powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for reduce power */
+		if (o_ptr->code & P2_REDUCE) cost -= o_ptr->value;
+	}
+
+	/* Cost cannot be less than zero */
+	if (cost < 0) cost = 0;
+
+	/* Return the computed cost */
+	return cost;
+}
+
+/*
  * Called when a player has chosen how to pay for a development.
  *
  * We return 0 if the payment would not succeed.
@@ -2053,37 +2096,15 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 	power *o_ptr;
 	int i, j, n;
 	int g_list[MAX_DECK], num_goods = 0;
-	int cost, reduce = 0, consume = 0;
+	int cost, consume = 0;
 	int consume_special[2], num_consume_special;
 	char msg[1024];
 
+	/* Get cost */
+	cost = devel_cost(g, who, which);
+
 	/* Get player pointer */
 	p_ptr = &g->p[who];
-
-	/* Get pointer to card being played */
-	c_ptr = &g->deck[which];
-
-	/* Get card cost */
-	cost = c_ptr->d_ptr->cost;
-
-	/* Get list of develop powers */
-	n = get_powers(g, who, PHASE_DEVELOP, w_list);
-
-	/* Check for develop action chosen */
-	if (player_chose(g, who, g->cur_action)) reduce += 1;
-
-	/* Check for prestige develop */
-	if (player_chose(g, who, ACT_PRESTIGE | g->cur_action)) reduce += 2;
-
-	/* Loop over develop powers */
-	for (i = 0; i < n; i++)
-	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
-
-		/* Check for reduce power */
-		if (o_ptr->code & P2_REDUCE) reduce += o_ptr->value;
-	}
 
 	/* Loop over special cards used */
 	for (i = 0; i < num_special; i++)
@@ -2121,8 +2142,8 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				/* Check goal losses */
 				check_goal_loss(g, who, GOAL_MOST_CONSUME);
 
-				/* Reduce cost */
-				reduce += o_ptr->value;
+				/* Reduce cost by value */
+				cost -= o_ptr->value;
 			}
 
 			/* Check for consume good to reduce cost */
@@ -2132,7 +2153,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				consume = 1;
 
 				/* Reduce cost by value */
-				reduce += o_ptr->value;
+				cost -= o_ptr->value;
 
 				/* Track location of consume power */
 				consume_special[0] = special[i];
@@ -2155,9 +2176,6 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 
 	/* Get pointer to card being played */
 	c_ptr = &g->deck[p_ptr->placing];
-
-	/* Reduce cost */
-	cost -= reduce;
 
 	/* Do not reduce below zero */
 	if (cost < 0) cost = 0;
@@ -2228,6 +2246,9 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 		/* Move to discard */
 		move_card(g, list[i], -1, WHERE_DISCARD);
 	}
+
+	/* Get list of develop powers */
+	n = get_powers(g, who, PHASE_DEVELOP, w_list);
 
 	/* Loop over develop powers */
 	for (i = 0; i < n; i++)
@@ -2796,8 +2817,9 @@ void phase_develop(game *g)
 
 /*
  * Return player's military strength against the given world.
+ * Includes cost of world if defending.
  */
-static int strength_against(game *g, int who, int world, int defend)
+int strength_against(game *g, int who, int world, int attack, int defend)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -2862,6 +2884,39 @@ static int strength_against(game *g, int who, int world, int defend)
 			military += count_active_flags(g, who,
 			                          (FLAG_REBEL | FLAG_MILITARY));
 		}
+	}
+
+	/* Check for attack used */
+	if (attack >= 0)
+	{
+		/* Get attack card */
+		c_ptr = &g->deck[attack];
+
+		/* Loop over powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
+		{
+			/* Get power */
+			o_ptr = &c_ptr->d_ptr->powers[i];
+
+			/* Skip non-Settle powers */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for "takeover imperium" power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
+			{
+				/* Add bonus military */
+				military += o_ptr->value *
+				         count_active_flags(g, who, FLAG_REBEL | 
+				                                    FLAG_MILITARY);
+			}
+		}
+	}
+
+	/* Check for defense */
+	if (defend)
+	{
+		/* Add cost of world */
+		military += c_ptr->d_ptr->cost;
 	}
 
 	/* Add in bonus temporary military strength */
@@ -3116,8 +3171,8 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only)
 	/* Apply bonus military from takeover power, if any */
 	if (takeover) military += mil_bonus;
 
-	/* Add owner's military strength to defense on takeovers */
-	if (takeover) defense += strength_against(g, c_ptr->owner, world, 1);
+	/* Compute owner's military strength for defense on takeovers */
+	if (takeover) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Check for military world and sufficient strength */
 	if (conquer && military + hand_military >= defense) return 1;
@@ -5292,8 +5347,8 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 /*
  * Resolve a takeover.
  */
-static int resolve_takeover(game *g, int who, int world, int special,
-                            int defeated)
+int resolve_takeover(game *g, int who, int world, int special,
+                     int defeated)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -5303,7 +5358,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	int prestige = 0;
 	char prestige_reason[1024];
 	char msg[1024];
-	int bonus = 0, attack;
+	int attack;
 	int i;
 
 	/* Get player pointer */
@@ -5327,12 +5382,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		/* Check for "takeover imperium" power */
 		if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
 		{
-			/* Add bonus military to attacker */
-			bonus += o_ptr->value *
-			         count_active_flags(g, who, FLAG_REBEL |
-			                                    FLAG_MILITARY);
-
-			/* Done looking */
+			/* Found takeover power */
 			break;
 		}
 
@@ -5389,13 +5439,10 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Compute current owner's defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, 1);
-
-	/* Add world's defense */
-	defense += c_ptr->d_ptr->cost;
+	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Compute total attack strength */
-	if (!defeated) attack = bonus + strength_against(g, who, world, 0);
+	if (!defeated) attack = strength_against(g, who, world, special, 0);
 
 	/* Message */
 	if (!g->simulation && !defeated)
@@ -5421,10 +5468,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Recompute defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, 1);
-
-	/* Add world's defense */
-	defense += c_ptr->d_ptr->cost;
+	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Check for non-military target */
 	if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
@@ -8083,6 +8127,18 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		{
 			/* Move card */
 			move_card(g, list[i], who, WHERE_HAND);
+
+			/* Private message */
+			if (g->p[who].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s takes %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
+			}
 		}
 
 		/* Message */
@@ -8620,7 +8676,7 @@ void phase_produce(game *g)
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
-		/* Hanele player's produce phase */
+		/* Handle player's produce phase */
 		produce_player(g, i);
 	}
 
@@ -10575,36 +10631,6 @@ int game_round(game *g)
 
 	/* Continue game */
 	return 1;
-}
-
-/*
- * Return non-specific discount
- */
-int total_discount(game *g, int who)
-{
-	power_where w_list[100];
-	power *o_ptr;
-	int i, n, amt = 0;
-
-	/* Get list of settle powers */
-	n = get_powers(g, who, PHASE_SETTLE, w_list);
-
-	/* Loop over powers */
-	for (i = 0; i < n; i++)
-	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
-
-		/* Check for generic discount */
-		if (o_ptr->code == P3_REDUCE)
-		{
-			/* Add to discount */
-			amt += o_ptr->value;
-		}
-	}
-
-	/* Return discount */
-	return amt;
 }
 
 /*
