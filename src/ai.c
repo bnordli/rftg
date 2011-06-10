@@ -1742,7 +1742,7 @@ static void claim_card(game *g, int who, int which)
 	if (c_ptr->owner != -1)
 	{
 		/* Get replacement card */
-		replace = random_draw(g);
+		replace = random_draw(g, c_ptr->owner);
 
 		/* Check for failure to draw */
 		if (replace == -1) return;
@@ -2993,7 +2993,7 @@ static void ai_choose_discard_prestige(game *g, int who, int list[], int *num)
 		simulate_game(&sim, g, who);
 
 		/* Discard chosen card */
-		move_card(&sim, list[i], -1, WHERE_DISCARD);
+		discard_card(&sim, who, list[i]);
 
 		/* Gain prestige */
 		sim.p[who].prestige++;
@@ -5276,7 +5276,7 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 		simulate_game(&sim, g, who);
 
 		/* Assume we lose the card */
-		move_card(&sim, list[i], -1, WHERE_DISCARD);
+		discard_card(&sim, who, list[i]);
 
 		/* Start with losing chance */
 		score = chance * eval_game(&sim, who);
@@ -5791,6 +5791,26 @@ static int ai_choose_oort_kind(game *g, int who)
 	return GOOD_ALIEN;
 }
 
+/*
+ * Choose card to draft.
+ */
+static int ai_choose_draft(game *g, int who, int* list, int nl)
+{
+	/* XXX AI is not trained for drafting */
+	/* Make an arbitrary choice */
+	int i, sum = 0;
+	
+	/* Loop over cards */
+	for (i = 0; i < nl; ++i)
+	{
+		/* Add card index */
+		sum += list[i];
+	}
+	
+	/* Return a random card */
+	return list[sum % nl];
+}
+
 
 /*
  * Make a choice of the given type.
@@ -5991,6 +6011,13 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose kind */
 			rv = ai_choose_oort_kind(g, who);
+			break;
+		
+		/* Choose a card to draft */
+		case CHOICE_DRAFT:
+
+			/* Choose card to draft */
+			rv = ai_choose_draft(g, who, list, *nl);
 			break;
 
 		/* Error */

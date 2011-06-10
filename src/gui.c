@@ -3813,8 +3813,7 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 					    !(d_ptr->powers[k].code & P3_NO_TAKEOVER))
 					{
 						/* XXX Discard card */
-						move_card(&sim, table[attacker][j].index,
-						          -1, WHERE_DISCARD);
+						discard_card(&sim, attacker, table[attacker][j].index);
 						break;
 					}
 				}
@@ -6020,6 +6019,111 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 
 	/* Set number of cards selected */
 	*num = n;
+}
+
+/*
+ * Choose a card to draft.
+ */
+int gui_choose_draft(game *g, int who, int list[], int num, int special[],
+                      int num_special)
+{
+	char buf[1024];
+	displayed *i_ptr;
+	card *c_ptr;
+	int i, j, n = 0, save_opt;
+
+	/* Save special cards */
+	for (i = 0; i < num_special; ++i) special_cards[i] = &g->deck[special[i]];
+
+	/* Create prompt */
+	sprintf(buf, "Choose card to draft");
+
+	/* Set prompt */
+	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
+
+	/* XXX Do not compute hand VPs */
+	save_opt = opt.vp_in_hand;
+	opt.vp_in_hand = FALSE;
+
+	/* Reset displayed cards */
+	reset_cards(g, TRUE, TRUE);
+
+	/* XXX Display hand VPs next time */
+	opt.vp_in_hand = save_opt;
+
+	/* Set button restriction */
+	action_restrict = RESTRICT_NUM;
+	action_min = action_max = 1;
+
+	/* Deactivate action button */
+	gtk_widget_set_sensitive(action_button, FALSE);
+
+	/* Add start worlds to table */
+	for (i = 0; i < num_special; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &real_game.deck[special[i]];
+
+		/* Get next entry in table list */
+		i_ptr = &table[player_us][table_size[player_us]++];
+
+		/* Clear displayed card */
+		reset_display(i_ptr);
+
+		/* Add card information */
+		i_ptr->index = special[i];
+		i_ptr->d_ptr = c_ptr->d_ptr;
+		i_ptr->color = TRUE;
+	}
+
+	/* Loop over cards in list */
+	for (i = 0; i < num; i++)
+	{
+		/* Loop over cards in hand */
+		for (j = 0; j < hand_size; j++)
+		{
+			/* Get hand pointer */
+			i_ptr = &hand[j];
+
+			/* Check for matching index */
+			if (i_ptr->index == list[i])
+			{
+				/* Card is eligible */
+				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
+
+				/* Highlight card when selected */
+				i_ptr->highlight = HIGH_YELLOW;
+				i_ptr->highlight_else = HIGH_RED;
+			}
+		}
+	}
+
+	/* Redraw everything */
+	redraw_everything();
+
+	/* Process events */
+	gtk_main();
+
+	/* Clear special cards */
+	num_special_cards = 0;
+
+	/* Loop over cards in hand */
+	for (i = 0; i < hand_size; i++)
+	{
+		/* Get hand pointer */
+		i_ptr = &hand[i];
+
+		/* Check for selected */
+		if (i_ptr->selected)
+		{
+			/* Return choice */
+			return i_ptr->index;
+		}
+	}
+
+	/* Error */
+	return -1;
 }
 
 /*
@@ -9203,6 +9307,13 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			rv = gui_choose_oort_kind(g, who);
 			break;
 
+		/* Choose card to draft */
+		case CHOICE_DRAFT:
+
+			/* Choose card */
+			rv = gui_choose_draft(g, who, list, *nl, special, *ns);
+			break;
+
 		/* Error */
 		default:
 			printf("Unknown choice type!\n");
@@ -9344,8 +9455,8 @@ static void apply_options(void)
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
 
-	/* Set drafting disabled */
-	real_game.drafting = FALSE;
+	/* XXXXXXXX Set drafting enabled */
+	real_game.drafting = TRUE;
 
 	/* Check for custom seed value */
 	if (opt.customize_seed)
@@ -11515,6 +11626,8 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 		case WHERE_ACTIVE: name = "Active"; break;
 		case WHERE_GOOD: name = "Good"; break;
 		case WHERE_SAVED: name = "Saved"; break;
+		case WHERE_ASIDE: name = "Revealed"; break;
+		case WHERE_REMOVED: name = "Removed"; break;
 		default: name = "Unknown"; break;
 	}
 
@@ -13210,7 +13323,7 @@ int main(int argc, char *argv[])
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Password Needed",
 	                                            toggle_render, "active",
-	                                            3, "visible", 11, NULL);
+	                                            3, "visible", 12, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "# Players", render,
 	                                            "text", 4, NULL);
@@ -13220,19 +13333,19 @@ int main(int argc, char *argv[])
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "2P Advanced",
 	                                            toggle_render, "active",
-	                                            6, "visible", 11, NULL);
+	                                            6, "visible", 12, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Disable Goals",
 	                                            toggle_render, "active",
-	                                            7, "visible", 11, NULL);
+	                                            7, "visible", 12, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Disable Takeovers",
 	                                            toggle_render, "active",
-	                                            8, "visible", 11, NULL);
+	                                            8, "visible", 12, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Drafting",
 	                                            toggle_render, "active",
-	                                            9, "visible", 11, NULL);
+	                                            9, "visible", 12, NULL);
 
 	/* Get first column of game view */
 	desc_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);

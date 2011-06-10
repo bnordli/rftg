@@ -32,7 +32,7 @@
 #endif
 
 #ifndef RELEASE
-#define RELEASE VERSION "k"
+#define RELEASE VERSION "l"
 #endif
 
 #include <stdio.h>
@@ -112,7 +112,7 @@
 /*
  * Number of card locations.
  */
-#define MAX_WHERE 7
+#define MAX_WHERE 8
 
 
 /*
@@ -197,6 +197,7 @@
 #define WHERE_GOOD     4
 #define WHERE_SAVED    5
 #define WHERE_ASIDE    6
+#define WHERE_REMOVED  7
 
 /*
  * Search categories.
@@ -485,6 +486,7 @@
 #define CHOICE_SEARCH_TYPE      22
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
+#define CHOICE_DRAFT            25
 
 
 /*
@@ -929,11 +931,12 @@ extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
 extern int prestige_on_tile(game *g, int who);
-extern int random_draw(game *g);
+extern int random_draw(game *g, int who);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);
 extern void draw_card(game *g, int who, char *reason);
 extern void draw_cards(game *g, int who, int num, char *reason);
+extern void discard_card(game *g, int who, int which);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);

@@ -306,7 +306,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 {
 	GtkTreePath *game_path;
 	GtkTreeIter game_iter, parent_iter;
-	int owned, minp, user = 1, self;
+	int owned, drafting, minp, user = 1, self;
 
 	/* Check for ability to join game */
 	gtk_widget_set_sensitive(join_button, client_sid == -1);
@@ -346,9 +346,9 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 		user = 0;
 	}
 
-	/* Get game owned flag and minimum number of players */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 11, &owned,
-	                   13, &minp, -1);
+	/* Get game information */
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 9, &drafting,
+	                   11, &owned, 13, &minp, -1);
 
 	/* Check for user */
 	if (user)
@@ -367,7 +367,8 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	gtk_widget_set_sensitive(kick_button, user && !self && owned);
 
 	/* Check for ability to add AI player */
-	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned);
+	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned &&
+	                         !drafting);
 }
 
 /*
@@ -2116,9 +2117,9 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
-		send_msgf(server_fd, MSG_LOGIN, "sss",
+		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
-		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION);
+		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
 
 
 		/* Enter main loop to wait for response */
@@ -2618,7 +2619,7 @@ void create_dialog(GtkButton *button, gpointer data)
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
-		gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(drafting_check)),
+        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(drafting_check)),
 	          0);
 
 	/* Destroy dialog */

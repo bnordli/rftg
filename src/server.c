@@ -42,6 +42,11 @@
 #define SS_ABANDONED 4
 
 /*
+ * Client features.
+ */
+#define FEATURE_DRAFTING 1
+
+/*
  * Number of random bytes to store per session (2 needed per number generated).
  */
 #define MAX_RAND     1024
@@ -84,6 +89,9 @@ typedef struct conn
 
 	/* IP address of remote client */
 	char addr[80];
+
+	/* Client version */
+	char version[80];
 
 	/* Session this player has joined (if any) */
 	int sid;
@@ -870,6 +878,23 @@ void send_msg(int cid, char *msg)
 }
 
 /*
+ * Check whether the client supports the given feature.
+ */
+static int client_supports(int cid, int feature)
+{
+	switch (feature)
+	{
+		/* Drafting */
+		case FEATURE_DRAFTING:
+			/* Supported in release 0.8.1l and above */
+			return !strncmp("0.8.1", c_list[cid].version, 5) &&
+			       c_list[cid].version[5] >= 'l';
+		default:
+			return 1;
+	}
+}
+
+/*
  * Create a new AI client connection.
  */
 static int new_ai_client(int sid)
@@ -1045,14 +1070,30 @@ static void send_session_one(int sid, int cid)
 	/* Get username of game creator */
 	db_user_name(s_ptr->created, name);
 
-	// TODO: Compatibility with older clients
-	/* Send message to client */
-	send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
-	          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
-	          s_ptr->min_player, s_ptr->max_player,
-	          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-	          s_ptr->disable_takeover, s_ptr->drafting, s_ptr->speed,
-	          c_list[cid].uid == s_ptr->created);
+	/* Check for drafting support */
+	if (client_supports(cid, FEATURE_DRAFTING))
+	{
+		/* Send message to client */
+		send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
+		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
+		          s_ptr->min_player, s_ptr->max_player,
+		          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
+		          s_ptr->disable_takeover, s_ptr->drafting, s_ptr->speed,
+		          c_list[cid].uid == s_ptr->created);
+	}
+	else
+	{
+		/* Do not send drafting games */
+		if (s_ptr->drafting) return;
+
+		/* Send message to client */
+		send_msgf(cid, MSG_OPENGAME, "dssddddddddd",
+		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
+		          s_ptr->min_player, s_ptr->max_player,
+		          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
+		          s_ptr->disable_takeover, s_ptr->speed,
+		          c_list[cid].uid == s_ptr->created);
+	}
 
 	/* Loop over player spots */
 	for (i = 0; i < MAX_PLAYER; i++)
@@ -1327,41 +1368,70 @@ int game_rand(game *g)
 static void update_meta(int sid)
 {
 	session *s_ptr = &s_list[sid];
-	char msg[1024], *ptr = msg;
-	int i;
+	char msg0[1024], msg1[1024], *ptr0 = msg0, *ptr1 = msg1;
+	int i, cid;
 
-	/* Start message */
-	start_msg(&ptr, MSG_STATUS_META);
+	/* Start messages */
+	start_msg(&ptr0, MSG_STATUS_META);
+	start_msg(&ptr1, MSG_STATUS_META);
 
-	/* Add game parameters to message */
-	put_integer(s_ptr->num_users, &ptr);
-	put_integer(s_ptr->expanded, &ptr);
-	put_integer(s_ptr->advanced, &ptr);
-	put_integer(s_ptr->disable_goal, &ptr);
-	put_integer(s_ptr->disable_takeover, &ptr);
+	/* Add common game parameters to messages */
+	put_integer(s_ptr->num_users, &ptr0);
+	put_integer(s_ptr->expanded, &ptr0);
+	put_integer(s_ptr->advanced, &ptr0);
+	put_integer(s_ptr->disable_goal, &ptr0);
+	put_integer(s_ptr->disable_takeover, &ptr0);
 
-	/* TODO: Compatibility */
-	put_integer(s_ptr->drafting, &ptr);
+	put_integer(s_ptr->num_users, &ptr1);
+	put_integer(s_ptr->expanded, &ptr1);
+	put_integer(s_ptr->advanced, &ptr1);
+	put_integer(s_ptr->disable_goal, &ptr1);
+	put_integer(s_ptr->disable_takeover, &ptr1);
+
+	/* Add drafting information only to msg1 */
+	put_integer(s_ptr->drafting, &ptr1);
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
-		/* Add goal presence to message */
-		put_integer(s_ptr->g.goal_active[i], &ptr);
+		/* Add goal presence to messages */
+		put_integer(s_ptr->g.goal_active[i], &ptr0);
+		put_integer(s_ptr->g.goal_active[i], &ptr1);
 	}
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
-		/* Add player's name to message */
-		put_string(s_ptr->g.p[i].name, &ptr);
+		/* Add player's name to messages */
+		put_string(s_ptr->g.p[i].name, &ptr0);
+		put_string(s_ptr->g.p[i].name, &ptr1);
 	}
 
-	/* Finish message */
-	finish_msg(msg, ptr);
+	/* Finish messages */
+	finish_msg(msg0, ptr0);
+	finish_msg(msg1, ptr1);
 
-	/* Send to everyone */
-	send_to_session(sid, msg);
+	/* Loop over users in the session */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Get connection ID of this user */
+		cid = s_ptr->cids[i];
+
+		/* Check for no connection */
+		if (cid < 0) continue;
+
+		/* Check for no drafting support */
+		if (!client_supports(cid, FEATURE_DRAFTING))
+		{
+			/* Send old format to client */
+			send_msg(cid, msg0);
+		}
+		else
+		{
+			/* Send new format to client */
+			send_msg(cid, msg1);
+		}
+	}
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -1377,6 +1447,8 @@ static void update_meta(int sid)
 static void obfuscate_game(game *ob, game *g, int who)
 {
 	int i, j;
+	
+	// TODO: Fix for drafting!
 
 	/* Copy game state */
 	*ob = *g;
@@ -1442,6 +1514,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 			/* XXX */
 			if (j >= g->deck_size)
 			{
+				/* Log message */
 				printf("Failed to find substitute good\n");
 				j = 0;
 				break;
@@ -1795,6 +1868,7 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	/* Player has option to play */
 	s_ptr->waiting[who] = WAIT_OPTION;
 
+	/* Log message */
 	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
 }
 
@@ -1840,6 +1914,7 @@ static void ask_client(int sid, int who)
 		return;
 	}
 
+	/* Log message */
 	printf("S:%d Asking %d (%s) for choice (type %d) at %d\n", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
 
 	/* Start choice message */
@@ -2002,6 +2077,7 @@ static void handle_choice(int cid, char *ptr)
 	/* Copy choice type to log */
 	*l_ptr++ = get_integer(&ptr);
 
+	/* Log message */
 	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
 	if (pos != p_ptr->choice_size)
@@ -2111,6 +2187,7 @@ static void handle_prepare(int cid, char *ptr)
 	/* Unlock mutex */
 	pthread_mutex_unlock(&s_ptr->session_mutex);
 
+	/* Log message */
 	printf("S:%d Received preparation complete from %d\n", sid, cid);
 }
 
@@ -2458,6 +2535,14 @@ static void switch_ai(int sid, int who)
 	/* Send to session */
 	send_gamechat(sid, "", text);
 
+	/* Check for drafting game (not currently supported by AI) */
+	if (s_list[sid].drafting)
+	{
+		/* Send untrained AI note */
+		send_gamechat(sid, "", "Note: AI is not trained for the "
+		              "drafting version");
+	}
+
 	/* Have AI answer most recent choice question */
 	ask_client(sid, who);
 
@@ -2654,7 +2739,20 @@ static void handle_login(int cid, char *ptr)
 	get_string(pass, &ptr);
 	get_string(version, &ptr);
 
-	printf("Login attempt from %s\n", user);
+	/* Check for release information */
+	if (ptr - c_list[cid].buf < c_list[cid].buf_full)
+	{
+		/* Use release as version */
+		get_string(c_list[cid].version, &ptr);
+	}
+	else
+	{
+		/* Just use version */
+		strcpy(c_list[cid].version, version);
+	}
+
+	/* Log message */
+	printf("Login attempt from %s (%s)\n", user, c_list[cid].version);
 
 	/* Check for too old version */
 	if (strcmp(version, "0.8.1") < 0)
@@ -2662,6 +2760,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
 
+		/* Log message */
 		printf("Denied (too old)\n");
 
 		/* Done */
@@ -2674,6 +2773,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too new");
 
+		/* Log message */
 		printf("Denied (too new)\n");
 
 		/* Done */
@@ -2686,6 +2786,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
+		/* Log message */
 		printf("Denied (illegal username)\n");
 
 		/* Done */
@@ -2701,6 +2802,7 @@ static void handle_login(int cid, char *ptr)
 			/* Send denied message */
 			send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
+			/* Log message */
 			printf("Denied (illegal username)\n");
 
 			/* Done */
@@ -2724,6 +2826,7 @@ static void handle_login(int cid, char *ptr)
 			send_msgf(cid, MSG_DENIED, "s",
 			          "User already logged in");
 
+			/* Log message */
 			printf("Denied (already logged in)\n");
 
 			/* Done */
@@ -2737,6 +2840,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Illegal password length");
 
+		/* Log message */
 		printf("Denied (illegal password length)\n");
 
 		/* Done */
@@ -2752,6 +2856,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Incorrect password");
 
+		/* Log message */
 		printf("Denied (incorrect password)\n");
 
 		/* Done */
@@ -2932,8 +3037,18 @@ static void handle_create(int cid, char *ptr)
 	s_ptr->advanced = get_integer(&ptr);
 	s_ptr->disable_goal = get_integer(&ptr);
 	s_ptr->disable_takeover = get_integer(&ptr);
-	// TODO: Compatibility
-	s_ptr->drafting = get_integer(&ptr);
+
+	/* Check for drafting support */
+	if (client_supports(cid, FEATURE_DRAFTING))
+	{
+		/* Read drafting parameter */
+		s_ptr->drafting = get_integer(&ptr);
+	}
+	else
+	{
+		/* Drafting is disabled */
+		s_ptr->drafting = 0;
+	}
 
 	/* Read preferred game speed */
 	s_ptr->speed = get_integer(&ptr);
@@ -2949,8 +3064,14 @@ static void handle_create(int cid, char *ptr)
 	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
 	if (s_ptr->expanded > 3) s_ptr->expanded = 3;
 
+	/* Validate disabled flags */
+	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
+	if (s_ptr->expanded < 1) s_ptr->drafting = 0;
+	
 	/* Compute maximum number of players allowed */
 	maxp = s_ptr->expanded + 4;
+	if (s_ptr->drafting) maxp = 1 + 2*s_ptr->expanded;
 	if (maxp > 6) maxp = 6;
 
 	/* Validate number of players */
@@ -2960,11 +3081,6 @@ static void handle_create(int cid, char *ptr)
 	if (s_ptr->max_player > maxp) s_ptr->max_player = maxp;
 	if (s_ptr->min_player > s_ptr->max_player)
 		s_ptr->min_player = s_ptr->max_player;
-
-	/* Validate disabled flags */
-	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
-	if (s_ptr->expanded < 1) s_ptr->drafting = 0;
 
 	/* Insert game into database */
 	s_list[sid].gid = db_new_game(sid);
@@ -3210,6 +3326,9 @@ static void handle_add_ai(int cid, char *ptr)
 		kick_player(cid, "Tried to add AI when not game owner");
 		return;
 	}
+
+	/* No ai players in drafting games */
+	if (s_ptr->drafting) return;
 
 	/* Check for maximum number of players already */
 	if (s_ptr->num_users >= s_ptr->max_player) return;
@@ -3566,6 +3685,7 @@ static void handle_msg(int cid)
 		/* Unknown type */
 		default:
 
+			/* Log message */
 			printf("Unknown message type %d\n", type);
 			break;
 

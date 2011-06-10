@@ -147,7 +147,7 @@ int takeovers_enabled(game *g)
 /*
  * Return the number of cards in the draw deck.
  */
-static int count_draw(game *g)
+static int count_draw(game *g, int who)
 {
 	card *c_ptr;
 	int i, n = 0;
@@ -159,7 +159,7 @@ static int count_draw(game *g)
 		c_ptr = &g->deck[i];
 
 		/* Count cards in draw deck */
-		if (c_ptr->where == WHERE_DECK) n++;
+		if (c_ptr->owner == who && c_ptr->where == WHERE_DECK) n++;
 	}
 
 	/* Return count */
@@ -290,16 +290,34 @@ int prestige_on_tile(game *g, int who)
 /*
  * Refresh the draw deck.
  */
-static void refresh_draw(game *g)
+static void refresh_draw(game *g, int who)
 {
+	char msg[1024];
 	card *c_ptr;
 	int i;
+
+	/* Draw deck is global in non-drafting games */
+	if (!g->drafting) who = -1;
 
 	/* Message */
 	if (!g->simulation)
 	{
-		/* Send message */
-		message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
+		/* Check for normal game */
+		if (!g->drafting)
+		{
+			/* Send message */
+			message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
+		}
+
+		/* Drafting game and not global */
+		else if (who != -1)
+		{
+			/* Format message */
+			sprintf(msg, "%s refreshes his draw deck.\n", g->p[who].name);
+
+			/* Send message*/
+			message_add_formatted(g, msg, FORMAT_EM);
+		}
 	}
 
 	/* Loop over cards */
@@ -307,6 +325,9 @@ static void refresh_draw(game *g)
 	{
 		/* Get card pointer */
 		c_ptr = &g->deck[i];
+
+		/* Skip cards with wrong owner */
+		if (c_ptr->owner != who) continue;
 
 		/* Skip cards not in discard pile */
 		if (c_ptr->where != WHERE_DISCARD) continue;
@@ -322,22 +343,25 @@ static void refresh_draw(game *g)
 /*
  * Return a card index from the draw deck.
  */
-int random_draw(game *g)
+int random_draw(game *g, int who)
 {
 	card *c_ptr = NULL;
 	int i, n;
+	
+	/* Draw deck is global when not drafting */
+	if (!g->drafting) who = -1;
 
 	/* Count draw deck size */
-	n = count_draw(g);
+	n = count_draw(g, who);
 
 	/* Check for no cards */
 	if (!n)
 	{
 		/* Refresh draw deck */
-		refresh_draw(g);
+		refresh_draw(g, who);
 
 		/* Recount */
-		n = count_draw(g);
+		n = count_draw(g, who);
 
 		/* Check for still no cards */
 		if (!n)
@@ -356,6 +380,9 @@ int random_draw(game *g)
 		/* Get card pointer */
 		c_ptr = &g->deck[i];
 
+		/* Skip cards with wrong owner */
+		if (c_ptr->owner != who) continue;
+
 		/* Skip cards not in draw deck */
 		if (c_ptr->where != WHERE_DECK) continue;
 
@@ -364,10 +391,13 @@ int random_draw(game *g)
 	}
 
 	/* Clear chosen card's location */
-	c_ptr->where = -1;
+	move_card(g, i, c_ptr->owner, -1);
+
+	/* Count draw deck size */
+	n = count_draw(g, who);
 
 	/* Check for just-emptied draw pile */
-	if (!count_draw(g)) refresh_draw(g);
+	if (!count_draw(g, who)) refresh_draw(g, who);
 
 	/* Return chosen card */
 	return i;
@@ -380,22 +410,22 @@ int random_draw(game *g)
  * and other non-essential tasks.  We don't want to use the random number
  * generator in these cases.
  */
-static int first_draw(game *g)
+static int first_draw(game *g, int who)
 {
 	card *c_ptr = NULL;
 	int i, n;
 
 	/* Count draw deck size */
-	n = count_draw(g);
+	n = count_draw(g, who);
 
 	/* Check for no cards */
 	if (!n)
 	{
 		/* Refresh draw deck */
-		refresh_draw(g);
+		refresh_draw(g, who);
 
 		/* Recount */
-		n = count_draw(g);
+		n = count_draw(g, who);
 
 		/* Check for still no cards */
 		if (!n)
@@ -419,10 +449,10 @@ static int first_draw(game *g)
 	}
 
 	/* Clear chosen card's location */
-	c_ptr->where = -1;
+	move_card(g, i, c_ptr->owner, -1);
 
 	/* Check for just-emptied draw pile */
-	if (!count_draw(g)) refresh_draw(g);
+	if (!count_draw(g, who)) refresh_draw(g, who);
 
 	/* Return chosen card */
 	return i;
@@ -431,7 +461,8 @@ static int first_draw(game *g)
 /*
  * Move a card, keeping track of linked lists.
  *
- * This MUST be called when a card is moved to or from a player.
+ * This MUST be called when a card is moved to or from a player in
+ * these locations: WHERE_HAND, WHERE_ACTIVE, WHERE_GOOD, WHERE_SAVED
  */
 void move_card(game *g, int which, int owner, int where)
 {
@@ -442,8 +473,10 @@ void move_card(game *g, int which, int owner, int where)
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
-	/* Check for current owner */
-	if (c_ptr->owner != -1)
+	/* Check for current owner and tracked lists */
+	if (c_ptr->owner != -1 &&
+	    (c_ptr->where == WHERE_HAND || c_ptr->where == WHERE_ACTIVE ||
+	     c_ptr->where == WHERE_GOOD || c_ptr->where == WHERE_SAVED))
 	{
 		/* Get pointer of current owner */
 		p_ptr = &g->p[c_ptr->owner];
@@ -473,8 +506,10 @@ void move_card(game *g, int which, int owner, int where)
 		}
 	}
 
-	/* Check for new owner */
-	if (owner != -1)
+	/* Check for new owner and tracked lists */
+	if (owner != -1 &&
+	    (where == WHERE_HAND || where == WHERE_ACTIVE ||
+	     where == WHERE_GOOD || where == WHERE_SAVED))
 	{
 		/* Get player pointer of new owner */
 		p_ptr = &g->p[owner];
@@ -504,8 +539,10 @@ void move_start(game *g, int which, int owner, int where)
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
-	/* Check for current owner */
-	if (c_ptr->start_owner != -1)
+	/* Check for current owner and tracked lists */
+	if (c_ptr->start_owner != -1 &&
+	    (c_ptr->start_where == WHERE_HAND || c_ptr->start_where == WHERE_ACTIVE ||
+	     c_ptr->start_where == WHERE_GOOD || c_ptr->start_where == WHERE_SAVED))
 	{
 		/* Get pointer of current owner */
 		p_ptr = &g->p[c_ptr->start_owner];
@@ -536,8 +573,10 @@ void move_start(game *g, int which, int owner, int where)
 		}
 	}
 
-	/* Check for new owner */
-	if (owner != -1)
+	/* Check for new owner and tracked lists */
+	if (owner != -1 &&
+	    (where == WHERE_HAND || where == WHERE_ACTIVE ||
+	     where == WHERE_GOOD || where == WHERE_SAVED))
 	{
 		/* Get player pointer of new owner */
 		p_ptr = &g->p[owner];
@@ -575,7 +614,7 @@ void draw_card(game *g, int who, char *reason)
 		p_ptr->total_fake++;
 
 		/* Get card from draw pile */
-		which = random_draw(g);
+		which = random_draw(g, who);
 
 		/* Check for failure */
 		if (which == -1) return;
@@ -591,7 +630,7 @@ void draw_card(game *g, int who, char *reason)
 	}
 
 	/* Choose random card */
-	which = random_draw(g);
+	which = random_draw(g, who);
 
 	/* Check for failure */
 	if (which == -1) return;
@@ -637,6 +676,24 @@ void draw_cards(game *g, int who, int num, char *reason)
 
 		/* Add message */
 		message_add_formatted(g, msg, FORMAT_VERBOSE);
+	}
+}
+
+/*
+ * Discard a card, keeping owner if drafting game.
+ */
+void discard_card(game *g, int who, int which)
+{
+	/* Check for drafting game */
+	if (g->drafting)
+	{
+		/* Move card to discard and keep owner */
+		move_card(g, which, g->deck[which].owner, WHERE_DISCARD);
+	}
+	else
+	{
+		/* Move card to discard and clear owner */
+		move_card(g, which, -1, WHERE_DISCARD);
 	}
 }
 
@@ -1174,7 +1231,7 @@ void discard_callback(game *g, int who, int list[], int num)
 	for (i = 0; i < num; i++)
 	{
 		/* Move card to discard */
-		move_card(g, list[i], -1, WHERE_DISCARD);
+		discard_card(g, who, list[i]);
 
 		/* Message */
 		if (!g->simulation && g->p[who].control->private_message)
@@ -1281,12 +1338,12 @@ void add_good(game *g, card *c_ptr)
 	if (g->simulation)
 	{
 		/* Use first available card */
-		which = first_draw(g);
+		which = first_draw(g, c_ptr->owner);
 	}
 	else
 	{
 		/* Get random card to use as good */
-		which = random_draw(g);
+		which = random_draw(g, c_ptr->owner);
 	}
 
 	/* Check for failure */
@@ -1570,7 +1627,7 @@ void phase_search(game *g)
 		while (1)
 		{
 			/* Draw a card */
-			which = random_draw(g);
+			which = random_draw(g, i);
 
 			/* Check for failure */
 			if (which == -1)
@@ -1718,7 +1775,7 @@ void phase_search(game *g)
 			if (c_ptr->where == WHERE_ASIDE)
 			{
 				/* Move to discard */
-				c_ptr->where = WHERE_DISCARD;
+				discard_card(g, i, j);
 			}
 		}
 	}
@@ -2125,7 +2182,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P2_DISCARD_REDUCE)
 			{
 				/* Discard card */
-				move_card(g, special[i], -1, WHERE_DISCARD);
+				discard_card(g, who, special[i]);
 
 				/* Message */
 				if (!g->simulation)
@@ -2244,7 +2301,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 		}
 
 		/* Move to discard */
-		move_card(g, list[i], -1, WHERE_DISCARD);
+		discard_card(g, who, list[i]);
 	}
 
 	/* Get list of develop powers */
@@ -3326,7 +3383,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_DISCARD)
 			{
 				/* Discard card */
-				move_card(g, special[i], -1, WHERE_DISCARD);
+				discard_card(g, who, special[i]);
 
 				/* Message */
 				if (!g->simulation)
@@ -3744,7 +3801,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		}
 
 		/* Discard */
-		move_card(g, list[i], -1, WHERE_DISCARD);
+		discard_card(g, who, list[i]);
 	}
 
 	/* Message */
@@ -4124,7 +4181,7 @@ int takeover_callback(game *g, int special, int world)
 		if (o_ptr->code & P3_DISCARD)
 		{
 			/* Discard card */
-			move_card(g, special, -1, WHERE_DISCARD);
+			discard_card(g, c_ptr->owner, special);
 		}
 		else
 		{
@@ -4475,7 +4532,7 @@ int upgrade_chosen(game *g, int who, int replacement, int old)
 	if (c_ptr->covered != -1)
 	{
 		/* Move good to discard */
-		move_card(g, c_ptr->covered, -1, WHERE_DISCARD);
+		discard_card(g, who, c_ptr->covered);
 
 		/* Clear covered flag */
 		c_ptr->covered = -1;
@@ -4491,13 +4548,13 @@ int upgrade_chosen(game *g, int who, int replacement, int old)
 			if (g->deck[i].where == WHERE_SAVED)
 			{
 				/* Move to discard */
-				move_card(g, i, -1, WHERE_DISCARD);
+				discard_card(g, who, i);
 			}
 		}
 	}
 
 	/* Discard old card */
-	move_card(g, old, -1, WHERE_DISCARD);
+	discard_card(g, who, old);
 
 	/* Place new card */
 	place_card(g, who, replacement);
@@ -4955,7 +5012,7 @@ void settle_action(game *g, int who, int world)
 			c_ptr = &g->deck[place_military];
 
 			/* Discard */
-			move_card(g, place_military, -1, WHERE_DISCARD);
+			discard_card(g, who, place_military);
 
 			/* Message */
 			if (!g->simulation)
@@ -5035,7 +5092,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 			if (o_ptr->code == (P3_DISCARD | P3_EXTRA_MILITARY))
 			{
 				/* Discard card */
-				move_card(g, special[i], -1, WHERE_DISCARD);
+				discard_card(g, who, special[i]);
 
 				/* Message */
 				if (!g->simulation)
@@ -5168,7 +5225,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 		for (i = 0; i < num; i++)
 		{
 			/* Discard card */
-			move_card(g, list[i], -1, WHERE_DISCARD);
+			discard_card(g, who, list[i]);
 		}
 	}
 
@@ -5358,7 +5415,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 	int prestige = 0;
 	char prestige_reason[1024];
 	char msg[1024];
-	int attack;
+	int attack, defender;
 	int i;
 
 	/* Get player pointer */
@@ -5366,7 +5423,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 
 	/* Get card pointer to special power used for takeover */
 	c_ptr = &g->deck[special];
-
+	
 	/* Loop over powers */
 	for (i = 0; i < c_ptr->d_ptr->num_power; i++)
 	{
@@ -5419,9 +5476,12 @@ int resolve_takeover(game *g, int who, int world, int special,
 	/* Get card pointer */
 	c_ptr = &g->deck[world];
 
+	/* Get defender */
+	defender = c_ptr->owner;
+
 	/* Check for card moved since takeover declared */
 	if (c_ptr->where != c_ptr->start_where ||
-	    c_ptr->owner != c_ptr->start_owner)
+	    defender != c_ptr->start_owner)
 	{
 		/* Takeover fails */
 		defeated = 1;
@@ -5439,7 +5499,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Compute current owner's defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
+	if (!defeated) defense = strength_against(g, defender, world, -1, 1);
 
 	/* Compute total attack strength */
 	if (!defeated) attack = strength_against(g, who, world, special, 0);
@@ -5461,14 +5521,14 @@ int resolve_takeover(game *g, int who, int world, int special,
 	if (!defeated && attack >= defense)
 	{
 		/* Ask defender for any extra defense to spend */
-		defend_takeover(g, c_ptr->owner, world, who, attack - defense);
+		defend_takeover(g, defender, world, who, attack - defense);
 
 		/* Check for aborted game */
 		if (g->game_over) return 0;
 	}
 
 	/* Recompute defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
+	if (!defeated) defense = strength_against(g, defender, world, -1, 1);
 
 	/* Check for non-military target */
 	if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
@@ -5494,7 +5554,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Format defense message */
 		sprintf(msg, "%s defends %s with %d military.\n",
-		        g->p[c_ptr->owner].name,
+		        g->p[defender].name,
 		        c_ptr->d_ptr->name,
 		        defense);
 
@@ -5538,7 +5598,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 		}
 
 		/* Discard card */
-		move_card(g, world, -1, WHERE_DISCARD);
+		discard_card(g, defender, world);
 
 		/* Award settle bonus */
 		settle_bonus(g, who, world, 1);
@@ -5556,7 +5616,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 				if (g->deck[i].where == WHERE_SAVED)
 				{
 					/* Move to discard */
-					move_card(g, i, -1, WHERE_DISCARD);
+					discard_card(g, defender, i);
 				}
 			}
 		}
@@ -5565,7 +5625,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 		if (c_ptr->covered != -1)
 		{
 			/* Discard good as well */
-			move_card(g, c_ptr->covered, -1, WHERE_DISCARD);
+			discard_card(g, defender, c_ptr->covered);
 
 			/* Remove covered from destroyed card */
 			c_ptr->covered = -1;
@@ -6085,7 +6145,7 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 	c_ptr = &g->deck[which];
 
 	/* Move good card to discard */
-	move_card(g, c_ptr->covered, -1, WHERE_DISCARD);
+	discard_card(g, who, c_ptr->covered);
 
 	/* Uncover production card */
 	c_ptr->covered = -1;
@@ -6339,7 +6399,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		}
 
 		/* Move good card to discard */
-		move_card(g, c_ptr->covered, -1, WHERE_DISCARD);
+		discard_card(g, who, c_ptr->covered);
 
 		/* Uncover production card */
 		c_ptr->covered = -1;
@@ -6465,7 +6525,7 @@ static void draw_lucky(game *g, int who)
 	if (g->game_over) return;
 
 	/* Draw top card */
-	which = random_draw(g);
+	which = random_draw(g, who);
 
 	/* Check for failure */
 	if (which == -1) return;
@@ -6503,7 +6563,7 @@ static void draw_lucky(game *g, int who)
 	else
 	{
 		/* Move card to discard */
-		c_ptr->where = WHERE_DISCARD;
+		discard_card(g, who, which);
 
 		/* Make card known to everyone */
 		c_ptr->known = ~0;
@@ -6578,7 +6638,7 @@ static void ante_card(game *g, int who)
 	for (i = 0; i < cost; i++)
 	{
 		/* Take a card */
-		drawn[i] = random_draw(g);
+		drawn[i] = random_draw(g, who);
 
 		/* Check for failure */
 		if (drawn[i] == -1) return;
@@ -6602,7 +6662,7 @@ static void ante_card(game *g, int who)
 	if (!success)
 	{
 		/* Discard ante */
-		move_card(g, chosen, -1, WHERE_DISCARD);
+		discard_card(g, who, chosen);
 
 		/* Location is known to all */
 		g->deck[chosen].known = ~0;
@@ -6611,7 +6671,7 @@ static void ante_card(game *g, int who)
 		for (i = 0; i < cost; i++)
 		{
 			/* Discard drawn card */
-			move_card(g, drawn[i], -1, WHERE_DISCARD);
+			discard_card(g, who, drawn[i]);
 
 			/* Location is known to all */
 			g->deck[drawn[i]].known = ~0;
@@ -6663,7 +6723,7 @@ static void ante_card(game *g, int who)
 		else
 		{
 			/* Discard card */
-			move_card(g, drawn[i], -1, WHERE_DISCARD);
+			discard_card(g, who, drawn[i]);
 
 			/* Location is known to all */
 			g->deck[drawn[i]].known = ~0;
@@ -6755,7 +6815,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 	for (i = 0; i < n; i++)
 	{
 		/* Move card to discard */
-		move_card(g, list[i], -1, WHERE_DISCARD);
+		discard_card(g, who, list[i]);
 
 		/* Check for reward per two cards */
 		if ((o_ptr->code & P4_CONSUME_TWO) && (i % 2 != 0)) continue;
@@ -7688,7 +7748,7 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
 	c_ptr = &g->deck[discard];
 
 	/* Move card to discard */
-	move_card(g, discard, -1, WHERE_DISCARD);
+	discard_card(g, who, discard);
 
 	/* Message */
 	if (!g->simulation)
@@ -8855,45 +8915,70 @@ void phase_discard(game *g)
 		/* Check for "take discards" flag */
 		if (count_active_flags(g, i, FLAG_TAKE_DISCARDS))
 		{
-			/* Look for cards discarded by opponents */
-			for (j = 0; j < g->deck_size; j++)
+			/* Check for normal game */
+			if (!g->drafting)
 			{
-				/* Get card pointer */
-				c_ptr = &g->deck[j];
+				/* Look for cards discarded by opponents */
+				for (j = 0; j < g->deck_size; j++)
+				{
+					/* Get card pointer */
+					c_ptr = &g->deck[j];
 
-				/* Skip previously unowned cards */
-				if (c_ptr->start_owner < 0) continue;
+					/* Skip previously unowned cards */
+					if (c_ptr->start_owner < 0) continue;
 
-				/* Skip cards we previously owned */
-				if (c_ptr->start_owner == i) continue;
+					/* Skip cards we previously owned */
+					if (c_ptr->start_owner == i) continue;
 
-				/* Skip cards that did not move */
-				if (c_ptr->start_owner == c_ptr->owner)
-					continue;
+					/* Skip cards that did not move */
+					if (c_ptr->start_owner == c_ptr->owner)
+						continue;
 
-				/* Take card */
-				move_card(g, j, i, WHERE_HAND);
+					/* Take card */
+					move_card(g, j, i, WHERE_HAND);
 
-				/* Adjust known flags */
-				c_ptr->known = (1 << i);
+					/* Adjust known flags */
+					c_ptr->known = (1 << i);
 
-				/* Count cards taken */
-				taken++;
+					/* Count cards taken */
+					taken++;
+				}
+
+				/* Check for cards taken */
+				if (taken > 0)
+				{
+					/* Message */
+					if (!g->simulation)
+					{
+						/* Format message */
+						sprintf(msg, "%s takes %d discard%s.\n",
+								g->p[i].name, taken, PLURAL(taken));
+
+						/* Send message */
+						message_add(g, msg);
+					}
+				}
 			}
 
-			/* Check for cards taken */
-			if (taken > 0)
+			/* Drafting game */
+			else
 			{
-				/* Message */
-				if (!g->simulation)
+				/* Loop over other players */
+				for (j = 0; j < g->num_players; j++)
 				{
-					/* Format message */
-					sprintf(msg, "%s takes %d discard%s.\n",
-					        g->p[i].name, taken, PLURAL(taken));
+					/* Skip current player */
+					if (i == j) continue;
 
-					/* Send message */
-					message_add(g, msg);
+					/* Add discards */
+					taken += g->p[j].end_discard;
 				}
+				
+				/* Check for discarded cards */
+				if (taken > 0)
+				{
+					/* Draw the same number of cards */
+					draw_cards(g, i, taken, "Retrofit & Salvage, Inc");
+				}	
 			}
 		}
 	}
@@ -9818,6 +9903,198 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 }
 
 /*
+ * Perform the initial draft.
+ */
+void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
+{
+	char msg[1024];
+	int draws[MAX_PLAYER][9], n, ns = 2, swap;
+	int i, j, k, m;
+	int draw, rounds, cards, rotation, card;
+
+	/* Compute number of drafting rounds */
+	if (g->expanded == 1 && g->num_players == 2) rounds = 13;
+	else if (g->expanded == 1 && g->num_players == 3) rounds = 8;
+
+	else if (g->expanded == 2 && g->num_players == 2) rounds = 17;
+	else if (g->expanded == 2 && g->num_players == 3) rounds = 11;
+	else if (g->expanded == 2 && g->num_players == 4) rounds = 8;
+	else if (g->expanded == 2 && g->num_players == 5) rounds = 6;
+
+	else if (g->expanded == 3 && g->num_players == 2) rounds = 23;
+	else if (g->expanded == 3 && g->num_players == 3) rounds = 15;
+	else if (g->expanded == 3 && g->num_players == 4) rounds = 8;
+	else if (g->expanded == 3 && g->num_players == 5) rounds = 5;
+	else rounds = 4;
+
+	/* Default draw count is 5 */
+	draw = 5;
+
+	/* Adjust number of cards drawn in each round */
+	if (g->expanded && g->num_players == 4) draw = 7;
+	else if (g->expanded && g->num_players > 4) draw = 9;
+
+	/* Loop over all rounds */
+	for (i = 0; i < rounds; ++i)
+	{
+		/* Reset rotation */
+		rotation = 0;
+
+		/* Check for needing to adjust drawn cards */
+		if (g->expanded == 3 && i == rounds - 1)
+		{
+			/* Adjust number of cards drawn for last round */
+			if (g->num_players == 2) draw = 2;
+			else if (g->num_players == 3) draw = 4;
+			else if (g->num_players == 4) draw = 6;
+			else if (g->num_players == 5) draw = 7;
+			else if (g->num_players == 6) draw = 9;
+		}
+
+		/* Format message */
+		sprintf(msg, "=== Draft round %d (of %d) ===\n", i + 1, rounds);
+		
+		/* Send message */
+		message_add_formatted(g, msg, FORMAT_EM);
+
+		/* Format message */
+		sprintf(msg, "Each player draws %d card%s.\n", draw, PLURAL(draw));
+		
+		/* Send message */
+		message_add(g, msg);
+
+		/* Format message */
+		sprintf(msg, "Cards are passed %s.\n", i % 2 ? "right" : "left");
+		
+		/* Send message */
+		message_add(g, msg);
+
+		/* Loop over players */
+		for (j = 0; j < g->num_players; ++j)
+		{
+			/* For each card */
+			for (k = 0; k < draw; ++k)
+			{
+				/* Draw card */
+				draws[j][k] = random_draw(g, -1);
+
+				/* Set aside card */
+				move_card(g, draws[j][k], -1, WHERE_HAND);
+			}
+		}
+
+		/* Loop over all passes */
+		for (j = 0; j < draw; ++j)
+		{
+			/* Compute cards left */
+			n = draw - j;
+
+			/* Loop over players */
+			for (k = 0; k < g->num_players; ++k)
+			{
+				/* Find cards */
+				cards = (k + rotation) % g->num_players;
+
+				/* Give all cards to player */
+				for (m = 0; m < n; ++m)
+					move_card(g, draws[cards][m], k, WHERE_HAND);
+
+				/* Ask player */
+				send_choice(g, k, CHOICE_DRAFT, draws[cards], &n,
+				            start_picks[k], &ns, 0, 0, 0);
+
+				/* Check for aborted game */
+				if (g->game_over) return;
+			}
+
+			/* Wait for all choices */
+			wait_for_all(g);
+
+			/* Loop over players */
+			for (k = 0; k < g->num_players; ++k)
+			{
+				/* Find cards */
+				cards = (k + rotation) % g->num_players;
+
+				/* Get answer */
+				card = extract_choice(g, k, CHOICE_DRAFT, draws[cards], &n,
+				                      start_picks[k], &ns);
+
+				/* Reset swap */
+				swap = n-1;
+
+				/* Loop over choices */
+				for (m = 0; m < n; ++m)
+				{
+					/* Check if card was selected */
+					if (draws[cards][m] == card)
+					{
+						/* Move to private deck */
+						move_card(g, card, k, WHERE_DECK);
+
+						/* Check for private message */
+						if (g->p[k].control->private_message)
+						{
+							/* Format message */
+							sprintf(msg, "%s drafts %s.\n", g->p[k].name,
+							        g->deck[card].d_ptr->name);
+
+							/* Send message */
+							g->p[k].control->private_message(g, k, msg,
+							                                 FORMAT_DISCARD);
+						}
+
+						/* Save swap position */
+						swap = m;
+					}
+					else
+					{
+						/* Set aside card */
+						move_card(g, draws[cards][m], -1, WHERE_HAND);
+					}
+				}
+
+				/* Swap cards */
+				draws[cards][swap] = draws[cards][n-1];
+				draws[cards][n-1] = -1;
+			}
+
+			/* Pass cards */
+			rotation += i % 2 ? 1 : -1;
+			if (rotation < 0) rotation += g->num_players;
+		}
+	}
+
+	/* Reset card count */
+	cards = 0;
+
+	/* Loop over cards in deck */
+	for (i = 0; i < g->deck_size; ++i)
+	{
+		/* Check for unclaimed card */
+		if (g->deck[i].owner == -1 && g->deck[i].where == WHERE_DECK)
+		{
+			/* Count card */
+			cards++;
+
+			/* Remove card from the game */
+			move_card(g, i, -1, WHERE_REMOVED);
+		}
+	}
+
+	/* Check if any cards were removed */
+	if (cards)
+	{
+		/* Format message */
+		sprintf(msg, "%d card%s are removed from the game.\n",
+		        cards, PLURAL(cards));
+		
+		/* Send message */
+		message_add(g, msg);
+	}
+}
+
+/*
  * Deal out start worlds and ask for initial discards.
  */
 void begin_game(game *g)
@@ -9851,6 +10128,13 @@ void begin_game(game *g)
 	/* Send message */
 	message_add(g, msg);
 
+	/* Check for drafting variant */
+	if (g->drafting)
+	{
+		/* Send message */
+		message_add(g, "Drafting variant.\n");
+	}
+
 	/* Check for expansion with goals */
 	if (g->expanded)
 	{
@@ -9883,9 +10167,6 @@ void begin_game(game *g)
 		}
 	}
 
-	/* Send start of game message */
-	message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
-
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
 	{
@@ -9914,8 +10195,8 @@ void begin_game(game *g)
 		}
 	}
 
-	/* Check for second (or later) expansion */
-	if (g->expanded >= 2)
+	/* Check for two start world choices */
+	if (g->expanded >= 2 || g->drafting)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
@@ -9938,18 +10219,23 @@ void begin_game(game *g)
 			/* Collapse list */
 			start_blue[n] = start_blue[--num_start_blue];
 
-			/* Get card pointer to first start choice */
-			c_ptr = &g->deck[start_picks[i][0]];
-
-			/* XXX Move card to discard */
-			c_ptr->where = WHERE_DISCARD;
-
-			/* Get card pointer to second start choice */
-			c_ptr = &g->deck[start_picks[i][1]];
-
-			/* XXX Move card to discard */
-			c_ptr->where = WHERE_DISCARD;
+			/* XXX Move cards to discard */
+			discard_card(g, i, start_picks[i][0]);
+			discard_card(g, i, start_picks[i][1]);
 		}
+
+		/* Check for drafting */
+		if (g->drafting)
+		{
+			/* Perform the initial draft */
+			perform_draft(g, start_picks);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
+		}
+
+		/* Send start of game message */
+		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
 
 		/* Loop over players again */
 		for (i = 0; i < g->num_players; i++)
@@ -10009,14 +10295,14 @@ void begin_game(game *g)
 	}
 	else
 	{
+		/* Send start of game message */
+		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
+
 		/* Loop over start worlds */
 		for (i = 0; i < num_start; i++)
 		{
-			/* Get card pointer for start world */
-			c_ptr = &g->deck[start[i]];
-
 			/* Temporarily move card to discard pile */
-			c_ptr->where = WHERE_DISCARD;
+			move_card(g, start[i], -1, WHERE_DISCARD);
 		}
 
 		/* Loop over players */
@@ -10038,11 +10324,8 @@ void begin_game(game *g)
 		/* Loop over start worlds */
 		for (i = 0; i < num_start; i++)
 		{
-			/* Get card pointer for start world */
-			c_ptr = &g->deck[start[i]];
-
 			/* Move card back to deck */
-			c_ptr->where = WHERE_DECK;
+			move_card(g, start[i], -1, WHERE_DECK);
 		}
 
 		/* Loop over players again */
