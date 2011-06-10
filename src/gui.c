@@ -3217,8 +3217,8 @@ static char *card_hand_tooltip(game *g, int who, int which)
 		goal_action = ACT_DEVELOP;
 	}
 
-	/* Check for world type */
-	else if (c_ptr->d_ptr->type == TYPE_WORLD)
+	/* World type */
+	else
 	{
 		/* Get settle phase powers */
 		n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -3435,7 +3435,7 @@ static void military_world_payment(game *g, int who, int which,
                                    int *military, int *cost, char **cost_card)
 {
 	card *c_ptr;
-	int strength, mil_needed, pay_for_mil;
+	int strength, pay_for_mil;
 
 	/* Get card */
 	c_ptr = &g->deck[which];
@@ -3585,7 +3585,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	discounts *d_ptr;
 	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
-	int which, strength, mil_only, mil_needed, ict_mil, iif_mil, cost;
+	int which, mil_only, mil_needed, ict_mil, iif_mil, cost;
 
 	/* Get discounts */
 	d_ptr = &status_player[who].discount;
@@ -4714,7 +4714,6 @@ static void goal_allocated(GtkWidget *widget, GtkAllocation *allocation,
  */
 static void compute_discounts(game *g, int who, discounts *d_ptr)
 {
-	player *p_ptr = &g->p[who];
 	power_where w_list[100];
 	power *o_ptr;
 	int i, n;
