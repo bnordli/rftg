@@ -147,7 +147,7 @@ int takeovers_enabled(game *g)
 /*
  * Return the number of cards in the draw deck.
  */
-static int count_draw(game *g, int who)
+int count_draw(game *g, int who)
 {
 	card *c_ptr;
 	int i, n = 0;
@@ -309,7 +309,7 @@ static void refresh_draw(game *g, int who)
 			message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
 		}
 
-		/* Drafting game and not global */
+		/* Drafting game and not global draw pile */
 		else if (who != -1)
 		{
 			/* Format message */
@@ -688,7 +688,7 @@ void discard_card(game *g, int who, int which)
 	if (g->drafting)
 	{
 		/* Move card to discard and keep owner */
-		move_card(g, which, g->deck[which].owner, WHERE_DISCARD);
+		move_card(g, which, who, WHERE_DISCARD);
 	}
 	else
 	{
@@ -9931,8 +9931,8 @@ void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 	draw = 5;
 
 	/* Adjust number of cards drawn in each round */
-	if (g->expanded && g->num_players == 4) draw = 7;
-	else if (g->expanded && g->num_players > 4) draw = 9;
+	if (g->expanded == 3 && g->num_players == 4) draw = 7;
+	else if (g->expanded == 3 && g->num_players > 4) draw = 9;
 
 	/* Loop over all rounds */
 	for (i = 0; i < rounds; ++i)

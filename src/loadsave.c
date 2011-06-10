@@ -57,8 +57,26 @@ int load_game(game *g, char *filename)
 	/* Check for too old version */
 	if (strcmp(version, "0.7.2") < 0) return -1;
 
+	/* Read seed/drafting line */
+	fgets(buf, 1024, fff);
+
+	/* Check for drafting */
+	if (!strcmp(buf, "Draft\n"))
+	{
+		/* Enable drafting */
+		g->drafting = 1;
+
+		/* Read seed line */
+		fgets(buf, 1024, fff);
+	}
+	else
+	{
+		/* No drafting */
+		g->drafting = 0;
+	}
+
 	/* Read random seed information */
-	fscanf(fff, "%u\n", &g->start_seed);
+	sscanf(buf, "%u\n", &g->start_seed);
 
 	/* Read game setup information */
 	fscanf(fff, "%d %d\n", &g->num_players, &g->expanded);
@@ -134,6 +152,9 @@ int save_game(game *g, char *filename, int player_us)
 	/* Write header information */
 	fputs("RFTG Save\n", fff);
 	fprintf(fff, "%s\n", VERSION);
+
+	/* Write drafting */
+	if (g->drafting) fputs("Draft\n", fff);
 
 	/* Write start of game random seed */
 	fprintf(fff, "%u\n", g->start_seed);

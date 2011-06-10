@@ -921,6 +921,7 @@ extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
+extern int count_draw(game *g, int who);
 extern void save_log(void);
 extern int game_rand(game *g);
 extern int read_cards(void);

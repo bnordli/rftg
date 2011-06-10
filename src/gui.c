@@ -313,6 +313,12 @@ typedef struct status_display
 	/* Cards in hand */
 	int cards_hand;
 
+	/* Cards in draw pile (drafting variant) */
+	int cards_deck;
+
+	/* Original number of cards (drafting variant) */
+	int cards_orig;
+
 	/* Prestige */
 	int prestige;
 
@@ -1642,7 +1648,7 @@ static int action_check_start(void)
 /*
  * Set of "extra info" structures for player statuses.
  */
-static struct extra_info status_extra_info[MAX_PLAYER][5];
+static struct extra_info status_extra_info[MAX_PLAYER][6];
 
 /*
  * Set of "extra info" structures for game status.
@@ -4007,6 +4013,61 @@ static GtkWidget *action_icon(int act, int size)
 	return image;
 }
 
+/* The original number of cards when drafting */
+static int drafting_count[][MAX_PLAYER] =
+{
+	{ 67, 42 },
+	{ 87, 57, 42, 32 },
+	{ 114, 76, 57, 45, 38 },
+};
+
+/*
+ * Overlays the overlay pixbuf on the background pixbuf,
+ * using the top current/max portion of the image only.
+ */
+GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
+                   double size, double current, double max)
+{
+	GdkPixbuf *buf;
+	double ratio, height_scale, width_scale;
+
+	/* Compute fill ratio */
+	ratio = current / max;
+
+	/* Check if ratio is negative */
+	if (ratio <= 0)
+	{
+		/* Use the scaled overlay */
+		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
+		                              GDK_INTERP_BILINEAR);
+	}
+	else
+	{
+		/* Scale the background */
+		buf = gdk_pixbuf_scale_simple(background, (int) size, (int) size,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Check if ratio is less than full */
+		if (ratio < 1)
+		{
+			/* Compute scale ratios */
+			height_scale = size / gdk_pixbuf_get_height(overlay);
+			width_scale = size / gdk_pixbuf_get_width(overlay);
+
+			/* Overlay the alternative vp image */
+			gdk_pixbuf_composite(overlay, buf,
+			                     0, 0,
+			                     (int) size, (int) (size * (1 - ratio)),
+			                     0, 0,
+			                     height_scale, width_scale,
+			                     GDK_INTERP_BILINEAR, 255);
+		}
+	}
+
+	/* Return the pixbuf */
+	return buf;
+}
+
 /*
  * Redraw a player's status information.
  */
@@ -4089,6 +4150,39 @@ static void redraw_status_area(int who, GtkWidget *box)
 	{
 		/* Make image widget */
 		image = action_icon(act1, height);
+
+		/* Pack icon into status box */
+		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+	}
+
+	/* Check for personal deck count */
+	if (s_ptr->cards_deck >= 0)
+	{
+		/* Create handsize icon image */
+		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY],
+		              height, s_ptr->cards_deck, s_ptr->cards_orig);
+
+		/* Create image from pixbuf */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Pointer to extra info structure */
+		ei = &status_extra_info[who][5];
+
+		/* Create text for handsize */
+		sprintf(ei->text, "<b>%d</b>", s_ptr->cards_deck);
+
+		/* Set font */
+		ei->fontstr = "Sans 12";
+
+		/* Draw text a border */
+		ei->border = 1;
+
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(image), "expose-event",
+		                       G_CALLBACK(draw_extra_text), ei);
+
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
 		/* Pack icon into status box */
 		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
@@ -4317,53 +4411,6 @@ static void redraw_status_area(int who, GtkWidget *box)
 }
 
 /*
- * Overlays the overlay pixbuf on the background pixbuf,
- * using the top current/max portion of the image only.
- */
-GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
-                   double size, double current, double max)
-{
-	GdkPixbuf *buf;
-	double ratio, height_scale, width_scale;
-
-	/* Compute fill ratio */
-	ratio = current / max;
-
-	/* Check if ratio is negative */
-	if (ratio <= 0)
-	{
-		/* Use the scaled overlay */
-		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
-		                              GDK_INTERP_BILINEAR);
-	}
-	else
-	{
-		/* Scale the background */
-		buf = gdk_pixbuf_scale_simple(background, (int) size, (int) size,
-		                              GDK_INTERP_BILINEAR);
-
-		/* Check if ratio is less than full */
-		if (ratio < 1)
-		{
-			/* Compute scale ratios */
-			height_scale = size / gdk_pixbuf_get_height(overlay);
-			width_scale = size / gdk_pixbuf_get_width(overlay);
-
-			/* Overlay the alternative vp image */
-			gdk_pixbuf_composite(overlay, buf,
-			                     0, 0,
-			                     (int) size, (int) (size * (1 - ratio)),
-			                     0, 0,
-			                     height_scale, width_scale,
-			                     GDK_INTERP_BILINEAR, 255);
-		}
-	}
-
-	/* Return the pixbuf */
-	return buf;
-}
-
-/*
  * Redraw game's and all player's status information.
  */
 void redraw_status(void)
@@ -4384,97 +4431,101 @@ void redraw_status(void)
 	/* First destroy all pre-existing status widgets */
 	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
 
-	/* Build deck image */
-	buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
-	              display_deck, real_game.deck_size);
+	/* Skip draw and discard icons in drafting game */
+	if (!real_game.drafting)
+	{
+		/* Build deck image */
+		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
+					  display_deck, real_game.deck_size);
 
 #if 0
-	/* Add note if game is tampered */
-	if (game_tampered)
-	{
-		/* Check for card moved in debug */
-		if (game_tampered & TAMPERED_MOVE) color = 0x00ff0000;
+		/* Add note if game is tampered */
+		if (game_tampered)
+		{
+			/* Check for card moved in debug */
+			if (game_tampered & TAMPERED_MOVE) color = 0x00ff0000;
 
-		/* Check for looked at debug dialog */
-		else if (game_tampered & TAMPERED_LOOK) color = 0x00ffcc00;
+			/* Check for looked at debug dialog */
+			else if (game_tampered & TAMPERED_LOOK) color = 0x00ffcc00;
 
-		/* Check for undo used */
-		else if (game_tampered & TAMPERED_UNDO) color = 0x00dddd00;
+			/* Check for undo used */
+			else if (game_tampered & TAMPERED_UNDO) color = 0x00dddd00;
 
-		/* Check for seed used */
-		else if (game_tampered & TAMPERED_SEED) color = 0x00666666;
+			/* Check for seed used */
+			else if (game_tampered & TAMPERED_SEED) color = 0x00666666;
 
-		/* Check for loaded game */
-		else if (game_tampered & TAMPERED_LOAD) color = 0x00ffffff;
+			/* Check for loaded game */
+			else if (game_tampered & TAMPERED_LOAD) color = 0x00ffffff;
 
-		/* Check for saved game */
-		else if (game_tampered & TAMPERED_SAVE) color = 0x00ffffff;
+			/* Check for saved game */
+			else if (game_tampered & TAMPERED_SAVE) color = 0x00ffffff;
 
-		/* Add a tiny square at the bottom left */
-		gdk_pixbuf_composite_color(buf, buf,
-		                           0, size - 3, 3, 3,
-		                           0, 0, 1, 1,
-		                           GDK_INTERP_BILINEAR, 255,
-		                           0, 0, 16,
-		                           color, 0);
-	}
+			/* Add a tiny square at the bottom left */
+			gdk_pixbuf_composite_color(buf, buf,
+									   0, size - 3, 3, 3,
+									   0, 0, 1, 1,
+									   GDK_INTERP_BILINEAR, 255,
+									   0, 0, 16,
+									   color, 0);
+		}
 #endif
 
-	/* Make image widget */
-	draw_image = gtk_image_new_from_pixbuf(buf);
+		/* Make image widget */
+		draw_image = gtk_image_new_from_pixbuf(buf);
 
-	/* Pointer to extra info structure */
-	ei = &game_extra_info[0];
+		/* Pointer to extra info structure */
+		ei = &game_extra_info[0];
 
-	/* Create text for deck */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>",
-	        display_deck);
+		/* Create text for deck */
+		sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>",
+				display_deck);
 
-	/* Set font */
-	ei->fontstr = "Sans 12";
+		/* Set font */
+		ei->fontstr = "Sans 12";
 
-	/* Draw text a border */
-	ei->border = 1;
+		/* Draw text a border */
+		ei->border = 1;
 
-	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(draw_image), "expose-event",
-	                       G_CALLBACK(draw_extra_text), ei);
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(draw_image), "expose-event",
+							   G_CALLBACK(draw_extra_text), ei);
 
-	/* Destroy our copy of the icon */
-	g_object_unref(G_OBJECT(buf));
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
-	/* Pack deck image */
-	gtk_box_pack_start(GTK_BOX(game_status), draw_image, TRUE, TRUE, 0);
+		/* Pack deck image */
+		gtk_box_pack_start(GTK_BOX(game_status), draw_image, TRUE, TRUE, 0);
 
-	/* Build discard image */
-	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
-	                              GDK_INTERP_BILINEAR);
+		/* Build discard image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
+									  GDK_INTERP_BILINEAR);
 
-	/* Make image widget */
-	discard_image = gtk_image_new_from_pixbuf(buf);
+		/* Make image widget */
+		discard_image = gtk_image_new_from_pixbuf(buf);
 
-	/* Pointer to extra info structure */
-	ei = &game_extra_info[1];
+		/* Pointer to extra info structure */
+		ei = &game_extra_info[1];
 
-	/* Create text for discard */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>",
-	        display_discard);
+		/* Create text for discard */
+		sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>",
+				display_discard);
 
-	/* Set font */
-	ei->fontstr = "Sans 12";
+		/* Set font */
+		ei->fontstr = "Sans 12";
 
-	/* Draw text a border */
-	ei->border = 1;
+		/* Draw text a border */
+		ei->border = 1;
 
-	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(discard_image), "expose-event",
-	                       G_CALLBACK(draw_extra_text), ei);
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(discard_image), "expose-event",
+							   G_CALLBACK(draw_extra_text), ei);
 
-	/* Destroy our copy of the icon */
-	g_object_unref(G_OBJECT(buf));
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
-	/* Pack discard image */
-	gtk_box_pack_start(GTK_BOX(game_status), discard_image, TRUE, TRUE, 0);
+		/* Pack discard image */
+		gtk_box_pack_start(GTK_BOX(game_status), discard_image, TRUE, TRUE, 0);
+	}
 
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
@@ -5076,6 +5127,22 @@ static void reset_status(game *g, int who)
 
 	/* Count cards in hand */
 	status_player[who].cards_hand = count_player_area(g, who, WHERE_HAND);
+
+	/* Check for drafting variant */
+	if (g->drafting)
+	{
+		/* Count current number of cards in deck */
+		status_player[who].cards_deck = count_draw(g, who);
+
+		/* Retrieve the original number of cards */
+		status_player[who].cards_orig =
+			drafting_count[g->expanded - 1][g->num_players - 2];
+	}
+	else
+	{
+		/* Draw pile is shared */
+		status_player[who].cards_deck = -1;
+	}
 
 	/* Copy prestige */
 	status_player[who].prestige = g->p[who].prestige;
@@ -6029,7 +6096,7 @@ int gui_choose_draft(game *g, int who, int list[], int num, int special[],
 	char buf[1024];
 	displayed *i_ptr;
 	card *c_ptr;
-	int i, j, n = 0, save_opt;
+	int i, j, save_opt;
 
 	/* Save special cards */
 	for (i = 0; i < num_special; ++i) special_cards[i] = &g->deck[special[i]];
@@ -9429,11 +9496,19 @@ static void apply_options(void)
 		opt.num_players = 4;
 	}
 
+	/* Set drafting enabled */
+	real_game.drafting = opt.expanded && opt.drafting;
+
 	/* Sanity check number of players in first expansion */
-	if (opt.expanded < 2 && opt.num_players > 5)
+	if (opt.expanded < 2)
 	{
-		/* Reset to five players */
-		opt.num_players = 5;
+		/* Maximum three players when drafting */
+		if (opt.drafting && opt.num_players > 3)
+			opt.num_players = 3;
+
+		/* Maximum five players for normal game */
+		else if (opt.num_players > 5)
+			opt.num_players = 5;
 	}
 
 	/* Set name of human player */
@@ -9453,9 +9528,6 @@ static void apply_options(void)
 
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
-
-	/* XXXXXXXX Set drafting enabled */
-	real_game.drafting = TRUE;
 
 	/* Check for custom seed value */
 	if (opt.customize_seed)
@@ -10660,6 +10732,7 @@ static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
+static GtkWidget *drafting_check;
 static GtkWidget *name_entry;
 static GtkWidget *custom_seed_check;
 static GtkWidget *seed_entry;
@@ -10667,7 +10740,40 @@ static GtkWidget *seed_entry;
 /*
  * Current selections for next game options.
  */
-static int next_exp, next_player;
+static int next_exp, next_player, next_draft;
+
+/*
+ * Update button sensitivities.
+ */
+static void update_sensitivity()
+{
+	int i;
+
+	/* Set advanced checkbox sensitivity */
+	gtk_widget_set_sensitive(advanced_check, next_player == 2);
+
+	/* Set goal disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0);
+
+	/* Set takeover disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1);
+
+	/* Set drafting checkbox sensitivity */
+	gtk_widget_set_sensitive(drafting_check, next_exp > 0);
+
+	/* Set player radio sensitivities */
+	for (i = 0; player_labels[i]; ++i)
+	{
+		if (!next_exp || !next_draft)
+		{
+			gtk_widget_set_sensitive(num_players_radio[i], i < next_exp + 3);
+		}
+		else
+		{
+			gtk_widget_set_sensitive(num_players_radio[i], i < 2 * next_exp);
+		}
+	}
+}
 
 /*
  * React to an expansion level button being toggled.
@@ -10683,17 +10789,8 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 		/* Remember next expansion level */
 		next_exp = i;
 
-		/* Set goal disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_goal_check, i > 0);
-
-		/* Set takeover disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
-
-		/* Set player radio sensitivities */
-		for (j = 0; player_labels[j]; ++j)
-		{
-			gtk_widget_set_sensitive(num_players_radio[j], j < i + 3);
-		}
+		/* Update sensitivities */
+		update_sensitivity();
 	}
 }
 
@@ -10710,9 +10807,21 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 		/* Remember next game player number */
 		next_player = i + 2;
 
-		/* Set advanced game checkbox sensitivity */
-		gtk_widget_set_sensitive(advanced_check, next_player == 2);
+		/* Update sensitivities */
+		update_sensitivity();
 	}
+}
+
+/*
+ * React to a drafting checkbox button being toggled.
+ */
+static void draft_toggle(GtkToggleButton *button, gpointer data)
+{
+	/* Remember button value */
+	next_draft = gtk_toggle_button_get_active(button);
+
+	/* Update sensitivities */
+	update_sensitivity();
 }
 
 /*
@@ -10967,9 +11076,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 			next_player = i + 2;
 		}
 
-		/* Set player radio sensitivity */
-		gtk_widget_set_sensitive(radio, i < next_exp + 3);
-
 		/* Add handler */
 		g_signal_connect(G_OBJECT(radio), "toggled",
 		                 G_CALLBACK(player_toggle), GINT_TO_POINTER(i));
@@ -10998,13 +11104,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  advanced_check);
 
-	/* Disable advanced checkbox if not two-player game */
-	if (real_game.num_players != 2)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(advanced_check, FALSE);
-	}
-
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
 
@@ -11015,13 +11114,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add checkbox to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  disable_goal_check);
-
-	/* Disable goal checkbox if not expanded game */
-	if (opt.expanded < 1)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(disable_goal_check, FALSE);
-	}
 
 	/* Create check box for disabled takeovers */
 	disable_takeover_check =
@@ -11035,12 +11127,21 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  disable_takeover_check);
 
-	/* Disable takeover checkbox if not expanded game */
-	if (opt.expanded < 2)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(disable_takeover_check, FALSE);
-	}
+	/* Create check box for drafting variant */
+	drafting_check = gtk_check_button_new_with_label("Drafting variant\n"
+		"(Experimental: AI is not trained!)");
+
+	/* Set checkbox status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(drafting_check),
+	                             opt.drafting);
+
+	/* Add checkbox to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  drafting_check);
+
+	/* Add handler */
+	g_signal_connect(G_OBJECT(drafting_check), "toggled",
+	                 G_CALLBACK(draft_toggle), NULL);
 
 	/* Create vbox to hold seed specification widgets */
 	seed_box = gtk_vbox_new(FALSE, 0);
@@ -11096,15 +11197,23 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), seed_frame);
 
+	/* Update sensitivites */
+	update_sensitivity();
+
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
 
 	/* Run dialog */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
+		/* No drafting in base game */
+		if (next_exp == 0) next_draft = 0;
+
 		/* Check for too many players */
 		if (next_exp == 0 && next_player > 4) next_player = 4;
+		if (next_exp == 1 && next_draft && next_player > 3) next_player = 3;
 		if (next_exp == 1 && next_player > 5) next_player = 5;
+		if (next_exp == 2 && next_draft && next_player > 5) next_player = 5;
 
 		/* Set player name */
 		opt.player_name = strdup(gtk_entry_get_text(GTK_ENTRY(name_entry)));
@@ -11129,6 +11238,11 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		opt.disable_takeover = (opt.expanded >= 2) &&
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
+
+		/* Set drafting flag */
+		opt.drafting = (opt.expanded >= 1) &&
+		                gtk_toggle_button_get_active(
+		                             GTK_TOGGLE_BUTTON(drafting_check));
 
 		/* Set custom seed flag */
 		opt.customize_seed = gtk_toggle_button_get_active(
