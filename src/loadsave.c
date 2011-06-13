@@ -348,8 +348,8 @@ int export_game(game *g, char *filename, int player_us,
 {
 	FILE *fff;
 	player *p_ptr;
-	card *c_ptr;
-	int p, i, n, count, deck = 0, discard = 0, act[2];
+	int p, i, n, count, act[2];
+	int deck[MAX_PLAYER] = {0}, discard[MAX_PLAYER] = {0};
 
 	/* Open file for writing */
 	fff = fopen(filename, "w");
@@ -389,6 +389,11 @@ int export_game(game *g, char *filename, int player_us,
 		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
 		        g->takeover_disabled ? "off" : "on");
 
+	/* Check for drafting */
+	if (g->expanded)
+		fprintf(fff, "    <Drafting>%s</Drafting>\n",
+		        g->drafting ? "yes" : "on");
+
 	/* Write end tag */
 	fputs("  </Setup>\n", fff);
 
@@ -421,22 +426,37 @@ int export_game(game *g, char *filename, int player_us,
 	/* Write end tag */
 	fputs("    </Phases>\n", fff);
 
-	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
+	/* Check for normal game */
+	if (!g->drafting)
 	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
+		/* Loop over cards */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Check for card in draw pile */
+			if (g->deck[i].where == WHERE_DECK) deck[0]++;
 
-		/* Check for card in draw pile */
-		if (c_ptr->where == WHERE_DECK) deck++;
+			/* Check for card in discard pile */
+			if (g->deck[i].where == WHERE_DISCARD) discard[0]++;
+		}
 
-		/* Check for card in discard pile */
-		if (c_ptr->where == WHERE_DISCARD) discard++;
+		/* Write card locations information */
+		fprintf(fff, "    <Deck>%d</Deck>\n", deck[0]);
+		fprintf(fff, "    <Discard>%d</Discard>\n", discard[0]);
+	}
+	else
+	{
+		/* Loop over cards */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Check for card in draw pile */
+			if (g->deck[i].where == WHERE_DECK) deck[g->deck[i].owner]++;
+
+			/* Check for card in discard pile */
+			if (g->deck[i].where == WHERE_DISCARD) discard[g->deck[i].owner]++;
+		}
 	}
 
-	/* Write game status information */
-	fprintf(fff, "    <Deck>%d</Deck>\n", deck);
-	fprintf(fff, "    <Discard>%d</Discard>\n", discard);
+	/* Write pool size */
 	fprintf(fff, "    <Pool>%d</Pool>\n", g->vp_pool);
 
 	/* Check for goals enabled */
@@ -521,6 +541,14 @@ int export_game(game *g, char *filename, int player_us,
 			        p_ptr->prestige_action_used ? "yes" : "no",
 			        prestige_on_tile(g, n) ? " onTile=\"yes\"" : "",
 			        p_ptr->prestige);
+		}
+
+		/* Check for drafting variant */
+		if (g->drafting)
+		{
+			/* Write deck and discard size */
+			fprintf(fff, "    <Deck>%d</Deck>\n", deck[n]);
+			fprintf(fff, "    <Discard>%d</Discard>\n", discard[n]);
 		}
 
 		/* Write acquired chips */

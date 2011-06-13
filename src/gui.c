@@ -9535,6 +9535,11 @@ static void apply_options(void)
 		/* Set start seed */
 		real_game.random_seed = opt.seed;
 	}
+	else
+	{
+		/* Set random seed */
+		real_game.random_seed = time(NULL);
+	}
 
 	/* Sanity check advanced mode */
 	if (real_game.num_players > 2)
@@ -10116,7 +10121,7 @@ static void read_prefs(void)
 	                                          "no_goals", NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
-	opt.drafting = g_key_file_get_boolean(pref_file, "drafting",
+	opt.drafting = g_key_file_get_boolean(pref_file, "game",
 	                                      "drafting", NULL);
 
 	/* Check length of human name */
@@ -10781,7 +10786,6 @@ static void update_sensitivity()
 static void exp_toggle(GtkToggleButton *button, gpointer data)
 {
 	int i = GPOINTER_TO_INT(data);
-	int j;
 
 	/* Check for button set */
 	if (gtk_toggle_button_get_active(button))
@@ -12631,9 +12635,6 @@ int main(int argc, char *argv[])
 	CFRelease(resourcesURL);
 	chdir(path);
 #endif
-
-	/* Set random seed */
-	real_game.random_seed = time(NULL);
 
 	/* Prevent locale usage -- use C locale for everything */
 	gtk_disable_setlocale();
