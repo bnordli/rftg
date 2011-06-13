@@ -9349,6 +9349,11 @@ static void apply_options(void)
 		/* Set start seed */
 		real_game.random_seed = opt.seed;
 	}
+	else
+	{
+		/* Set random seed */
+		real_game.random_seed = time(NULL);
+	}
 
 	/* Sanity check advanced mode */
 	if (real_game.num_players > 2)
@@ -12398,9 +12403,6 @@ int main(int argc, char *argv[])
 	CFRelease(resourcesURL);
 	chdir(path);
 #endif
-
-	/* Set random seed */
-	real_game.random_seed = time(NULL);
 
 	/* Prevent locale usage -- use C locale for everything */
 	gtk_disable_setlocale();
