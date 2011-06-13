@@ -1311,7 +1311,7 @@ char *search_name[MAX_SEARCH] =
 	"world producing or coming with Alien good",
 	"card consuming two or more goods",
 	"military world with 5 or more defense",
-	"6-cost development giving ? VP",
+	"6-cost development giving ? VPs",
 	"card with takeover power"
 };
 

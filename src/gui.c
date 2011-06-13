@@ -108,6 +108,32 @@ int player_us;
  */
 int restart_loop;
 
+static char *goal_description[MAX_GOAL] =
+{
+	"First to have 5 VP chips",
+	"First to place worlds of all kinds",
+	"First to place 3 Alien cards",
+	"First to discard at end of round",
+	"First to have powers in all phases, plus Trade",
+	"First to place 6-cost development giving ? VPs",
+	"First to place 3 Uplift cards",
+	"First to have 4 goods",
+	"First to place 8 cards",
+	"First to have negative Military and 2 worlds or\n"
+	  " a takeover attack power and 2 Military worlds",
+	"First to have 2 prestige chips and 3 VP chips",
+	"First to place 3 Imperium cards or 4 Military worlds",
+
+	"Most total military",
+	"Most Novelty and/or Rare worlds",
+	"Most developments",
+	"Most production worlds",
+	"Most cards with Explore powers",
+	"Most Rebel Military worlds",
+	"Most prestige chips",
+	"Most cards with Consume powers",
+};
+
 /*
  * Player names.
  */
@@ -2606,7 +2632,7 @@ static char *goal_tooltip(game *g, int goal)
 	char text[1024];
 
 	/* Create tooltip text */
-	sprintf(msg, "%s", goal_name[goal]);
+	sprintf(msg, "%s\n(%s)", goal_name[goal], goal_description[goal]);
 
 	/* Check for first goal */
 	if (goal <= GOAL_FIRST_4_MILITARY)
@@ -2615,7 +2641,7 @@ static char *goal_tooltip(game *g, int goal)
 		if (!g->goal_avail[goal])
 		{
 			/* Add text to tooltip */
-			strcat(msg, "\nClaimed by:");
+			strcat(msg, "\n\nClaimed by:");
 
 			/* Loop over players */
 			for (i = 0; i < g->num_players; i++)
@@ -2639,7 +2665,7 @@ static char *goal_tooltip(game *g, int goal)
 		         (client_state == CS_DISCONN || new_server))
 		{
 			/* Add text to tooltip */
-			strcat(msg, "\nProgress:");
+			strcat(msg, "\n\nProgress:");
 
 			/* Loop over players */
 			for (i = 0; i < g->num_players; i++)
@@ -2661,7 +2687,7 @@ static char *goal_tooltip(game *g, int goal)
 	if (goal >= GOAL_MOST_MILITARY)
 	{
 		/* Add text to tooltip */
-		strcat(msg, "\nProgress:");
+		strcat(msg, "\n\nProgress:");
 
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
