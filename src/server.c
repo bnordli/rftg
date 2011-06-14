@@ -855,12 +855,13 @@ static void replay_messages(int gid, int cid)
 	MYSQL_RES *res;
 	MYSQL_ROW row;
 	char query[1024];
-	char msg[1024], *ptr;
+	char msg[1024], name[1024], *ptr;
+	int uid;
 
 	/* Create lookup query */
-	sprintf(query, "SELECT message, format \
+	sprintf(query, "SELECT uid, message, format \
 	                FROM messages \
-	                WHERE gid=%d AND (uid=%d OR uid=-1) \
+	                WHERE gid=%d AND (uid=%d OR uid < 0) \
 	                ORDER BY mid",
 	                gid, c_list[cid].uid);
 
@@ -877,13 +878,13 @@ static void replay_messages(int gid, int cid)
 		ptr = msg;
 
 		/* Check for no format */
-		if (!strlen(row[1]))
+		if (!strlen(row[2]))
 		{
 			/* Create log message */
 			start_msg(&ptr, MSG_LOG);
 
 			/* Add text of message */
-			put_string(row[0], &ptr);
+			put_string(row[1], &ptr);
 
 			/* Finish message */
 			finish_msg(msg, ptr);
@@ -891,16 +892,52 @@ static void replay_messages(int gid, int cid)
 			/* Send to client */
 			send_msg(cid, msg);
 		}
+
+		/* Check for chat message */
+		else if (!strcmp(row[2], FORMAT_CHAT))
+		{
+			/* Compute user id */
+			uid = -(100 + atoi(row[0]));
+
+			/* Check for global message */
+			if (uid == -1)
+			{
+				/* Set empty user name */
+				strcpy(name, "");
+			}
+			else
+			{
+				/* Get username of chat sender */
+				db_user_name(uid, name);
+			}
+
+			/* Create log message */
+			start_msg(&ptr, MSG_GAMECHAT);
+
+			/* Copy user sending chat to message */
+			put_string(name, &ptr);
+
+			/* Copy chat text to message */
+			put_string(row[1], &ptr);
+
+			/* Finish message */
+			finish_msg(msg, ptr);
+
+			/* Send to client */
+			send_msg(cid, msg);
+		}
+
+		/* Formatted message */
 		else
 		{
 			/* Create log message */
 			start_msg(&ptr, MSG_LOG);
 
 			/* Add text of message */
-			put_string(row[0], &ptr);
+			put_string(row[1], &ptr);
 
 			/* Add format of message */
-			put_string(row[1], &ptr);
+			put_string(row[2], &ptr);
 
 			/* Finish message */
 			finish_msg(msg, ptr);
@@ -2349,9 +2386,12 @@ static void accept_conn(int listen_fd)
 /*
  * Send a "game chat" message to everyone in the given session.
  */
-static void send_gamechat(int sid, char *user, char *text)
+static void send_gamechat(int sid, int gid, char *user, char *text)
 {
 	char msg[1024], *ptr = msg;
+
+	/* Save message to db */
+	db_save_message(g->session_id, -(100 + gid), txt, FORMAT_CHAT);
 
 	/* Start at beginning of message */
 	ptr = msg;
@@ -2433,7 +2473,7 @@ static void kick_player(int cid, char *reason)
 		sprintf(text, "%s disconnected.", c_list[cid].user);
 
 		/* Send to remaining players in session */
-		send_gamechat(sid, "", text);
+		send_gamechat(sid, -1, "", text);
 
 		/* Check for kick timeout */
 		if (kick_timeout)
@@ -2445,7 +2485,7 @@ static void kick_player(int cid, char *reason)
 		}
 
 		/* Send to remaining players in session */
-		send_gamechat(sid, "", text);
+		send_gamechat(sid, -1, "", text);
 	}
 }
 
@@ -2583,7 +2623,7 @@ static void switch_ai(int sid, int who)
 	        s_ptr->g.p[who].name);
 
 	/* Send to session */
-	send_gamechat(sid, "", text);
+	send_gamechat(sid, -1, "", text);
 
 	/* Have AI answer most recent choice question */
 	ask_client(sid, who);
@@ -2943,7 +2983,7 @@ static void handle_login(int cid, char *ptr)
 			sprintf(text, "%s reconnected.", user);
 
 			/* Send to session */
-			send_gamechat(i, "", text);
+			send_gamechat(i, -1, "", text);
 
 			/* Tell client about game state */
 			update_meta(i);
@@ -3384,7 +3424,7 @@ static void handle_gameover(int cid, char *ptr)
 	sprintf(text, "%s has returned to lobby.", c_list[cid].user);
 
 	/* Tell session that player has left */
-	send_gamechat(c_list[cid].sid, "", text);
+	send_gamechat(c_list[cid].sid, -1, "", text);
 
 	/* Move player back to lobby state */
 	c_list[cid].state = CS_LOBBY;
@@ -3422,7 +3462,7 @@ static void handle_resign(int cid, char *ptr)
 	sprintf(text, "%s resigns.", c_list[cid].user);
 
 	/* Send message to session */
-	send_gamechat(c_list[cid].sid, "", text);
+	send_gamechat(c_list[cid].sid, -1, "", text);
 
 	/* Acquire session mutex */
 	pthread_mutex_lock(&s_ptr->session_mutex);
@@ -3531,7 +3571,7 @@ static void handle_start(int cid, char *ptr)
 	sprintf(text, "Starting game #%d", s_ptr->gid);
 
 	/* Send message to session */
-	send_gamechat(sid, "", text);
+	send_gamechat(sid, -1, "", text);
 
 	/* Initialize and run game */
 	start_session(sid);
@@ -3564,7 +3604,8 @@ static void handle_chat(int cid, char *ptr)
 	else
 	{
 		/* Send to session */
-		send_gamechat(c_list[cid].sid, c_list[cid].user, chat);
+		send_gamechat(c_list[cid].sid, c_list[cid].uid, c_list[cid].user,
+		              chat);
 	}
 }
 
@@ -3984,7 +4025,7 @@ static void do_housekeeping(void)
 				        c_list[s_ptr->cids[j]].user);
 
 				/* Give warning */
-				send_gamechat(i, "", msg);
+				send_gamechat(i, -1, "", msg);
 
 				/* Remember warning given */
 				s_ptr->wait_ticks[j] = kick_timeout;
