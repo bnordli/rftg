@@ -647,12 +647,21 @@ void draw_card(game *g, int who, char *reason)
 	/* Check for real game and reason */
 	if (!g->simulation && reason)
 	{
-		/* Format message */
-		sprintf(msg, "%s receives 1 card from %s.\n",
-		        p_ptr->name, reason);
+		/* Format draw message */
+		sprintf(msg, "%s draws %s.\n", p_ptr->name, c_ptr->d_ptr->name);
 
 		/* Add message */
-		message_add_formatted(g, msg, FORMAT_VERBOSE);
+		message_add_formatted(g, msg, FORMAT_DRAW);
+
+		if (reason)
+		{
+			/* Format message */
+			sprintf(msg, "%s receives 1 card from %s.\n",
+			        p_ptr->name, reason);
+
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 	}
 }
 

@@ -344,7 +344,7 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
 int export_game(game *g, char *filename, int player_us,
                 const char *message,
                 int num_special_cards, card **special_cards,
-                void (*export_log)(FILE *fff))
+                void (*export_log)(FILE *fff, int gid), int gid)
 {
 	FILE *fff;
 	player *p_ptr;
@@ -490,7 +490,7 @@ int export_game(game *g, char *filename, int player_us,
 	for (p = 0; p < g->num_players; p++)
 	{
 		/* Get player index to save next */
-		n = (player_us + 1 + p) % g->num_players;
+		n = player_us == -1 ? p : (player_us + 1 + p) % g->num_players;
 
 		/* Get player pointer */
 		p_ptr = &g->p[n];
@@ -506,13 +506,14 @@ int export_game(game *g, char *filename, int player_us,
 		act[0] = act[1] = -1;
 
 		/* Check for actions known */
-		if (g->advanced && g->cur_action < ACT_SEARCH && n == player_us &&
+		if (g->advanced && g->cur_action < ACT_SEARCH &&
+		    player_us != -1 && player_us == n &&
 		    count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy first action only */
 			act[0] = p_ptr->action[0];
 		}
-		else if (g->cur_action >= ACT_SEARCH ||
+		else if (g->cur_action >= ACT_SEARCH || player_us == -1 ||
 		         count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy both actions */
@@ -615,8 +616,8 @@ int export_game(game *g, char *filename, int player_us,
 			/* Write saved start tag */
 			fprintf(fff, "    <Saved count=\"%d\">\n", count);
 
-			/* Check for saved by human player */
-			if (n == player_us)
+			/* Check for known saved cards */
+			if (player_us == -1 || player_us == n)
 			{
 				/* Loop over cards in deck */
 				for (i = 0; i < g->deck_size; i++)
@@ -635,9 +636,9 @@ int export_game(game *g, char *filename, int player_us,
 			/* Write end tag */
 			fprintf(fff, "    </Saved>\n");
 		}
-
-		/* Check for human player */
-		if (n == player_us)
+		
+		/* Check for known hand */
+		if (player_us == -1 || player_us == n)
 		{
 			/* Write human player's hand */
 			export_linked_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND],
@@ -700,7 +701,7 @@ int export_game(game *g, char *filename, int player_us,
 		fputs("  <Log>\n", fff);
 
 		/* Write log */
-		export_log(fff);
+		export_log(fff, gid);
 
 		/* Write log end tag */
 		fputs("  </Log>\n", fff);
