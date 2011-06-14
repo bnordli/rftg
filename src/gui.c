@@ -590,11 +590,11 @@ void message_add_formatted(game *g, char *msg, char *tag)
 		return;
 	}
 
-	/* Do not log draw messages */
-	if (!strcmp(tag, FORMAT_DRAW)) return;
-
 	/* Do not log verbose message while verbosity is disabled */
 	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log) return;
+
+	/* Do not log draw messages while draw log is disabled */
+	if (!strcmp(tag, FORMAT_DRAW) && !opt.draw_log) return;
 
 	/* Do not log discard messages while discard log is disabled */
 	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log) return;
@@ -10160,6 +10160,8 @@ static void read_prefs(void)
 	                                         "colored_log", NULL);
 	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
 	                                        "verbose_log", NULL);
+	opt.draw_log = g_key_file_get_boolean(pref_file, "gui",
+	                                      "draw_log", NULL);
 	opt.discard_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "discard_log", NULL);
 
@@ -10249,6 +10251,8 @@ void save_prefs(void)
 		                   opt.colored_log);
 	g_key_file_set_boolean(pref_file, "gui", "verbose_log",
 		                   opt.verbose_log);
+	g_key_file_set_boolean(pref_file, "gui", "draw_log",
+		                   opt.draw_log);
 	g_key_file_set_boolean(pref_file, "gui", "discard_log",
 		                   opt.discard_log);
 
@@ -11332,7 +11336,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
 	GtkWidget *hand_cost_button, *key_cues_button;
 	GtkWidget *log_box, *log_frame;
-	GtkWidget *colored_log_button, *verbose_button, *discard_log_button;
+	GtkWidget *colored_log_button, *verbose_button;
+	GtkWidget *draw_log_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
 
@@ -11565,15 +11570,16 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(log_box), verbose_button, FALSE, TRUE, 0);
 
-	/* Create frame around buttons */
-	log_frame = gtk_frame_new("Log options");
+	/* Create toggle button for draw log */
+	draw_log_button = gtk_check_button_new_with_label(
+		"Log drawn cards");
 
-	/* Pack button box into frame */
-	gtk_container_add(GTK_CONTAINER(log_frame), log_box);
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(draw_log_button),
+	                             opt.draw_log);
 
-	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  log_frame);
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(log_box), draw_log_button, FALSE, TRUE, 0);
 
 	/* Create toggle button for discard log */
 	discard_log_button = gtk_check_button_new_with_label(
@@ -11585,6 +11591,16 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(log_box), discard_log_button, FALSE, TRUE, 0);
+
+	/* Create frame around buttons */
+	log_frame = gtk_frame_new("Log options");
+
+	/* Pack button box into frame */
+	gtk_container_add(GTK_CONTAINER(log_frame), log_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  log_frame);
 
 	/* ---- File options ---- */
 	/* Create vbox to hold file options check boxes */
@@ -11654,7 +11670,11 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.verbose_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
-		/* Set log discards option */
+		/* Set draw log option */
+		opt.draw_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draw_log_button));
+
+		/* Set discard log option */
 		opt.discard_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discard_log_button));
 
@@ -11666,6 +11686,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		    !(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose_log != old_options.verbose_log ||
+		     opt.draw_log != old_options.draw_log ||
 		     opt.discard_log != old_options.discard_log ||
 		     opt.vp_in_hand != old_options.vp_in_hand ||
 		     opt.cost_in_hand != old_options.cost_in_hand))
@@ -13147,6 +13168,10 @@ int main(int argc, char *argv[])
 
 	/* Create "verbose" tag for message buffer */
 	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE,
+	                           "foreground", "#aaaaaa", NULL);
+
+	/* Create "discard" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_DRAW,
 	                           "foreground", "#aaaaaa", NULL);
 
 	/* Create "discard" tag for message buffer */

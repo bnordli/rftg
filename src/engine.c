@@ -645,14 +645,8 @@ void draw_card(game *g, int who, char *reason)
 	c_ptr->known |= 1 << who;
 
 	/* Check for real game and reason */
-	if (!g->simulation && reason)
+	if (!g->simulation)
 	{
-		/* Format draw message */
-		sprintf(msg, "%s draws %s.\n", p_ptr->name, c_ptr->d_ptr->name);
-
-		/* Add message */
-		message_add_formatted(g, msg, FORMAT_DRAW);
-
 		if (reason)
 		{
 			/* Format message */
@@ -661,6 +655,16 @@ void draw_card(game *g, int who, char *reason)
 
 			/* Add message */
 			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
+
+		/* Check for private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Format draw message */
+			sprintf(msg, "%s draws %s.\n", p_ptr->name, c_ptr->d_ptr->name);
+
+			/* Add message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DRAW);
 		}
 	}
 }
@@ -673,9 +677,6 @@ void draw_cards(game *g, int who, int num, char *reason)
 	int i;
 	char msg[1024];
 
-	/* Draw required number */
-	for (i = 0; i < num; i++) draw_card(g, who, NULL);
-
 	/* Check for real game and reason */
 	if (!g->simulation && reason)
 	{
@@ -686,6 +687,9 @@ void draw_cards(game *g, int who, int num, char *reason)
 		/* Add message */
 		message_add_formatted(g, msg, FORMAT_VERBOSE);
 	}
+
+	/* Draw required number */
+	for (i = 0; i < num; i++) draw_card(g, who, NULL);
 }
 
 /*
@@ -8945,6 +8949,18 @@ void phase_discard(game *g)
 
 					/* Take card */
 					move_card(g, j, i, WHERE_HAND);
+
+					/* Check for simulation */
+					if (g->simulation && g->p[i].control->private_message)
+					{
+						/* Format message */
+						sprintf(msg, "%s takes %s.\n",
+						        g->p[i].name, c_ptr->d_ptr->name);
+
+						/* Send private message */
+						g->p[i].control->private_message(g, i, msg,
+						                                 FORMAT_DRAW);
+					}
 
 					/* Adjust known flags */
 					c_ptr->known = (1 << i);
