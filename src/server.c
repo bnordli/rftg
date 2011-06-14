@@ -4118,12 +4118,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-#ifdef FORCE_MYSQL_TCP_CONNECTION
-	/* Force TCP connection to local MySQL installation (needed for Cygwin) */
-	unsigned int tcp = MYSQL_PROTOCOL_TCP;
-	mysql_options(mysql, MYSQL_OPT_PROTOCOL, &tcp);
-#endif
-
 	/* Attempt to connect to database server */
 	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, db, 0, NULL, 0))
 	{
