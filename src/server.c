@@ -4187,8 +4187,6 @@ int main(int argc, char *argv[])
 	/* Loop forever */
 	while (1)
 	{
-		printf("Looping...\n");
-
 		/* Clear set of connections to listen on */
 		FD_ZERO(&readfds);
 
@@ -4245,7 +4243,6 @@ int main(int argc, char *argv[])
 		/* Loop over active connections */
 		for (i = 0; i < num_conn; i++)
 		{
-			printf("Checking connection %d\n", i);
 			/* Check for still active */
 			if (c_list[i].fd > 0)
 			{
@@ -4254,7 +4251,6 @@ int main(int argc, char *argv[])
 				{
 					/* Handle incoming data */
 					handle_data(i);
-					printf("Data handled\n");
 				}
 
 				/* Check for unsent data ready to send */
@@ -4262,7 +4258,6 @@ int main(int argc, char *argv[])
 				{
 					/* Send ping to flush buffer */
 					send_msgf(i, MSG_PING, "");
-					printf("Sent ping to %d\n", i);
 				}
 			}
 		}
@@ -4270,7 +4265,6 @@ int main(int argc, char *argv[])
 		/* Check time since last housekeeping */
 		if (time(NULL) - last_housekeep >= 10)
 		{
-			printf("Housekeeping...\n");
 			/* Perform housekeeping */
 			do_housekeeping();
 
@@ -4278,5 +4272,4 @@ int main(int argc, char *argv[])
 			last_housekeep = time(NULL);
 		}
 	}
-	printf("Main exited...\n");
 }
