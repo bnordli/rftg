@@ -1313,6 +1313,12 @@ void message_add_formatted(game *g, char *txt, char *tag)
 {
 	/* TODO: This should become a separate message in a new version */
 	char msg[1024], *ptr = msg;
+	
+	/* Save message to db */
+	db_save_message(g->session_id, -1, txt, tag);
+
+	/* Do not send draw messages to clients */
+	if (!strcmp(tag, FORMAT_DRAW)) return;
 
 	/* Create log message */
 	start_msg(&ptr, MSG_LOG);
@@ -1328,9 +1334,6 @@ void message_add_formatted(game *g, char *txt, char *tag)
 
 	/* Send message to all clients in game */
 	send_to_session(g->session_id, msg);
-	
-	/* Save message to db */
-	db_save_message(g->session_id, -1, txt, tag);
 }
 
 /*

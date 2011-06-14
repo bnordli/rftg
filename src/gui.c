@@ -483,19 +483,14 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	/* Check for verbose message while verbosity disabled */
-	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log)
-	{
-		/* Do not log message */
-		return;
-	}
+	/* Do not log draw messages */
+	if (!strcmp(tag, FORMAT_DRAW)) return;
 
-	/* Check for discard message while discard log disabled */
-	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log)
-	{
-		/* Do not log message */
-		return;
-	}
+	/* Do not log verbose message while verbosity is disabled */
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log) return;
+
+	/* Do not log discard messages while discard log is disabled */
+	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log) return;
 
 	/* Check for emphasized message formatting */
 	if (strcmp(tag, FORMAT_EM) && !opt.colored_log)

@@ -492,6 +492,7 @@
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
 #define FORMAT_DISCARD "discard"
+#define FORMAT_DRAW "draw"
 
 /*
  * Forward declaration.
