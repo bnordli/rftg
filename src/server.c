@@ -153,6 +153,9 @@ typedef struct session
 	/* Outstanding choice for each player */
 	choice out[MAX_PLAYER];
 
+	/* Whether game is replaying or not */
+	int replaying;
+
 	/* Pool of random bytes */
 	unsigned char random_pool[MAX_RAND];
 
@@ -825,6 +828,9 @@ static void db_save_message(int sid, int uid, char* txt, char* tag)
 {
 	char query[1024];
 	char etxt[1024], etag[1024];
+
+	/* Do not save message if game is replaying */
+	if (s_list[sid].replaying) return;
 	
 	/* Escape message and format */
 	mysql_real_escape_string(mysql, etxt, txt, strlen(txt));
@@ -1938,6 +1944,9 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	/* Send game updates to session */
 	update_status(g->session_id);
 
+	/* Game is not replaying anymore */
+	s_ptr->replaying = 0;
+
 	/* Ask player to prepare */
 	send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
 	          g->p[who].choice_size, phase, arg);
@@ -2047,6 +2056,9 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Check for choice already received */
 	if (g->p[who].choice_size > g->p[who].choice_pos) return;
+
+	/* Game is not replaying anymore */
+	s_ptr->replaying = 0;
 
 	/* Mark player as being waited on */
 	s_ptr->waiting[who] = WAIT_BLOCKED;
@@ -2651,6 +2663,9 @@ void *run_game(void *arg)
 
 	/* Initialize game */
 	init_game(&s_ptr->g);
+
+	/* Set replaying flag to true */
+	s_ptr->replaying = 1;
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = s_ptr - s_list;
