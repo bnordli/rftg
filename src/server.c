@@ -2437,21 +2437,18 @@ static void kick_player(int cid, char *reason)
 
 	/* Send goodbye message */
 	send_msgf(cid, MSG_GOODBYE, "s", reason);
-	printf("Goodbye message sent\n");
 
 	/* Set state to disconnected */
 	c_list[cid].state = CS_DISCONN;
 
 	/* Close connection */
 	close(c_list[cid].fd);
-	printf("Connection closed\n");
 
 	/* Clear file descriptor */
 	c_list[cid].fd = -1;
 
 	/* Send disconnect to everyone */
 	send_player(cid);
-	printf("Disconnect sent\n");
 
 	/* Check for no session joined */
 	if (c_list[cid].sid < 0) return;
@@ -2476,7 +2473,6 @@ static void kick_player(int cid, char *reason)
 
 	/* Send session details */
 	send_session(sid);
-	printf("Sessions sent\n");
 
 	/* Check for active session */
 	if (s_list[sid].state == SS_STARTED)
@@ -3799,7 +3795,6 @@ static void handle_data(int cid)
 	{
 		/* Client closed connection */
 		kick_player(cid, "Client closed connection");
-		printf("Connection now closed\n");
 		return;
 	}
 
