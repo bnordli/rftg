@@ -9158,7 +9158,7 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 /*
  * Export log. Implemented as a callback to avoid loadsave.c depending on gtk.
  */
-static void export_log(FILE *fff)
+static void export_log(FILE *fff, int gid)
 {
 	GtkTextIter iter_start, iter_end;
 	GtkTextBuffer *message_buffer;
@@ -9256,7 +9256,7 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 
 		/* Save to file */
 		if (export_game(&real_game, fname, player_us, line,
-		                num_special_cards, special_cards, export_log) < 0)
+		                num_special_cards, special_cards, export_log, 0) < 0)
 		{
 			/* Error */
 		}

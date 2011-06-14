@@ -785,6 +785,83 @@ static void db_save_choices(int sid, int who)
 }
 
 /*
+ * Export log of a specific game.
+ */
+static void export_log(FILE *fff, int gid)
+{
+	MYSQL_RES *res;
+	MYSQL_ROW row;
+	char query[1024];
+	char msg[1024], name[1024], *ptr;
+	int uid;
+
+	/* Lookup gid */
+
+	/* Create lookup query */
+	sprintf(query, "SELECT uid, message, format \
+	                FROM messages WHERE gid=%d ORDER BY mid",
+	                gid, c_list[cid].uid);
+
+	/* Run query */
+	mysql_query(mysql, query);
+
+	/* Fetch results */
+	res = mysql_store_result(mysql);
+
+	/* Loop over rows returned */
+	while ((row = mysql_fetch_row(res)))
+	{
+		/* Reset message */
+		ptr = msg;
+
+		/* Check for no format */
+		if (!strlen(row[2]))
+		{
+			/* Write xml start tag */
+			fputs("    <Message>", fff);
+		}
+
+		/* Check for chat message */
+		else if (!strcmp(row[2], FORMAT_CHAT))
+		{
+			/* Compute user id */
+			uid = -(100 + strtol(row[0]));
+
+			/* Check for global message */
+			if (uid == -1)
+			{
+				/* Set empty user name */
+				strcpy(name, "");
+			}
+			else
+			{
+				/* Get username of chat sender */
+				db_user_name(uid, name);
+			}
+
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", row[2]);
+
+			/* Put user name */
+			fprintf(fff, "%s: ", xml_escape(name));
+		}
+
+		/* Formatted message */
+		else
+		{
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", row[2]);
+		}
+
+		/* Write message and xml end tag */
+		fprintf(fff, "%s</Message>\n", xml_escape(row[1]));
+	}
+
+	/* Free results */
+	mysql_free_result(res);
+}
+
+/*
  * Save the results from a finished game.
  */
 static void db_save_results(int sid)
@@ -819,6 +896,12 @@ static void db_save_results(int sid)
 		/* Run query */
 		mysql_query(mysql, query);
 	}
+
+	/* Create file name */
+	sprintf(query, "Game_%8d.xml", s_ptr->gid);
+
+	/* Export game to file */
+	export_game(&s_ptr->g, query, -1, NULL, 0, NULL, export_log, s_ptr->gid);
 }
 
 /*

@@ -993,4 +993,4 @@ extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, int player_us,
                        const char *message,
                        int num_special, int* special_cards,
-                       void (*export_log)(FILE *fff));
+                       void (*export_log)(FILE *fff, int gid), int gid);
