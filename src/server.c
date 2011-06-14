@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1290,6 +1290,9 @@ void message_add(game *g, char *txt)
 {
 	char msg[1024], *ptr = msg;
 
+	/* Save message to db */
+	db_save_message(g->session_id, -1, txt, "");
+
 	/* Create log message */
 	start_msg(&ptr, MSG_LOG);
 
@@ -1301,9 +1304,6 @@ void message_add(game *g, char *txt)
 
 	/* Send message to all clients in game */
 	send_to_session(g->session_id, msg);
-
-	/* Save message to db */
-	db_save_message(g->session_id, -1, txt, "");
 }
 
 /*
@@ -2235,6 +2235,12 @@ void server_private_message(game *g, int who, char *txt, char *tag)
 	/* Get connection ID of this user */
 	cid = s_list[g->session_id].cids[who];
 
+	/* Get user ID of this user */
+	uid = s_list[g->session_id].uids[who];
+
+	/* Save message to db */
+	db_save_message(g->session_id, uid, txt, tag);
+
 	/* Check for no connection */
 	if (cid < 0) return;
 
@@ -2252,12 +2258,6 @@ void server_private_message(game *g, int who, char *txt, char *tag)
 
 	/* Send to client */
 	send_msg(cid, msg);
-
-	/* Get user ID of this user */
-	uid = s_list[g->session_id].uids[who];
-
-	/* Save message to db */
-	db_save_message(g->session_id, uid, txt, tag);
 }
 
 /*
