@@ -10040,8 +10040,7 @@ void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 							        g->deck[card].d_ptr->name);
 
 							/* Send message */
-							g->p[k].control->private_message(g, k, msg,
-							                                 FORMAT_DISCARD);
+							g->p[k].control->private_message(g, k, msg, "");
 						}
 
 						/* Save swap position */
