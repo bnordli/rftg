@@ -809,8 +809,7 @@ static void export_log(FILE *fff, int gid)
 
 	/* Create lookup query */
 	sprintf(query, "SELECT uid, message, format \
-	                FROM messages WHERE gid=%d ORDER BY mid",
-	                gid, c_list[cid].uid);
+	        FROM messages WHERE gid=%d ORDER BY mid", gid);
 
 	/* Run query */
 	mysql_query(mysql, query);
@@ -835,7 +834,7 @@ static void export_log(FILE *fff, int gid)
 		else if (!strcmp(row[2], FORMAT_CHAT))
 		{
 			/* Compute user id */
-			uid = -(100 + strtol(row[0]));
+			uid = -(100 + strtol(row[0], NULL, 0));
 
 			/* Check for global message */
 			if (uid == -1)
@@ -2578,7 +2577,7 @@ static void send_gamechat(int sid, int gid, char *user, char *text)
 	char msg[1024], *ptr = msg;
 
 	/* Save message to db */
-	db_save_message(g->session_id, -(100 + gid), txt, FORMAT_CHAT);
+	db_save_message(sid, -(100 + gid), text, FORMAT_CHAT);
 
 	/* Start at beginning of message */
 	ptr = msg;
@@ -2812,7 +2811,7 @@ static void switch_ai(int sid, int who)
 	if (s_list[sid].drafting)
 	{
 		/* Send untrained AI note */
-		send_gamechat(sid, "", "Note: AI is not trained for the "
+		send_gamechat(sid, -1, "", "Note: AI is not trained for the "
 		              "drafting version");
 	}
 
