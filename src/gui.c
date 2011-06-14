@@ -7845,7 +7845,8 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	c_ptr = &real_game.deck[c_idx];
 
 	/* Create prompt */
-	sprintf(buf, "Choose goods to consume on %s", c_ptr->d_ptr->name);
+	sprintf(buf, "Choose good%s to consume on %s",
+	        min == 1 && max == 1 ? "" : "s", c_ptr->d_ptr->name);
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
