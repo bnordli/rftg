@@ -805,8 +805,6 @@ static void export_log(FILE *fff, int gid)
 	char msg[1024], name[1024], *ptr;
 	int uid;
 
-	/* Lookup gid */
-
 	/* Create lookup query */
 	sprintf(query, "SELECT uid, message, format \
 	        FROM messages WHERE gid=%d ORDER BY mid", gid);
@@ -826,6 +824,9 @@ static void export_log(FILE *fff, int gid)
 		/* Check for no format */
 		if (!strlen(row[2]))
 		{
+			/* Chop newline */
+			row[1][strlen(row[1]) - 1] = '\0';
+
 			/* Write xml start tag */
 			fputs("    <Message>", fff);
 		}
@@ -833,31 +834,29 @@ static void export_log(FILE *fff, int gid)
 		/* Check for chat message */
 		else if (!strcmp(row[2], FORMAT_CHAT))
 		{
-			/* Compute user id */
-			uid = -(100 + strtol(row[0], NULL, 0));
-
-			/* Check for global message */
-			if (uid == -1)
-			{
-				/* Set empty user name */
-				strcpy(name, "");
-			}
-			else
-			{
-				/* Get username of chat sender */
-				db_user_name(uid, name);
-			}
-
 			/* Write xml start tag with format attribute */
 			fprintf(fff, "    <Message format=\"%s\">", row[2]);
 
-			/* Put user name */
-			fprintf(fff, "%s: ", xml_escape(name));
+			/* Compute user id */
+			uid = -(100 + strtol(row[0], NULL, 0));
+
+			/* Check for player chat */
+			if (uid != -1)
+			{
+				/* Get username of chat sender */
+				db_user_name(uid, name);
+
+				/* Put user name */
+				fprintf(fff, "%s: ", xml_escape(name));
+			}
 		}
 
 		/* Formatted message */
 		else
 		{
+			/* Chop newline */
+			row[1][strlen(row[1]) - 1] = '\0';
+
 			/* Write xml start tag with format attribute */
 			fprintf(fff, "    <Message format=\"%s\">", row[2]);
 		}
@@ -907,7 +906,7 @@ static void db_save_results(int sid)
 	}
 
 	/* Create file name */
-	sprintf(query, "Game_%8d.xml", s_ptr->gid);
+	sprintf(query, "Game_%06d.xml", s_ptr->gid);
 
 	/* Export game to file */
 	export_game(&s_ptr->g, query, -1, NULL, 0, NULL, export_log, s_ptr->gid);
@@ -2842,8 +2841,20 @@ void *run_game(void *arg)
 	/* Initialize game */
 	init_game(&s_ptr->g);
 
-	/* Set replaying flag to true */
-	s_ptr->replaying = 1;
+	/* Assume we are not replaying game */
+	s_ptr->replaying = 0;
+
+	/* Loop over all players in game */
+	for (i = 0; i < s_ptr->g.num_players; ++i)
+	{
+		/* Check for choices in log */
+		if (s_ptr->g.p[i].choice_size > 0)
+		{
+			/* Set game is replaying */
+			s_ptr->replaying = 1;
+			break;
+		}
+	}
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = s_ptr - s_list;
