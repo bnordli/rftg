@@ -448,6 +448,9 @@ int export_game(game *g, char *filename, int player_us,
 		/* Loop over cards */
 		for (i = 0; i < g->deck_size; i++)
 		{
+			/* Skip unowned cards */
+			if (g->deck[i].owner == -1) continue;
+
 			/* Check for card in draw pile */
 			if (g->deck[i].where == WHERE_DECK) deck[g->deck[i].owner]++;
 

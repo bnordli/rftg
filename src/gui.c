@@ -582,6 +582,14 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
+	/* Check for empty tag */
+	if (!strlen(tag)) 
+	{
+		/* Add unformatted message */
+		message_add(g, msg);
+		return;
+	}
+
 	/* Check for verbose message while verbosity disabled */
 	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log)
 	{
@@ -6099,6 +6107,7 @@ int gui_choose_draft(game *g, int who, int list[], int num, int special[],
 	int i, j, save_opt;
 
 	/* Save special cards */
+	num_special_cards = num_special;
 	for (i = 0; i < num_special; ++i) special_cards[i] = &g->deck[special[i]];
 
 	/* Create prompt */
