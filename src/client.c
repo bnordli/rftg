@@ -455,7 +455,7 @@ static void handle_open_game(char *ptr)
 	/* Check for new server */
 	if (new_server)
 	{
-		/* Read drafting option */
+		/* Read drafting option (since 0.8.1k) */
 		x = get_integer(&ptr);
 	}
 	else
@@ -2117,6 +2117,7 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
+		/* Sending RELEASE since 0.8.1k */
 		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
 		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);

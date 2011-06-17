@@ -1317,6 +1317,7 @@ static void send_session_one(int sid, int cid)
 	if (client_supports(cid, FEATURE_DRAFTING))
 	{
 		/* Send message to client */
+		/* Drafting since 0.8.1k */
 		send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
 		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
 		          s_ptr->min_player, s_ptr->max_player,
@@ -1494,16 +1495,13 @@ void message_add_formatted(game *g, char *txt, char *tag)
 	/* Save message to db */
 	db_save_message(g->session_id, -1, txt, tag);
 
-	/* Do not send draw messages to clients */
-	if (!strcmp(tag, FORMAT_DRAW)) return;
-
 	/* Create log message */
 	start_msg(&ptr, MSG_LOG);
 
 	/* Add text of message */
 	put_string(txt, &ptr);
 
-	/* Add format of message */
+	/* Add format of message (since 0.8.1b) */
 	put_string(tag, &ptr);
 
 	/* Finish message */
