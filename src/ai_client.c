@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -189,15 +189,16 @@ static void handle_status_card(char *ptr)
 	/* Read covered by good flag */
 	c_ptr->covered = get_integer(&ptr);
 
-	/* Set known flags for active cards */
-	if (c_ptr->where == WHERE_ACTIVE)
+	/* Set known flags for active and revealed cards */
+	if (c_ptr->where == WHERE_ACTIVE || c_ptr->where == WHERE_ASIDE)
 	{
 		/* Card's location is known to everyone */
 		c_ptr->known = ~0;
 	}
 
-	/* Set known flags for our cards in hand */
-	if (c_ptr->where == WHERE_HAND && c_ptr->owner == player_us)
+	/* Set known flags for our cards in hand and saved cards */
+	if (c_ptr->owner == player_us &&
+	    (c_ptr->where == WHERE_HAND || c_ptr->where == WHERE_SAVED))
 	{
 		/* Set known flag */
 		c_ptr->known = (1 << c_ptr->owner);
