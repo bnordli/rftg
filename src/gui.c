@@ -99,6 +99,11 @@ static int *orig_log[MAX_PLAYER];
 static int orig_log_size[MAX_PLAYER];
 
 /*
+ * Games started (used for random sampling)
+ */
+static int games_started;
+
+/*
  * Player we're playing as.
  */
 int player_us;
@@ -9569,7 +9574,7 @@ static void apply_options(void)
 	else
 	{
 		/* Set random seed */
-		real_game.random_seed = time(NULL);
+		real_game.random_seed = time(NULL) + games_started++;
 	}
 
 	/* Sanity check advanced mode */
