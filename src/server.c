@@ -1702,19 +1702,19 @@ static int cmp_obfuscation(const void *h1, const void *h2)
 
 	/* First sort by owner */
 	if (c_ptr1->owner != c_ptr2->owner)
-		return c_ptr2->owner - c_ptr1->owner;
+		return c_ptr1->owner - c_ptr2->owner;
 
 	/* Then sort by location */
 	if (c_ptr1->where != c_ptr2->where)
-		return c_ptr2->where - c_ptr1->where;
+		return c_ptr1->where - c_ptr2->where;
 
 	/* Then sort by owner at start of phase */
 	if (c_ptr1->start_owner != c_ptr2->start_owner)
-		return c_ptr2->start_owner - c_ptr1->start_owner;
+		return c_ptr1->start_owner - c_ptr2->start_owner;
 
 	/* Then sort by location at start of phase */
 	if (c_ptr1->start_where != c_ptr2->start_where)
-		return c_ptr2->start_where - c_ptr1->start_where;
+		return c_ptr1->start_where - c_ptr2->start_where;
 
 	/* Then sort by index */
 	return c_ptr2->d_ptr->index - c_ptr1->d_ptr->index;
@@ -1731,16 +1731,8 @@ static int obfuscate_group(game *g, int i, int who)
 	/* Get card */
 	c_ptr = &g->deck[i];
 
-	/* Check for active card (known to all) */
-	if (c_ptr->where == WHERE_ACTIVE) return -1;
-	if (c_ptr->start_where == WHERE_ACTIVE) return -1;
-
-	/* Check for revealed card (known to all) */
-	if (c_ptr->where == WHERE_ASIDE) return -1;
-
-	/* Check for hand or saved card owned by player */
-	if ((c_ptr->where == WHERE_HAND || c_ptr->where == WHERE_SAVED) &&
-		c_ptr->owner == who) return -1;
+	/* Check for known location */
+	if (c_ptr->known & (1 << who)) return -1;
 
 	/* Check for drafting game */
 	if (g->drafting)
@@ -1809,6 +1801,11 @@ static void obfuscate_game(game *ob, game *g, int who)
 			ob->deck[i].owner = c_ptr->owner;
 			ob->deck[i].start_where = c_ptr->start_where;
 			ob->deck[i].start_owner = c_ptr->start_owner;
+		}
+		else
+		{
+			/* Clear known flags for other players */
+			ob->deck[i].known &= 1 << who;
 		}
 	}
 
@@ -1996,6 +1993,9 @@ static void update_status_one(int sid, int who)
 
 			/* Add covered flag */
 			put_integer(c_ptr->covered, &ptr);
+
+			/* Add known flag (since 0.8.1k) */
+			put_integer(c_ptr->known, &ptr);
 
 			/* Finish message */
 			finish_msg(msg, ptr);
