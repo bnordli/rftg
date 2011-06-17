@@ -57,8 +57,26 @@ int load_game(game *g, char *filename)
 	/* Check for too old version */
 	if (strcmp(version, "0.7.2") < 0) return -1;
 
+	/* Read seed/drafting line */
+	fgets(buf, 1024, fff);
+
+	/* Check for drafting */
+	if (!strcmp(buf, "Draft\n"))
+	{
+		/* Enable drafting */
+		g->drafting = 1;
+
+		/* Read seed line */
+		fgets(buf, 1024, fff);
+	}
+	else
+	{
+		/* No drafting */
+		g->drafting = 0;
+	}
+
 	/* Read random seed information */
-	fscanf(fff, "%u\n", &g->start_seed);
+	sscanf(buf, "%u\n", &g->start_seed);
 
 	/* Read game setup information */
 	fscanf(fff, "%d %d\n", &g->num_players, &g->expanded);
@@ -134,6 +152,9 @@ int save_game(game *g, char *filename, int player_us)
 	/* Write header information */
 	fputs("RFTG Save\n", fff);
 	fprintf(fff, "%s\n", VERSION);
+
+	/* Write drafting */
+	if (g->drafting) fputs("Draft\n", fff);
 
 	/* Write start of game random seed */
 	fprintf(fff, "%u\n", g->start_seed);
@@ -323,12 +344,12 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
 int export_game(game *g, char *filename, int player_us,
                 const char *message,
                 int num_special_cards, card **special_cards,
-                void (*export_log)(FILE *fff))
+                void (*export_log)(FILE *fff, int gid), int gid)
 {
 	FILE *fff;
 	player *p_ptr;
-	card *c_ptr;
-	int p, i, n, count, deck = 0, discard = 0, act[2];
+	int p, i, n, count, act[2];
+	int deck[MAX_PLAYER] = {0}, discard[MAX_PLAYER] = {0};
 
 	/* Open file for writing */
 	fff = fopen(filename, "w");
@@ -368,6 +389,11 @@ int export_game(game *g, char *filename, int player_us,
 		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
 		        g->takeover_disabled ? "off" : "on");
 
+	/* Check for drafting */
+	if (g->expanded)
+		fprintf(fff, "    <Drafting>%s</Drafting>\n",
+		        g->drafting ? "yes" : "on");
+
 	/* Write end tag */
 	fputs("  </Setup>\n", fff);
 
@@ -400,22 +426,40 @@ int export_game(game *g, char *filename, int player_us,
 	/* Write end tag */
 	fputs("    </Phases>\n", fff);
 
-	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
+	/* Check for normal game */
+	if (!g->drafting)
 	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
+		/* Loop over cards */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Check for card in draw pile */
+			if (g->deck[i].where == WHERE_DECK) deck[0]++;
 
-		/* Check for card in draw pile */
-		if (c_ptr->where == WHERE_DECK) deck++;
+			/* Check for card in discard pile */
+			if (g->deck[i].where == WHERE_DISCARD) discard[0]++;
+		}
 
-		/* Check for card in discard pile */
-		if (c_ptr->where == WHERE_DISCARD) discard++;
+		/* Write card locations information */
+		fprintf(fff, "    <Deck>%d</Deck>\n", deck[0]);
+		fprintf(fff, "    <Discard>%d</Discard>\n", discard[0]);
+	}
+	else
+	{
+		/* Loop over cards */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Skip unowned cards */
+			if (g->deck[i].owner == -1) continue;
+
+			/* Check for card in draw pile */
+			if (g->deck[i].where == WHERE_DECK) deck[g->deck[i].owner]++;
+
+			/* Check for card in discard pile */
+			if (g->deck[i].where == WHERE_DISCARD) discard[g->deck[i].owner]++;
+		}
 	}
 
-	/* Write game status information */
-	fprintf(fff, "    <Deck>%d</Deck>\n", deck);
-	fprintf(fff, "    <Discard>%d</Discard>\n", discard);
+	/* Write pool size */
 	fprintf(fff, "    <Pool>%d</Pool>\n", g->vp_pool);
 
 	/* Check for goals enabled */
@@ -446,7 +490,7 @@ int export_game(game *g, char *filename, int player_us,
 	for (p = 0; p < g->num_players; p++)
 	{
 		/* Get player index to save next */
-		n = (player_us + 1 + p) % g->num_players;
+		n = player_us == -1 ? p : (player_us + 1 + p) % g->num_players;
 
 		/* Get player pointer */
 		p_ptr = &g->p[n];
@@ -462,13 +506,14 @@ int export_game(game *g, char *filename, int player_us,
 		act[0] = act[1] = -1;
 
 		/* Check for actions known */
-		if (g->advanced && g->cur_action < ACT_SEARCH && n == player_us &&
+		if (g->advanced && g->cur_action < ACT_SEARCH &&
+		    player_us != -1 && player_us == n &&
 		    count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy first action only */
 			act[0] = p_ptr->action[0];
 		}
-		else if (g->cur_action >= ACT_SEARCH ||
+		else if (g->cur_action >= ACT_SEARCH || player_us == -1 ||
 		         count_active_flags(g, player_us, FLAG_SELECT_LAST))
 		{
 			/* Copy both actions */
@@ -500,6 +545,14 @@ int export_game(game *g, char *filename, int player_us,
 			        p_ptr->prestige_action_used ? "yes" : "no",
 			        prestige_on_tile(g, n) ? " onTile=\"yes\"" : "",
 			        p_ptr->prestige);
+		}
+
+		/* Check for drafting variant */
+		if (g->drafting)
+		{
+			/* Write deck and discard size */
+			fprintf(fff, "    <Deck>%d</Deck>\n", deck[n]);
+			fprintf(fff, "    <Discard>%d</Discard>\n", discard[n]);
 		}
 
 		/* Write acquired chips */
@@ -563,8 +616,8 @@ int export_game(game *g, char *filename, int player_us,
 			/* Write saved start tag */
 			fprintf(fff, "    <Saved count=\"%d\">\n", count);
 
-			/* Check for saved by human player */
-			if (n == player_us)
+			/* Check for known saved cards */
+			if (player_us == -1 || player_us == n)
 			{
 				/* Loop over cards in deck */
 				for (i = 0; i < g->deck_size; i++)
@@ -583,9 +636,9 @@ int export_game(game *g, char *filename, int player_us,
 			/* Write end tag */
 			fprintf(fff, "    </Saved>\n");
 		}
-
-		/* Check for human player */
-		if (n == player_us)
+		
+		/* Check for known hand */
+		if (player_us == -1 || player_us == n)
 		{
 			/* Write human player's hand */
 			export_linked_cards(fff, "Hand", g, p_ptr->head[WHERE_HAND],
@@ -648,7 +701,7 @@ int export_game(game *g, char *filename, int player_us,
 		fputs("  <Log>\n", fff);
 
 		/* Write log */
-		export_log(fff);
+		export_log(fff, gid);
 
 		/* Write log end tag */
 		fputs("  </Log>\n", fff);

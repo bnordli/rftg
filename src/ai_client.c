@@ -189,19 +189,14 @@ static void handle_status_card(char *ptr)
 	/* Read covered by good flag */
 	c_ptr->covered = get_integer(&ptr);
 
+	/* Read known flags */
+	c_ptr->known = get_integer(&ptr);
+
 	/* Set known flags for active and revealed cards */
 	if (c_ptr->where == WHERE_ACTIVE || c_ptr->where == WHERE_ASIDE)
 	{
 		/* Card's location is known to everyone */
 		c_ptr->known = ~0;
-	}
-
-	/* Set known flags for our cards in hand and saved cards */
-	if (c_ptr->owner == player_us &&
-	    (c_ptr->where == WHERE_HAND || c_ptr->where == WHERE_SAVED))
-	{
-		/* Set known flag */
-		c_ptr->known = (1 << c_ptr->owner);
 	}
 }
 
