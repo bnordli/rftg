@@ -1129,9 +1129,9 @@ static int client_supports(int cid, int feature)
 	{
 		/* Drafting */
 		case FEATURE_DRAFTING:
-			/* Supported in release 0.8.1l and above */
+			/* Supported in release 0.8.1k and above */
 			return !strncmp("0.8.1", c_list[cid].version, 5) &&
-			       c_list[cid].version[5] >= 'l';
+			       c_list[cid].version[5] >= 'k';
 		default:
 			return 1;
 	}
