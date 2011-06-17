@@ -3174,7 +3174,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	game sim;
 
 	/* Copy game */
-	memcpy(&sim, g, sizeof(game));
+	sim = *g;
 
 	/* Set simulated game */
 	sim.simulation = 1;
@@ -3773,7 +3773,7 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	defense = strength_against(g, defender, which, -1, 1);
 
 	/* Copy game */
-	memcpy(&sim, g, sizeof(game));
+	sim = *g;
 
 	/* Set simulated game */
 	sim.simulation = 1;
@@ -3811,7 +3811,7 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 		t_ptr->attack = strength_against(g, attacker, which, j_ptr->index, 0);
 
 		/* Copy game */
-		memcpy(&sim, g, sizeof(game));
+		sim = *g;
 
 		/* Set simulated game */
 		sim.simulation = 1;
