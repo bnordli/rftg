@@ -1694,58 +1694,122 @@ static void update_meta(int sid)
 }
 
 /*
+ * Function to compare two cards during obfuscation.
+ */
+static int cmp_obfuscation(const void *h1, const void *h2)
+{
+	card *c_ptr1 = *(card **)h1, *c_ptr2 = *(card **)h2;
+
+	/* First sort by owner */
+	if (c_ptr1->owner != c_ptr2->owner)
+		return c_ptr2->owner - c_ptr1->owner;
+
+	/* Then sort by location */
+	if (c_ptr1->where != c_ptr2->where)
+		return c_ptr2->where - c_ptr1->where;
+
+	/* Then sort by owner at start of phase */
+	if (c_ptr1->start_owner != c_ptr2->start_owner)
+		return c_ptr2->start_owner - c_ptr1->start_owner;
+
+	/* Then sort by location at start of phase */
+	if (c_ptr1->start_where != c_ptr2->start_where)
+		return c_ptr2->start_where - c_ptr1->start_where;
+
+	/* Then sort by index */
+	return c_ptr2->d_ptr->index - c_ptr1->d_ptr->index;
+}
+
+/*
+ * Compute which obfuscation group the card belongs to.
+ * -1 means not obfuscated.
+ */
+static int obfuscate_group(game *g, int i, int who)
+{
+	card *c_ptr;
+
+	/* Get card */
+	c_ptr = &g->deck[i];
+
+	/* Check for active card (known to all) */
+	if (c_ptr->where == WHERE_ACTIVE) return -1;
+	if (c_ptr->start_where == WHERE_ACTIVE) return -1;
+
+	/* Check for revealed card (known to all) */
+	if (c_ptr->where == WHERE_ASIDE) return -1;
+
+	/* Check for hand or saved card owned by player */
+	if ((c_ptr->where == WHERE_HAND || c_ptr->where == WHERE_SAVED) &&
+		c_ptr->owner == who) return -1;
+
+	/* Check for drafting game */
+	if (g->drafting)
+	{
+		/* Card drafted by us are interchangeable */
+		if (c_ptr->owner == who) return 1;
+	}
+
+	/* The rest of the cards are interchangeable */
+	return 0;
+}
+
+/*
  * Obfuscate information about cards that the given player should not know.
  */
 static void obfuscate_game(game *ob, game *g, int who)
 {
-	int i, j;
+	card *c_ptr;
+	card *groups[2][MAX_DECK];
+	int num_cards[2], i, j, group;
+
+	/* Reset counts */
+	num_cards[0] = num_cards[1] = 0;
 	
-	// TODO: Fix for drafting!
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Compute card group */
+		group = obfuscate_group(g, i, who);
+
+		/* Check for obfuscated card */
+		if (group >= 0)
+		{
+			/* Add card to group */
+			groups[group][num_cards[group]++] = &g->deck[i];
+		}
+	}
+
+	/* Loop over groups */
+	for (i = 0; i < 1; i++)
+	{
+		/* Sort group */
+		qsort(groups[i], num_cards[i], sizeof(card*), cmp_obfuscation);
+	}
 
 	/* Copy game state */
 	*ob = *g;
 
-	/* Loop over cards */
+	/* Reset counts */
+	num_cards[0] = num_cards[1] = 0;
+
+	/* Loop over cards in obfuscated game */
 	for (i = 0; i < g->deck_size; i++)
 	{
-		/* Check for active card (known to all) */
-		if (g->deck[i].where == WHERE_ACTIVE) continue;
-		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
+		/* Compute card group */
+		group = obfuscate_group(ob, i, who);
 
-		/* Check for card owned by player (but not a good) */
-		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
-			continue;
+		/* Check for obfuscated card */
+		if (group >= 0)
+		{
+			/* Get replacement card */
+			c_ptr = groups[group][num_cards[group]++];
 
-		/* Clear card location */
-		ob->deck[i].owner = ob->deck[i].start_owner = -1;
-		ob->deck[i].where = ob->deck[i].start_where = WHERE_DECK;
-	}
-
-	/* Start at beginning of obfuscated deck */
-	j = 0;
-
-	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Skip cards in draw pile */
-		if (g->deck[i].where == WHERE_DECK) continue;
-
-		/* Skip active cards */
-		if (g->deck[i].where == WHERE_ACTIVE) continue;
-		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
-
-		/* Skip cards known by owner */
-		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
-			continue;
-
-		/* Find substitute card */
-		while (ob->deck[j].where != WHERE_DECK) j++;
-
-		/* Copy card location */
-		ob->deck[j].where = g->deck[i].where;
-		ob->deck[j].owner = g->deck[i].owner;
-		ob->deck[j].start_where = g->deck[i].start_where;
-		ob->deck[j].start_owner = g->deck[i].start_owner;
+			/* Copy card location */
+			ob->deck[i].where = c_ptr->where;
+			ob->deck[i].owner = c_ptr->owner;
+			ob->deck[i].start_where = c_ptr->start_where;
+			ob->deck[i].start_owner = c_ptr->start_owner;
+		}
 	}
 
 	/* Start at beginning of deck */
