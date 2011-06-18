@@ -47,6 +47,17 @@ char *player_labels[MAX_PLAYER] =
 	NULL
 };
 
+/*
+ * Textual representation for variants.
+ */
+char *variant_labels[MAX_VARIANT + 1] =
+{
+	"Normal",
+	"Drafting",
+	"Separate draw piles",
+	NULL
+};
+
 void dump_hand(game *g, int who)
 {
 	card *c_ptr;
@@ -296,20 +307,20 @@ static void refresh_draw(game *g, int who)
 	card *c_ptr;
 	int i;
 
-	/* Draw deck is global in non-drafting games */
-	if (!g->drafting) who = -1;
+	/* Draw deck is global in non-variant games */
+	if (!g->variant) who = -1;
 
 	/* Message */
 	if (!g->simulation)
 	{
 		/* Check for normal game */
-		if (!g->drafting)
+		if (!g->variant)
 		{
 			/* Send message */
 			message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
 		}
 
-		/* Drafting game and not global draw pile */
+		/* Variant game and not global draw pile */
 		else if (who != -1)
 		{
 			/* Format message */
@@ -348,8 +359,8 @@ int random_draw(game *g, int who)
 	card *c_ptr = NULL;
 	int i, n;
 	
-	/* Draw deck is global when not drafting */
-	if (!g->drafting) who = -1;
+	/* Draw deck is global in normal game */
+	if (!g->variant) who = -1;
 
 	/* Count draw deck size */
 	n = count_draw(g, who);
@@ -693,12 +704,12 @@ void draw_cards(game *g, int who, int num, char *reason)
 }
 
 /*
- * Discard a card, keeping owner if drafting game.
+ * Discard a card, keeping owner if variant game.
  */
 void discard_card(game *g, int who, int which)
 {
-	/* Check for drafting game */
-	if (g->drafting)
+	/* Check for variant game */
+	if (g->variant)
 	{
 		/* Move card to discard and keep owner */
 		move_card(g, which, who, WHERE_DISCARD);
@@ -8929,7 +8940,7 @@ void phase_discard(game *g)
 		if (count_active_flags(g, i, FLAG_TAKE_DISCARDS))
 		{
 			/* Check for normal game */
-			if (!g->drafting)
+			if (!g->variant)
 			{
 				/* Look for cards discarded by opponents */
 				for (j = 0; j < g->deck_size; j++)
@@ -8985,7 +8996,7 @@ void phase_discard(game *g)
 				}
 			}
 
-			/* Drafting game */
+			/* variant game */
 			else
 			{
 				/* Loop over other players */
@@ -9930,7 +9941,7 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 /*
  * Perform the initial draft.
  */
-void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
+static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 {
 	char msg[1024];
 	int draws[MAX_PLAYER][9], n, ns = 2, swap;
@@ -10089,6 +10100,15 @@ void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 		}
 	}
 
+	/* Send message */
+	message_add_formatted(g, "=== End of draft ===\n", FORMAT_EM);
+
+	/* Format message */
+	sprintf(msg, "Each player has %d cards.\n", count_draw(g, 0) + 2);
+
+	/* Send message */
+	message_add(g, msg);
+
 	/* Reset card count */
 	cards = 0;
 
@@ -10110,8 +10130,55 @@ void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 	if (cards)
 	{
 		/* Format message */
-		sprintf(msg, "%d card%s are removed from the game.\n",
-		        cards, PLURAL(cards));
+		sprintf(msg, "%d card%s %s removed from the game.\n",
+		        cards, PLURAL(cards), cards == 1 ? "is" : "are");
+
+		/* Send message */
+		message_add(g, msg);
+	}
+}
+
+/*
+ * Start the game by separating the draw piles.
+ */
+static void separate_draw_piles(game *g, int num_start)
+{
+	char msg[1024];
+	int i, j, count;
+
+	/* Calculate number of cards per player */
+	count = (g->deck_size / g->num_players) - num_start;
+
+	/* Loop over players */
+	for (i = 0; i < g->num_players; ++i)
+	{
+		/* Give each player the same amount of cards */
+		for (j = 0; j < count; ++j)
+			move_card(g, random_draw(g, -1), i, WHERE_DECK);
+	}
+
+	/* Format message */
+	sprintf(msg, "Each player has %d cards.\n", count + num_start);
+
+	/* Send message */
+	message_add(g, msg);
+
+	/* Find number of cards left */
+	count = g->deck_size % g->num_players;
+
+	/* Loop over remaining cards */
+	for (i = 0; i < count; ++i)
+	{
+		/* Remove card from the game */
+		move_card(g, random_draw(g, -1), -1, WHERE_REMOVED);
+	}
+
+	/* Check if any cards were removed */
+	if (count)
+	{
+		/* Format message */
+		sprintf(msg, "%d card%s %s removed from the game.\n",
+		        count, PLURAL(count), count == 1 ? "is" : "are");
 		
 		/* Send message */
 		message_add(g, msg);
@@ -10152,11 +10219,14 @@ void begin_game(game *g)
 	/* Send message */
 	message_add(g, msg);
 
-	/* Check for drafting variant */
-	if (g->drafting)
+	/* Check for variant */
+	if (g->variant)
 	{
+		/* Format message */
+		sprintf(msg, "Variant: %s.\n", variant_labels[g->variant]);
+
 		/* Send message */
-		message_add(g, "Drafting variant.\n");
+		message_add(g, msg);
 	}
 
 	/* Check for expansion with goals */
@@ -10220,7 +10290,7 @@ void begin_game(game *g)
 	}
 
 	/* Check for two start world choices */
-	if (g->expanded >= 2 || g->drafting)
+	if (g->expanded >= 2 || g->variant == VARIANT_DRAFTING)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
@@ -10249,13 +10319,20 @@ void begin_game(game *g)
 		}
 
 		/* Check for drafting */
-		if (g->drafting)
+		if (g->variant == VARIANT_DRAFTING)
 		{
 			/* Perform the initial draft */
 			perform_draft(g, start_picks);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
+		}
+
+		/* Check for separate draw piles */
+		else if (g->variant == VARIANT_SEPARATE)
+		{
+			/* Separate the draw piles */
+			separate_draw_piles(g, 2);
 		}
 
 		/* Send start of game message */
@@ -10319,9 +10396,6 @@ void begin_game(game *g)
 	}
 	else
 	{
-		/* Send start of game message */
-		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
-
 		/* Loop over start worlds */
 		for (i = 0; i < num_start; i++)
 		{
@@ -10334,9 +10408,6 @@ void begin_game(game *g)
 		{
 			/* Choose a start world number */
 			n = game_rand(g) % num_start;
-
-			/* Chosen world to player */
-			place_card(g, i, start[n]);
 
 			/* Remember start world */
 			g->p[i].start = start[n];
@@ -10351,6 +10422,23 @@ void begin_game(game *g)
 			/* Move card back to deck */
 			move_card(g, start[i], -1, WHERE_DECK);
 		}
+
+		/* Check for separate draw piles */
+		if (g->variant == VARIANT_SEPARATE)
+		{
+			/* Separate the draw piles */
+			separate_draw_piles(g, 1);
+		}
+
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Give chosen world to player */
+			place_card(g, i, g->p[i].start);
+		}
+
+		/* Send start of game message */
+		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
 
 		/* Loop over players again */
 		for (i = 0; i < g->num_players; i++)

@@ -344,10 +344,10 @@ typedef struct status_display
 	/* Cards in hand */
 	int cards_hand;
 
-	/* Cards in draw pile (drafting variant) */
+	/* Cards in draw pile (variant games) */
 	int cards_deck;
 
-	/* Original number of cards (drafting variant) */
+	/* Original number of cards (variant games) */
 	int cards_orig;
 
 	/* Prestige */
@@ -4047,12 +4047,21 @@ static GtkWidget *action_icon(int act, int size)
 	return image;
 }
 
-/* The original number of cards when drafting */
-static int drafting_count[][MAX_PLAYER] =
+/* The original number of cards in variants */
+static int drafting_count[][4][MAX_PLAYER] =
 {
-	{ 67, 42 },
-	{ 87, 57, 42, 32 },
-	{ 114, 76, 57, 45, 38 },
+	{
+		{ 0 },
+		{ 67, 42 },
+		{ 87, 57, 42, 32 },
+		{ 114, 76, 57, 45, 38 },
+	},
+	{
+		{ 57, 38, 28 },
+		{ 68, 45, 34, 27 },
+		{ 90, 60, 45, 36, 30 },
+		{ 114, 76, 57, 45, 38 },
+	},
 };
 
 /*
@@ -4465,8 +4474,8 @@ void redraw_status(void)
 	/* First destroy all pre-existing status widgets */
 	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
 
-	/* Skip draw and discard icons in drafting game */
-	if (!real_game.drafting)
+	/* Skip draw and discard icons in variant games */
+	if (real_game.variant)
 	{
 		/* Build deck image */
 		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
@@ -5162,15 +5171,15 @@ static void reset_status(game *g, int who)
 	/* Count cards in hand */
 	status_player[who].cards_hand = count_player_area(g, who, WHERE_HAND);
 
-	/* Check for drafting variant */
-	if (g->drafting)
+	/* Check for variant game */
+	if (g->variant)
 	{
 		/* Count current number of cards in deck */
 		status_player[who].cards_deck = count_draw(g, who);
 
 		/* Retrieve the original number of cards */
 		status_player[who].cards_orig =
-			drafting_count[g->expanded - 1][g->num_players - 2];
+			drafting_count[g->variant - 1][g->expanded][g->num_players - 2];
 	}
 	else
 	{
@@ -9525,25 +9534,34 @@ decisions gui_func =
  */
 static void apply_options(void)
 {
+	/* Sanity check drafting variant */
+	if (!opt.expanded && opt.variant == VARIANT_DRAFTING)
+		opt.variant = 0;
+
 	/* Sanity check number of players in base game */
-	if (opt.expanded < 1 && opt.num_players > 4)
+	if (opt.expanded == 0 && opt.num_players > 4)
 	{
 		/* Reset to four players */
 		opt.num_players = 4;
 	}
 
-	/* Set drafting enabled */
-	real_game.drafting = opt.expanded && opt.drafting;
-
 	/* Sanity check number of players in first expansion */
-	if (opt.expanded < 2)
+	else if (opt.expanded == 1)
 	{
 		/* Maximum three players when drafting */
-		if (opt.drafting && opt.num_players > 3)
+		if (opt.variant == VARIANT_DRAFTING && opt.num_players > 3)
 			opt.num_players = 3;
 
 		/* Maximum five players for normal game */
 		else if (opt.num_players > 5)
+			opt.num_players = 5;
+	}
+
+	/* Sanity check number of players in second expansion */
+	else if (opt.expanded == 2)
+	{
+		/* Maximum five players when drafting */
+		if (opt.variant == VARIANT_DRAFTING && opt.num_players > 5)
 			opt.num_players = 5;
 	}
 
@@ -9564,6 +9582,9 @@ static void apply_options(void)
 
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
+
+	/* Set variant */
+	real_game.variant = opt.variant;
 
 	/* Check for custom seed value */
 	if (opt.customize_seed)
@@ -10157,8 +10178,8 @@ static void read_prefs(void)
 	                                          "no_goals", NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
-	opt.drafting = g_key_file_get_boolean(pref_file, "game",
-	                                      "drafting", NULL);
+	opt.variant = g_key_file_get_integer(pref_file, "game",
+	                                     "variant", NULL);
 
 	/* Check length of human name */
 	if (opt.player_name && strlen(opt.player_name) > 50)
@@ -10256,7 +10277,7 @@ void save_prefs(void)
 	g_key_file_set_boolean(pref_file, "game", "no_goals", opt.disable_goal);
 	g_key_file_set_boolean(pref_file, "game", "no_takeover",
 	                       opt.disable_takeover);
-	g_key_file_set_boolean(pref_file, "game", "drafting", opt.drafting);
+	g_key_file_set_integer(pref_file, "game", "variant", opt.variant);
 
 	/* Set GUI options */
 	g_key_file_set_integer(pref_file, "gui", "full_reduced",
@@ -10777,7 +10798,7 @@ static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
-static GtkWidget *drafting_check;
+static GtkWidget *variant_radio[MAX_VARIANT];
 static GtkWidget *name_entry;
 static GtkWidget *custom_seed_check;
 static GtkWidget *seed_entry;
@@ -10785,7 +10806,7 @@ static GtkWidget *seed_entry;
 /*
  * Current selections for next game options.
  */
-static int next_exp, next_player, next_draft;
+static int next_exp, next_player, next_variant;
 
 /*
  * Update button sensitivities.
@@ -10804,15 +10825,18 @@ static void update_sensitivity()
 	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1);
 
 	/* Set drafting checkbox sensitivity */
-	gtk_widget_set_sensitive(drafting_check, next_exp > 0);
+	gtk_widget_set_sensitive(variant_radio[VARIANT_DRAFTING], next_exp > 0);
 
 	/* Set player radio sensitivities */
 	for (i = 0; player_labels[i]; ++i)
 	{
-		if (!next_exp || !next_draft)
+		/* Normal game or separate draw piles */
+		if (!next_exp || next_variant != VARIANT_DRAFTING)
 		{
 			gtk_widget_set_sensitive(num_players_radio[i], i < next_exp + 3);
 		}
+
+		/* Drafting variant */
 		else
 		{
 			gtk_widget_set_sensitive(num_players_radio[i], i < 2 * next_exp);
@@ -10857,15 +10881,21 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 }
 
 /*
- * React to a drafting checkbox button being toggled.
+ * React to a variant button being toggled.
  */
-static void draft_toggle(GtkToggleButton *button, gpointer data)
+static void variant_toggle(GtkToggleButton *button, gpointer data)
 {
-	/* Remember button value */
-	next_draft = gtk_toggle_button_get_active(button);
+	int i = GPOINTER_TO_INT(data);
 
-	/* Update sensitivities */
-	update_sensitivity();
+	/* Check for button set */
+	if (gtk_toggle_button_get_active(button))
+	{
+		/* Remember next game player number */
+		next_variant = i;
+
+		/* Update sensitivities */
+		update_sensitivity();
+	}
 }
 
 /*
@@ -11001,8 +11031,10 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *exp_box, *player_box, *name_box, *seed_box, *seed_value_box;
-	GtkWidget *exp_frame, *player_frame, *seed_frame;
+	GtkWidget *exp_box, *player_box, *name_box, *options_box;
+	GtkWidget *variant_box, *seed_box, *seed_value_box;
+	GtkWidget *exp_frame, *player_frame, *options_frame;
+	GtkWidget *variant_frame, *seed_frame;
 	GtkWidget *name_label, *seed_label;
 	int i;
 
@@ -11137,6 +11169,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), player_frame);
 
+	/* Create vbox to hold options widgets */
+	options_box = gtk_vbox_new(FALSE, 0);
+
 	/* Create check box for two-player advanced game */
 	advanced_check = gtk_check_button_new_with_label("Two-player advanced");
 
@@ -11145,8 +11180,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                             opt.advanced);
 
 	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  advanced_check);
+	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
 
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
@@ -11156,8 +11190,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                             opt.disable_goal);
 
 	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_goal_check);
+	gtk_container_add(GTK_CONTAINER(options_box), disable_goal_check);
 
 	/* Create check box for disabled takeovers */
 	disable_takeover_check =
@@ -11168,24 +11201,69 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                             opt.disable_takeover);
 
 	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_takeover_check);
+	gtk_container_add(GTK_CONTAINER(options_box), disable_takeover_check);
 
-	/* Create check box for drafting variant */
-	drafting_check = gtk_check_button_new_with_label("Drafting variant\n"
-		"(Experimental: AI is not trained!)");
+	/* Create frame around buttons */
+	options_frame = gtk_frame_new("Game options");
 
-	/* Set checkbox status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(drafting_check),
-	                             opt.drafting);
+	/* Add options box to options frame */
+	gtk_container_add(GTK_CONTAINER(options_frame), options_box);
 
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  drafting_check);
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), options_frame);
 
-	/* Add handler */
-	g_signal_connect(G_OBJECT(drafting_check), "toggled",
-	                 G_CALLBACK(draft_toggle), NULL);
+	/* Create vbox to hold variant widgets */
+	variant_box = gtk_vbox_new(FALSE, 0);
+
+	/* Clear current radio button widget */
+	radio = NULL;
+
+	/* Loop over variants */
+	for (i = 0; variant_labels[i]; i++)
+	{
+		/* Create radio button */
+		radio = gtk_radio_button_new_with_label_from_widget(
+		                                        GTK_RADIO_BUTTON(radio),
+		                                        variant_labels[i]);
+
+		/* Remember radio button */
+		variant_radio[i] = radio;
+
+		/* Check for current variant */
+		if (real_game.variant == i)
+		{
+			/* Set button active */
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio),
+			                             TRUE);
+
+			/* Remember current variant */
+			next_variant = i;
+		}
+
+		/* Check for drafting radio button */
+		if (i == VARIANT_DRAFTING)
+		{
+			/* Add tooltip to radio button */
+			gtk_widget_set_tooltip_text(radio,
+			                            "Experimental: AI is not trained!");
+		}
+
+		/* Add handler */
+		g_signal_connect(G_OBJECT(radio), "toggled",
+		                 G_CALLBACK(variant_toggle), GINT_TO_POINTER(i));
+
+		/* Pack radio button into box */
+		gtk_box_pack_start(GTK_BOX(variant_box), radio, FALSE, TRUE, 0);
+	}
+
+	/* Create frame around buttons */
+	variant_frame = gtk_frame_new("Game variant");
+
+	/* Add variant box to variant frame */
+	gtk_container_add(GTK_CONTAINER(variant_frame), variant_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), variant_frame);
 
 	/* Create vbox to hold seed specification widgets */
 	seed_box = gtk_vbox_new(FALSE, 0);
@@ -11251,13 +11329,16 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		/* No drafting in base game */
-		if (next_exp == 0) next_draft = 0;
+		if (next_exp == 0 && next_variant == VARIANT_DRAFTING)
+			next_variant = 0;
 
 		/* Check for too many players */
 		if (next_exp == 0 && next_player > 4) next_player = 4;
-		if (next_exp == 1 && next_draft && next_player > 3) next_player = 3;
+		if (next_exp == 1 && next_variant == VARIANT_DRAFTING &&
+		    next_player > 3) next_player = 3;
 		if (next_exp == 1 && next_player > 5) next_player = 5;
-		if (next_exp == 2 && next_draft && next_player > 5) next_player = 5;
+		if (next_exp == 2 && next_variant == VARIANT_DRAFTING &&
+		    next_player > 5) next_player = 5;
 
 		/* Set player name */
 		opt.player_name = strdup(gtk_entry_get_text(GTK_ENTRY(name_entry)));
@@ -11283,10 +11364,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
 
-		/* Set drafting flag */
-		opt.drafting = (opt.expanded >= 1) &&
-		                gtk_toggle_button_get_active(
-		                             GTK_TOGGLE_BUTTON(drafting_check));
+		/* Set variant */
+		opt.variant = next_variant;
 
 		/* Set custom seed flag */
 		opt.customize_seed = gtk_toggle_button_get_active(
@@ -13484,7 +13563,7 @@ int main(int argc, char *argv[])
 	                                   G_TYPE_STRING, G_TYPE_INT,
 	                                   G_TYPE_STRING, G_TYPE_STRING,
 	                                   G_TYPE_INT, G_TYPE_INT,
-	                                   G_TYPE_INT, G_TYPE_INT,
+	                                   G_TYPE_INT, G_TYPE_STRING,
 	                                   G_TYPE_INT, G_TYPE_INT,
 	                                   G_TYPE_INT, G_TYPE_INT);
 
@@ -13527,9 +13606,8 @@ int main(int argc, char *argv[])
 	                                            toggle_render, "active",
 	                                            8, "visible", 12, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
-	                                            -1, "Drafting",
-	                                            toggle_render, "active",
-	                                            9, "visible", 12, NULL);
+	                                            -1, "Variant", render,
+	                                            "text", 9, "visible", 12, NULL);
 
 	/* Get first column of game view */
 	desc_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);

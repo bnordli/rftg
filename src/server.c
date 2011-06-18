@@ -44,7 +44,8 @@
 /*
  * Client features.
  */
-#define FEATURE_DRAFTING 1
+#define FEATURE_VARIANT 1
+#define FEATURE_DRAFTING 2
 
 /*
  * Number of random bytes to store per session (2 needed per number generated).
@@ -199,7 +200,7 @@ typedef struct session
 	int advanced;
 	int disable_goal;
 	int disable_takeover;
-	int drafting;
+	int variant;
 
 	/* Game speed */
 	int speed;
@@ -396,13 +397,13 @@ static int db_new_game(int sid)
 	sprintf(query, "INSERT INTO games (description, pass, created, state, \
 	                                   minp, maxp, \
 	                                   exp, adv, dis_goal, dis_takeover, \
-	                                   drafting, speed, version) \
+	                                   variant, speed, version) \
 	             VALUES ('%s', '%s', %d, 'WAITING', %d, %d, %d, %d, \
 	                     %d, %d, %d, %d, '%s')",
 	        edesc, epass, s_ptr->created,
 	        s_ptr->min_player, s_ptr->max_player,
 	        s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-	        s_ptr->disable_takeover, s_ptr->drafting, s_ptr->speed, VERSION);
+	        s_ptr->disable_takeover, s_ptr->variant, s_ptr->speed, VERSION);
 
 	/* Send query */
 	mysql_query(mysql, query);
@@ -450,7 +451,7 @@ static void db_load_sessions(void)
 	/* Run query */
 	mysql_query(mysql, "SELECT gid, description, pass, created, state, \
 	                           minp, maxp, exp, adv, dis_goal, \
-	                           dis_takeover, drafting, speed \
+	                           dis_takeover, variant, speed \
 	                    FROM games \
 	                    WHERE state='WAITING' OR state='STARTED'");
 
@@ -488,7 +489,7 @@ static void db_load_sessions(void)
 		s_ptr->advanced = strtol(row[8], NULL, 0);
 		s_ptr->disable_goal = strtol(row[9], NULL, 0);
 		s_ptr->disable_takeover = strtol(row[10], NULL, 0);
-		s_ptr->drafting = strtol(row[11], NULL, 0);
+		s_ptr->variant = strtol(row[11], NULL, 0);
 		s_ptr->speed = strtol(row[12], NULL, 0);
 
 		/* Set last join time */
@@ -1127,6 +1128,9 @@ static int client_supports(int cid, int feature)
 {
 	switch (feature)
 	{
+		/* Variants */
+		case FEATURE_VARIANT:
+
 		/* Drafting */
 		case FEATURE_DRAFTING:
 			/* Supported in release 0.8.1k and above */
@@ -1313,22 +1317,25 @@ static void send_session_one(int sid, int cid)
 	/* Get username of game creator */
 	db_user_name(s_ptr->created, name);
 
-	/* Check for drafting support */
-	if (client_supports(cid, FEATURE_DRAFTING))
+	/* Check for variant support */
+	if (client_supports(cid, FEATURE_VARIANT))
 	{
+		/* Do not send drafting games if not supported */
+		if (s_ptr->variant && !client_supports(cid, FEATURE_DRAFTING)) return;
+
 		/* Send message to client */
-		/* Drafting since 0.8.1k */
+		/* Variant since 0.8.1k */
 		send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
 		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
 		          s_ptr->min_player, s_ptr->max_player,
 		          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-		          s_ptr->disable_takeover, s_ptr->drafting, s_ptr->speed,
+		          s_ptr->disable_takeover, s_ptr->variant, s_ptr->speed,
 		          c_list[cid].uid == s_ptr->created);
 	}
 	else
 	{
-		/* Do not send drafting games */
-		if (s_ptr->drafting) return;
+		/* Do not send variant games */
+		if (s_ptr->variant) return;
 
 		/* Send message to client */
 		send_msgf(cid, MSG_OPENGAME, "dssddddddddd",
@@ -1638,8 +1645,8 @@ static void update_meta(int sid)
 	put_integer(s_ptr->disable_goal, &ptr1);
 	put_integer(s_ptr->disable_takeover, &ptr1);
 
-	/* Add drafting information only to msg1 */
-	put_integer(s_ptr->drafting, &ptr1);
+	/* Add variant information only to msg1 */
+	put_integer(s_ptr->variant, &ptr1);
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
@@ -1670,8 +1677,8 @@ static void update_meta(int sid)
 		/* Check for no connection */
 		if (cid < 0) continue;
 
-		/* Check for no drafting support */
-		if (!client_supports(cid, FEATURE_DRAFTING))
+		/* Check for no variant support */
+		if (!client_supports(cid, FEATURE_VARIANT))
 		{
 			/* Send old format to client */
 			send_msg(cid, msg0);
@@ -1732,8 +1739,8 @@ static int obfuscate_group(game *g, int i, int who)
 	/* Check for known location */
 	if (c_ptr->known & (1 << who)) return -1;
 
-	/* Check for drafting game */
-	if (g->drafting)
+	/* Check for variant game */
+	if (g->variant)
 	{
 		/* Card drafted by us are interchangeable */
 		if (c_ptr->owner == who) return 1;
@@ -2868,12 +2875,12 @@ static void switch_ai(int sid, int who)
 	/* Send to session */
 	send_gamechat(sid, -1, "", text);
 
-	/* Check for drafting game (not currently supported by AI) */
-	if (s_list[sid].drafting)
+	/* Check for drafting variant (not currently supported by AI) */
+	if (s_list[sid].variant == VARIANT_DRAFTING)
 	{
 		/* Send untrained AI note */
 		send_gamechat(sid, -1, "", "Note: AI is not trained for the "
-		              "drafting version");
+		              "drafting variant");
 	}
 
 	/* Have AI answer most recent choice question */
@@ -2992,7 +2999,7 @@ static void start_session(int sid)
 	s_ptr->g.advanced = s_ptr->advanced;
 	s_ptr->g.goal_disabled = s_ptr->disable_goal;
 	s_ptr->g.takeover_disabled = s_ptr->disable_takeover;
-	s_ptr->g.drafting = s_ptr->drafting;
+	s_ptr->g.variant = s_ptr->variant;
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = sid;
@@ -3389,16 +3396,16 @@ static void handle_create(int cid, char *ptr)
 	s_ptr->disable_goal = get_integer(&ptr);
 	s_ptr->disable_takeover = get_integer(&ptr);
 
-	/* Check for drafting support */
-	if (client_supports(cid, FEATURE_DRAFTING))
+	/* Check for variant support */
+	if (client_supports(cid, FEATURE_VARIANT))
 	{
-		/* Read drafting parameter */
-		s_ptr->drafting = get_integer(&ptr);
+		/* Read variant parameter */
+		s_ptr->variant = get_integer(&ptr);
 	}
 	else
 	{
-		/* Drafting is disabled */
-		s_ptr->drafting = 0;
+		/* No variants */
+		s_ptr->variant = 0;
 	}
 
 	/* Read preferred game speed */
@@ -3418,11 +3425,14 @@ static void handle_create(int cid, char *ptr)
 	/* Validate disabled flags */
 	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
 	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
-	if (s_ptr->expanded < 1) s_ptr->drafting = 0;
+
+	/* Validate drafting variant */
+	if (s_ptr->expanded < 1 && s_ptr->variant == VARIANT_DRAFT)
+		s_ptr->variant = 0;
 	
 	/* Compute maximum number of players allowed */
 	maxp = s_ptr->expanded + 4;
-	if (s_ptr->drafting) maxp = 1 + 2*s_ptr->expanded;
+	if (s_ptr->variant == VARIANT_DRAFT) maxp = 1 + 2*s_ptr->expanded;
 	if (maxp > 6) maxp = 6;
 
 	/* Validate number of players */
@@ -3678,8 +3688,8 @@ static void handle_add_ai(int cid, char *ptr)
 		return;
 	}
 
-	/* No ai players in drafting games */
-	if (s_ptr->drafting) return;
+	/* No ai players in drafting variant */
+	if (s_ptr->variant == VARIANT_DRAFTING) return;
 
 	/* Check for maximum number of players already */
 	if (s_ptr->num_users >= s_ptr->max_player) return;

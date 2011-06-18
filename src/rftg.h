@@ -60,6 +60,11 @@
 #define MAX_EXPANSION 4
 
 /*
+ * Maximum number of variants.
+ */
+#define MAX_VARIANT 3
+
+/*
  * Number of card designs.
  */
 #define MAX_DESIGN 191
@@ -212,6 +217,11 @@
 #define SEARCH_6_DEV              7
 #define SEARCH_TAKEOVER           8
 
+/*
+ * Variants.
+ */
+#define VARIANT_DRAFTING 1
+#define VARIANT_SEPARATE 2
 
 /*
  * Card power effects by phase.
@@ -835,8 +845,8 @@ typedef struct game
 	/* Disable takeovers in second (or later) expansion */
 	int takeover_disabled;
 
-	/* Enable drafting in second (or later) expansion (only online */
-	int drafting;
+	/* Game variant */
+	int variant;
 
 	/* Size of deck in use */
 	int deck_size;
@@ -906,6 +916,7 @@ extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
 extern char *player_labels[MAX_PLAYER];
+extern char *variant_labels[MAX_VARIANT + 1];
 extern decisions ai_func;
 extern decisions gui_func;
 

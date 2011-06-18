@@ -37,8 +37,8 @@ typedef struct options
 	/* Disable takeovers */
 	int disable_takeover;
 
-	/* Drafting variant (only online) */
-	int drafting;
+	/* Variant */
+	int variant;
 
 	/* Customize seed */
 	int customize_seed;

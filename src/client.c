@@ -306,7 +306,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 {
 	GtkTreePath *game_path;
 	GtkTreeIter game_iter, parent_iter;
-	int owned, drafting, minp, user = 1, self;
+	int owned, variant, minp, user = 1, self;
 
 	/* Check for ability to join game */
 	gtk_widget_set_sensitive(join_button, client_sid == -1);
@@ -347,7 +347,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	}
 
 	/* Get game information */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 9, &drafting,
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 9, &variant,
 	                   11, &owned, 13, &minp, -1);
 
 	/* Check for user */
@@ -368,7 +368,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 
 	/* Check for ability to add AI player */
 	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned &&
-	                         !drafting);
+	                         !variant);
 }
 
 /*
@@ -455,7 +455,7 @@ static void handle_open_game(char *ptr)
 	/* Check for new server */
 	if (new_server)
 	{
-		/* Read drafting option (since 0.8.1k) */
+		/* Read variant option (since 0.8.1k) */
 		x = get_integer(&ptr);
 	}
 	else
@@ -464,8 +464,8 @@ static void handle_open_game(char *ptr)
 		x = 0;
 	}
 
-	/* Set draft option */
-	gtk_tree_store_set(game_list, &list_iter, 9, x, -1);
+	/* Set variant text */
+	gtk_tree_store_set(game_list, &list_iter, 9, variant_labels[x], -1);
 
 	/* Read game speed option */
 	x = get_integer(&ptr);
@@ -591,7 +591,7 @@ static void handle_status_meta(char *ptr)
 	if (new_server)
 	{
 		/* Read draft parameter */
-		real_game.drafting = get_integer(&ptr);
+		real_game.variant = get_integer(&ptr);
 	}
 
 	/* Initialize card designs for this expansion level */
@@ -2313,7 +2313,7 @@ static GtkWidget *min_player, *max_player;
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
-static GtkWidget *drafting_check;
+static GtkWidget *draft_check;
 
 /*
  * React to an expansion level being toggled.
@@ -2341,7 +2341,7 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
 
 		/* Set drafting variant checkbox sensitivity */
-		gtk_widget_set_sensitive(drafting_check, i > 0);
+		gtk_widget_set_sensitive(draft_check, i > 0);
 	}
 }
 
@@ -2541,17 +2541,17 @@ void create_dialog(GtkButton *button, gpointer data)
 	                          0, 2, 7, 8);
 
 	/* Create check box for drafting variant */
-	drafting_check = gtk_check_button_new_with_label("Drafting variant");
+	draft_check = gtk_check_button_new_with_label("Drafting variant");
 
 	/* Set default */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(drafting_check),
-	                             opt.drafting);
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(draft_check),
+	                             opt.variant == VARIANT_DRAFTING);
 
 	/* Make checkbox insensitive */
-	gtk_widget_set_sensitive(drafting_check, FALSE);
+	gtk_widget_set_sensitive(draft_check, FALSE);
 
 	/* Add checkbox to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), drafting_check,
+	gtk_table_attach_defaults(GTK_TABLE(table), draft_check,
 	                          0, 2, 8, 9);
 
 	/* Add table to dialog box */
@@ -2604,8 +2604,8 @@ void create_dialog(GtkButton *button, gpointer data)
 	                             GTK_TOGGLE_BUTTON(disable_goal_check));
 	opt.disable_takeover = gtk_toggle_button_get_active(
 	                             GTK_TOGGLE_BUTTON(disable_takeover_check));
-	opt.drafting = gtk_toggle_button_get_active(
-	                             GTK_TOGGLE_BUTTON(drafting_check));
+	if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draft_check)))
+		opt.variant = VARIANT_DRAFTING;
 
 	/* Save change to file */
 	save_prefs();
@@ -2620,7 +2620,7 @@ void create_dialog(GtkButton *button, gpointer data)
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(drafting_check)),
+        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draft_check)),
 	          0);
 
 	/* Destroy dialog */

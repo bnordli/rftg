@@ -57,22 +57,32 @@ int load_game(game *g, char *filename)
 	/* Check for too old version */
 	if (strcmp(version, "0.7.2") < 0) return -1;
 
-	/* Read seed/drafting line */
+	/* Read seed/variant line */
 	fgets(buf, 1024, fff);
 
 	/* Check for drafting */
-	if (!strcmp(buf, "Draft\n"))
+	if (!strcmp(buf, "Drafting\n"))
 	{
 		/* Enable drafting */
-		g->drafting = 1;
+		g->variant = VARIANT_DRAFTING;
+
+		/* Read seed line */
+		fgets(buf, 1024, fff);
+	}
+
+	/* Check for separate draw piles */
+	else if (!strcmp(buf, "Separate\n"))
+	{
+		/* Enable separate draw piles */
+		g->variant = VARIANT_SEPARATE;
 
 		/* Read seed line */
 		fgets(buf, 1024, fff);
 	}
 	else
 	{
-		/* No drafting */
-		g->drafting = 0;
+		/* No variant */
+		g->variant = 0;
 	}
 
 	/* Read random seed information */
@@ -154,7 +164,10 @@ int save_game(game *g, char *filename, int player_us)
 	fprintf(fff, "%s\n", VERSION);
 
 	/* Write drafting */
-	if (g->drafting) fputs("Draft\n", fff);
+	if (g->variant == VARIANT_DRAFTING) fputs("Drafting\n", fff);
+
+	/* Write separate */
+	else if (g->variant == VARIANT_SEPARATE) fputs("Separate\n", fff);
 
 	/* Write start of game random seed */
 	fprintf(fff, "%u\n", g->start_seed);
@@ -389,10 +402,10 @@ int export_game(game *g, char *filename, int player_us,
 		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
 		        g->takeover_disabled ? "off" : "on");
 
-	/* Check for drafting */
-	if (g->expanded)
-		fprintf(fff, "    <Drafting>%s</Drafting>\n",
-		        g->drafting ? "yes" : "on");
+	/* Check for variant */
+	if (g->variant)
+		fprintf(fff, "    <Variant>%s</Variant>\n",
+		        variant_labels[g->variant]);
 
 	/* Write end tag */
 	fputs("  </Setup>\n", fff);
@@ -427,7 +440,7 @@ int export_game(game *g, char *filename, int player_us,
 	fputs("    </Phases>\n", fff);
 
 	/* Check for normal game */
-	if (!g->drafting)
+	if (!g->variant)
 	{
 		/* Loop over cards */
 		for (i = 0; i < g->deck_size; i++)
@@ -547,8 +560,8 @@ int export_game(game *g, char *filename, int player_us,
 			        p_ptr->prestige);
 		}
 
-		/* Check for drafting variant */
-		if (g->drafting)
+		/* Check for variant game */
+		if (g->variant)
 		{
 			/* Write deck and discard size */
 			fprintf(fff, "    <Deck>%d</Deck>\n", deck[n]);
