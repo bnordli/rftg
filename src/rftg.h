@@ -496,7 +496,8 @@
 #define CHOICE_SEARCH_TYPE      22
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
-#define CHOICE_DRAFT            25
+#define CHOICE_DRAFT_FIRST      25
+#define CHOICE_DRAFT            26
 
 
 /*

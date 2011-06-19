@@ -571,12 +571,13 @@ static int message_last_y;
  */
 int is_round_boundary(int advanced, int *p)
 {
-	/* Only start and action choices are boundary */
-	if (*p != CHOICE_START && *p != CHOICE_ACTION) return FALSE;
+	/* Only start, action and first round draft choices are boundary */
+	if (*p != CHOICE_START && *p != CHOICE_ACTION && *p != CHOICE_DRAFT_FIRST)
+		return FALSE;
 
 	/* Second choice of Psi-Crystal is not a boundary */
 	/* XXX This only works in newer save games */
-	if (advanced && *(p + 1) == 2) return FALSE;
+	if (advanced && *p == CHOICE_ACTION && *(p + 1) == 2) return FALSE;
 
 	/* Everything else is */
 	return TRUE;
@@ -9427,6 +9428,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			break;
 
 		/* Choose card to draft */
+		case CHOICE_DRAFT_FIRST:
 		case CHOICE_DRAFT:
 
 			/* Choose card */

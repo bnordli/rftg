@@ -9945,7 +9945,7 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 {
 	char msg[1024];
 	int draws[MAX_PLAYER][9], n, ns = 2, swap;
-	int i, j, k, m;
+	int i, j, k, m, choice;
 	int draw, rounds, cards, rotation, card;
 
 	/* Compute number of drafting rounds */
@@ -10025,6 +10025,9 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 			/* Compute cards left */
 			n = draw - j;
 
+			/* Find choice to use */
+			choice = j == 0 ? CHOICE_DRAFT_FIRST : CHOICE_DRAFT;
+
 			/* Loop over players */
 			for (k = 0; k < g->num_players; ++k)
 			{
@@ -10036,8 +10039,8 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 					move_card(g, draws[cards][m], k, WHERE_HAND);
 
 				/* Ask player */
-				send_choice(g, k, CHOICE_DRAFT, draws[cards], &n,
-				            start_picks[k], &ns, 0, 0, 0);
+				send_choice(g, k, choice, draws[cards], &n,
+				            start_picks[k], &ns, draw, 0, 0);
 
 				/* Check for aborted game */
 				if (g->game_over) return;
@@ -10053,7 +10056,7 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 				cards = (k + rotation) % g->num_players;
 
 				/* Get answer */
-				card = extract_choice(g, k, CHOICE_DRAFT, draws[cards], &n,
+				card = extract_choice(g, k, choice, draws[cards], &n,
 				                      start_picks[k], &ns);
 
 				/* Reset swap */

@@ -6047,6 +6047,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 			break;
 		
 		/* Choose a card to draft */
+		case CHOICE_DRAFT_FIRST:
 		case CHOICE_DRAFT:
 
 			/* Choose card to draft */
