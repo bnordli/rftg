@@ -766,10 +766,18 @@ void save_log(void)
 /*
  * Use simple random number generator.
  */
-int game_rand(game *g)
+int game_rand(game *g, int who)
 {
+	unsigned int *seed = &g->random_seed;
+
+	/* Check for personal seed */
+	if (who >= 0) seed = &g->p[who].seed;
+
+	if (!g->simulation)
+	printf("Using seed from %d\n", who);
+
 	/* Call simple random number generator */
-	return simple_rand(&g->random_seed);
+	return simple_rand(seed);
 }
 
 /*

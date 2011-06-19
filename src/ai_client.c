@@ -533,10 +533,15 @@ void message_add_formatted(game *g, char *msg, char *tag)
 /*
  * Use simple random number generator.
  */
-int game_rand(game *g)
+int game_rand(game *g, int who)
 {
+	unsigned int *seed = &g->random_seed;
+
+	/* Check for personal seed */
+	if (who >= 0) seed = &g->player_seed[who];
+
 	/* Call simple random number generator */
-	return simple_rand(&g->random_seed);
+	return simple_rand(seed);
 }
 
 /*

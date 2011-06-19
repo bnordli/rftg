@@ -789,6 +789,9 @@ typedef struct player
 	int phase_vp;
 	int phase_prestige;
 
+	/* Player seed */
+	unsigned int seed;
+
 	/* Log of player's choices */
 	int *choice_log;
 
@@ -812,7 +815,7 @@ typedef struct game
 	/* Session ID in online server */
 	int session_id;
 
-	/* Current random seed */
+	/* Current random seed for the public deck */
 	unsigned int random_seed;
 
 	/* Random seed at start of game */
@@ -935,7 +938,7 @@ extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
 extern int count_draw(game *g, int who);
 extern void save_log(void);
-extern int game_rand(game *g);
+extern int game_rand(game *g, int who);
 extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,10 +57,16 @@ void message_add_formatted(game *g, char *msg, char *tag)
 /*
  * Use simple random number generator.
  */
-int game_rand(game *g)
+int game_rand(game *g, int who)
 {
+	unsigned int *seed = &g->random_seed;
+
+	/* Check for personal seed */
+	if (who >= 0) seed = &g->player_seed[who];
+
 	/* Call simple random number generator */
-	return simple_rand(&g->random_seed);
+	return simple_rand(seed);
+}
 }
 
 /*

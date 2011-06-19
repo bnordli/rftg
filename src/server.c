@@ -171,6 +171,9 @@ typedef struct session
 	/* Current position in random pool */
 	int random_pos;
 
+	/* Current position in random pool per player */
+	int player_pos[MAX_PLAYER];
+
 	/* User ID who created session */
 	int created;
 
@@ -640,11 +643,18 @@ static int db_load_game_state(int sid)
 	/* Copy returned data to random byte pool */
 	memcpy(s_ptr->random_pool, row[0], MAX_RAND);
 
+	/* Free result */
+	mysql_free_result(res);
+
 	/* Start at beginning of byte pool */
 	s_ptr->random_pos = 0;
 
-	/* Free result */
-	mysql_free_result(res);
+	/* Loop over players */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Initialize player position */
+		s_ptr->player_pos[i] = (i+1) * 139;
+	}
 
 	/* Loop over players in session */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -1592,28 +1602,41 @@ static void init_random_pool(int sid)
  * Call simple RNG in simulated games, otherwise use the results from the
  * system RNG saved per session.
  */
-int game_rand(game *g)
+int game_rand(game *g, int who)
 {
 	session *s_ptr = &s_list[g->session_id];
-	unsigned int x;
+	unsigned int x, *seed;
+	int *pos;
 
 	/* Check for simulated game */
 	if (g->simulation)
 	{
+		/* Assume global seed */
+		seed = &g->random_seed;
+
+		/* Check for personal seed */
+		if (who >= 0) seed = &g->p[who].seed;
+
 		/* Use simple random number generator */
-		return simple_rand(&g->random_seed);
+		return simple_rand(seed);
 	}
+
+	/* Assume global seed */
+	pos = &s_ptr->random_pos;
+
+	/* Check for personal seed */
+	if (who >= 0) pos = &s_ptr->player_pos[who];
 
 	/* Check for end of random bytes reached */
-	if (s_ptr->random_pos == MAX_RAND)
-	{
-		/* XXX Restart from beginning */
-		s_ptr->random_pos = 0;
-	}
+	if (*pos == MAX_RAND) *pos = 0;
 
 	/* Create random number from next two bytes */
-	x = s_ptr->random_pool[s_ptr->random_pos++];
-	x |= s_ptr->random_pool[s_ptr->random_pos++] << 8;
+	x = s_ptr->random_pool[(*pos)++];
+
+	/* Check for end of random bytes reached */
+	if (*pos == MAX_RAND) *pos = 0;
+
+	x |= s_ptr->random_pool[(*pos)++] << 8;
 
 	/* Return low bits */
 	return x & 0x7fff;
@@ -2121,7 +2144,7 @@ static void update_waiting(int sid)
 static void server_notify_rotation(game *g, int who)
 {
 	session *s_ptr = &s_list[g->session_id];
-	int temp_uid, temp_cid, temp_ai;
+	int temp_uid, temp_cid, temp_ai, temp_pos;
 	int i;
 
 	/* XXX Only do this once per set of players */
@@ -2131,6 +2154,7 @@ static void server_notify_rotation(game *g, int who)
 	temp_uid = s_ptr->uids[0];
 	temp_cid = s_ptr->cids[0];
 	temp_ai = s_ptr->ai_control[0];
+	temp_pos = s_ptr->player_pos[0];
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users - 1; i++)
@@ -2139,12 +2163,14 @@ static void server_notify_rotation(game *g, int who)
 		s_ptr->uids[i] = s_ptr->uids[i + 1];
 		s_ptr->cids[i] = s_ptr->cids[i + 1];
 		s_ptr->ai_control[i] = s_ptr->ai_control[i + 1];
+		s_ptr->player_pos[i] = s_ptr->player_pos[i + 1];
 	}
 
 	/* Store old player 0 info in last spot */
 	s_ptr->uids[i] = temp_uid;
 	s_ptr->cids[i] = temp_cid;
 	s_ptr->ai_control[i] = temp_ai;
+	s_ptr->player_pos[i] = temp_pos;
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)

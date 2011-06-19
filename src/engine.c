@@ -383,7 +383,7 @@ int random_draw(game *g, int who)
 	}
 
 	/* Choose randomly */
-	n = game_rand(g) % n;
+	n = game_rand(g, who) % n;
 
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
@@ -10296,7 +10296,7 @@ void begin_game(game *g)
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Choose a Red start world */
-			n = game_rand(g) % num_start_red;
+			n = game_rand(g, -1) % num_start_red;
 
 			/* Add to start world choices */
 			start_picks[i][0] = start_red[n];
@@ -10305,7 +10305,7 @@ void begin_game(game *g)
 			start_red[n] = start_red[--num_start_red];
 
 			/* Choose a Blue start world */
-			n = game_rand(g) % num_start_blue;
+			n = game_rand(g, -1) % num_start_blue;
 
 			/* Add to start world choices */
 			start_picks[i][1] = start_blue[n];
@@ -10407,7 +10407,7 @@ void begin_game(game *g)
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Choose a start world number */
-			n = game_rand(g) % num_start;
+			n = game_rand(g, -1) % num_start;
 
 			/* Remember start world */
 			g->p[i].start = start[n];
