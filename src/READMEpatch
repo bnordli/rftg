@@ -30,6 +30,7 @@ This patch introduces the following additional command line options:
 	-s <savegame>  -- A save game to load when starting the program
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
+	-v <variant>   -- Variant game (1 = Drafting, 2 = Separate draw piles)
 
 RIGHT-CLICK
 

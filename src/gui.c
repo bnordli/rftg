@@ -12928,6 +12928,16 @@ int main(int argc, char *argv[])
 			/* Set file name */
 			fname = argv[++i];
 		}
+
+		/* Check for variant game */
+		else if (!strcmp(argv[i], "-v"))
+		{
+			/* Set variant game */
+			opt.variant = atoi(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
+		}
 	}
 
 	/* Apply options */
