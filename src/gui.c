@@ -13576,13 +13576,22 @@ int main(int argc, char *argv[])
 	lobby_vbox = gtk_vbox_new(FALSE, 5);
 
 	/* Create list of open games */
-	game_list = gtk_tree_store_new(14, G_TYPE_INT, G_TYPE_STRING,
-	                                   G_TYPE_STRING, G_TYPE_INT,
-	                                   G_TYPE_STRING, G_TYPE_STRING,
-	                                   G_TYPE_INT, G_TYPE_INT,
-	                                   G_TYPE_INT, G_TYPE_STRING,
-	                                   G_TYPE_INT, G_TYPE_INT,
-	                                   G_TYPE_INT, G_TYPE_INT);
+	game_list = gtk_tree_store_new(15,
+		G_TYPE_INT,    //  0: Game id
+		G_TYPE_STRING, //  1: Description
+		G_TYPE_STRING, //  2: Create name
+		G_TYPE_INT,    //  3: Password?
+		G_TYPE_STRING, //  4: Number of players
+		G_TYPE_STRING, //  5: Expansion name
+		G_TYPE_INT,    //  6: Advanced game?
+		G_TYPE_INT,    //  7: Disable goals?
+		G_TYPE_INT,    //  8: Disable takeovers?
+		G_TYPE_INT,    //  9: Variant id
+		G_TYPE_STRING, // 10: Variant string
+		G_TYPE_INT,    // 11: Game speed
+		G_TYPE_INT,    // 12: My game?
+		G_TYPE_INT,    // 13: Checkboxes visible?
+		G_TYPE_INT);   // 14: Min players
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));
@@ -13603,7 +13612,7 @@ int main(int argc, char *argv[])
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Password Needed",
 	                                            toggle_render, "active",
-	                                            3, "visible", 12, NULL);
+	                                            3, "visible", 13, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "# Players", render,
 	                                            "text", 4, NULL);
@@ -13613,18 +13622,18 @@ int main(int argc, char *argv[])
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "2P Advanced",
 	                                            toggle_render, "active",
-	                                            6, "visible", 12, NULL);
+	                                            6, "visible", 13, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Disable Goals",
 	                                            toggle_render, "active",
-	                                            7, "visible", 12, NULL);
+	                                            7, "visible", 13, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Disable Takeovers",
 	                                            toggle_render, "active",
-	                                            8, "visible", 12, NULL);
+	                                            8, "visible", 13, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Variant", render,
-	                                            "text", 9, "visible", 12, NULL);
+	                                            "text", 10, NULL);
 
 	/* Get first column of game view */
 	desc_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);

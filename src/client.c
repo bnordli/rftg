@@ -347,15 +347,15 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	}
 
 	/* Get game information */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 9, &variant,
-	                   11, &owned, 13, &minp, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
+	                   9, &variant, 12, &owned, 14, &minp, -1);
 
 	/* Check for user */
 	if (user)
 	{
 		/* Check whether cursor is on ourself */
 		gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter,
-		                   11, &self, -1);
+		                   12, &self, -1);
 	}
 
 	/* Check for ability to start game */
@@ -431,7 +431,7 @@ static void handle_open_game(char *ptr)
 	}
 
 	/* Set number of players string */
-	gtk_tree_store_set(game_list, &list_iter, 4, buf, 13, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, 4, buf, 14, x, -1);
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
@@ -460,24 +460,27 @@ static void handle_open_game(char *ptr)
 	}
 	else
 	{
-		/* No draft */
+		/* No variant */
 		x = 0;
 	}
 
+	/* Set variant id */
+	gtk_tree_store_set(game_list, &list_iter, 9, x, -1);
+
 	/* Set variant text */
-	gtk_tree_store_set(game_list, &list_iter, 9, variant_labels[x], -1);
+	gtk_tree_store_set(game_list, &list_iter, 10, variant_labels[x], -1);
 
 	/* Read game speed option */
 	x = get_integer(&ptr);
 
 	/* Set speed option */
-	gtk_tree_store_set(game_list, &list_iter, 10, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, 11, x, -1);
 
 	/* Read owner flag */
 	x = get_integer(&ptr);
 
 	/* Set owner information */
-	gtk_tree_store_set(game_list, &list_iter, 11, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, 12, x, -1);
 
 	/* Check for owner */
 	if (x && new_game)
@@ -490,7 +493,7 @@ static void handle_open_game(char *ptr)
 	}
 
 	/* Make checkboxes visible */
-	gtk_tree_store_set(game_list, &list_iter, 12, 1, -1);
+	gtk_tree_store_set(game_list, &list_iter, 13, 1, -1);
 
 	/* Sort game list by session ID */
 	gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(game_list), 0,
@@ -563,10 +566,10 @@ static void handle_game_player(char *ptr)
 	x = get_integer(&ptr);
 
 	/* Store note of self */
-	gtk_tree_store_set(game_list, &child_iter, 11, x, -1);
+	gtk_tree_store_set(game_list, &child_iter, 12, x, -1);
 
 	/* Make checkboxes invisible on this row */
-	gtk_tree_store_set(game_list, &child_iter, 12, 0, -1);
+	gtk_tree_store_set(game_list, &child_iter, 13, 0, -1);
 
 	/* Reset button state */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
@@ -590,7 +593,7 @@ static void handle_status_meta(char *ptr)
 	/* Check for new server */
 	if (new_server)
 	{
-		/* Read draft parameter */
+		/* Read variant parameter */
 		real_game.variant = get_integer(&ptr);
 	}
 
