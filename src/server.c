@@ -3453,12 +3453,12 @@ static void handle_create(int cid, char *ptr)
 	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
 
 	/* Validate drafting variant */
-	if (s_ptr->expanded < 1 && s_ptr->variant == VARIANT_DRAFT)
+	if (s_ptr->expanded < 1 && s_ptr->variant == VARIANT_DRAFTING)
 		s_ptr->variant = 0;
 	
 	/* Compute maximum number of players allowed */
 	maxp = s_ptr->expanded + 4;
-	if (s_ptr->variant == VARIANT_DRAFT) maxp = 1 + 2*s_ptr->expanded;
+	if (s_ptr->variant == VARIANT_DRAFTING) maxp = 1 + 2*s_ptr->expanded;
 	if (maxp > 6) maxp = 6;
 
 	/* Validate number of players */

@@ -62,11 +62,10 @@ int game_rand(game *g, int who)
 	unsigned int *seed = &g->random_seed;
 
 	/* Check for personal seed */
-	if (who >= 0) seed = &g->player_seed[who];
+	if (who >= 0) seed = &g->p[who].seed;
 
 	/* Call simple random number generator */
 	return simple_rand(seed);
-}
 }
 
 /*
