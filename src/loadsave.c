@@ -22,6 +22,13 @@
 
 #include "rftg.h"
 
+static char *variant_str[MAX_VARIANT] =
+{
+	"",
+	"V: Draft",
+	"V: Private",
+};
+
 /*
  * Load a game from the given filename.
  */
@@ -57,32 +64,29 @@ int load_game(game *g, char *filename)
 	/* Check for too old version */
 	if (strcmp(version, "0.7.2") < 0) return -1;
 
+	/* Assume no variant */
+	g->variant = 0;
+
 	/* Read seed/variant line */
 	fgets(buf, 1024, fff);
 
-	/* Check for drafting */
-	if (!strcmp(buf, "Drafting\n"))
-	{
-		/* Enable drafting */
-		g->variant = VARIANT_DRAFTING;
+	/* Strip newline */
+	buf[strlen(buf) - 1] = '\0';
 
-		/* Read seed line */
-		fgets(buf, 1024, fff);
-	}
-
-	/* Check for separate draw piles */
-	else if (!strcmp(buf, "Separate\n"))
+	/* Loop over variants */
+	for (i = 1; i < MAX_VARIANT; ++i)
 	{
-		/* Enable separate draw piles */
-		g->variant = VARIANT_SEPARATE;
+		/* Check for matching variant */
+		if (!strcmp(buf, variant_str[i]))
+		{
+			/* Enable variant */
+			g->variant = i;
 
-		/* Read seed line */
-		fgets(buf, 1024, fff);
-	}
-	else
-	{
-		/* No variant */
-		g->variant = 0;
+			/* Read seed line */
+			fgets(buf, 1024, fff);
+
+			break;
+		}
 	}
 
 	/* Read random seed information */
@@ -163,11 +167,8 @@ int save_game(game *g, char *filename, int player_us)
 	fputs("RFTG Save\n", fff);
 	fprintf(fff, "%s\n", VERSION);
 
-	/* Write drafting */
-	if (g->variant == VARIANT_DRAFTING) fputs("Drafting\n", fff);
-
-	/* Write separate */
-	else if (g->variant == VARIANT_SEPARATE) fputs("Separate\n", fff);
+	/* Write variant */
+	if (g->variant) fprintf(fff, "%s\n", variant_str[g->variant]);
 
 	/* Write start of game random seed */
 	fprintf(fff, "%u\n", g->start_seed);

@@ -54,7 +54,7 @@ char *variant_labels[MAX_VARIANT + 1] =
 {
 	"Normal",
 	"Drafting",
-	"Separate draw piles",
+	"Private decks",
 	NULL
 };
 
@@ -10142,9 +10142,9 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 }
 
 /*
- * Start the game by separating the draw piles.
+ * Start the game by separating the deck.
  */
-static void separate_draw_piles(game *g, int num_start)
+static void private_decks(game *g, int num_start)
 {
 	char msg[1024];
 	int i, j, count;
@@ -10331,11 +10331,11 @@ void begin_game(game *g)
 			if (g->game_over) return;
 		}
 
-		/* Check for separate draw piles */
-		else if (g->variant == VARIANT_SEPARATE)
+		/* Check for private decks */
+		else if (g->variant == VARIANT_PRIVATE)
 		{
-			/* Separate the draw piles */
-			separate_draw_piles(g, 2);
+			/* Separate the deck */
+			private_decks(g, 2);
 		}
 
 		/* Send start of game message */
@@ -10426,11 +10426,11 @@ void begin_game(game *g)
 			move_card(g, start[i], -1, WHERE_DECK);
 		}
 
-		/* Check for separate draw piles */
-		if (g->variant == VARIANT_SEPARATE)
+		/* Check for private decks */
+		if (g->variant == VARIANT_PRIVATE)
 		{
-			/* Separate the draw piles */
-			separate_draw_piles(g, 1);
+			/* Separate the deck */
+			private_decks(g, 1);
 		}
 
 		/* Loop over players */

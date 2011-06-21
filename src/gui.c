@@ -10837,7 +10837,7 @@ static void update_sensitivity()
 	/* Set player radio sensitivities */
 	for (i = 0; player_labels[i]; ++i)
 	{
-		/* Normal game or separate draw piles */
+		/* Normal game or private decks */
 		if (!next_exp || next_variant != VARIANT_DRAFTING)
 		{
 			gtk_widget_set_sensitive(num_players_radio[i], i < next_exp + 3);
