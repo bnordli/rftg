@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include <pthread.h>
 
 /*
- * Server settings
+ * Server settings.
  */
 #ifndef WELCOME
 #define WELCOME "Welcome to the Race for the Galaxy " RELEASE " server!"
@@ -40,6 +40,12 @@
 #define SS_STARTED   2
 #define SS_DONE      3
 #define SS_ABANDONED 4
+
+/*
+ * Client features.
+ */
+#define FEATURE_VARIANT 1
+#define FEATURE_DRAFTING 2
 
 /*
  * Number of random bytes to store per session (2 needed per number generated).
@@ -84,6 +90,9 @@ typedef struct conn
 
 	/* IP address of remote client */
 	char addr[80];
+
+	/* Client version */
+	char version[80];
 
 	/* Session this player has joined (if any) */
 	int sid;
@@ -153,11 +162,17 @@ typedef struct session
 	/* Outstanding choice for each player */
 	choice out[MAX_PLAYER];
 
+	/* Whether game is replaying or not */
+	int replaying;
+
 	/* Pool of random bytes */
 	unsigned char random_pool[MAX_RAND];
 
 	/* Current position in random pool */
 	int random_pos;
+
+	/* Current position in random pool per player */
+	int player_pos[MAX_PLAYER];
 
 	/* User ID who created session */
 	int created;
@@ -188,6 +203,7 @@ typedef struct session
 	int advanced;
 	int disable_goal;
 	int disable_takeover;
+	int variant;
 
 	/* Game speed */
 	int speed;
@@ -222,6 +238,15 @@ static int num_conn;
 static session s_list[1024];
 static int num_session;
 
+/*
+ * Timeout value (in seconds).
+ */
+static int timeout = 60;
+
+/*
+ * Kick timeout value (in ten seconds)
+ */
+static int kick_timeout = 30;
 
 /*
  * Connection to the database server.
@@ -237,8 +262,8 @@ MYSQL *mysql;
  */
 static int db_user(char *user, char *pass)
 {
-	MYSQL_RES *res;
-	MYSQL_ROW row;
+	MYSQL_RES *res1, *res2;
+	MYSQL_ROW row1, row2;
 	char query[1024];
 	char euser[1024], epass[1024];
 	int uid;
@@ -254,17 +279,17 @@ static int db_user(char *user, char *pass)
 	mysql_query(mysql, query);
 
 	/* Fetch results */
-	res = mysql_store_result(mysql);
+	res1 = mysql_store_result(mysql);
 
 	/* Check for no rows returned */
-	if (!(row = mysql_fetch_row(res)))
+	if (!(row1 = mysql_fetch_row(res1)))
 	{
 		/* Free old results */
-		mysql_free_result(res);
+		mysql_free_result(res1);
 
 		/* Create insertion query */
 		sprintf(query, "INSERT INTO users (user, pass) VALUES \
-		        ('%s', '%s')", euser, epass);
+		        ('%s', SHA1('%s'))", euser, epass);
 
 		/* Send query */
 		mysql_query(mysql, query);
@@ -276,36 +301,50 @@ static int db_user(char *user, char *pass)
 		mysql_query(mysql, query);
 
 		/* Fetch results */
-		res = mysql_store_result(mysql);
+		res1 = mysql_store_result(mysql);
 
 		/* Get row */
-		row = mysql_fetch_row(res);
+		row1 = mysql_fetch_row(res1);
 
 		/* Get user ID */
-		uid = strtol(row[0], NULL, 0);
+		uid = strtol(row1[0], NULL, 0);
 
 		/* Free result */
-		mysql_free_result(res);
+		mysql_free_result(res1);
 
 		/* Return ID */
 		return uid;
 	}
+
+	/* Create password hash query */
+	sprintf(query, "SELECT SHA1('%s')", epass);
+
+	/* Send query */
+	mysql_query(mysql, query);
+
+	/* Fetch results */
+	res2 = mysql_store_result(mysql);
+
+	/* Get row */
+	row2 = mysql_fetch_row(res2);
 
 	/* Check for matching password */
-	if (!strcmp(pass, row[0]))
+	if (!strcmp(row2[0], row1[0]))
 	{
 		/* Get ID */
-		uid = strtol(row[1], NULL, 0);
+		uid = strtol(row1[1], NULL, 0);
 
-		/* Free result */
-		mysql_free_result(res);
+		/* Free results */
+		mysql_free_result(res1);
+		mysql_free_result(res2);
 
 		/* Return ID */
 		return uid;
 	}
 
-	/* Free result */
-	mysql_free_result(res);
+	/* Free results */
+	mysql_free_result(res1);
+	mysql_free_result(res2);
 
 	/* Bad password */
 	return -1;
@@ -361,13 +400,13 @@ static int db_new_game(int sid)
 	sprintf(query, "INSERT INTO games (description, pass, created, state, \
 	                                   minp, maxp, \
 	                                   exp, adv, dis_goal, dis_takeover, \
-	                                   speed, version) \
+	                                   variant, speed, version) \
 	             VALUES ('%s', '%s', %d, 'WAITING', %d, %d, %d, %d, \
-	                     %d, %d, %d, '%s')",
+	                     %d, %d, %d, %d, '%s')",
 	        edesc, epass, s_ptr->created,
 	        s_ptr->min_player, s_ptr->max_player,
 	        s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-	        s_ptr->disable_takeover, s_ptr->speed, VERSION);
+	        s_ptr->disable_takeover, s_ptr->variant, s_ptr->speed, VERSION);
 
 	/* Send query */
 	mysql_query(mysql, query);
@@ -415,7 +454,7 @@ static void db_load_sessions(void)
 	/* Run query */
 	mysql_query(mysql, "SELECT gid, description, pass, created, state, \
 	                           minp, maxp, exp, adv, dis_goal, \
-	                           dis_takeover, speed \
+	                           dis_takeover, variant, speed \
 	                    FROM games \
 	                    WHERE state='WAITING' OR state='STARTED'");
 
@@ -453,7 +492,8 @@ static void db_load_sessions(void)
 		s_ptr->advanced = strtol(row[8], NULL, 0);
 		s_ptr->disable_goal = strtol(row[9], NULL, 0);
 		s_ptr->disable_takeover = strtol(row[10], NULL, 0);
-		s_ptr->speed = strtol(row[11], NULL, 0);
+		s_ptr->variant = strtol(row[11], NULL, 0);
+		s_ptr->speed = strtol(row[12], NULL, 0);
 
 		/* Set last join time */
 		s_ptr->last_join = time(NULL);
@@ -603,11 +643,18 @@ static int db_load_game_state(int sid)
 	/* Copy returned data to random byte pool */
 	memcpy(s_ptr->random_pool, row[0], MAX_RAND);
 
+	/* Free result */
+	mysql_free_result(res);
+
 	/* Start at beginning of byte pool */
 	s_ptr->random_pos = 0;
 
-	/* Free result */
-	mysql_free_result(res);
+	/* Loop over players */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Initialize player position */
+		s_ptr->player_pos[i] = (i+1) * 139;
+	}
 
 	/* Loop over players in session */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -759,6 +806,81 @@ static void db_save_choices(int sid, int who)
 }
 
 /*
+ * Export log of a specific game.
+ */
+static void export_log(FILE *fff, int gid)
+{
+	MYSQL_RES *res;
+	MYSQL_ROW row;
+	char query[1024];
+	char msg[1024], name[1024], *ptr;
+	int uid;
+
+	/* Create lookup query */
+	sprintf(query, "SELECT uid, message, format \
+	        FROM messages WHERE gid=%d ORDER BY mid", gid);
+
+	/* Run query */
+	mysql_query(mysql, query);
+
+	/* Fetch results */
+	res = mysql_store_result(mysql);
+
+	/* Loop over rows returned */
+	while ((row = mysql_fetch_row(res)))
+	{
+		/* Reset message */
+		ptr = msg;
+
+		/* Check for no format */
+		if (!strlen(row[2]))
+		{
+			/* Chop newline */
+			row[1][strlen(row[1]) - 1] = '\0';
+
+			/* Write xml start tag */
+			fputs("    <Message>", fff);
+		}
+
+		/* Check for chat message */
+		else if (!strcmp(row[2], FORMAT_CHAT))
+		{
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", row[2]);
+
+			/* Compute user id */
+			uid = -(100 + strtol(row[0], NULL, 0));
+
+			/* Check for player chat */
+			if (uid != -1)
+			{
+				/* Get username of chat sender */
+				db_user_name(uid, name);
+
+				/* Put user name */
+				fprintf(fff, "%s: ", xml_escape(name));
+			}
+		}
+
+		/* Formatted message */
+		else
+		{
+			/* Chop newline */
+			row[1][strlen(row[1]) - 1] = '\0';
+
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", row[2]);
+		}
+
+		/* Write message and xml end tag */
+		fprintf(fff, "%s</Message>\n", xml_escape(row[1]));
+	}
+
+	/* Free results */
+	mysql_free_result(res);
+}
+
+/*
  * Save the results from a finished game.
  */
 static void db_save_results(int sid)
@@ -793,6 +915,148 @@ static void db_save_results(int sid)
 		/* Run query */
 		mysql_query(mysql, query);
 	}
+
+	/* Create file name */
+	sprintf(query, "Game_%06d.xml", s_ptr->gid);
+
+	/* Export game to file */
+	export_game(&s_ptr->g, query, -1, NULL, 0, NULL, export_log, s_ptr->gid);
+}
+
+/*
+ * Saves a game message to the database.
+ */
+static void db_save_message(int sid, int uid, char* txt, char* tag)
+{
+	char query[1024];
+	char etxt[1024], etag[1024];
+
+	/* Do not save message if game is replaying */
+	if (s_list[sid].replaying) return;
+
+	/* Escape message and format */
+	mysql_real_escape_string(mysql, etxt, txt, strlen(txt));
+	mysql_real_escape_string(mysql, etag, tag, strlen(tag));
+
+	/* Create insertion query */
+	sprintf(query, "INSERT INTO messages (gid, uid, message, format) \
+	                VALUES (%d, %d, '%s', '%s')",
+	        s_list[sid].gid, uid, etxt, etag);
+
+	/* Send query */
+	mysql_query(mysql, query);
+
+	/* Check for error */
+	if (*mysql_error(mysql))
+	{
+		/* Print error */
+		printf("%s\n", mysql_error(mysql));
+		exit(1);
+	}
+}
+
+/*
+ * Replays game messages to a client.
+ */
+static void replay_messages(int gid, int cid)
+{
+	MYSQL_RES *res;
+	MYSQL_ROW row;
+	char query[1024];
+	char msg[1024], name[1024], *ptr;
+	int uid;
+
+	/* Create lookup query */
+	sprintf(query, "SELECT uid, message, format \
+	                FROM messages \
+	                WHERE gid=%d AND (uid=%d OR uid < 0) \
+	                ORDER BY mid",
+	                gid, c_list[cid].uid);
+
+	/* Run query */
+	mysql_query(mysql, query);
+
+	/* Fetch results */
+	res = mysql_store_result(mysql);
+
+	/* Loop over rows returned */
+	while ((row = mysql_fetch_row(res)))
+	{
+		/* Reset message */
+		ptr = msg;
+
+		/* Check for no format */
+		if (!strlen(row[2]))
+		{
+			/* Create log message */
+			start_msg(&ptr, MSG_LOG);
+
+			/* Add text of message */
+			put_string(row[1], &ptr);
+
+			/* Finish message */
+			finish_msg(msg, ptr);
+
+			/* Send to client */
+			send_msg(cid, msg);
+		}
+
+		/* Check for chat message */
+		else if (!strcmp(row[2], FORMAT_CHAT))
+		{
+			/* Compute user id */
+			uid = -(100 + atoi(row[0]));
+
+			/* Check for global message */
+			if (uid == -1)
+			{
+				/* Set empty user name */
+				strcpy(name, "");
+			}
+			else
+			{
+				/* Get username of chat sender */
+				db_user_name(uid, name);
+			}
+
+			/* Create log message */
+			start_msg(&ptr, MSG_GAMECHAT);
+
+			/* Copy user sending chat to message */
+			put_string(name, &ptr);
+
+			/* Copy chat text to message */
+			put_string(row[1], &ptr);
+
+			/* Finish message */
+			finish_msg(msg, ptr);
+
+			/* Send to client */
+			send_msg(cid, msg);
+		}
+
+		/* Formatted message */
+		else
+		{
+			/* Create log message */
+			start_msg(&ptr, MSG_LOG);
+
+			/* Add text of message */
+			put_string(row[1], &ptr);
+
+			/* Add format of message */
+			put_string(row[2], &ptr);
+
+			/* Finish message */
+			finish_msg(msg, ptr);
+
+			/* Send to client */
+			send_msg(cid, msg);
+		}
+	}
+
+	/* Free results */
+	mysql_free_result(res);
 }
 
 /*
@@ -828,7 +1092,7 @@ void send_msg(int cid, char *msg)
 		/* Reallocate buffer */
 		c->out_buf = (char *)realloc(c->out_buf, c->out_len + size);
 	}
-	
+
 	/* Copy current message to end of buffer */
 	memcpy(c->out_buf + c->out_len, msg, size);
 
@@ -865,6 +1129,26 @@ void send_msg(int cid, char *msg)
 
 	/* Release connection mutex */
 	pthread_mutex_unlock(&c->conn_mutex);
+}
+
+/*
+ * Check whether the client supports the given feature.
+ */
+static int client_supports(int cid, int feature)
+{
+	switch (feature)
+	{
+		/* Variants */
+		case FEATURE_VARIANT:
+
+		/* Drafting */
+		case FEATURE_DRAFTING:
+			/* Supported in release 0.8.1k and above */
+			return !strncmp("0.8.1", c_list[cid].version, 5) &&
+			       c_list[cid].version[5] >= 'k';
+		default:
+			return 1;
+	}
 }
 
 /*
@@ -1043,13 +1327,34 @@ static void send_session_one(int sid, int cid)
 	/* Get username of game creator */
 	db_user_name(s_ptr->created, name);
 
-	/* Send message to client */
-	send_msgf(cid, MSG_OPENGAME, "dssddddddddd",
-	          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
-	          s_ptr->min_player, s_ptr->max_player,
-	          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-	          s_ptr->disable_takeover, s_ptr->speed,
-	          c_list[cid].uid == s_ptr->created);
+	/* Check for variant support */
+	if (client_supports(cid, FEATURE_VARIANT))
+	{
+		/* Do not send drafting games if not supported */
+		if (s_ptr->variant && !client_supports(cid, FEATURE_DRAFTING)) return;
+
+		/* Send message to client */
+		/* Variant since 0.8.1k */
+		send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
+		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
+		          s_ptr->min_player, s_ptr->max_player,
+		          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
+		          s_ptr->disable_takeover, s_ptr->variant, s_ptr->speed,
+		          c_list[cid].uid == s_ptr->created);
+	}
+	else
+	{
+		/* Do not send variant games */
+		if (s_ptr->variant) return;
+
+		/* Send message to client */
+		send_msgf(cid, MSG_OPENGAME, "dssddddddddd",
+		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
+		          s_ptr->min_player, s_ptr->max_player,
+		          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
+		          s_ptr->disable_takeover, s_ptr->speed,
+		          c_list[cid].uid == s_ptr->created);
+	}
 
 	/* Loop over player spots */
 	for (i = 0; i < MAX_PLAYER; i++)
@@ -1180,6 +1485,9 @@ void message_add(game *g, char *txt)
 {
 	char msg[1024], *ptr = msg;
 
+	/* Save message to db */
+	db_save_message(g->session_id, -1, txt, "");
+
 	/* Create log message */
 	start_msg(&ptr, MSG_LOG);
 
@@ -1201,13 +1509,16 @@ void message_add_formatted(game *g, char *txt, char *tag)
 	/* TODO: This should become a separate message in a new version */
 	char msg[1024], *ptr = msg;
 
+	/* Save message to db */
+	db_save_message(g->session_id, -1, txt, tag);
+
 	/* Create log message */
 	start_msg(&ptr, MSG_LOG);
 
 	/* Add text of message */
 	put_string(txt, &ptr);
 
-	/* Add format of message */
+	/* Add format of message (since 0.8.1b) */
 	put_string(tag, &ptr);
 
 	/* Finish message */
@@ -1291,28 +1602,41 @@ static void init_random_pool(int sid)
  * Call simple RNG in simulated games, otherwise use the results from the
  * system RNG saved per session.
  */
-int game_rand(game *g)
+int game_rand(game *g, int who)
 {
 	session *s_ptr = &s_list[g->session_id];
-	unsigned int x;
+	unsigned int x, *seed;
+	int *pos;
 
 	/* Check for simulated game */
 	if (g->simulation)
 	{
+		/* Assume global seed */
+		seed = &g->random_seed;
+
+		/* Check for personal seed */
+		if (who >= 0) seed = &g->p[who].seed;
+
 		/* Use simple random number generator */
-		return simple_rand(&g->random_seed);
+		return simple_rand(seed);
 	}
+
+	/* Assume global seed */
+	pos = &s_ptr->random_pos;
+
+	/* Check for personal seed */
+	if (who >= 0) pos = &s_ptr->player_pos[who];
 
 	/* Check for end of random bytes reached */
-	if (s_ptr->random_pos == MAX_RAND)
-	{
-		/* XXX Restart from beginning */
-		s_ptr->random_pos = 0;
-	}
+	if (*pos == MAX_RAND) *pos = 0;
 
 	/* Create random number from next two bytes */
-	x = s_ptr->random_pool[s_ptr->random_pos++];
-	x |= s_ptr->random_pool[s_ptr->random_pos++] << 8;
+	x = s_ptr->random_pool[(*pos)++];
+
+	/* Check for end of random bytes reached */
+	if (*pos == MAX_RAND) *pos = 0;
+
+	x |= s_ptr->random_pool[(*pos)++] << 8;
 
 	/* Return low bits */
 	return x & 0x7fff;
@@ -1324,38 +1648,70 @@ int game_rand(game *g)
 static void update_meta(int sid)
 {
 	session *s_ptr = &s_list[sid];
-	char msg[1024], *ptr = msg;
-	int i;
+	char msg0[1024], msg1[1024], *ptr0 = msg0, *ptr1 = msg1;
+	int i, cid;
 
-	/* Start message */
-	start_msg(&ptr, MSG_STATUS_META);
+	/* Start messages */
+	start_msg(&ptr0, MSG_STATUS_META);
+	start_msg(&ptr1, MSG_STATUS_META);
 
-	/* Add game parameters to message */
-	put_integer(s_ptr->num_users, &ptr);
-	put_integer(s_ptr->expanded, &ptr);
-	put_integer(s_ptr->advanced, &ptr);
-	put_integer(s_ptr->disable_goal, &ptr);
-	put_integer(s_ptr->disable_takeover, &ptr);
+	/* Add common game parameters to messages */
+	put_integer(s_ptr->num_users, &ptr0);
+	put_integer(s_ptr->expanded, &ptr0);
+	put_integer(s_ptr->advanced, &ptr0);
+	put_integer(s_ptr->disable_goal, &ptr0);
+	put_integer(s_ptr->disable_takeover, &ptr0);
+
+	put_integer(s_ptr->num_users, &ptr1);
+	put_integer(s_ptr->expanded, &ptr1);
+	put_integer(s_ptr->advanced, &ptr1);
+	put_integer(s_ptr->disable_goal, &ptr1);
+	put_integer(s_ptr->disable_takeover, &ptr1);
+
+	/* Add variant information only to msg1 */
+	put_integer(s_ptr->variant, &ptr1);
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
-		/* Add goal presence to message */
-		put_integer(s_ptr->g.goal_active[i], &ptr);
+		/* Add goal presence to messages */
+		put_integer(s_ptr->g.goal_active[i], &ptr0);
+		put_integer(s_ptr->g.goal_active[i], &ptr1);
 	}
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
-		/* Add player's name to message */
-		put_string(s_ptr->g.p[i].name, &ptr);
+		/* Add player's name to messages */
+		put_string(s_ptr->g.p[i].name, &ptr0);
+		put_string(s_ptr->g.p[i].name, &ptr1);
 	}
 
-	/* Finish message */
-	finish_msg(msg, ptr);
+	/* Finish messages */
+	finish_msg(msg0, ptr0);
+	finish_msg(msg1, ptr1);
 
-	/* Send to everyone */
-	send_to_session(sid, msg);
+	/* Loop over users in the session */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Get connection ID of this user */
+		cid = s_ptr->cids[i];
+
+		/* Check for no connection */
+		if (cid < 0) continue;
+
+		/* Check for no variant support */
+		if (!client_supports(cid, FEATURE_VARIANT))
+		{
+			/* Send old format to client */
+			send_msg(cid, msg0);
+		}
+		else
+		{
+			/* Send new format to client */
+			send_msg(cid, msg1);
+		}
+	}
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -1366,56 +1722,119 @@ static void update_meta(int sid)
 }
 
 /*
+ * Function to compare two cards during obfuscation.
+ */
+static int cmp_obfuscation(const void *h1, const void *h2)
+{
+	card *c_ptr1 = *(card **)h1, *c_ptr2 = *(card **)h2;
+
+	/* First sort by owner */
+	if (c_ptr1->owner != c_ptr2->owner)
+		return c_ptr1->owner - c_ptr2->owner;
+
+	/* Then sort by location */
+	if (c_ptr1->where != c_ptr2->where)
+		return c_ptr1->where - c_ptr2->where;
+
+	/* Then sort by owner at start of phase */
+	if (c_ptr1->start_owner != c_ptr2->start_owner)
+		return c_ptr1->start_owner - c_ptr2->start_owner;
+
+	/* Then sort by location at start of phase */
+	if (c_ptr1->start_where != c_ptr2->start_where)
+		return c_ptr1->start_where - c_ptr2->start_where;
+
+	/* Then sort by index */
+	return c_ptr2->d_ptr->index - c_ptr1->d_ptr->index;
+}
+
+/*
+ * Compute which obfuscation group the card belongs to.
+ * -1 means not obfuscated.
+ */
+static int obfuscate_group(game *g, int i, int who)
+{
+	card *c_ptr;
+
+	/* Get card */
+	c_ptr = &g->deck[i];
+
+	/* Check for known location */
+	if (c_ptr->known & (1 << who)) return -1;
+
+	/* Check for variant game */
+	if (g->variant)
+	{
+		/* Card drafted by us are interchangeable */
+		if (c_ptr->owner == who) return 1;
+	}
+
+	/* The rest of the cards are interchangeable */
+	return 0;
+}
+
+/*
  * Obfuscate information about cards that the given player should not know.
  */
 static void obfuscate_game(game *ob, game *g, int who)
 {
-	int i, j;
+	card *c_ptr;
+	card *groups[2][MAX_DECK];
+	int num_cards[2], i, j, group;
+
+	/* Reset counts */
+	num_cards[0] = num_cards[1] = 0;
+
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Compute card group */
+		group = obfuscate_group(g, i, who);
+
+		/* Check for obfuscated card */
+		if (group >= 0)
+		{
+			/* Add card to group */
+			groups[group][num_cards[group]++] = &g->deck[i];
+		}
+	}
+
+	/* Loop over groups */
+	for (i = 0; i < 1; i++)
+	{
+		/* Sort group */
+		qsort(groups[i], num_cards[i], sizeof(card*), cmp_obfuscation);
+	}
 
 	/* Copy game state */
 	*ob = *g;
 
-	/* Loop over cards */
+	/* Reset counts */
+	num_cards[0] = num_cards[1] = 0;
+
+	/* Loop over cards in obfuscated game */
 	for (i = 0; i < g->deck_size; i++)
 	{
-		/* Check for active card (known to all) */
-		if (g->deck[i].where == WHERE_ACTIVE) continue;
-		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
+		/* Compute card group */
+		group = obfuscate_group(ob, i, who);
 
-		/* Check for card owned by player (but not a good) */
-		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
-			continue;
+		/* Check for obfuscated card */
+		if (group >= 0)
+		{
+			/* Get replacement card */
+			c_ptr = groups[group][num_cards[group]++];
 
-		/* Clear card location */
-		ob->deck[i].owner = ob->deck[i].start_owner = -1;
-		ob->deck[i].where = ob->deck[i].start_where = WHERE_DECK;
-	}
-
-	/* Start at beginning of obfuscated deck */
-	j = 0;
-
-	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Skip cards in draw pile */
-		if (g->deck[i].where == WHERE_DECK) continue;
-
-		/* Skip active cards */
-		if (g->deck[i].where == WHERE_ACTIVE) continue;
-		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
-
-		/* Skip cards known by owner */
-		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
-			continue;
-
-		/* Find substitute card */
-		while (ob->deck[j].where != WHERE_DECK) j++;
-
-		/* Copy card location */
-		ob->deck[j].where = g->deck[i].where;
-		ob->deck[j].owner = g->deck[i].owner;
-		ob->deck[j].start_where = g->deck[i].start_where;
-		ob->deck[j].start_owner = g->deck[i].start_owner;
+			/* Copy card location */
+			ob->deck[i].where = c_ptr->where;
+			ob->deck[i].owner = c_ptr->owner;
+			ob->deck[i].start_where = c_ptr->start_where;
+			ob->deck[i].start_owner = c_ptr->start_owner;
+		}
+		else
+		{
+			/* Clear known flags for other players */
+			ob->deck[i].known &= 1 << who;
+		}
 	}
 
 	/* Start at beginning of deck */
@@ -1436,6 +1855,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 			/* XXX */
 			if (j >= g->deck_size)
 			{
+				/* Log message */
 				printf("Failed to find substitute good\n");
 				j = 0;
 				break;
@@ -1602,6 +2022,9 @@ static void update_status_one(int sid, int who)
 			/* Add covered flag */
 			put_integer(c_ptr->covered, &ptr);
 
+			/* Add known flag (since 0.8.1k) */
+			put_integer(c_ptr->known, &ptr);
+
 			/* Finish message */
 			finish_msg(msg, ptr);
 
@@ -1721,7 +2144,7 @@ static void update_waiting(int sid)
 static void server_notify_rotation(game *g, int who)
 {
 	session *s_ptr = &s_list[g->session_id];
-	int temp_uid, temp_cid, temp_ai;
+	int temp_uid, temp_cid, temp_ai, temp_pos;
 	int i;
 
 	/* XXX Only do this once per set of players */
@@ -1731,6 +2154,7 @@ static void server_notify_rotation(game *g, int who)
 	temp_uid = s_ptr->uids[0];
 	temp_cid = s_ptr->cids[0];
 	temp_ai = s_ptr->ai_control[0];
+	temp_pos = s_ptr->player_pos[0];
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users - 1; i++)
@@ -1739,12 +2163,14 @@ static void server_notify_rotation(game *g, int who)
 		s_ptr->uids[i] = s_ptr->uids[i + 1];
 		s_ptr->cids[i] = s_ptr->cids[i + 1];
 		s_ptr->ai_control[i] = s_ptr->ai_control[i + 1];
+		s_ptr->player_pos[i] = s_ptr->player_pos[i + 1];
 	}
 
 	/* Store old player 0 info in last spot */
 	s_ptr->uids[i] = temp_uid;
 	s_ptr->cids[i] = temp_cid;
 	s_ptr->ai_control[i] = temp_ai;
+	s_ptr->player_pos[i] = temp_pos;
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -1782,6 +2208,9 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	/* Send game updates to session */
 	update_status(g->session_id);
 
+	/* Game is not replaying anymore */
+	s_ptr->replaying = 0;
+
 	/* Ask player to prepare */
 	send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
 	          g->p[who].choice_size, phase, arg);
@@ -1789,6 +2218,7 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	/* Player has option to play */
 	s_ptr->waiting[who] = WAIT_OPTION;
 
+	/* Log message */
 	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
 }
 
@@ -1834,6 +2264,7 @@ static void ask_client(int sid, int who)
 		return;
 	}
 
+	/* Log message */
 	printf("S:%d Asking %d (%s) for choice (type %d) at %d\n", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
 
 	/* Start choice message */
@@ -1891,6 +2322,9 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Check for choice already received */
 	if (g->p[who].choice_size > g->p[who].choice_pos) return;
+
+	/* Game is not replaying anymore */
+	s_ptr->replaying = 0;
 
 	/* Mark player as being waited on */
 	s_ptr->waiting[who] = WAIT_BLOCKED;
@@ -1996,6 +2430,7 @@ static void handle_choice(int cid, char *ptr)
 	/* Copy choice type to log */
 	*l_ptr++ = get_integer(&ptr);
 
+	/* Log message */
 	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
 	if (pos != p_ptr->choice_size)
@@ -2105,6 +2540,7 @@ static void handle_prepare(int cid, char *ptr)
 	/* Unlock mutex */
 	pthread_mutex_unlock(&s_ptr->session_mutex);
 
+	/* Log message */
 	printf("S:%d Received preparation complete from %d\n", sid, cid);
 }
 
@@ -2114,10 +2550,16 @@ static void handle_prepare(int cid, char *ptr)
 void server_private_message(game *g, int who, char *txt, char *tag)
 {
 	char msg[1024], *ptr = msg;
-	int cid;
+	int cid, uid;
 
 	/* Get connection ID of this user */
 	cid = s_list[g->session_id].cids[who];
+
+	/* Get user ID of this user */
+	uid = s_list[g->session_id].uids[who];
+
+	/* Save message to db */
+	db_save_message(g->session_id, uid, txt, tag);
 
 	/* Check for no connection */
 	if (cid < 0) return;
@@ -2224,9 +2666,12 @@ static void accept_conn(int listen_fd)
 /*
  * Send a "game chat" message to everyone in the given session.
  */
-static void send_gamechat(int sid, char *user, char *text)
+static void send_gamechat(int sid, int gid, char *user, char *text)
 {
 	char msg[1024], *ptr = msg;
+
+	/* Save message to db */
+	db_save_message(sid, -(100 + gid), text, FORMAT_CHAT);
 
 	/* Start at beginning of message */
 	ptr = msg;
@@ -2304,15 +2749,19 @@ static void kick_player(int cid, char *reason)
 		sprintf(text, "%s disconnected.", c_list[cid].user);
 
 		/* Send to remaining players in session */
-		send_gamechat(sid, "", text);
+		send_gamechat(sid, -1, "", text);
 
-		/* Format time to AI control message */
-		sprintf(text, "%s will be set to AI control in %d seconds.",
-		        c_list[cid].user,
-			(30 - s_list[sid].wait_ticks[i]) / 5 * 10);
+		/* Check for kick timeout */
+		if (kick_timeout)
+		{
+			/* Format time to AI control message */
+			sprintf(text, "%s will be set to AI control in %d seconds.",
+			        c_list[cid].user,
+			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * 10);
+		}
 
 		/* Send to remaining players in session */
-		send_gamechat(sid, "", text);
+		send_gamechat(sid, -1, "", text);
 	}
 }
 
@@ -2450,7 +2899,15 @@ static void switch_ai(int sid, int who)
 	        s_ptr->g.p[who].name);
 
 	/* Send to session */
-	send_gamechat(sid, "", text);
+	send_gamechat(sid, -1, "", text);
+
+	/* Check for variants (not currently supported by AI) */
+	if (s_list[sid].variant)
+	{
+		/* Send untrained AI note */
+		send_gamechat(sid, -1, "", "Note: AI is not trained for the "
+		              "drafting variant");
+	}
 
 	/* Have AI answer most recent choice question */
 	ask_client(sid, who);
@@ -2478,6 +2935,21 @@ void *run_game(void *arg)
 
 	/* Initialize game */
 	init_game(&s_ptr->g);
+
+	/* Assume we are not replaying game */
+	s_ptr->replaying = 0;
+
+	/* Loop over all players in game */
+	for (i = 0; i < s_ptr->g.num_players; ++i)
+	{
+		/* Check for choices in log */
+		if (s_ptr->g.p[i].choice_size > 0)
+		{
+			/* Set game is replaying */
+			s_ptr->replaying = 1;
+			break;
+		}
+	}
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = s_ptr - s_list;
@@ -2553,6 +3025,7 @@ static void start_session(int sid)
 	s_ptr->g.advanced = s_ptr->advanced;
 	s_ptr->g.goal_disabled = s_ptr->disable_goal;
 	s_ptr->g.takeover_disabled = s_ptr->disable_takeover;
+	s_ptr->g.variant = s_ptr->variant;
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = sid;
@@ -2647,7 +3120,20 @@ static void handle_login(int cid, char *ptr)
 	get_string(pass, &ptr);
 	get_string(version, &ptr);
 
-	printf("Login attempt from %s\n", user);
+	/* Check for release information */
+	if (ptr - c_list[cid].buf < c_list[cid].buf_full)
+	{
+		/* Use release as version */
+		get_string(c_list[cid].version, &ptr);
+	}
+	else
+	{
+		/* Just use version */
+		strcpy(c_list[cid].version, version);
+	}
+
+	/* Log message */
+	printf("Login attempt from %s (%s)\n", user, c_list[cid].version);
 
 	/* Check for too old version */
 	if (strcmp(version, "0.8.1") < 0)
@@ -2655,6 +3141,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
 
+		/* Log message */
 		printf("Denied (too old)\n");
 
 		/* Done */
@@ -2667,6 +3154,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too new");
 
+		/* Log message */
 		printf("Denied (too new)\n");
 
 		/* Done */
@@ -2679,6 +3167,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
+		/* Log message */
 		printf("Denied (illegal username)\n");
 
 		/* Done */
@@ -2694,6 +3183,7 @@ static void handle_login(int cid, char *ptr)
 			/* Send denied message */
 			send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
+			/* Log message */
 			printf("Denied (illegal username)\n");
 
 			/* Done */
@@ -2717,6 +3207,7 @@ static void handle_login(int cid, char *ptr)
 			send_msgf(cid, MSG_DENIED, "s",
 			          "User already logged in");
 
+			/* Log message */
 			printf("Denied (already logged in)\n");
 
 			/* Done */
@@ -2730,6 +3221,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Illegal password length");
 
+		/* Log message */
 		printf("Denied (illegal password length)\n");
 
 		/* Done */
@@ -2745,6 +3237,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Incorrect password");
 
+		/* Log message */
 		printf("Denied (incorrect password)\n");
 
 		/* Done */
@@ -2797,17 +3290,20 @@ static void handle_login(int cid, char *ptr)
 			/* Lock session mutex */
 			pthread_mutex_lock(&s_ptr->session_mutex);
 
-			/* Client is playing */
-			c_list[cid].state = CS_PLAYING;
-
 			/* Tell client that game has started */
 			send_msgf(cid, MSG_START, "");
+
+			/* Replay game messages */
+			replay_messages(s_ptr->gid, cid);
+
+			/* Client is playing */
+			c_list[cid].state = CS_PLAYING;
 
 			/* Format message */
 			sprintf(text, "%s reconnected.", user);
 
 			/* Send to session */
-			send_gamechat(i, "", text);
+			send_gamechat(i, -1, "", text);
 
 			/* Tell client about game state */
 			update_meta(i);
@@ -2926,6 +3422,18 @@ static void handle_create(int cid, char *ptr)
 	s_ptr->disable_goal = get_integer(&ptr);
 	s_ptr->disable_takeover = get_integer(&ptr);
 
+	/* Check for variant support */
+	if (client_supports(cid, FEATURE_VARIANT))
+	{
+		/* Read variant parameter */
+		s_ptr->variant = get_integer(&ptr);
+	}
+	else
+	{
+		/* No variants */
+		s_ptr->variant = 0;
+	}
+
 	/* Read preferred game speed */
 	s_ptr->speed = get_integer(&ptr);
 
@@ -2940,8 +3448,17 @@ static void handle_create(int cid, char *ptr)
 	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
 	if (s_ptr->expanded > 3) s_ptr->expanded = 3;
 
+	/* Validate disabled flags */
+	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
+
+	/* Validate drafting variant */
+	if (s_ptr->expanded < 1 && s_ptr->variant == VARIANT_DRAFTING)
+		s_ptr->variant = 0;
+
 	/* Compute maximum number of players allowed */
 	maxp = s_ptr->expanded + 4;
+	if (s_ptr->variant == VARIANT_DRAFTING) maxp = 1 + 2*s_ptr->expanded;
 	if (maxp > 6) maxp = 6;
 
 	/* Validate number of players */
@@ -2951,10 +3468,6 @@ static void handle_create(int cid, char *ptr)
 	if (s_ptr->max_player > maxp) s_ptr->max_player = maxp;
 	if (s_ptr->min_player > s_ptr->max_player)
 		s_ptr->min_player = s_ptr->max_player;
-
-	/* Validate disabled flags */
-	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */
 	s_list[sid].gid = db_new_game(sid);
@@ -3201,6 +3714,9 @@ static void handle_add_ai(int cid, char *ptr)
 		return;
 	}
 
+	/* No ai players in variants */
+	if (s_ptr->variant) return;
+
 	/* Check for maximum number of players already */
 	if (s_ptr->num_users >= s_ptr->max_player) return;
 
@@ -3253,7 +3769,7 @@ static void handle_gameover(int cid, char *ptr)
 	sprintf(text, "%s has returned to lobby.", c_list[cid].user);
 
 	/* Tell session that player has left */
-	send_gamechat(c_list[cid].sid, "", text);
+	send_gamechat(c_list[cid].sid, -1, "", text);
 
 	/* Move player back to lobby state */
 	c_list[cid].state = CS_LOBBY;
@@ -3291,7 +3807,7 @@ static void handle_resign(int cid, char *ptr)
 	sprintf(text, "%s resigns.", c_list[cid].user);
 
 	/* Send message to session */
-	send_gamechat(c_list[cid].sid, "", text);
+	send_gamechat(c_list[cid].sid, -1, "", text);
 
 	/* Acquire session mutex */
 	pthread_mutex_lock(&s_ptr->session_mutex);
@@ -3400,7 +3916,7 @@ static void handle_start(int cid, char *ptr)
 	sprintf(text, "Starting game #%d", s_ptr->gid);
 
 	/* Send message to session */
-	send_gamechat(sid, "", text);
+	send_gamechat(sid, -1, "", text);
 
 	/* Initialize and run game */
 	start_session(sid);
@@ -3433,7 +3949,8 @@ static void handle_chat(int cid, char *ptr)
 	else
 	{
 		/* Send to session */
-		send_gamechat(c_list[cid].sid, c_list[cid].user, chat);
+		send_gamechat(c_list[cid].sid, c_list[cid].uid, c_list[cid].user,
+		              chat);
 	}
 }
 
@@ -3556,6 +4073,7 @@ static void handle_msg(int cid)
 		/* Unknown type */
 		default:
 
+			/* Log message */
 			printf("Unknown message type %d\n", type);
 			break;
 
@@ -3712,7 +4230,9 @@ static void do_housekeeping(void)
 		if (c_list[i].ai) continue;
 
 		/* Check for no data from client in quite some time */
-		if (c_list[i].ping_sent && cur_time - c_list[i].last_seen > 60)
+		if (timeout &&
+		    c_list[i].ping_sent &&
+		    cur_time - c_list[i].last_seen > timeout)
 		{
 			/* Remove client */
 			kick_player(i, "Timeout");
@@ -3720,7 +4240,8 @@ static void do_housekeeping(void)
 		}
 
 		/* Check for no recent data from client */
-		if (cur_time - c_list[i].last_seen > 20)
+		if (timeout &&
+		    cur_time - c_list[i].last_seen > timeout - 40)
 		{
 			/* Send client a ping */
 			send_msgf(i, MSG_PING, "");
@@ -3817,7 +4338,7 @@ static void do_housekeeping(void)
 			}
 
 			/* Check for warning given */
-			if (s_ptr->wait_ticks[j] >= 30)
+			if (kick_timeout && s_ptr->wait_ticks[j] >= kick_timeout)
 			{
 				/* Check for player connected */
 				if (s_ptr->cids[j] >= 0)
@@ -3838,19 +4359,21 @@ static void do_housekeeping(void)
 			}
 
 			/* Check for too much time elasped */
-			if (s_ptr->cids[j] >= 0 && s_ptr->wait_ticks[j] > 25 &&
-			    s_ptr->wait_ticks[j] < 30)
+			if (kick_timeout &&
+			    s_ptr->cids[j] >= 0 &&
+			    s_ptr->wait_ticks[j] > kick_timeout - 5 &&
+			    s_ptr->wait_ticks[j] < kick_timeout)
 			{
 				/* Create warning message */
 				sprintf(msg, "WARNING: %s will be set to AI "
-				             "control in 10 seconds.",
+				        "control in 10 seconds.",
 				        c_list[s_ptr->cids[j]].user);
 
 				/* Give warning */
-				send_gamechat(i, "", msg);
+				send_gamechat(i, -1, "", msg);
 
 				/* Remember warning given */
-				s_ptr->wait_ticks[j] = 30;
+				s_ptr->wait_ticks[j] = kick_timeout;
 			}
 		}
 
@@ -3890,6 +4413,20 @@ int main(int argc, char *argv[])
 		{
 			/* Set database name */
 			db = argv[++i];
+		}
+
+		/* Check for timeout settings */
+		if (!strcmp(argv[i], "-t"))
+		{
+			/* Set database name */
+			timeout = atoi(argv[++i]);
+		}
+
+		/* Check for kick timeout settings */
+		if (!strcmp(argv[i], "-k"))
+		{
+			/* Set database name */
+			kick_timeout = atoi(argv[++i]);
 		}
 	}
 
@@ -3967,6 +4504,9 @@ int main(int argc, char *argv[])
 		perror("listen");
 		exit(1);
 	}
+
+	/* Print ready message */
+	printf("Server ready. Waiting for connections...\n");
 
 	/* Loop forever */
 	while (1)

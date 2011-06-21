@@ -37,6 +37,9 @@ typedef struct options
 	/* Disable takeovers */
 	int disable_takeover;
 
+	/* Variant */
+	int variant;
+
 	/* Customize seed */
 	int customize_seed;
 
@@ -54,6 +57,12 @@ typedef struct options
 
 	/* Display the VP value for cards in hand */
 	int vp_in_hand;
+
+	/* Display cost for cards during placement */
+	int cost_in_hand;
+
+	/* Always display key cues */
+	int key_cues;
 
 	/* Server name to connect to */
 	char *server_name;
@@ -94,6 +103,9 @@ typedef struct options
 
 	/* Verbose log */
 	int verbose_log;
+
+	/* Draw log */
+	int draw_log;
 
 	/* Discard log */
 	int discard_log;

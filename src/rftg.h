@@ -26,7 +26,7 @@
 #include "config.h"
 
 #ifndef RELEASE
-#define RELEASE VERSION "j"
+#define RELEASE VERSION "k"
 #endif
 
 #include <stdio.h>
@@ -52,6 +52,11 @@
  * Maximum number of expansion levels.
  */
 #define MAX_EXPANSION 4
+
+/*
+ * Maximum number of variants.
+ */
+#define MAX_VARIANT 3
 
 /*
  * Number of card designs.
@@ -106,7 +111,7 @@
 /*
  * Number of card locations.
  */
-#define MAX_WHERE 7
+#define MAX_WHERE 8
 
 
 /*
@@ -191,6 +196,7 @@
 #define WHERE_GOOD     4
 #define WHERE_SAVED    5
 #define WHERE_ASIDE    6
+#define WHERE_REMOVED  7
 
 /*
  * Search categories.
@@ -205,6 +211,11 @@
 #define SEARCH_6_DEV              7
 #define SEARCH_TAKEOVER           8
 
+/*
+ * Variants.
+ */
+#define VARIANT_DRAFTING 1
+#define VARIANT_PRIVATE 2
 
 /*
  * Card power effects by phase.
@@ -479,6 +490,8 @@
 #define CHOICE_SEARCH_TYPE      22
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
+#define CHOICE_DRAFT_FIRST      25
+#define CHOICE_DRAFT            26
 
 
 /*
@@ -491,6 +504,7 @@
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
+#define FORMAT_DRAW "draw"
 #define FORMAT_DISCARD "discard"
 
 /*
@@ -770,6 +784,9 @@ typedef struct player
 	int phase_vp;
 	int phase_prestige;
 
+	/* Player seed */
+	unsigned int seed;
+
 	/* Log of player's choices */
 	int *choice_log;
 
@@ -793,7 +810,7 @@ typedef struct game
 	/* Session ID in online server */
 	int session_id;
 
-	/* Current random seed */
+	/* Current random seed for the public deck */
 	unsigned int random_seed;
 
 	/* Random seed at start of game */
@@ -825,6 +842,9 @@ typedef struct game
 
 	/* Disable takeovers in second (or later) expansion */
 	int takeover_disabled;
+
+	/* Game variant */
+	int variant;
 
 	/* Size of deck in use */
 	int deck_size;
@@ -894,6 +914,7 @@ extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
 extern char *player_labels[MAX_PLAYER];
+extern char *variant_labels[MAX_VARIANT + 1];
 extern decisions ai_func;
 extern decisions gui_func;
 
@@ -910,8 +931,9 @@ extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
+extern int count_draw(game *g, int who);
 extern void save_log(void);
-extern int game_rand(game *g);
+extern int game_rand(game *g, int who);
 extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
@@ -920,11 +942,12 @@ extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
 extern int prestige_on_tile(game *g, int who);
-extern int random_draw(game *g);
+extern int random_draw(game *g, int who);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);
 extern void draw_card(game *g, int who, char *reason);
 extern void draw_cards(game *g, int who, int num, char *reason);
+extern void discard_card(game *g, int who, int which);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
 extern void discard_callback(game *g, int who, int list[], int num);
@@ -935,8 +958,12 @@ extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);
 extern void phase_explore(game *g);
 extern void place_card(game *g, int who, int which);
+extern int devel_cost(game *g, int who, int which);
+extern int devel_callback(game *g, int who, int which, int list[], int num,
+                          int special[], int num_special);
 extern void develop_action(game *g, int who, int placing);
 extern void phase_develop(game *g);
+extern int strength_against(game *g, int who, int world, int attack, int defend);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
                             int special[], int num_special, int mil_only);
 extern int settle_legal(game *g, int who, int which, int mil_bonus,
@@ -947,8 +974,11 @@ extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
+extern int resolve_takeover(game *g, int who, int world, int special,
+                            int defeated);
 extern void resolve_takeovers(game *g);
 extern void phase_settle(game *g);
+extern int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus);
 extern void trade_chosen(game *g, int who, int which, int no_bonus);
 extern void trade_action(game *g, int who, int no_bonus, int phase_bonus);
 extern int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[],
@@ -972,7 +1002,6 @@ extern void phase_discard(game *g);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
-extern int total_discount(game *g, int who);
 extern int total_military(game *g, int who);
 extern int compute_card_vp(game *g, int who, int which);
 extern void score_game(game *g);
@@ -993,4 +1022,4 @@ extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, int player_us,
                        const char *message,
                        int num_special, card** special_cards,
-                       void (*export_log)(FILE *fff));
+                       void (*export_log)(FILE *fff, int gid), int gid);

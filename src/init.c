@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -549,6 +549,13 @@ void init_game(game *g)
 	/* Save current random seed */
 	g->start_seed = g->random_seed;
 
+	/* Loop over players */
+	for (i = 0; i < g->num_players; ++i)
+	{
+		/* Initialize player seed */
+		g->p[i].seed = g->start_seed + (i+1) * 14563;
+	}
+
 #if 0
 	sprintf(msg, "start seed: %u\n", g->start_seed);
 	message_add(msg);
@@ -563,8 +570,8 @@ void init_game(game *g)
 	/* Increase size of pool in third expansion */
 	if (g->expanded >= 3) g->vp_pool += 5;
 
-	/* First game round */
-	g->round = 1;
+	/* No game round */
+	g->round = 0;
 
 	/* No phase or turn */
 	g->cur_action = ACT_ROUND_START;
@@ -676,7 +683,7 @@ void init_game(game *g)
 		for (i = 0; i < 4; i++)
 		{
 			/* Choose goal at random */
-			j = game_rand(g) % n;
+			j = game_rand(g, -1) % n;
 
 			/* Goal is active */
 			g->goal_active[goal[j]] = 1;
@@ -722,7 +729,7 @@ void init_game(game *g)
 		for (i = 0; i < 2; i++)
 		{
 			/* Choose goal at random */
-			j = game_rand(g) % n;
+			j = game_rand(g, -1) % n;
 
 			/* Goal is active */
 			g->goal_active[goal[j]] = 1;

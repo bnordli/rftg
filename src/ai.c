@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, June 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1262,6 +1262,9 @@ static double eval_game(game *g, int who)
 		/* Skip cards where we know the location */
 		if (c_ptr->known & (1 << who)) continue;
 
+		/* If drafting, skip cards not owned by us */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
+
 		/* Count unknown cards */
 		count++;
 	}
@@ -1277,6 +1280,9 @@ static double eval_game(game *g, int who)
 
 		/* Skip cards where we know the location */
 		if (c_ptr->known & (1 << who)) continue;
+
+		/* If drafting, skip cards not owned by us */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
 
 		/* Add probability we would have this card */
 		eval.input_value[n + card_input[c_ptr->d_ptr->index]] +=
@@ -1742,7 +1748,7 @@ static void claim_card(game *g, int who, int which)
 	if (c_ptr->owner != -1)
 	{
 		/* Get replacement card */
-		replace = random_draw(g);
+		replace = random_draw(g, c_ptr->owner);
 
 		/* Check for failure to draw */
 		if (replace == -1) return;
@@ -2993,7 +2999,7 @@ static void ai_choose_discard_prestige(game *g, int who, int list[], int *num)
 		simulate_game(&sim, g, who);
 
 		/* Discard chosen card */
-		move_card(&sim, list[i], -1, WHERE_DISCARD);
+		discard_card(&sim, who, list[i]);
 
 		/* Gain prestige */
 		sim.p[who].prestige++;
@@ -3200,12 +3206,14 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
 		/* Get card pointer */
 		c_ptr = &g->deck[i];
 
-		/* Check for unknown location */
-		if (!(c_ptr->known & (1 << who)))
-		{
-			/* Add to list */
-			unknown[num_unknown++] = i;
-		}
+		/* Skip known cards */
+		if (c_ptr->known & (1 << who)) continue;
+
+		/* If drafting, skip cards not owned by us */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
+
+		/* Add to list */
+		unknown[num_unknown++] = i;
 	}
 
 	/* Try multiple random samples */
@@ -3425,6 +3433,10 @@ static int ai_choose_place_opp(game *g, int who, int phase, int arg3)
 
 		/* Skip cards with known locations */
 		if (c_ptr->known & (1 << g->sim_who)) continue;
+
+		/* If drafting, skip cards owned by simulating player */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner == g->sim_who)
+			continue;
 
 		/* Add card to unknown list */
 		unknown[num_unknown++] = i;
@@ -5136,6 +5148,9 @@ static int ai_choose_lucky(game *g, int who)
 		/* Skip known cards */
 		if (c_ptr->known & (1 << who)) continue;
 
+		/* If drafting, skip cards not owned by us */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
+
 		/* Count card */
 		count++;
 	}
@@ -5157,6 +5172,10 @@ static int ai_choose_lucky(game *g, int who)
 
 			/* Skip known cards */
 			if (c_ptr->known & (1 << who)) continue;
+
+			/* If drafting, skip cards not owned by us */
+			if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who)
+				continue;
 
 			/* Check for wrong cost */
 			if (c_ptr->d_ptr->cost != i)
@@ -5239,6 +5258,9 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 		/* Skip known cards */
 		if (c_ptr->known & (1 << who)) continue;
 
+		/* If drafting, skip cards not owned by us */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
+
 		/* Count card */
 		count++;
 	}
@@ -5264,6 +5286,10 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 			/* Skip known cards */
 			if (c_ptr->known & (1 << who)) continue;
 
+			/* If drafting, skip cards not owned by us */
+			if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who)
+				continue;
+
 			/* Check for more expensive card */
 			if (c_ptr->d_ptr->cost > cost) num_win++;
 		}
@@ -5276,7 +5302,7 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 		simulate_game(&sim, g, who);
 
 		/* Assume we lose the card */
-		move_card(&sim, list[i], -1, WHERE_DISCARD);
+		discard_card(&sim, who, list[i]);
 
 		/* Start with losing chance */
 		score = chance * eval_game(&sim, who);
@@ -5673,6 +5699,10 @@ static int ai_choose_search_type(game *g, int who)
 			/* Skip cards that do not match search category */
 			if (!search_match(g, j, i)) continue;
 
+			/* If drafting, skip cards not owned by us */
+			if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who)
+				continue;
+
 			/* Simulate game */
 			simulate_game(&sim, g, who);
 
@@ -5749,6 +5779,9 @@ static int ai_choose_search_keep(game *g, int who, int which, int category)
 		/* Skip cards that do not match search category */
 		if (!search_match(g, i, category)) continue;
 
+		/* If drafting, skip cards not owned by us */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
+
 		/* Simulate game */
 		simulate_game(&sim, g, who);
 
@@ -5789,6 +5822,26 @@ static int ai_choose_oort_kind(game *g, int who)
 {
 	/* XXX */
 	return GOOD_ALIEN;
+}
+
+/*
+ * Choose card to draft.
+ */
+static int ai_choose_draft(game *g, int who, int* list, int nl)
+{
+	/* XXX AI is not trained for drafting */
+	/* Make an arbitrary choice */
+	int i, sum = 0;
+
+	/* Loop over cards */
+	for (i = 0; i < nl; ++i)
+	{
+		/* Add card index */
+		sum += list[i];
+	}
+
+	/* Return a random card */
+	return list[sum % nl];
 }
 
 
@@ -5991,6 +6044,14 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose kind */
 			rv = ai_choose_oort_kind(g, who);
+			break;
+
+		/* Choose a card to draft */
+		case CHOICE_DRAFT_FIRST:
+		case CHOICE_DRAFT:
+
+			/* Choose card to draft */
+			rv = ai_choose_draft(g, who, list, *nl);
 			break;
 
 		/* Error */

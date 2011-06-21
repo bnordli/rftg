@@ -98,6 +98,11 @@ static int *orig_log[MAX_PLAYER];
 static int orig_log_size[MAX_PLAYER];
 
 /*
+ * Games started (used for random sampling)
+ */
+static int games_started;
+
+/*
  * Player we're playing as.
  */
 int player_us;
@@ -106,6 +111,32 @@ int player_us;
  * We have restarted the main game loop.
  */
 int restart_loop;
+
+static char *goal_description[MAX_GOAL] =
+{
+	"First to have 5 VP chips",
+	"First to place worlds of all kinds",
+	"First to place 3 Alien cards",
+	"First to discard at end of round",
+	"First to have powers in all phases, plus Trade",
+	"First to place 6-cost development giving ? VPs",
+	"First to place 3 Uplift cards",
+	"First to have 4 goods",
+	"First to place 8 cards",
+	"First to have negative Military and 2 worlds or\n"
+	  " a takeover attack power and 2 Military worlds",
+	"First to have 2 prestige chips and 3 VP chips",
+	"First to place 3 Imperium cards or 4 Military worlds",
+
+	"Most total military",
+	"Most Novelty and/or Rare worlds",
+	"Most developments",
+	"Most production worlds",
+	"Most cards with Explore powers",
+	"Most Rebel Military worlds",
+	"Most prestige chips",
+	"Most cards with Consume powers",
+};
 
 /*
  * Player names.
@@ -215,6 +246,83 @@ static int hand_size;
 static displayed table[MAX_PLAYER][MAX_DECK];
 static int table_size[MAX_PLAYER];
 
+typedef struct discounts
+{
+	/* The base discount */
+	int base;
+
+	/* The current temporary discount */
+	int bonus;
+
+	/* Additional specific discount */
+	int specific[6];
+
+	/* May discard to place at zero count */
+	int zero;
+
+	/* Additional discount when paying for military */
+	int pay_discount;
+
+	/* May pay for military with 0 discount (Rebel Cantina) */
+	int non_alien_mil_0;
+
+	/* May pay for military with 1 discount (Contact Specialist) */
+	int non_alien_mil_1;
+
+	/* May pay for rebel worlds with 2 discount (Rebel Alliance) */
+	int rebel_mil_2;
+
+	/* May pay for chromosome worlds (Ravaged Uplift World) */
+	int chromo_mil;
+
+	/* May pay for alien worlds (Alien Research Team) */
+	int alien_mil;
+
+	/* May discard to conquer with 0 discount (Imperium Invasion Fleet) */
+	int conquer_settle_0;
+
+	/* May discard to conquer with 2 discount (Imperium Cloaking Tech) */
+	int conquer_settle_2;
+
+	/* Any value is set */
+	int has_data;
+
+} discounts;
+
+typedef struct mil_strength
+{
+	/* Base military */
+	int base;
+
+	/* Current temporary military */
+	int bonus;
+
+	/* Additional military against rebel worlds */
+	int rebel;
+
+	/* Additional specific military */
+	int specific[6];
+
+	/* Additional extra defense during takeovers */
+	int defense;
+
+	/* Additional military when using attack imperium TO power */
+	int attack_imperium;
+
+	/* Name of attack imperium TO power */
+	char imp_card[64];
+
+	/* Imperium world played */
+	int imperium;
+
+	/* Rebel military world played */
+	int military_rebel;
+
+	/* Any value is set */
+	int has_data;
+
+} mil_strength;
+
 /*
  * Cached status information to be displayed per player.
  */
@@ -235,14 +343,20 @@ typedef struct status_display
 	/* Cards in hand */
 	int cards_hand;
 
+	/* Cards in draw pile (variant games) */
+	int cards_deck;
+
+	/* Original number of cards (variant games) */
+	int cards_orig;
+
 	/* Prestige */
 	int prestige;
 
 	/* Settle discount */
-	int discount;
+	discounts discount;
 
 	/* Military strength */
-	int military;
+	mil_strength military;
 
 	/* Text of VP tooltip */
 	char vp_tip[1024];
@@ -456,12 +570,13 @@ static int message_last_y;
  */
 int is_round_boundary(int advanced, int *p)
 {
-	/* Only start and action choices are boundary */
-	if (*p != CHOICE_START && *p != CHOICE_ACTION) return FALSE;
+	/* Only start, action and first round draft choices are boundary */
+	if (*p != CHOICE_START && *p != CHOICE_ACTION && *p != CHOICE_DRAFT_FIRST)
+		return FALSE;
 
 	/* Second choice of Psi-Crystal is not a boundary */
 	/* XXX This only works in newer save games */
-	if (advanced && *(p + 1) == 2) return FALSE;
+	if (advanced && *p == CHOICE_ACTION && *(p + 1) == 2) return FALSE;
 
 	/* Everything else is */
 	return TRUE;
@@ -498,19 +613,22 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	/* Check for verbose message while verbosity disabled */
-	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log)
+	/* Check for empty tag */
+	if (!strlen(tag))
 	{
-		/* Do not log message */
+		/* Add unformatted message */
+		message_add(g, msg);
 		return;
 	}
 
-	/* Check for discard message while discard log disabled */
-	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log)
-	{
-		/* Do not log message */
-		return;
-	}
+	/* Do not log verbose message while verbosity is disabled */
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log) return;
+
+	/* Do not log draw messages while draw log is disabled */
+	if (!strcmp(tag, FORMAT_DRAW) && !opt.draw_log) return;
+
+	/* Do not log discard messages while discard log is disabled */
+	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log) return;
 
 	/* Check for emphasized message formatting */
 	if (strcmp(tag, FORMAT_EM) && !opt.colored_log)
@@ -648,10 +766,15 @@ void save_log(void)
 /*
  * Use simple random number generator.
  */
-int game_rand(game *g)
+int game_rand(game *g, int who)
 {
+	unsigned int *seed = &g->random_seed;
+
+	/* Check for personal seed */
+	if (who >= 0) seed = &g->p[who].seed;
+
 	/* Call simple random number generator */
-	return simple_rand(&g->random_seed);
+	return simple_rand(seed);
 }
 
 /*
@@ -1564,7 +1687,7 @@ static int action_check_start(void)
 /*
  * Set of "extra info" structures for player statuses.
  */
-static struct extra_info status_extra_info[MAX_PLAYER][5];
+static struct extra_info status_extra_info[MAX_PLAYER][6];
 
 /*
  * Set of "extra info" structures for game status.
@@ -1802,7 +1925,59 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 	if (event && event->button == 3 && !i_ptr->greedy)
 	{
 		i_ptr->selected = 0;
-		select_others = 1;
+		select_others = 0;
+
+		/* Check for hand */
+		if (i_ptr->hand)
+		{
+			/* Loop over other cards in hand */
+			for (i = 0; i < hand_size; i++)
+			{
+				/* Get displayed card pointer */
+				j_ptr = &hand[i];
+
+				/* Skip non-eligible cards */
+				if (!j_ptr->eligible) continue;
+
+				/* Skip current card */
+				if (i_ptr == j_ptr) continue;
+
+				/* Check for deselected card */
+				if (!j_ptr->selected)
+				{
+					/* Remember to select all others */
+					select_others = 1;
+					break;
+				}
+			}
+		}
+		else
+		{
+			/* Loop over all table areas */
+			for (i = 0; i < MAX_PLAYER; i++)
+			{
+				/* Loop over cards in table area */
+				for (j = 0; j < table_size[i]; j++)
+				{
+					/* Get displayed card pointer */
+					j_ptr = &table[i][j];
+
+					/* Skip non-eligible cards */
+					if (!j_ptr->eligible) continue;
+
+					/* Skip current card */
+					if (i_ptr == j_ptr) continue;
+
+					/* Check for deselected card */
+					if (!j_ptr->selected)
+					{
+						/* Remember to select all others */
+						select_others = 1;
+						break;
+					}
+				}
+			}
+		}
 	}
 	else
 	{
@@ -2158,7 +2333,8 @@ void redraw_hand(void)
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
 		                    highlight, 0,
-		                    i_ptr->eligible && accel_used ? key_count : -1);
+		                    i_ptr->eligible && (accel_used || opt.key_cues) ?
+		                                       key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(hand_area), box, count * width,
@@ -2229,8 +2405,8 @@ void redraw_hand(void)
 			}
 		}
 
-		/* Add tooltip if enabled and available */
-		if (opt.vp_in_hand && i_ptr->tooltip)
+		/* Add tooltip if available */
+		if (i_ptr->tooltip)
 		{
 			/* Add tooltip to widget */
 			gtk_widget_set_tooltip_text(box, i_ptr->tooltip);
@@ -2341,7 +2517,8 @@ static void redraw_table_area(int who, GtkWidget *area)
 		box = new_image_box(i_ptr->d_ptr, card_w, card_h,
 		                    i_ptr->eligible || i_ptr->color,
 		                    highlight, 0,
-		                    i_ptr->eligible && accel_used ? key_count : -1);
+		                    i_ptr->eligible && (accel_used || opt.key_cues) ?
+		                                       key_count : -1);
 
 		/* Place event box */
 		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
@@ -2370,6 +2547,13 @@ static void redraw_table_area(int who, GtkWidget *area)
 			              i_ptr->selected && i_ptr->push ?
 			                  y * height :
 				              y * height + card_h / 4);
+
+			/* Add tooltip if available */
+			if (i_ptr->tooltip)
+			{
+				/* Add tooltip to widget */
+				gtk_widget_set_tooltip_text(good_box, i_ptr->tooltip);
+			}
 
 			/* Show image */
 			gtk_widget_show_all(good_box);
@@ -2467,7 +2651,7 @@ static char *goal_tooltip(game *g, int goal)
 	char text[1024];
 
 	/* Create tooltip text */
-	sprintf(msg, "%s", goal_name[goal]);
+	sprintf(msg, "%s\n(%s)", goal_name[goal], goal_description[goal]);
 
 	/* Check for first goal */
 	if (goal <= GOAL_FIRST_4_MILITARY)
@@ -2476,7 +2660,7 @@ static char *goal_tooltip(game *g, int goal)
 		if (!g->goal_avail[goal])
 		{
 			/* Add text to tooltip */
-			strcat(msg, "\nClaimed by:");
+			strcat(msg, "\n\nClaimed by:");
 
 			/* Loop over players */
 			for (i = 0; i < g->num_players; i++)
@@ -2500,7 +2684,7 @@ static char *goal_tooltip(game *g, int goal)
 		         (client_state == CS_DISCONN || new_server))
 		{
 			/* Add text to tooltip */
-			strcat(msg, "\nProgress:");
+			strcat(msg, "\n\nProgress:");
 
 			/* Loop over players */
 			for (i = 0; i < g->num_players; i++)
@@ -2522,7 +2706,7 @@ static char *goal_tooltip(game *g, int goal)
 	if (goal >= GOAL_MOST_MILITARY)
 	{
 		/* Add text to tooltip */
-		strcat(msg, "\nProgress:");
+		strcat(msg, "\n\nProgress:");
 
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
@@ -2747,181 +2931,85 @@ static char *get_vp_tooltip(game *g, int who)
 /*
  * Create a tooltip for a discount icon.
  */
-static char *get_discount_tooltip(game *g, int who)
+static char *get_discount_tooltip(discounts *discount)
 {
 	static char msg[1024];
-	player *p_ptr = &g->p[who];
-	card *c_ptr;
-	power *o_ptr;
 	char text[1024];
-	int x, i;
-	int base, zero, blue, brown, green, yellow, pay_discount;
-	int non_alien_mil_0, non_alien_mil_1, rebel_mil, chromo_mil, alien_mil;
+	int i;
 
-	/* Start discounts at 0 */
-	base = zero = blue = brown = green = yellow = pay_discount = 0;
+	/* Clear text */
+	strcpy(msg, "");
 
-	/* Start flags at FALSE */
-	non_alien_mil_0 = non_alien_mil_1 = FALSE;
-	rebel_mil = chromo_mil = alien_mil = FALSE;
-
-	/* Start at first active card */
-	x = p_ptr->head[WHERE_ACTIVE];
-
-	/* Loop over active cards */
-	for ( ; x != -1; x = g->deck[x].next)
+	/* Compute discounts */
+	if (!discount->has_data)
 	{
-		/* Get card pointer */
-		c_ptr = &g->deck[x];
+		/* Return empty message */
+		return msg;
+	}
 
-		/* Loop over card's powers */
-		for (i = 0; i < c_ptr->d_ptr->num_power; i++)
+	/* Add general discount */
+	sprintf(text, "Base discount: -%d", discount->base);
+	strcat(msg, text);
+
+	/* Add bonus discount */
+	if (discount->bonus)
+	{
+		sprintf(text, "\nAdditional bonus discount: -%d", discount->bonus);
+		strcat(msg, text);
+	}
+
+	/* Add specific discounts */
+	for (i = GOOD_NOVELTY; i <= GOOD_ALIEN; ++i)
+	{
+		/* Check for discount */
+		if (discount->specific[i])
 		{
-			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[i];
-
-			/* Skip incorrect phase */
-			if (o_ptr->phase != PHASE_SETTLE) continue;
-
-			/* Check discard for 0 */
-			if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
-				zero += 1;
-
-			/* Check for reduce power */
-			if (o_ptr->code & P3_REDUCE)
-			{
-				/* Check for general discount */
-				if (o_ptr->code == P3_REDUCE)
-					base += o_ptr->value;
-
-				/* Check for discount against Novelty worlds */
-				if (o_ptr->code & P3_NOVELTY)
-					blue += o_ptr->value;
-
-				/* Check for discount against Rare worlds */
-				if (o_ptr->code & P3_RARE)
-					brown += o_ptr->value;
-
-				/* Check for discount against Genes worlds */
-				if (o_ptr->code & P3_GENE)
-					green += o_ptr->value;
-
-				/* Check for discount against Alien worlds */
-				if (o_ptr->code & P3_ALIEN)
-					yellow += o_ptr->value;
-			}
-
-			/* Check for pay-for-military powers */
-			if (o_ptr->code & P3_PAY_MILITARY)
-			{
-				/* Check for non-alien power without discount */
-				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 0)
-					non_alien_mil_0 = TRUE;
-
-				/* Check for non-alien power with discount */
-				if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 1)
-					non_alien_mil_1 = TRUE;
-
-				/* Check for rebel flag */
-				if (o_ptr->code & P3_AGAINST_REBEL)
-					rebel_mil = TRUE;
-
-				/* Check for chromo flag */
-				if (o_ptr->code & P3_AGAINST_CHROMO)
-					chromo_mil = TRUE;
-
-				/* Check for alien flag */
-				if (o_ptr->code & P3_ALIEN)
-					alien_mil = TRUE;
-			}
-
-			/* Check for pay-for-military discount */
-			if (o_ptr->code & P3_PAY_DISCOUNT)
-				pay_discount += o_ptr->value;
+			/* Create text */
+			sprintf(text, "\nAdditional %s discount: %d",
+			        good_printable[i], -discount->specific[i]);
+			strcat(msg, text);
 		}
 	}
 
-	/* Start with empty message */
-	strcpy(msg, "");
-
-	/* Add general discount */
-	if (base || blue || brown || green || yellow || zero || non_alien_mil_0 ||
-	    non_alien_mil_1 || rebel_mil || chromo_mil || alien_mil)
-	{
-		/* Create text */
-		sprintf(text, "Base discount: -%d", base);
-		strcat(msg, text);
-	}
-
-	/* Add Novelty discount */
-	if (blue)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Novelty discount: %d", -blue);
-		strcat(msg, text);
-	}
-
-	/* Add Rare discount */
-	if (brown)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Rare discount: %d", -brown);
-		strcat(msg, text);
-	}
-
-	/* Add Genes discount */
-	if (green)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Genes discount: %d", -green);
-		strcat(msg, text);
-	}
-
-	/* Add Alien discount */
-	if (yellow)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Alien discount: %d", -yellow);
-		strcat(msg, text);
-	}
-
 	/* Add pay for non-alien military with discount */
-	if (non_alien_mil_1 || (non_alien_mil_0 && pay_discount))
+	if (discount->non_alien_mil_1 ||
+	    (discount->non_alien_mil_0 && discount->pay_discount))
 	{
 		/* Create text */
 		sprintf(text, "\nAdditional discount when paying\n"
 		        "  for non-Alien military worlds: -%d",
-		        (non_alien_mil_1 ? 1 : 0) + pay_discount);
+		        (discount->non_alien_mil_1 ? 1 : 0) + discount->pay_discount);
 		strcat(msg, text);
 	}
 
 	/* Add pay for rebel military with discount */
-	if (rebel_mil)
+	if (discount->rebel_mil_2)
 	{
 		/* Create text */
 		sprintf(text, "\nAdditional discount when paying\n"
-		        "  for Rebel military worlds: -%d", 2 + pay_discount);
+		        "  for Rebel military worlds: -%d", 2 + discount->pay_discount);
 		strcat(msg, text);
 	}
 
 	/* Check for discount when paying for military */
-	if (pay_discount)
+	if (discount->pay_discount)
 	{
 		/* Add pay for chromo military with discount */
-		if (chromo_mil)
+		if (discount->chromo_mil)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying\n"
-			        "  for worlds with a Chromosome symbol: -%d", pay_discount);
+			        "  for worlds with a Chromosome symbol: -%d",
+			        discount->pay_discount);
 			strcat(msg, text);
 		}
 
 		/* Add pay for alien military with discount */
-		if (alien_mil)
+		if (discount->alien_mil)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying\n"
-			        "  for Alien military worlds: -%d", pay_discount);
+			        "  for Alien military worlds: -%d", discount->pay_discount);
 			strcat(msg, text);
 		}
 	}
@@ -2930,14 +3018,14 @@ static char *get_discount_tooltip(game *g, int who)
 	else
 	{
 		/* Add pay for non-alien military without discount */
-		if (non_alien_mil_0 && !non_alien_mil_1)
+		if (discount->non_alien_mil_0 && !discount->non_alien_mil_1)
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle a non-Alien military world");
 		}
 
 		/* Add pay for chromo military without discount */
-		if (chromo_mil)
+		if (discount->chromo_mil)
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle a military world\n"
@@ -2945,7 +3033,7 @@ static char *get_discount_tooltip(game *g, int who)
 		}
 
 		/* Add pay for alien military without discount */
-		if (alien_mil)
+		if (discount->alien_mil)
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle an Alien military world");
@@ -2953,10 +3041,26 @@ static char *get_discount_tooltip(game *g, int who)
 	}
 
 	/* Add discard to zero */
-	if (zero)
+	if (discount->zero)
 	{
 		/* Create text */
 		strcat(msg, "\nMay discard to place at 0 cost");
+	}
+
+	/* Add discard to conquer without discount */
+	if (discount->conquer_settle_0)
+	{
+		/* Create text */
+		strcat(msg, "\nMay discard to conquer a non-military world\n"
+		       "  (defense = cost)");
+	}
+
+	/* Add discard to conquer with discount */
+	if (discount->conquer_settle_2)
+	{
+		/* Create text */
+		strcat(msg, "\nMay discard to conquer a non-military world\n"
+		       "  (defense = cost - 2)");
 	}
 
 	/* Return tooltip text */
@@ -2966,199 +3070,82 @@ static char *get_discount_tooltip(game *g, int who)
 /*
  * Create a tooltip for a military strength icon.
  */
-static char *get_military_tooltip(game *g, int who)
+static char *get_military_tooltip(mil_strength *military)
 {
 	static char msg[1024];
 	char text[1024];
-	char card_name[1024];
-	card *c_ptr;
-	power *o_ptr;
-	int i, j;
-	int base, rebel, blue, brown, green, yellow, defense, attack_imperium;
-	int imperium, military_rebel;
+	int i;
 
-	/* Begin with base military strength */
-	base = total_military(g, who);
-
-	/* Start strengths at 0 */
-	rebel = blue = brown = green = yellow = defense = attack_imperium = 0;
-
-	/* Clear card name */
-	strcpy(card_name, "");
-
-	/* Loop over cards */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip cards not belonging to current player */
-		if (c_ptr->owner != who) continue;
-
-		/* Skip inactive cards */
-		if (c_ptr->start_where != WHERE_ACTIVE) continue;
-
-		/* Loop over card's powers */
-		for (j = 0; j < c_ptr->d_ptr->num_power; j++)
-		{
-			/* Get power pointer */
-			o_ptr = &c_ptr->d_ptr->powers[j];
-
-			/* Skip incorrect phase */
-			if (o_ptr->phase != PHASE_SETTLE) continue;
-
-			/* Check for defense power */
-			if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
-			{
-				/* Add defense for military worlds */
-				defense +=
-				    count_active_flags(g, who, FLAG_MILITARY);
-
-				/* Add extra defense for Rebel military worlds */
-				defense +=
-				    count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
-			}
-
-			/* Check for takeover imperium power */
-			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
-			{
-				/* Set imperium attack */
-				attack_imperium =
-				    2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
-
-				/* Check if card name already set */
-				if (strlen(card_name))
-				{
-					/* XXX Use name of both cards */
-					strcpy(card_name, "Rebel Alliance/Rebel Sneak Attack");
-				}
-				else
-				{
-					/* Remember name of card */
-					strcpy(card_name, c_ptr->d_ptr->name);
-				}
-			}
-
-			/* Skip non-military powers */
-			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
-
-			/* Check for strength against rebels */
-			if (o_ptr->code & P3_AGAINST_REBEL)
-				rebel += o_ptr->value;
-
-			/* Check for strength against Novelty worlds */
-			if (o_ptr->code & P3_NOVELTY)
-				blue += o_ptr->value;
-
-			/* Check for strength against Rare worlds */
-			if (o_ptr->code & P3_RARE)
-				brown += o_ptr->value;
-
-			/* Check for strength against Genes worlds */
-			if (o_ptr->code & P3_GENE)
-				green += o_ptr->value;
-
-			/* Check for strength against Alien worlds */
-			if (o_ptr->code & P3_ALIEN)
-				yellow += o_ptr->value;
-		}
-	}
-
-	/* Check for takeovers enabled and imperium card played */
-	imperium = takeovers_enabled(g) &&
-	           count_active_flags(g, who, FLAG_IMPERIUM);
-
-	/* Check for takeovers enabled and rebel military world played */
-	military_rebel = takeovers_enabled(g) &&
-	                 count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
-
-	/* Set empty text */
+	/* Clear text */
 	strcpy(msg, "");
 
-	/* Check for any modifiers */
-	if (base || g->p[who].bonus_military || rebel || blue || brown || green ||
-	    yellow || defense || attack_imperium || imperium || military_rebel)
+	/* Check for values */
+	if (!military->has_data)
 	{
-		/* Create text */
-		sprintf(text, "Base strength: %+d", base);
-		strcat(msg, text);
+		/* Return empty message */
+		return msg;
 	}
 
+	/* Add base strength */
+	sprintf(text, "Base strength: %+d", military->base);
+	strcat(msg, text);
+
 	/* Add temporary military */
-	if (g->p[who].bonus_military)
+	if (military->bonus)
 	{
 		/* Create text */
 		sprintf(text, "\nActivated temporary military: %+d",
-		        g->p[who].bonus_military);
+		        military->bonus);
 		strcat(msg, text);
 	}
 
 	/* Add rebel strength */
-	if (rebel)
+	if (military->rebel)
 	{
 		/* Create rebel text */
-		sprintf(text, "\nAdditional Rebel strength: %+d", rebel);
+		sprintf(text, "\nAdditional Rebel strength: %+d", military->rebel);
 		strcat(msg, text);
 	}
 
-	/* Add Novelty strength */
-	if (blue)
+	/* Add specific strength */
+	for (i = GOOD_NOVELTY; i <= GOOD_ALIEN; ++i)
 	{
-		/* Create text */
-		sprintf(text, "\nAdditional Novelty strength: %+d", blue);
-		strcat(msg, text);
-	}
-
-	/* Add Rare strength */
-	if (brown)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Rare strength: %+d", brown);
-		strcat(msg, text);
-	}
-
-	/* Add Genes strength */
-	if (green)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Genes strength: %+d", green);
-		strcat(msg, text);
-	}
-
-	/* Add Alien strength */
-	if (yellow)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional Alien strength: %+d", yellow);
-		strcat(msg, text);
+		/* Check for strength */
+		if (military->specific[i])
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional %s strength: %+d",
+			        good_printable[i], military->specific[i]);
+			strcat(msg, text);
+		}
 	}
 
 	/* Add defense strength */
-	if (defense)
+	if (military->defense)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional Takeover defense: %+d", defense);
+		sprintf(text, "\nAdditional Takeover defense: %+d", military->defense);
 		strcat(msg, text);
 	}
 
 	/* Add attack imperium */
-	if (attack_imperium)
+	if (military->attack_imperium)
 	{
 		/* Create text */
 		sprintf(text, "\nAdditional attack when using %s: %+d",
-		        card_name, attack_imperium);
+		        military->imp_card, military->attack_imperium);
 		strcat(msg, text);
 	}
 
 	/* Check for active imperium card */
-	if (imperium)
+	if (military->imperium)
 	{
 		/* Add vulnerability text */
 		strcat(msg, "\nIMPERIUM card played");
 	}
 
 	/* Check for active Rebel military world */
-	if (military_rebel)
+	if (military->military_rebel)
 	{
 		/* Add vulnerability text */
 		strcat(msg, "\nREBEL Military world played");
@@ -3206,7 +3193,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	game sim;
 
 	/* Copy game */
-	memcpy(&sim, g, sizeof(game));
+	sim = *g;
 
 	/* Set simulated game */
 	sim.simulation = 1;
@@ -3275,8 +3262,8 @@ static char *card_hand_tooltip(game *g, int who, int which)
 		goal_action = ACT_DEVELOP;
 	}
 
-	/* Check for world type */
-	else if (c_ptr->d_ptr->type == TYPE_WORLD)
+	/* World type */
+	else
 	{
 		/* Get settle phase powers */
 		n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -3449,17 +3436,350 @@ static char *card_table_tooltip(game *g, int who, int which)
 }
 
 /*
+ * Create a tooltip for a development that can be placed.
+ */
+static char *card_develop_tooltip(game *g, int who, displayed *i_ptr)
+{
+	char text[1024], *p;
+	int cost;
+
+	/* Set text pointer */
+	p = text;
+
+	/* Check for old tool tip */
+	if (i_ptr->tooltip)
+	{
+		/* Keep previous tool tip */
+		strcpy(p, i_ptr->tooltip);
+
+		/* Advance text pointer */
+		p += strlen(p);
+
+		/* Add newline */
+		p += sprintf(p, "\n");
+
+		/* Free old tool tip */
+		free(i_ptr->tooltip);
+	}
+
+	/* Compute cost */
+	cost = devel_cost(g, who, i_ptr->index);
+
+	/* Add cost */
+	p += sprintf(p, "Cost to place: %d", cost);
+
+	/* Return the text */
+	return strdup(text);
+}
+
+/*
+ * Compute the military/cost needed for a military world.
+ */
+static void military_world_payment(game *g, int who, int which,
+                                   int mil_only, discounts *d_ptr,
+                                   int *military, int *cost, char **cost_card)
+{
+	card *c_ptr;
+	int strength, pay_for_mil;
+
+	/* Get card */
+	c_ptr = &g->deck[which];
+
+	/* Get current strength */
+	strength = strength_against(g, who, which, -1, 0);
+
+	/* Compute extra military needed */
+	*military = c_ptr->d_ptr->cost - strength;
+
+	/* Do not reduce below 0 */
+	if (*military <= 0) *military = 0;
+
+	/* Reset cost and pay-for-military */
+	pay_for_mil = *cost = -1;
+
+	/* Check for no pay-for-military available */
+	if (mil_only) return;
+
+	/* Check for Rebel Alliance */
+	if (d_ptr->rebel_mil_2 && (c_ptr->d_ptr->flags & FLAG_REBEL))
+	{
+		/* Set reduction to 2 */
+		pay_for_mil = 2;
+
+		/* Save card name */
+		*cost_card = "Rebel Alliance";
+	}
+
+	/* Check for Contact Specialist */
+	else if (d_ptr->non_alien_mil_1 &&
+	         c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	{
+		/* Set reduction to 1 */
+		pay_for_mil = 1;
+
+		/* Save card name */
+		*cost_card = "Contact Specialist";
+	}
+
+	/* Check for Rebel Cantina */
+	else if (d_ptr->non_alien_mil_0 &&
+	         c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	{
+		/* Set reduction to 0 */
+		pay_for_mil = 0;
+
+		/* Save card name */
+		*cost_card = "Rebel Cantina";
+	}
+
+	/* Check for Alien Research Team */
+	else if (d_ptr->alien_mil &&
+	         c_ptr->d_ptr->good_type == GOOD_ALIEN)
+	{
+		/* Set reduction to 0 */
+		pay_for_mil = 0;
+
+		/* Save card name */
+		*cost_card = "Alien Research Team";
+	}
+
+	/* Check for Ravaged Uplift World */
+	else if (d_ptr->chromo_mil && c_ptr->d_ptr->flags & FLAG_CHROMO)
+	{
+		/* Set reduction to 0 */
+		pay_for_mil = 0;
+
+		/* Save card name */
+		*cost_card = "Ravaged Uplift World";
+	}
+
+	/* Check for any pay-for-military power */
+	if (pay_for_mil >= 0)
+	{
+		/* Compute cost */
+		*cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
+		        d_ptr->specific[c_ptr->d_ptr->good_type] -
+		        pay_for_mil - d_ptr->pay_discount;
+
+		/* Do not reduce below 0 */
+		if (*cost < 0) *cost = 0;
+	}
+}
+
+/*
+ * Compute the cost/military needed for a non-military world.
+ */
+static void peaceful_world_payment(game *g, int who, int which,
+                                   int mil_only, discounts *d_ptr,
+                                   int *cost, int *ict_mil, int *iif_mil)
+{
+	card *c_ptr;
+	int strength;
+
+	/* Get card */
+	c_ptr = &g->deck[which];
+
+	/* Check for no normal payment available */
+	if (mil_only)
+	{
+		/* Disable payment */
+		*cost = -1;
+	}
+	else
+	{
+		/* Compute cost */
+		*cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
+				d_ptr->specific[c_ptr->d_ptr->good_type];
+
+		/* Do not reduce below 0 */
+		if (*cost < 0) *cost = 0;
+	}
+
+	/* Compute strength */
+	strength = strength_against(g, who, which, -1, 0);
+
+	/* Reset ICT/IIF military */
+	*ict_mil = *iif_mil = -1;
+
+	/* Check for Imperium Cloaking Technology */
+	if (d_ptr->conquer_settle_2)
+	{
+		/* Compute extra military needed */
+		*ict_mil = c_ptr->d_ptr->cost - strength - 2;
+
+		/* Do not reduce below 0 */
+		if (*ict_mil < 0) *ict_mil = 0;
+	}
+
+	/* Check for Imperium Invasion Fleet */
+	if (d_ptr->conquer_settle_0)
+	{
+		/* Compute extra military needed */
+		*iif_mil = c_ptr->d_ptr->cost - strength;
+
+		/* Do not reduce below 0 */
+		if (*iif_mil < 0) *iif_mil = 0;
+	}
+}
+/*
+ * Create a tooltip for a world that can be placed.
+ */
+static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr)
+{
+	card *c_ptr;
+	discounts *d_ptr;
+	mil_strength *m_ptr;
+	char text[1024], *p, *cost_card;
+	int which, mil_only, mil_needed, ict_mil, iif_mil, cost;
+
+	/* Get discounts */
+	d_ptr = &status_player[who].discount;
+
+	/* Get military */
+	m_ptr = &status_player[who].military;
+
+	/* Set text pointer */
+	p = text;
+
+	/* Check for old tool tip */
+	if (i_ptr->tooltip)
+	{
+		/* Keep previous tool tip */
+		strcpy(p, i_ptr->tooltip);
+
+		/* Advance text pointer */
+		p += strlen(p);
+
+		/* Add newline */
+		p += sprintf(p, "\n");
+
+		/* Free old tool tip */
+		free(i_ptr->tooltip);
+	}
+
+	/* Get card */
+	which = i_ptr->index;
+	c_ptr = &g->deck[which];
+
+	/* XXX Check for no pay-for-military available */
+	mil_only = special >= 0 &&
+	           !strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack");
+
+	/* Check for military world */
+	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
+	{
+		/* Compute payment */
+		military_world_payment(g, who, which, mil_only, d_ptr,
+		                       &mil_needed, &cost, &cost_card);
+
+		/* Check for no extra military */
+		if (mil_needed <= 0)
+		{
+			/* Format text */
+			p += sprintf(p, "No extra military needed to place\n");
+		}
+		else
+		{
+			/* Format text */
+			p += sprintf(p, "Extra military needed to place: %+d\n",
+			             mil_needed);
+		}
+
+		/* Check for any pay-for-military power */
+		if (cost >= 0)
+		{
+			/* Format text */
+			p += sprintf(p, "Cost to place if using %s: %d\n",
+			             cost_card, cost);
+		}
+	}
+	else
+	{
+		/* Compute peaceful payment */
+		peaceful_world_payment(g, who, which, mil_only, d_ptr,
+		                       &cost, &ict_mil, &iif_mil);
+
+		/* Check for normal payment available */
+		if (cost >= 0)
+		{
+			/* Format text */
+			p += sprintf(p, "Cost to place: %d\n", cost);
+		}
+
+		/* Check for Imperium Cloaking Technology */
+		if (ict_mil >= 0)
+		{
+			/* Check for no extra military */
+			if (ict_mil == 0)
+			{
+				/* Format text */
+				p += sprintf(p, "No extra military needed to place\n  if using "
+				             "Imperium Cloaking Technology\n");
+			}
+			else
+			{
+				/* Format text */
+				p += sprintf(p, "Extra military needed to place\n  if using "
+				             "Imperium Cloaking Technology: %+d\n", ict_mil);
+			}
+		}
+
+		/* Check for Imperium Invasion Fleet */
+		if (iif_mil >= 0)
+		{
+			/* Check for no extra military */
+			if (iif_mil == 0)
+			{
+				/* Format text */
+				p += sprintf(p, "No extra military needed to place\n  if using "
+				             "Imperium Invasion Fleet\n");
+			}
+			else
+			{
+				/* Format text */
+				p += sprintf(p, "Extra military needed to place\n  if using "
+				             "Imperium Invasion Fleet: %+d\n", iif_mil);
+			}
+		}
+	}
+
+	/* Trim last newline */
+	text[strlen(text) - 1] = '\0';
+
+	/* Return the text */
+	return strdup(text);
+}
+
+/*
+ * Information about a pending takeover.
+ */
+typedef struct takeover_info
+{
+	/* The card to be used when attacking */
+	int card;
+
+	/* The current attack strength */
+	int attack;
+
+	/* The VP diff (including goals) */
+	int vp_diff[2];
+
+} takeover_info;
+
+/*
  * Create a tooltip for a card displayed on a table
  * which is eligible for takeover.
  */
 static char *card_takeover_tooltip(game *g, int defender, int attacker,
                                    displayed *i_ptr)
 {
-	char text[1024];
+	char text[1024], *p;
 	card *c_ptr;
-	power_where w_list[100];
-	power *o_ptr;
-	int n, i, which, old_vp[2], vp_diff[2];
+	design *d_ptr;
+	displayed *j_ptr;
+	takeover_info takeovers[10], *t_ptr;
+	int num_takeovers = 0;
+	int i, j, k, which, defense, old_vp[2];
 	game sim;
 
 	/* Get card index */
@@ -3468,14 +3788,20 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
+	/* Compute defense */
+	defense = strength_against(g, defender, which, -1, 1);
+
 	/* Copy game */
-	memcpy(&sim, g, sizeof(game));
+	sim = *g;
 
 	/* Set simulated game */
 	sim.simulation = 1;
 
 	/* Simulate end of phase (for cards already placed) */
 	clear_temp(&sim);
+
+	/* Apply goals */
+	check_goals(&sim);
 
 	/* Score game for players */
 	score_game(&sim);
@@ -3484,73 +3810,184 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	old_vp[0] = sim.p[defender].end_vp;
 	old_vp[1] = sim.p[attacker].end_vp;
 
-	/* Move card in the simulated game */
-	move_card(&sim, which, attacker, WHERE_ACTIVE);
-
-	/* Get settle phase powers */
-	n = get_powers(g, attacker, PHASE_SETTLE, w_list);
-
-	/* Loop over pre-existing powers */
-	for (i = 0; i < n; i++)
+	/* Loop over table cards for the attacker */
+	for (i = 0; i < table_size[attacker]; i++)
 	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
+		/* Get displayed card pointer */
+		j_ptr = &table[attacker][i];
 
-		/* Check for prestige after rebel power */
-		if (o_ptr->code & P3_PRESTIGE_REBEL)
+		/* Skip non-eligible cards */
+		if (!j_ptr->eligible) continue;
+
+		/* Get next takeover struct */
+		t_ptr = takeovers + num_takeovers;
+		num_takeovers += 1;
+
+		/* Store card */
+		t_ptr->card = j_ptr->index;
+
+		/* Compute attack strength */
+		t_ptr->attack = strength_against(g, attacker, which, j_ptr->index, 0);
+
+		/* Copy game */
+		sim = *g;
+
+		/* Set simulated game */
+		sim.simulation = 1;
+
+		/* Assume the takeover always succeeds */
+		sim.p[attacker].bonus_military = 100;
+
+		/* Simulate usage of the takeover callback */
+		takeover_callback(&sim, t_ptr->card, which);
+
+		/* Check for non-military target */
+		if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
 		{
-			/* Check for rebel military world placed */
-			if ((c_ptr->d_ptr->flags & FLAG_REBEL) &&
-			    (c_ptr->d_ptr->flags & FLAG_MILITARY))
+			/* Loop over cards in table */
+			for (j = 0; j < table_size[attacker]; ++j)
 			{
-				/* Reward prestige */
-				sim.p[attacker].prestige += o_ptr->value;
+				/* Get card */
+				d_ptr = g->deck[table[attacker][j].index].d_ptr;
+
+				/* Loop over powers */
+				for (k = 0; k < d_ptr->num_power; ++k)
+				{
+					/* Check for "conquer peaceful" power */
+					if (d_ptr->powers[k].code & P3_CONQUER_SETTLE &&
+					    !(d_ptr->powers[k].code & P3_NO_TAKEOVER))
+					{
+						/* XXX Discard card */
+						discard_card(&sim, attacker, table[attacker][j].index);
+						break;
+					}
+				}
 			}
 		}
 
-		/* Check for prestige after production world */
-		if (o_ptr->code & P3_PRODUCE_PRESTIGE)
-		{
-			/* Check for production world */
-			if (c_ptr->d_ptr->good_type > 0 &&
-			    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
-			{
-				/* Reward prestige */
-				sim.p[attacker].prestige += o_ptr->value;
-			}
-		}
+		/* Simulate the takeover resolution */
+		resolve_takeover(&sim, attacker, which, t_ptr->card, 0);
+
+		/* Simulate end of phase (for self-scoring cards) */
+		clear_temp(&sim);
+
+		/* Apply goals */
+		check_goals(&sim);
+
+		/* Score game for players */
+		score_game(&sim);
+
+		/* Compute score differences */
+		t_ptr->vp_diff[0] = sim.p[defender].end_vp - old_vp[0];
+		t_ptr->vp_diff[1] = sim.p[attacker].end_vp - old_vp[1];
 	}
 
-	/* Simulate end of phase (for self-scoring cards) */
-	clear_temp(&sim);
-
-	/* Score game for players */
-	score_game(&sim);
-
-	/* Compute score differences */
-	vp_diff[0] = sim.p[defender].end_vp - old_vp[0];
-	vp_diff[1] = sim.p[attacker].end_vp - old_vp[1];
+	/* Set text pointer */
+	p = text;
 
 	/* Check for old tool tip */
 	if (i_ptr->tooltip)
 	{
-		/* Format tool tip */
-		sprintf(text, "%s\n%s: %d VP%s\n%s: %d VP%s", i_ptr->tooltip,
-		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
-		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+		/* Keep previous tool tip */
+		strcpy(p, i_ptr->tooltip);
+
+		/* Advance text pointer */
+		p += strlen(p);
+
+		/* Add newline */
+		p += sprintf(p, "\n");
 
 		/* Free old tool tip */
 		free(i_ptr->tooltip);
 	}
+
+	/* Add defense */
+	p += sprintf(p, "Current defense: %d", defense);
+
+	/* Check for only one power */
+	if (num_takeovers == 1)
+	{
+		/* Get takeover struct */
+		t_ptr = &takeovers[0];
+
+		/* Add attack strength */
+		p += sprintf(p, "\nCurrent attack: %d", t_ptr->attack);
+
+		/* Add defender vp diff */
+		p += sprintf(p, "\n%s: %d VP%s",
+		             g->p[defender].name,
+		             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
+
+		/* Add attacker vp diff */
+		p += sprintf(p, "\n%s: %d VP%s",
+		             g->p[attacker].name,
+		             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+	}
 	else
 	{
-		/* Format tool tip */
-		sprintf(text, "%s: %d VP%s\n%s: %d VP%s",
-		        g->p[defender].name, vp_diff[0], PLURAL(vp_diff[0]),
-		        g->p[attacker].name, vp_diff[1], PLURAL(vp_diff[1]));
+		/* Loop over all takeovers powers */
+		for (i = 0; i < num_takeovers; ++i)
+		{
+			/* Get takeover struct */
+			t_ptr = &takeovers[i];
+
+			/* Add name of card */
+			p += sprintf(p, "\nUsing %s:", g->deck[t_ptr->card].d_ptr->name);
+
+			/* Add attack strength */
+			p += sprintf(p, "\n  Current attack: %d", t_ptr->attack);
+
+			/* Add defender vp diff */
+			p += sprintf(p, "\n  %s: %d VP%s",
+			             g->p[defender].name,
+			             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
+
+			/* Add attacker vp diff */
+			p += sprintf(p, "\n  %s: %d VP%s",
+			             g->p[attacker].name,
+			             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+		}
 	}
 
 	/* Return the text */
+	return strdup(text);
+}
+
+/*
+ * Create a tooltip for a card displayed on a table during trade.
+ */
+static char *card_trade_tooltip(game *g, int who, displayed *i_ptr,
+                                int no_bonus)
+{
+	char text[1024];
+	card *c_ptr;
+	int type;
+
+	/* Get card pointer */
+	c_ptr = &g->deck[i_ptr->index];
+
+	/* Get good type */
+	type = c_ptr->d_ptr->good_type;
+
+	/* Check for "any" kind */
+	if (type == GOOD_ANY)
+	{
+		/* Format tool tip for all kinds */
+		sprintf(text, "Trade value:\n  Novelty: %d\n  Rare: %d\n"
+		        "  Genes: %d\n  Alien: %d",
+		        trade_value(g, who, c_ptr, GOOD_NOVELTY, no_bonus),
+		        trade_value(g, who, c_ptr, GOOD_RARE, no_bonus),
+		        trade_value(g, who, c_ptr, GOOD_GENE, no_bonus),
+		        trade_value(g, who, c_ptr, GOOD_ALIEN, no_bonus));
+	}
+	else
+	{
+		/* Format tool tip */
+		sprintf(text, "Trade value: %d",
+		        trade_value(g, who, c_ptr, type, no_bonus));
+	}
+
+	/* Return text */
 	return strdup(text);
 }
 
@@ -3613,6 +4050,70 @@ static GtkWidget *action_icon(int act, int size)
 
 	/* Return image widget */
 	return image;
+}
+
+/* The original number of cards in variants */
+static int drafting_count[][4][MAX_PLAYER] =
+{
+	{
+		{ 0 },
+		{ 67, 42 },
+		{ 87, 57, 42, 32 },
+		{ 114, 76, 57, 45, 38 },
+	},
+	{
+		{ 57, 38, 28 },
+		{ 68, 45, 34, 27 },
+		{ 90, 60, 45, 36, 30 },
+		{ 114, 76, 57, 45, 38 },
+	},
+};
+
+/*
+ * Overlays the overlay pixbuf on the background pixbuf,
+ * using the top current/max portion of the image only.
+ */
+GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
+                   double size, double current, double max)
+{
+	GdkPixbuf *buf;
+	double ratio, height_scale, width_scale;
+
+	/* Compute fill ratio */
+	ratio = current / max;
+
+	/* Check if ratio is negative */
+	if (ratio <= 0)
+	{
+		/* Use the scaled overlay */
+		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
+		                              GDK_INTERP_BILINEAR);
+	}
+	else
+	{
+		/* Scale the background */
+		buf = gdk_pixbuf_scale_simple(background, (int) size, (int) size,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Check if ratio is less than full */
+		if (ratio < 1)
+		{
+			/* Compute scale ratios */
+			height_scale = size / gdk_pixbuf_get_height(overlay);
+			width_scale = size / gdk_pixbuf_get_width(overlay);
+
+			/* Overlay the alternative vp image */
+			gdk_pixbuf_composite(overlay, buf,
+			                     0, 0,
+			                     (int) size, (int) (size * (1 - ratio)),
+			                     0, 0,
+			                     height_scale, width_scale,
+			                     GDK_INTERP_BILINEAR, 255);
+		}
+	}
+
+	/* Return the pixbuf */
+	return buf;
 }
 
 /*
@@ -3697,6 +4198,39 @@ static void redraw_status_area(int who, GtkWidget *box)
 	{
 		/* Make image widget */
 		image = action_icon(act1, height);
+
+		/* Pack icon into status box */
+		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+	}
+
+	/* Check for personal deck count */
+	if (s_ptr->cards_deck >= 0)
+	{
+		/* Create handsize icon image */
+		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY],
+		              height, s_ptr->cards_deck, s_ptr->cards_orig);
+
+		/* Create image from pixbuf */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Pointer to extra info structure */
+		ei = &status_extra_info[who][5];
+
+		/* Create text for handsize */
+		sprintf(ei->text, "<b>%d</b>", s_ptr->cards_deck);
+
+		/* Set font */
+		ei->fontstr = "Sans 12";
+
+		/* Draw text a border */
+		ei->border = 1;
+
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(image), "expose-event",
+		                       G_CALLBACK(draw_extra_text), ei);
+
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
 		/* Pack icon into status box */
 		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
@@ -3814,7 +4348,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		ei = &status_extra_info[who][3];
 
 		/* Create text for general discount */
-		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount);
+		sprintf(ei->text, "<b>-%d</b>", s_ptr->discount.base);
 
 		/* Set font */
 		ei->fontstr = "Sans 10";
@@ -3850,7 +4384,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 
 		/* Create text for military strength */
 		sprintf(ei->text, "<span foreground=\"red\" weight=\"bold\">%+d</span>",
-		        s_ptr->military);
+		        s_ptr->military.base);
 
 		/* Set font */
 		ei->fontstr = "Sans 10";
@@ -3925,53 +4459,6 @@ static void redraw_status_area(int who, GtkWidget *box)
 }
 
 /*
- * Overlays the overlay pixbuf on the background pixbuf,
- * using the top current/max portion of the image only.
- */
-GdkPixbuf *overlay(GdkPixbuf *background, GdkPixbuf *overlay,
-                   double size, double current, double max)
-{
-	GdkPixbuf *buf;
-	double ratio, height_scale, width_scale;
-
-	/* Compute fill ratio */
-	ratio = current / max;
-
-	/* Check if ratio is negative */
-	if (ratio <= 0)
-	{
-		/* Use the scaled overlay */
-		buf = gdk_pixbuf_scale_simple(overlay, (int) size, (int) size,
-		                              GDK_INTERP_BILINEAR);
-	}
-	else
-	{
-		/* Scale the background */
-		buf = gdk_pixbuf_scale_simple(background, (int) size, (int) size,
-		                              GDK_INTERP_BILINEAR);
-
-		/* Check if ratio is less than full */
-		if (ratio < 1)
-		{
-			/* Compute scale ratios */
-			height_scale = size / gdk_pixbuf_get_height(overlay);
-			width_scale = size / gdk_pixbuf_get_width(overlay);
-
-			/* Overlay the alternative vp image */
-			gdk_pixbuf_composite(overlay, buf,
-			                     0, 0,
-			                     (int) size, (int) (size * (1 - ratio)),
-			                     0, 0,
-			                     height_scale, width_scale,
-			                     GDK_INTERP_BILINEAR, 255);
-		}
-	}
-
-	/* Return the pixbuf */
-	return buf;
-}
-
-/*
  * Redraw game's and all player's status information.
  */
 void redraw_status(void)
@@ -3992,97 +4479,101 @@ void redraw_status(void)
 	/* First destroy all pre-existing status widgets */
 	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
 
-	/* Build deck image */
-	buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
-	              display_deck, real_game.deck_size);
+	/* Skip draw and discard icons in variant games */
+	if (real_game.variant)
+	{
+		/* Build deck image */
+		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
+					  display_deck, real_game.deck_size);
 
 #if 0
-	/* Add note if game is tampered */
-	if (game_tampered)
-	{
-		/* Check for card moved in debug */
-		if (game_tampered & TAMPERED_MOVE) color = 0x00ff0000;
+		/* Add note if game is tampered */
+		if (game_tampered)
+		{
+			/* Check for card moved in debug */
+			if (game_tampered & TAMPERED_MOVE) color = 0x00ff0000;
 
-		/* Check for looked at debug dialog */
-		else if (game_tampered & TAMPERED_LOOK) color = 0x00ffcc00;
+			/* Check for looked at debug dialog */
+			else if (game_tampered & TAMPERED_LOOK) color = 0x00ffcc00;
 
-		/* Check for undo used */
-		else if (game_tampered & TAMPERED_UNDO) color = 0x00dddd00;
+			/* Check for undo used */
+			else if (game_tampered & TAMPERED_UNDO) color = 0x00dddd00;
 
-		/* Check for seed used */
-		else if (game_tampered & TAMPERED_SEED) color = 0x00666666;
+			/* Check for seed used */
+			else if (game_tampered & TAMPERED_SEED) color = 0x00666666;
 
-		/* Check for loaded game */
-		else if (game_tampered & TAMPERED_LOAD) color = 0x00ffffff;
+			/* Check for loaded game */
+			else if (game_tampered & TAMPERED_LOAD) color = 0x00ffffff;
 
-		/* Check for saved game */
-		else if (game_tampered & TAMPERED_SAVE) color = 0x00ffffff;
+			/* Check for saved game */
+			else if (game_tampered & TAMPERED_SAVE) color = 0x00ffffff;
 
-		/* Add a tiny square at the bottom left */
-		gdk_pixbuf_composite_color(buf, buf,
-		                           0, size - 3, 3, 3,
-		                           0, 0, 1, 1,
-		                           GDK_INTERP_BILINEAR, 255,
-		                           0, 0, 16,
-		                           color, 0);
-	}
+			/* Add a tiny square at the bottom left */
+			gdk_pixbuf_composite_color(buf, buf,
+									   0, size - 3, 3, 3,
+									   0, 0, 1, 1,
+									   GDK_INTERP_BILINEAR, 255,
+									   0, 0, 16,
+									   color, 0);
+		}
 #endif
 
-	/* Make image widget */
-	draw_image = gtk_image_new_from_pixbuf(buf);
+		/* Make image widget */
+		draw_image = gtk_image_new_from_pixbuf(buf);
 
-	/* Pointer to extra info structure */
-	ei = &game_extra_info[0];
+		/* Pointer to extra info structure */
+		ei = &game_extra_info[0];
 
-	/* Create text for deck */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>",
-	        display_deck);
+		/* Create text for deck */
+		sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>",
+				display_deck);
 
-	/* Set font */
-	ei->fontstr = "Sans 12";
+		/* Set font */
+		ei->fontstr = "Sans 12";
 
-	/* Draw text a border */
-	ei->border = 1;
+		/* Draw text a border */
+		ei->border = 1;
 
-	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(draw_image), "expose-event",
-	                       G_CALLBACK(draw_extra_text), ei);
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(draw_image), "expose-event",
+							   G_CALLBACK(draw_extra_text), ei);
 
-	/* Destroy our copy of the icon */
-	g_object_unref(G_OBJECT(buf));
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
-	/* Pack deck image */
-	gtk_box_pack_start(GTK_BOX(game_status), draw_image, TRUE, TRUE, 0);
+		/* Pack deck image */
+		gtk_box_pack_start(GTK_BOX(game_status), draw_image, TRUE, TRUE, 0);
 
-	/* Build discard image */
-	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
-	                              GDK_INTERP_BILINEAR);
+		/* Build discard image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
+									  GDK_INTERP_BILINEAR);
 
-	/* Make image widget */
-	discard_image = gtk_image_new_from_pixbuf(buf);
+		/* Make image widget */
+		discard_image = gtk_image_new_from_pixbuf(buf);
 
-	/* Pointer to extra info structure */
-	ei = &game_extra_info[1];
+		/* Pointer to extra info structure */
+		ei = &game_extra_info[1];
 
-	/* Create text for discard */
-	sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>",
-	        display_discard);
+		/* Create text for discard */
+		sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>",
+				display_discard);
 
-	/* Set font */
-	ei->fontstr = "Sans 12";
+		/* Set font */
+		ei->fontstr = "Sans 12";
 
-	/* Draw text a border */
-	ei->border = 1;
+		/* Draw text a border */
+		ei->border = 1;
 
-	/* Connect expose-event to draw extra text */
-	g_signal_connect_after(G_OBJECT(discard_image), "expose-event",
-	                       G_CALLBACK(draw_extra_text), ei);
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(discard_image), "expose-event",
+							   G_CALLBACK(draw_extra_text), ei);
 
-	/* Destroy our copy of the icon */
-	g_object_unref(G_OBJECT(buf));
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
-	/* Pack discard image */
-	gtk_box_pack_start(GTK_BOX(game_status), discard_image, TRUE, TRUE, 0);
+		/* Pack discard image */
+		gtk_box_pack_start(GTK_BOX(game_status), discard_image, TRUE, TRUE, 0);
+	}
 
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
@@ -4317,6 +4808,212 @@ static void goal_allocated(GtkWidget *widget, GtkAllocation *allocation,
 }
 
 /*
+ * Compute settle discounts for a player.
+ */
+static void compute_discounts(game *g, int who, discounts *d_ptr)
+{
+	power_where w_list[100];
+	power *o_ptr;
+	int i, n;
+
+	/* Clear discounts */
+	memset(d_ptr, 0, sizeof(discounts));
+
+	/* Set bonus discounts */
+	d_ptr->bonus = g->p[who].bonus_reduce;
+
+	/* Check for prestige settle */
+	if ((g->cur_action == ACT_SETTLE || g->cur_action == ACT_SETTLE2) &&
+	    player_chose(g, who, ACT_PRESTIGE | g->cur_action))
+	{
+		/* Add prestige bonus */
+		d_ptr->bonus += 3;
+	}
+
+	/* Get settle phase powers */
+	n = get_powers(g, who, PHASE_SETTLE, w_list);
+
+	/* Loop over powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check discard for 0 */
+		if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
+			d_ptr->zero += 1;
+
+		/* Check for reduce power */
+		if (o_ptr->code & P3_REDUCE)
+		{
+			/* Check for general discount */
+			if (o_ptr->code == P3_REDUCE)
+				d_ptr->base += o_ptr->value;
+
+			/* Check for discount against Novelty worlds */
+			if (o_ptr->code & P3_NOVELTY)
+				d_ptr->specific[GOOD_NOVELTY] += o_ptr->value;
+
+			/* Check for discount against Rare worlds */
+			if (o_ptr->code & P3_RARE)
+				d_ptr->specific[GOOD_RARE] += o_ptr->value;
+
+			/* Check for discount against Genes worlds */
+			if (o_ptr->code & P3_GENE)
+				d_ptr->specific[GOOD_GENE] += o_ptr->value;
+
+			/* Check for discount against Alien worlds */
+			if (o_ptr->code & P3_ALIEN)
+				d_ptr->specific[GOOD_ALIEN] += o_ptr->value;
+		}
+
+		/* Check for pay-for-military powers */
+		if (o_ptr->code & P3_PAY_MILITARY)
+		{
+			/* Check for non-alien power without discount */
+			if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 0)
+				d_ptr->non_alien_mil_0 = TRUE;
+
+			/* Check for non-alien power with discount */
+			if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 1)
+				d_ptr->non_alien_mil_1 = TRUE;
+
+			/* Check for rebel flag */
+			if (o_ptr->code & P3_AGAINST_REBEL)
+				d_ptr->rebel_mil_2 = TRUE;
+
+			/* Check for chromo flag */
+			if (o_ptr->code & P3_AGAINST_CHROMO)
+				d_ptr->chromo_mil = TRUE;
+
+			/* Check for alien flag */
+			if (o_ptr->code & P3_ALIEN)
+				d_ptr->alien_mil = TRUE;
+		}
+
+		/* Check for pay-for-military discount */
+		if (o_ptr->code & P3_PAY_DISCOUNT)
+			d_ptr->pay_discount += o_ptr->value;
+
+		/* Check for conquer settle without discount */
+		if ((o_ptr->code & P3_CONQUER_SETTLE) && o_ptr->value == 0)
+			d_ptr->conquer_settle_0 = TRUE;
+
+		/* Check for conquer settle with discount */
+		if ((o_ptr->code & P3_CONQUER_SETTLE) && o_ptr->value == 2)
+			d_ptr->conquer_settle_2 = TRUE;
+	}
+
+	/* Check for any modifiers */
+	d_ptr->has_data = d_ptr->base || d_ptr->bonus ||
+		d_ptr->specific[GOOD_NOVELTY] || d_ptr->specific[GOOD_RARE] ||
+		d_ptr->specific[GOOD_GENE] || d_ptr->specific[GOOD_ALIEN] ||
+		d_ptr->zero || d_ptr->pay_discount ||
+		d_ptr->non_alien_mil_0 || d_ptr->non_alien_mil_1 ||
+		d_ptr->rebel_mil_2 || d_ptr->chromo_mil || d_ptr->alien_mil ||
+		d_ptr->conquer_settle_0 || d_ptr->conquer_settle_2;
+}
+
+/*
+ * Compute military strength for a player.
+ */
+static void compute_military(game *g, int who, mil_strength *m_ptr)
+{
+	power_where w_list[100];
+	power *o_ptr;
+	int i, n;
+
+	/* Start strengths at 0 */
+	memset(m_ptr, 0, sizeof(mil_strength));
+
+	/* Begin with base military strength */
+	m_ptr->base = total_military(g, who);
+
+	/* Set bonus military */
+	m_ptr->bonus = g->p[who].bonus_military;
+
+	/* Get settle phase powers */
+	n = get_powers(g, who, PHASE_SETTLE, w_list);
+
+	/* Loop over powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for defense power */
+		if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
+		{
+			/* Add defense for military worlds */
+			m_ptr->defense +=
+				count_active_flags(g, who, FLAG_MILITARY);
+
+			/* Add extra defense for Rebel military worlds */
+			m_ptr->defense +=
+				count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+		}
+
+		/* Check for takeover imperium power */
+		if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
+		{
+			/* Set imperium attack */
+			m_ptr->attack_imperium =
+				2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+
+			/* Check if card name already set */
+			if (strlen(m_ptr->imp_card))
+			{
+				/* XXX Use name of both cards */
+				strcpy(m_ptr->imp_card, "Rebel Alliance/Rebel Sneak Attack");
+			}
+			else
+			{
+				/* Remember name of card */
+				strcpy(m_ptr->imp_card, g->deck[w_list[i].c_idx].d_ptr->name);
+			}
+		}
+
+		/* Skip non-military powers */
+		if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
+
+		/* Check for strength against rebels */
+		if (o_ptr->code & P3_AGAINST_REBEL)
+			m_ptr->rebel += o_ptr->value;
+
+		/* Check for strength against Novelty worlds */
+		if (o_ptr->code & P3_NOVELTY)
+			m_ptr->specific[GOOD_NOVELTY] += o_ptr->value;
+
+		/* Check for strength against Rare worlds */
+		if (o_ptr->code & P3_RARE)
+			m_ptr->specific[GOOD_RARE] += o_ptr->value;
+
+		/* Check for strength against Genes worlds */
+		if (o_ptr->code & P3_GENE)
+			m_ptr->specific[GOOD_GENE] += o_ptr->value;
+
+		/* Check for strength against Alien worlds */
+		if (o_ptr->code & P3_ALIEN)
+			m_ptr->specific[GOOD_ALIEN] += o_ptr->value;
+	}
+
+	/* Check for takeovers enabled and imperium card played */
+	m_ptr->imperium = takeovers_enabled(g) &&
+		count_active_flags(g, who, FLAG_IMPERIUM);
+
+	/* Check for takeovers enabled and rebel military world played */
+	m_ptr->military_rebel = takeovers_enabled(g) &&
+		count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
+
+	/* Check for any modifiers */
+	m_ptr->has_data = m_ptr->base || m_ptr->bonus || m_ptr->rebel ||
+		m_ptr->specific[GOOD_NOVELTY] || m_ptr->specific[GOOD_RARE] ||
+		m_ptr->specific[GOOD_GENE] || m_ptr->specific[GOOD_ALIEN] ||
+		m_ptr->defense || m_ptr->attack_imperium || m_ptr->imperium ||
+		m_ptr->military_rebel;
+}
+
+/*
  * Reset a displayed card structure.
  */
 static void reset_display(displayed *i_ptr)
@@ -4380,8 +5077,12 @@ static void reset_hand(game *g, int color)
 		/* Set color flag */
 		i_ptr->color = color;
 
-		/* Get tooltip */
-		i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
+		/* Check for vp in hand enabled */
+		if (opt.vp_in_hand)
+		{
+			/* Get tool tip */
+			i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
+		}
 	}
 }
 
@@ -4475,23 +5176,41 @@ static void reset_status(game *g, int who)
 	/* Count cards in hand */
 	status_player[who].cards_hand = count_player_area(g, who, WHERE_HAND);
 
+	/* Check for variant game */
+	if (g->variant)
+	{
+		/* Count current number of cards in deck */
+		status_player[who].cards_deck = count_draw(g, who);
+
+		/* Retrieve the original number of cards */
+		status_player[who].cards_orig =
+			drafting_count[g->variant - 1][g->expanded][g->num_players - 2];
+	}
+	else
+	{
+		/* Draw pile is shared */
+		status_player[who].cards_deck = -1;
+	}
+
 	/* Copy prestige */
 	status_player[who].prestige = g->p[who].prestige;
 
 	/* Count general discount */
-	status_player[who].discount = total_discount(g, who);
+	compute_discounts(g, who, &status_player[who].discount);
 
 	/* Count military strength */
-	status_player[who].military = total_military(g, who);
+	compute_military(g, who, &status_player[who].military);
 
 	/* Get text of vp tooltip */
 	strcpy(status_player[who].vp_tip, get_vp_tooltip(g, who));
 
 	/* Get text of discount tooltip */
-	strcpy(status_player[who].discount_tip, get_discount_tooltip(g, who));
+	strcpy(status_player[who].discount_tip,
+	       get_discount_tooltip(&status_player[who].discount));
 
 	/* Get text of military tooltip */
-	strcpy(status_player[who].military_tip, get_military_tooltip(g, who));
+	strcpy(status_player[who].military_tip,
+	       get_military_tooltip(&status_player[who].military));
 
 	/* Get text of prestige tooltip */
 	strcpy(status_player[who].prestige_tip, get_prestige_tooltip(g, who));
@@ -5417,6 +6136,112 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
 }
 
 /*
+ * Choose a card to draft.
+ */
+int gui_choose_draft(game *g, int who, int list[], int num, int special[],
+                      int num_special)
+{
+	char buf[1024];
+	displayed *i_ptr;
+	card *c_ptr;
+	int i, j, save_opt;
+
+	/* Save special cards */
+	num_special_cards = num_special;
+	for (i = 0; i < num_special; ++i) special_cards[i] = &g->deck[special[i]];
+
+	/* Create prompt */
+	sprintf(buf, "Choose card to draft");
+
+	/* Set prompt */
+	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
+
+	/* XXX Do not compute hand VPs */
+	save_opt = opt.vp_in_hand;
+	opt.vp_in_hand = FALSE;
+
+	/* Reset displayed cards */
+	reset_cards(g, TRUE, TRUE);
+
+	/* XXX Display hand VPs next time */
+	opt.vp_in_hand = save_opt;
+
+	/* Set button restriction */
+	action_restrict = RESTRICT_NUM;
+	action_min = action_max = 1;
+
+	/* Deactivate action button */
+	gtk_widget_set_sensitive(action_button, FALSE);
+
+	/* Add start worlds to table */
+	for (i = 0; i < num_special; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &real_game.deck[special[i]];
+
+		/* Get next entry in table list */
+		i_ptr = &table[player_us][table_size[player_us]++];
+
+		/* Clear displayed card */
+		reset_display(i_ptr);
+
+		/* Add card information */
+		i_ptr->index = special[i];
+		i_ptr->d_ptr = c_ptr->d_ptr;
+		i_ptr->color = TRUE;
+	}
+
+	/* Loop over cards in list */
+	for (i = 0; i < num; i++)
+	{
+		/* Loop over cards in hand */
+		for (j = 0; j < hand_size; j++)
+		{
+			/* Get hand pointer */
+			i_ptr = &hand[j];
+
+			/* Check for matching index */
+			if (i_ptr->index == list[i])
+			{
+				/* Card is eligible */
+				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
+
+				/* Highlight card when selected */
+				i_ptr->highlight = HIGH_YELLOW;
+				i_ptr->highlight_else = HIGH_RED;
+			}
+		}
+	}
+
+	/* Redraw everything */
+	redraw_everything();
+
+	/* Process events */
+	gtk_main();
+
+	/* Clear special cards */
+	num_special_cards = 0;
+
+	/* Loop over cards in hand */
+	for (i = 0; i < hand_size; i++)
+	{
+		/* Get hand pointer */
+		i_ptr = &hand[i];
+
+		/* Check for selected */
+		if (i_ptr->selected)
+		{
+			/* Return choice */
+			return i_ptr->index;
+		}
+	}
+
+	/* Error */
+	return -1;
+}
+
+/*
  * Ask the player to discard some number of cards from the set given.
  */
 void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
@@ -5746,6 +6571,21 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = HIGH_YELLOW;
+
+				/* Check for develop phase */
+				if (opt.cost_in_hand && phase == PHASE_DEVELOP)
+				{
+					/* Set develop tool tip */
+					i_ptr->tooltip = card_develop_tooltip(g, player_us, i_ptr);
+				}
+
+				/* Check for settle phase */
+				else if (opt.cost_in_hand && phase == PHASE_SETTLE)
+				{
+					/* Set settle tool tip */
+					i_ptr->tooltip = card_settle_tooltip(g, player_us, special,
+					                                     i_ptr);
+				}
 			}
 		}
 	}
@@ -5786,20 +6626,140 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	card *c_ptr;
 	displayed *i_ptr;
 	power *o_ptr;
-	char buf[1024];
+	char *cost_card;
+	char buf[1024], *p;
 	int i, j, n = 0, ns = 0, high_color;
+	int military, cost, ict_mil, iif_mil;
 
 	/* Get card we are paying for */
 	c_ptr = &real_game.deck[which];
 
+	/* Reset displayed cards */
+	reset_cards(g, FALSE, FALSE);
+
+	/* Start at beginning of buffer */
+	p = buf;
+
 	/* Create prompt */
-	sprintf(buf, "Choose payment for %s", c_ptr->d_ptr->name);
+	p += sprintf(p, "Choose payment for %s ", c_ptr->d_ptr->name);
+
+	/* Check for development */
+	if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
+	{
+		/* Compute cost */
+		cost = devel_cost(g, who, which);
+
+		/* Create prompt */
+		p += sprintf(p, "(%d card%s)", cost, PLURAL(cost));
+	}
+
+	/* Check for world */
+	else if (c_ptr->d_ptr->type == TYPE_WORLD)
+	{
+		/* Check for takeover */
+		if (c_ptr->owner != who)
+		{
+			/* Compute strength difference */
+			military =
+				strength_against(g, who, which,
+				                 g->takeover_power[g->num_takeover - 1], 0) -
+				strength_against(g, c_ptr->owner, which, -1, 1);
+
+			/* Check for ahead in strength */
+			if (military > 0)
+			{
+				/* Format text */
+				p += sprintf(p, "(currently %d military ahead)", military);
+			}
+
+			/* Check for equal strength */
+			else if (military == 0)
+			{
+				/* Format text */
+				p += sprintf(p, "(currently equal strength)");
+			}
+
+			/* Behind in strength */
+			else
+			{
+				/* Format text */
+				p += sprintf(p, "(currently %d military behind)", -military);
+			}
+		}
+
+		/* Check for military world */
+		else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
+		{
+			/* Compute payment */
+			military_world_payment(g, who, which, mil_only,
+			                       &status_player[who].discount,
+			                       &military, &cost, &cost_card);
+
+			/* Check for no pay-for-military power */
+			if (cost == -1)
+			{
+				/* Format text */
+				p += sprintf(p, "(%d military)", military);
+			}
+			else
+			{
+				/* Format text */
+				p += sprintf(p, "(%d military or %d card%s)",
+				             military, cost, PLURAL(cost));
+			}
+		}
+		else
+		{
+			/* Compute payment */
+			peaceful_world_payment(g, who, which, mil_only,
+			                       &status_player[who].discount,
+			                       &cost, &ict_mil, &iif_mil);
+
+			/* Format text */
+			p += sprintf(p, "(");
+
+			/* Check for cost available */
+			if (cost >= 0)
+			{
+				/* Format text */
+				p += sprintf(p, "%d card%s", cost, PLURAL(cost));
+			}
+
+			/* Check for ICT or IIF */
+			if (ict_mil >= 0 || iif_mil >= 0)
+			{
+				/* Check for cost */
+				if (cost >= 0) p += sprintf(p, " or ");
+
+				/* Check for both ICT and IIF and different military needed */
+				if (ict_mil >= 0 && iif_mil >= 0 && ict_mil != iif_mil)
+				{
+					/* Format text */
+					p += sprintf(p, "%d/%d military", ict_mil, iif_mil);
+				}
+
+				/* Check for only ICT, or equal military needed */
+				else if (ict_mil >= 0)
+				{
+					/* Format text */
+					p += sprintf(p, "%d military", ict_mil);
+				}
+
+				/* Check for only IIF */
+				else if (iif_mil >= 0)
+				{
+					/* Format text */
+					p += sprintf(p, "%d military", iif_mil);
+				}
+			}
+
+			/* Format text */
+			p += sprintf(p, ")");
+		}
+	}
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
-
-	/* Reset displayed cards */
-	reset_cards(g, FALSE, FALSE);
 
 	/* Set button restriction */
 	action_restrict = RESTRICT_PAY;
@@ -5947,34 +6907,6 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 	/* Activate action button */
 	gtk_widget_set_sensitive(action_button, TRUE);
 
-	/* Loop over cards in list */
-	for (i = 0; i < *num; i++)
-	{
-		/* Loop over opponents */
-		for (j = 0; j < g->num_players; j++)
-		{
-			/* Skip our own cards */
-			if (j == player_us) continue;
-
-			/* Loop over opponent's table cards */
-			for (k = 0; k < table_size[j]; k++)
-			{
-				/* Get displayed card's pointer */
-				i_ptr = &table[j][k];
-
-				/* Check for matching index */
-				if (i_ptr->index == list[i])
-				{
-					/* Card is eligible */
-					i_ptr->eligible = 1;
-					i_ptr->highlight = HIGH_YELLOW;
-					i_ptr->tooltip = card_takeover_tooltip(g, j, player_us,
-					                                       i_ptr);
-				}
-			}
-		}
-	}
-
 	/* Loop over special cards */
 	for (i = 0; i < *num_special; i++)
 	{
@@ -6014,6 +6946,34 @@ int gui_choose_takeover(game *g, int who, int list[], int *num,
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = high_color;
+			}
+		}
+	}
+
+	/* Loop over cards in list */
+	for (i = 0; i < *num; i++)
+	{
+		/* Loop over opponents */
+		for (j = 0; j < g->num_players; j++)
+		{
+			/* Skip our own cards */
+			if (j == player_us) continue;
+
+			/* Loop over opponent's table cards */
+			for (k = 0; k < table_size[j]; k++)
+			{
+				/* Get displayed card's pointer */
+				i_ptr = &table[j][k];
+
+				/* Check for matching index */
+				if (i_ptr->index == list[i])
+				{
+					/* Card is eligible */
+					i_ptr->eligible = 1;
+					i_ptr->highlight = HIGH_YELLOW;
+					i_ptr->tooltip = card_takeover_tooltip(g, j, player_us,
+					                                       i_ptr);
+				}
 			}
 		}
 	}
@@ -6449,6 +7409,7 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 				i_ptr->greedy = 1;
+				i_ptr->tooltip = card_trade_tooltip(g, player_us, i_ptr, no_bonus);
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
@@ -7078,7 +8039,8 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	c_ptr = &real_game.deck[c_idx];
 
 	/* Create prompt */
-	sprintf(buf, "Choose goods to consume on %s", c_ptr->d_ptr->name);
+	sprintf(buf, "Choose good%s to consume on %s",
+	        min == 1 && max == 1 ? "" : "s", c_ptr->d_ptr->name);
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
@@ -7426,14 +8388,7 @@ static int score_produce(power *o_ptr)
 	int score = 0;
 
 	/* List non-discard powers first */
-	if (!(o_ptr->code & P5_DISCARD)) score += 50;
-
-	/* List draw powers between non-discards and discards */
-	if (o_ptr->code & P5_DRAW_EACH_NOVELTY) score = 48;
-	if (o_ptr->code & P5_DRAW_EACH_RARE) score = 46;
-	if (o_ptr->code & P5_DRAW_EACH_GENE) score = 44;
-	if (o_ptr->code & P5_DRAW_EACH_ALIEN) score = 42;
-	if (o_ptr->code & P5_DRAW_DIFFERENT) return 40;
+	if (!(o_ptr->code & P5_DISCARD)) score += 10;
 
 	/* Score not this slightly above */
 	if (o_ptr->code & P5_NOT_THIS) score += 1;
@@ -7443,6 +8398,13 @@ static int score_produce(power *o_ptr)
 	if (o_ptr->code & P5_WINDFALL_RARE) score += 6;
 	if (o_ptr->code & P5_WINDFALL_GENE) score += 4;
 	if (o_ptr->code & P5_WINDFALL_ALIEN) score += 2;
+
+	/* List draw powers last */
+	if (o_ptr->code & P5_DRAW_EACH_NOVELTY) score = -2;
+	if (o_ptr->code & P5_DRAW_EACH_RARE) score = -4;
+	if (o_ptr->code & P5_DRAW_EACH_GENE) score = -6;
+	if (o_ptr->code & P5_DRAW_EACH_ALIEN) score = -8;
+	if (o_ptr->code & P5_DRAW_DIFFERENT) score = -10;
 
 	/* Return score */
 	return score;
@@ -8461,6 +9423,14 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 			rv = gui_choose_oort_kind(g, who);
 			break;
 
+		/* Choose card to draft */
+		case CHOICE_DRAFT_FIRST:
+		case CHOICE_DRAFT:
+
+			/* Choose card */
+			rv = gui_choose_draft(g, who, list, *nl, special, *ns);
+			break;
+
 		/* Error */
 		default:
 			printf("Unknown choice type!\n");
@@ -8570,18 +9540,35 @@ decisions gui_func =
  */
 static void apply_options(void)
 {
+	/* Sanity check drafting variant */
+	if (!opt.expanded && opt.variant == VARIANT_DRAFTING)
+		opt.variant = 0;
+
 	/* Sanity check number of players in base game */
-	if (opt.expanded < 1 && opt.num_players > 4)
+	if (opt.expanded == 0 && opt.num_players > 4)
 	{
 		/* Reset to four players */
 		opt.num_players = 4;
 	}
 
 	/* Sanity check number of players in first expansion */
-	if (opt.expanded < 2 && opt.num_players > 5)
+	else if (opt.expanded == 1)
 	{
-		/* Reset to five players */
-		opt.num_players = 5;
+		/* Maximum three players when drafting */
+		if (opt.variant == VARIANT_DRAFTING && opt.num_players > 3)
+			opt.num_players = 3;
+
+		/* Maximum five players for normal game */
+		else if (opt.num_players > 5)
+			opt.num_players = 5;
+	}
+
+	/* Sanity check number of players in second expansion */
+	else if (opt.expanded == 2)
+	{
+		/* Maximum five players when drafting */
+		if (opt.variant == VARIANT_DRAFTING && opt.num_players > 5)
+			opt.num_players = 5;
 	}
 
 	/* Set name of human player */
@@ -8602,11 +9589,19 @@ static void apply_options(void)
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
 
+	/* Set variant */
+	real_game.variant = opt.variant;
+
 	/* Check for custom seed value */
 	if (opt.customize_seed)
 	{
 		/* Set start seed */
 		real_game.random_seed = opt.seed;
+	}
+	else
+	{
+		/* Set random seed */
+		real_game.random_seed = time(NULL) + games_started++;
 	}
 
 	/* Sanity check advanced mode */
@@ -9189,6 +10184,8 @@ static void read_prefs(void)
 	                                          "no_goals", NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
+	opt.variant = g_key_file_get_integer(pref_file, "game",
+	                                     "variant", NULL);
 
 	/* Check length of human name */
 	if (opt.player_name && strlen(opt.player_name) > 50)
@@ -9210,6 +10207,10 @@ static void read_prefs(void)
 	                                             "settle_discount", NULL);
 	opt.vp_in_hand = g_key_file_get_boolean(pref_file, "gui",
 	                                        "vp_in_hand", NULL);
+	opt.cost_in_hand = g_key_file_get_boolean(pref_file, "gui",
+	                                          "cost_in_hand", NULL);
+	opt.key_cues = g_key_file_get_boolean(pref_file, "gui",
+	                                      "key_cues", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
@@ -9218,6 +10219,8 @@ static void read_prefs(void)
 	                                         "colored_log", NULL);
 	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
 	                                        "verbose_log", NULL);
+	opt.draw_log = g_key_file_get_boolean(pref_file, "gui",
+	                                      "draw_log", NULL);
 	opt.discard_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "discard_log", NULL);
 
@@ -9280,6 +10283,7 @@ void save_prefs(void)
 	g_key_file_set_boolean(pref_file, "game", "no_goals", opt.disable_goal);
 	g_key_file_set_boolean(pref_file, "game", "no_takeover",
 	                       opt.disable_takeover);
+	g_key_file_set_integer(pref_file, "game", "variant", opt.variant);
 
 	/* Set GUI options */
 	g_key_file_set_integer(pref_file, "gui", "full_reduced",
@@ -9294,6 +10298,10 @@ void save_prefs(void)
 	                       opt.settle_discount);
 	g_key_file_set_boolean(pref_file, "gui", "vp_in_hand",
 	                       opt.vp_in_hand);
+	g_key_file_set_boolean(pref_file, "gui", "cost_in_hand",
+	                       opt.cost_in_hand);
+	g_key_file_set_boolean(pref_file, "gui", "key_cues",
+	                       opt.key_cues);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
 	g_key_file_set_boolean(pref_file, "gui", "save_log",
@@ -9302,6 +10310,8 @@ void save_prefs(void)
 		                   opt.colored_log);
 	g_key_file_set_boolean(pref_file, "gui", "verbose_log",
 		                   opt.verbose_log);
+	g_key_file_set_boolean(pref_file, "gui", "draw_log",
+		                   opt.draw_log);
 	g_key_file_set_boolean(pref_file, "gui", "discard_log",
 		                   opt.discard_log);
 
@@ -9622,7 +10632,7 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 /*
  * Export log. Implemented as a callback to avoid loadsave.c depending on gtk.
  */
-static void export_log(FILE *fff)
+static void export_log(FILE *fff, int gid)
 {
 	GtkTextIter iter_start, iter_end;
 	GtkTextBuffer *message_buffer;
@@ -9720,7 +10730,7 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 
 		/* Save to file */
 		if (export_game(&real_game, fname, player_us, line,
-		                num_special_cards, special_cards, export_log) < 0)
+		                num_special_cards, special_cards, export_log, 0) < 0)
 		{
 			/* Error */
 		}
@@ -9794,6 +10804,7 @@ static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
+static GtkWidget *variant_radio[MAX_VARIANT];
 static GtkWidget *name_entry;
 static GtkWidget *custom_seed_check;
 static GtkWidget *seed_entry;
@@ -9801,7 +10812,43 @@ static GtkWidget *seed_entry;
 /*
  * Current selections for next game options.
  */
-static int next_exp, next_player;
+static int next_exp, next_player, next_variant;
+
+/*
+ * Update button sensitivities.
+ */
+static void update_sensitivity()
+{
+	int i;
+
+	/* Set advanced checkbox sensitivity */
+	gtk_widget_set_sensitive(advanced_check, next_player == 2);
+
+	/* Set goal disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0);
+
+	/* Set takeover disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1);
+
+	/* Set drafting checkbox sensitivity */
+	gtk_widget_set_sensitive(variant_radio[VARIANT_DRAFTING], next_exp > 0);
+
+	/* Set player radio sensitivities */
+	for (i = 0; player_labels[i]; ++i)
+	{
+		/* Normal game or private decks */
+		if (!next_exp || next_variant != VARIANT_DRAFTING)
+		{
+			gtk_widget_set_sensitive(num_players_radio[i], i < next_exp + 3);
+		}
+
+		/* Drafting variant */
+		else
+		{
+			gtk_widget_set_sensitive(num_players_radio[i], i < 2 * next_exp);
+		}
+	}
+}
 
 /*
  * React to an expansion level button being toggled.
@@ -9809,7 +10856,6 @@ static int next_exp, next_player;
 static void exp_toggle(GtkToggleButton *button, gpointer data)
 {
 	int i = GPOINTER_TO_INT(data);
-	int j;
 
 	/* Check for button set */
 	if (gtk_toggle_button_get_active(button))
@@ -9817,17 +10863,8 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 		/* Remember next expansion level */
 		next_exp = i;
 
-		/* Set goal disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_goal_check, i > 0);
-
-		/* Set takeover disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
-
-		/* Set player radio sensitivities */
-		for (j = 0; player_labels[j]; ++j)
-		{
-			gtk_widget_set_sensitive(num_players_radio[j], j < i + 3);
-		}
+		/* Update sensitivities */
+		update_sensitivity();
 	}
 }
 
@@ -9844,8 +10881,26 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 		/* Remember next game player number */
 		next_player = i + 2;
 
-		/* Set advanced game checkbox sensitivity */
-		gtk_widget_set_sensitive(advanced_check, next_player == 2);
+		/* Update sensitivities */
+		update_sensitivity();
+	}
+}
+
+/*
+ * React to a variant button being toggled.
+ */
+static void variant_toggle(GtkToggleButton *button, gpointer data)
+{
+	int i = GPOINTER_TO_INT(data);
+
+	/* Check for button set */
+	if (gtk_toggle_button_get_active(button))
+	{
+		/* Remember next game player number */
+		next_variant = i;
+
+		/* Update sensitivities */
+		update_sensitivity();
 	}
 }
 
@@ -9982,8 +11037,10 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *exp_box, *player_box, *name_box, *seed_box, *seed_value_box;
-	GtkWidget *exp_frame, *player_frame, *seed_frame;
+	GtkWidget *exp_box, *player_box, *name_box, *options_box;
+	GtkWidget *variant_box, *seed_box, *seed_value_box;
+	GtkWidget *exp_frame, *player_frame, *options_frame;
+	GtkWidget *variant_frame, *seed_frame;
 	GtkWidget *name_label, *seed_label;
 	int i;
 
@@ -10101,9 +11158,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 			next_player = i + 2;
 		}
 
-		/* Set player radio sensitivity */
-		gtk_widget_set_sensitive(radio, i < next_exp + 3);
-
 		/* Add handler */
 		g_signal_connect(G_OBJECT(radio), "toggled",
 		                 G_CALLBACK(player_toggle), GINT_TO_POINTER(i));
@@ -10121,6 +11175,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), player_frame);
 
+	/* Create vbox to hold options widgets */
+	options_box = gtk_vbox_new(FALSE, 0);
+
 	/* Create check box for two-player advanced game */
 	advanced_check = gtk_check_button_new_with_label("Two-player advanced");
 
@@ -10129,15 +11186,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                             opt.advanced);
 
 	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  advanced_check);
-
-	/* Disable advanced checkbox if not two-player game */
-	if (real_game.num_players != 2)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(advanced_check, FALSE);
-	}
+	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
 
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
@@ -10147,15 +11196,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                             opt.disable_goal);
 
 	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_goal_check);
-
-	/* Disable goal checkbox if not expanded game */
-	if (opt.expanded < 1)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(disable_goal_check, FALSE);
-	}
+	gtk_container_add(GTK_CONTAINER(options_box), disable_goal_check);
 
 	/* Create check box for disabled takeovers */
 	disable_takeover_check =
@@ -10166,15 +11207,69 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	                             opt.disable_takeover);
 
 	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_takeover_check);
+	gtk_container_add(GTK_CONTAINER(options_box), disable_takeover_check);
 
-	/* Disable takeover checkbox if not expanded game */
-	if (opt.expanded < 2)
+	/* Create frame around buttons */
+	options_frame = gtk_frame_new("Game options");
+
+	/* Add options box to options frame */
+	gtk_container_add(GTK_CONTAINER(options_frame), options_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), options_frame);
+
+	/* Create vbox to hold variant widgets */
+	variant_box = gtk_vbox_new(FALSE, 0);
+
+	/* Clear current radio button widget */
+	radio = NULL;
+
+	/* Loop over variants */
+	for (i = 0; variant_labels[i]; i++)
 	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(disable_takeover_check, FALSE);
+		/* Create radio button */
+		radio = gtk_radio_button_new_with_label_from_widget(
+		                                        GTK_RADIO_BUTTON(radio),
+		                                        variant_labels[i]);
+
+		/* Remember radio button */
+		variant_radio[i] = radio;
+
+		/* Check for current variant */
+		if (real_game.variant == i)
+		{
+			/* Set button active */
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio),
+			                             TRUE);
+
+			/* Remember current variant */
+			next_variant = i;
+		}
+
+		/* Check for drafting radio button */
+		if (i == VARIANT_DRAFTING)
+		{
+			/* Add tooltip to radio button */
+			gtk_widget_set_tooltip_text(radio,
+			                            "Experimental: AI is not trained!");
+		}
+
+		/* Add handler */
+		g_signal_connect(G_OBJECT(radio), "toggled",
+		                 G_CALLBACK(variant_toggle), GINT_TO_POINTER(i));
+
+		/* Pack radio button into box */
+		gtk_box_pack_start(GTK_BOX(variant_box), radio, FALSE, TRUE, 0);
 	}
+
+	/* Create frame around buttons */
+	variant_frame = gtk_frame_new("Game variant");
+
+	/* Add variant box to variant frame */
+	gtk_container_add(GTK_CONTAINER(variant_frame), variant_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), variant_frame);
 
 	/* Create vbox to hold seed specification widgets */
 	seed_box = gtk_vbox_new(FALSE, 0);
@@ -10230,15 +11325,26 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), seed_frame);
 
+	/* Update sensitivites */
+	update_sensitivity();
+
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
 
 	/* Run dialog */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
+		/* No drafting in base game */
+		if (next_exp == 0 && next_variant == VARIANT_DRAFTING)
+			next_variant = 0;
+
 		/* Check for too many players */
 		if (next_exp == 0 && next_player > 4) next_player = 4;
+		if (next_exp == 1 && next_variant == VARIANT_DRAFTING &&
+		    next_player > 3) next_player = 3;
 		if (next_exp == 1 && next_player > 5) next_player = 5;
+		if (next_exp == 2 && next_variant == VARIANT_DRAFTING &&
+		    next_player > 5) next_player = 5;
 
 		/* Set player name */
 		opt.player_name = strdup(gtk_entry_get_text(GTK_ENTRY(name_entry)));
@@ -10263,6 +11369,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		opt.disable_takeover = (opt.expanded >= 2) &&
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
+
+		/* Set variant */
+		opt.variant = next_variant;
 
 		/* Set custom seed flag */
 		opt.customize_seed = gtk_toggle_button_get_active(
@@ -10342,8 +11451,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *log_width_label, *log_width_scale;
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
+	GtkWidget *hand_cost_button, *key_cues_button;
 	GtkWidget *log_box, *log_frame;
-	GtkWidget *colored_log_button, *verbose_button, *discard_log_button;
+	GtkWidget *colored_log_button, *verbose_button;
+	GtkWidget *draw_log_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *file_location_button;
 
@@ -10512,6 +11623,36 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack button into status box */
 	gtk_box_pack_start(GTK_BOX(game_view_box), hand_vp_button, FALSE, TRUE, 0);
 
+	/* Create toggle button for hand cost */
+	hand_cost_button = gtk_check_button_new_with_label(
+	    "Display costs during placement");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(hand_cost_button),
+	                             opt.cost_in_hand);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(hand_cost_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.cost_in_hand);
+
+	/* Pack button into status box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), hand_cost_button, FALSE, TRUE, 0);
+
+	/* Create toggle button for key cues */
+	key_cues_button = gtk_check_button_new_with_label(
+	    "Always display key cues");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(key_cues_button),
+	                             opt.key_cues);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(key_cues_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.key_cues);
+
+	/* Pack button into status box */
+	gtk_box_pack_start(GTK_BOX(game_view_box), key_cues_button, FALSE, TRUE, 0);
+
 	/* Create frame around buttons */
 	game_view_frame = gtk_frame_new("Game view");
 
@@ -10546,6 +11687,28 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(log_box), verbose_button, FALSE, TRUE, 0);
 
+	/* Create toggle button for draw log */
+	draw_log_button = gtk_check_button_new_with_label(
+		"Log drawn cards");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(draw_log_button),
+	                             opt.draw_log);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(log_box), draw_log_button, FALSE, TRUE, 0);
+
+	/* Create toggle button for discard log */
+	discard_log_button = gtk_check_button_new_with_label(
+		"Log discarded and saved cards");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discard_log_button),
+	                             opt.discard_log);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(log_box), discard_log_button, FALSE, TRUE, 0);
+
 	/* Create frame around buttons */
 	log_frame = gtk_frame_new("Log options");
 
@@ -10555,16 +11718,6 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  log_frame);
-
-	/* Create toggle button for discard log */
-	discard_log_button = gtk_check_button_new_with_label("Log discards");
-
-	/* Set toggled status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discard_log_button),
-	                             opt.discard_log);
-
-	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(log_box), discard_log_button, FALSE, TRUE, 0);
 
 	/* ---- File options ---- */
 	/* Create vbox to hold file options check boxes */
@@ -10634,7 +11787,11 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.verbose_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
 
-		/* Set log discards option */
+		/* Set draw log option */
+		opt.draw_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draw_log_button));
+
+		/* Set discard log option */
 		opt.discard_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discard_log_button));
 
@@ -10646,7 +11803,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		    !(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose_log != old_options.verbose_log ||
-		     opt.discard_log != old_options.discard_log))
+		     opt.draw_log != old_options.draw_log ||
+		     opt.discard_log != old_options.discard_log ||
+		     opt.vp_in_hand != old_options.vp_in_hand ||
+		     opt.cost_in_hand != old_options.cost_in_hand))
 		{
 			/* Force current game over */
 			real_game.game_over = 1;
@@ -10725,6 +11885,8 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 		case WHERE_ACTIVE: name = "Active"; break;
 		case WHERE_GOOD: name = "Good"; break;
 		case WHERE_SAVED: name = "Saved"; break;
+		case WHERE_ASIDE: name = "Revealed"; break;
+		case WHERE_REMOVED: name = "Removed"; break;
 		default: name = "Unknown"; break;
 	}
 
@@ -11174,6 +12336,9 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Set the column to sort on */
 	gtk_tree_view_column_set_sort_column_id(tree_view_column, 3);
 
+	/* Enable interactive search on first column */
+	gtk_tree_view_set_search_column(GTK_TREE_VIEW(list_view), 1);
+
 	/* Create scrolled window for list view */
 	list_scroll = gtk_scrolled_window_new(NULL, NULL);
 
@@ -11613,9 +12778,6 @@ int main(int argc, char *argv[])
 	chdir(path);
 #endif
 
-	/* Set random seed */
-	real_game.random_seed = time(NULL);
-
 	/* Prevent locale usage -- use C locale for everything */
 	gtk_disable_setlocale();
 
@@ -11762,6 +12924,16 @@ int main(int argc, char *argv[])
 			/* Set file name */
 			fname = argv[++i];
 		}
+
+		/* Check for variant game */
+		else if (!strcmp(argv[i], "-v"))
+		{
+			/* Set variant game */
+			opt.variant = atoi(argv[++i]);
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
+		}
 	}
 
 	/* Apply options */
@@ -11904,7 +13076,8 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(new_item, "activate", window_accel,
 	                           'N', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(new_parameters_item, "activate", window_accel,
-	                           'N', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'N', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(load_item, "activate", window_accel,
 	                           'L', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(replay_item, "activate", window_accel,
@@ -11943,11 +13116,13 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(undo_item, "activate", window_accel,
 	                           'Z', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(undo_round_item, "activate", window_accel,
-	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'Z', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(redo_item, "activate", window_accel,
 	                           'Y', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(redo_round_item, "activate", window_accel,
-	                           'Y', GDK_SHIFT_MASK | GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'Y', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
 
 	/* Add items to undo menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(undo_menu), undo_item);
@@ -11968,6 +13143,12 @@ int main(int argc, char *argv[])
 	/* Add accelerators for network menu items */
 	gtk_widget_add_accelerator(connect_item, "activate", window_accel,
 	                           'R', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(disconnect_item, "activate", window_accel,
+	                           'D', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(resign_item, "activate", window_accel,
+	                           'R', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
 
 	/* Add items to network menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(network_menu), connect_item);
@@ -12123,6 +13304,10 @@ int main(int argc, char *argv[])
 
 	/* Create "verbose" tag for message buffer */
 	gtk_text_buffer_create_tag(message_buffer, FORMAT_VERBOSE,
+	                           "foreground", "#aaaaaa", NULL);
+
+	/* Create "discard" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_DRAW,
 	                           "foreground", "#aaaaaa", NULL);
 
 	/* Create "discard" tag for message buffer */
@@ -12390,13 +13575,22 @@ int main(int argc, char *argv[])
 	lobby_vbox = gtk_vbox_new(FALSE, 5);
 
 	/* Create list of open games */
-	game_list = gtk_tree_store_new(13, G_TYPE_INT, G_TYPE_STRING,
-	                                   G_TYPE_STRING, G_TYPE_INT,
-	                                   G_TYPE_STRING, G_TYPE_STRING,
-	                                   G_TYPE_INT, G_TYPE_INT,
-	                                   G_TYPE_INT, G_TYPE_INT,
-	                                   G_TYPE_INT, G_TYPE_INT,
-	                                   G_TYPE_INT);
+	game_list = gtk_tree_store_new(15,
+		G_TYPE_INT,    //  0: Game id
+		G_TYPE_STRING, //  1: Description
+		G_TYPE_STRING, //  2: Create name
+		G_TYPE_INT,    //  3: Password?
+		G_TYPE_STRING, //  4: Number of players
+		G_TYPE_STRING, //  5: Expansion name
+		G_TYPE_INT,    //  6: Advanced game?
+		G_TYPE_INT,    //  7: Disable goals?
+		G_TYPE_INT,    //  8: Disable takeovers?
+		G_TYPE_INT,    //  9: Variant id
+		G_TYPE_STRING, // 10: Variant string
+		G_TYPE_INT,    // 11: Game speed
+		G_TYPE_INT,    // 12: My game?
+		G_TYPE_INT,    // 13: Checkboxes visible?
+		G_TYPE_INT);   // 14: Min players
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));
@@ -12417,7 +13611,7 @@ int main(int argc, char *argv[])
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Password Needed",
 	                                            toggle_render, "active",
-	                                            3, "visible", 11, NULL);
+	                                            3, "visible", 13, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "# Players", render,
 	                                            "text", 4, NULL);
@@ -12427,15 +13621,18 @@ int main(int argc, char *argv[])
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "2P Advanced",
 	                                            toggle_render, "active",
-	                                            6, "visible", 11, NULL);
+	                                            6, "visible", 13, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Disable Goals",
 	                                            toggle_render, "active",
-	                                            7, "visible", 11, NULL);
+	                                            7, "visible", 13, NULL);
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Disable Takeovers",
 	                                            toggle_render, "active",
-	                                            8, "visible", 11, NULL);
+	                                            8, "visible", 13, NULL);
+	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
+	                                            -1, "Variant", render,
+	                                            "text", 10, NULL);
 
 	/* Get first column of game view */
 	desc_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);
