@@ -83,6 +83,7 @@ static void handle_status_meta(char *ptr)
 	real_game.advanced = get_integer(&ptr);
 	real_game.goal_disabled = get_integer(&ptr);
 	real_game.takeover_disabled = get_integer(&ptr);
+	real_game.variant = get_integer(&ptr);
 
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
