@@ -358,7 +358,7 @@ int random_draw(game *g, int who)
 {
 	card *c_ptr = NULL;
 	int i, n;
-	
+
 	/* Draw deck is global in normal game */
 	if (!g->variant) who = -1;
 
@@ -2987,7 +2987,7 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 			{
 				/* Add bonus military */
 				military += o_ptr->value *
-				         count_active_flags(g, who, FLAG_REBEL | 
+				         count_active_flags(g, who, FLAG_REBEL |
 				                                    FLAG_MILITARY);
 			}
 		}
@@ -5447,7 +5447,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 
 	/* Get card pointer to special power used for takeover */
 	c_ptr = &g->deck[special];
-	
+
 	/* Loop over powers */
 	for (i = 0; i < c_ptr->d_ptr->num_power; i++)
 	{
@@ -9008,13 +9008,13 @@ void phase_discard(game *g)
 					/* Add discards */
 					taken += g->p[j].end_discard;
 				}
-				
+
 				/* Check for discarded cards */
 				if (taken > 0)
 				{
 					/* Draw the same number of cards */
 					draw_cards(g, i, taken, "Retrofit & Salvage, Inc");
-				}	
+				}
 			}
 		}
 	}
@@ -9989,19 +9989,19 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 
 		/* Format message */
 		sprintf(msg, "=== Draft round %d (of %d) ===\n", i + 1, rounds);
-		
+
 		/* Send message */
 		message_add_formatted(g, msg, FORMAT_EM);
 
 		/* Format message */
 		sprintf(msg, "Each player draws %d card%s.\n", draw, PLURAL(draw));
-		
+
 		/* Send message */
 		message_add(g, msg);
 
 		/* Format message */
 		sprintf(msg, "Cards are passed %s.\n", i % 2 ? "right" : "left");
-		
+
 		/* Send message */
 		message_add(g, msg);
 
@@ -10182,7 +10182,7 @@ static void private_decks(game *g, int num_start)
 		/* Format message */
 		sprintf(msg, "%d card%s %s removed from the game.\n",
 		        count, PLURAL(count), count == 1 ? "is" : "are");
-		
+
 		/* Send message */
 		message_add(g, msg);
 	}

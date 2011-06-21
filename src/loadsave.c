@@ -650,7 +650,7 @@ int export_game(game *g, char *filename, int player_us,
 			/* Write end tag */
 			fprintf(fff, "    </Saved>\n");
 		}
-		
+
 		/* Check for known hand */
 		if (player_us == -1 || player_us == n)
 		{

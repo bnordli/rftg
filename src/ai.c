@@ -5832,14 +5832,14 @@ static int ai_choose_draft(game *g, int who, int* list, int nl)
 	/* XXX AI is not trained for drafting */
 	/* Make an arbitrary choice */
 	int i, sum = 0;
-	
+
 	/* Loop over cards */
 	for (i = 0; i < nl; ++i)
 	{
 		/* Add card index */
 		sum += list[i];
 	}
-	
+
 	/* Return a random card */
 	return list[sum % nl];
 }
@@ -6045,7 +6045,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 			/* Choose kind */
 			rv = ai_choose_oort_kind(g, who);
 			break;
-		
+
 		/* Choose a card to draft */
 		case CHOICE_DRAFT_FIRST:
 		case CHOICE_DRAFT:

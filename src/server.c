@@ -933,7 +933,7 @@ static void db_save_message(int sid, int uid, char* txt, char* tag)
 
 	/* Do not save message if game is replaying */
 	if (s_list[sid].replaying) return;
-	
+
 	/* Escape message and format */
 	mysql_real_escape_string(mysql, etxt, txt, strlen(txt));
 	mysql_real_escape_string(mysql, etag, tag, strlen(tag));
@@ -1508,7 +1508,7 @@ void message_add_formatted(game *g, char *txt, char *tag)
 {
 	/* TODO: This should become a separate message in a new version */
 	char msg[1024], *ptr = msg;
-	
+
 	/* Save message to db */
 	db_save_message(g->session_id, -1, txt, tag);
 
@@ -1784,7 +1784,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 
 	/* Reset counts */
 	num_cards[0] = num_cards[1] = 0;
-	
+
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
 	{
@@ -3292,7 +3292,7 @@ static void handle_login(int cid, char *ptr)
 
 			/* Tell client that game has started */
 			send_msgf(cid, MSG_START, "");
-			
+
 			/* Replay game messages */
 			replay_messages(s_ptr->gid, cid);
 
@@ -3455,7 +3455,7 @@ static void handle_create(int cid, char *ptr)
 	/* Validate drafting variant */
 	if (s_ptr->expanded < 1 && s_ptr->variant == VARIANT_DRAFTING)
 		s_ptr->variant = 0;
-	
+
 	/* Compute maximum number of players allowed */
 	maxp = s_ptr->expanded + 4;
 	if (s_ptr->variant == VARIANT_DRAFTING) maxp = 1 + 2*s_ptr->expanded;

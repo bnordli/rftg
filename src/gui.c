@@ -615,7 +615,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextBuffer *message_buffer;
 
 	/* Check for empty tag */
-	if (!strlen(tag)) 
+	if (!strlen(tag))
 	{
 		/* Add unformatted message */
 		message_add(g, msg);
@@ -3466,7 +3466,7 @@ static char *card_develop_tooltip(game *g, int who, displayed *i_ptr)
 	/* Compute cost */
 	cost = devel_cost(g, who, i_ptr->index);
 
- 	/* Add cost */
+	/* Add cost */
 	p += sprintf(p, "Cost to place: %d", cost);
 
 	/* Return the text */
