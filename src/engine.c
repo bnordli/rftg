@@ -10676,6 +10676,9 @@ int game_round(game *g)
 		g->p[i].action[0] = g->p[i].action[1] = -1;
 	}
 
+	/* Increment round counter */
+	g->round++;
+
 	/* Set current phase to start of round */
 	g->cur_action = ACT_ROUND_START;
 
@@ -11018,11 +11021,8 @@ int game_round(game *g)
 		g->p[i].prev_action[1] = g->p[i].action[1];
 	}
 
-	/* Increment round counter */
-	g->round++;
-
 	/* Check for too many rounds */
-	if (g->round > 30) g->game_over = 1;
+	if (g->round >= 30) g->game_over = 1;
 
 	/* Check for finished game */
 	if (g->game_over) return 0;

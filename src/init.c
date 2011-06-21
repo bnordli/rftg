@@ -570,8 +570,8 @@ void init_game(game *g)
 	/* Increase size of pool in third expansion */
 	if (g->expanded >= 3) g->vp_pool += 5;
 
-	/* First game round */
-	g->round = 1;
+	/* No game round */
+	g->round = 0;
 
 	/* No phase or turn */
 	g->cur_action = ACT_ROUND_START;
