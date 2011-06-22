@@ -1238,6 +1238,9 @@ static int new_ai_client(int sid)
 	/* Clear username */
 	strcpy(c_list[i].user, "AI client");
 
+	/* Set version */
+	strcpy(c_list[i].version, RELEASE);
+
 	/* Return connection index */
 	return i;
 }
