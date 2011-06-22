@@ -10157,7 +10157,7 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 /*
  * Start the game by separating the deck.
  */
-static void private_decks(game *g, int num_start)
+static void separate_decks(game *g, int num_start)
 {
 	char msg[1024];
 	int i, j, count;
@@ -10350,7 +10350,7 @@ void begin_game(game *g)
 		else if (g->variant == VARIANT_PRIVATE)
 		{
 			/* Separate the deck */
-			private_decks(g, 2);
+			separate_decks(g, 2);
 		}
 
 		/* Send start of game message */
@@ -10452,7 +10452,7 @@ void begin_game(game *g)
 		if (g->variant == VARIANT_PRIVATE)
 		{
 			/* Separate the deck */
-			private_decks(g, 1);
+			separate_decks(g, 1);
 		}
 
 		/* Loop over players */
