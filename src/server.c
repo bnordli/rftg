@@ -244,9 +244,14 @@ static int num_session;
 static int timeout = 60;
 
 /*
- * Kick timeout value (in ten seconds)
+ * Kick timeout value (in ten seconds).
  */
 static int kick_timeout = 30;
+
+/*
+ * Log exports folder.
+ */
+static char* exports_folder = ".";
 
 /*
  * Connection to the database server.
@@ -893,7 +898,7 @@ static void db_save_results(int sid)
 	session *s_ptr = &s_list[sid];
 	player *p_ptr;
 	int i, tie;
-	char query[1024];
+	char query[1024], filename[1024];
 
 	/* Save finished choice logs */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -922,10 +927,20 @@ static void db_save_results(int sid)
 	}
 
 	/* Create file name */
-	sprintf(query, "Game_%06d.xml", s_ptr->gid);
+	sprintf(filename, "%s/Game_%06d.xml", exports_folder, s_ptr->gid);
 
 	/* Export game to file */
-	export_game(&s_ptr->g, query, -1, NULL, 0, NULL, export_log, s_ptr->gid);
+	if (export_game(&s_ptr->g, filename, -1, NULL, 0, NULL,
+	    export_log, s_ptr->gid) < 0)
+	{
+		/* Log error */
+		printf("Could not export game to %s\n", filename);
+	}
+	else
+	{
+		/* Log export location */
+		printf("Game exported to %s\n", filename);
+	}
 }
 
 /*
@@ -4428,6 +4443,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set database name */
 			kick_timeout = atoi(argv[++i]);
+		}
+
+		/* Check for exports folder */
+		if (!strcmp(argv[i], "-e"))
+		{
+			/* Set exports folder */
+			exports_folder = argv[++i];
 		}
 	}
 
