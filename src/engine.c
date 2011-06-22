@@ -9913,6 +9913,7 @@ static void rotate_players(game *g)
  */
 int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 {
+	char msg[1024];
 	player *p_ptr = &g->p[who];
 	card *c_ptr;
 
@@ -9930,6 +9931,18 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 
 	/* Discard chosen cards */
 	discard_callback(g, who, list, n);
+
+	/* Message */
+	if (!g->simulation && g->p[who].control->private_message)
+	{
+		/* Format message */
+		sprintf(msg, "%s discards the start world %s.\n",
+			    p_ptr->name,
+			    g->deck[special[1]].d_ptr->name);
+
+		/* Send message */
+		g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+	}
 
 	/* Place start card */
 	place_card(g, who, special[0]);
@@ -10196,7 +10209,7 @@ void begin_game(game *g)
 	player *p_ptr;
 	card *c_ptr;
 	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
-	int start_picks[MAX_PLAYER][2];
+	int start_picks[MAX_PLAYER][2], original_start_picks[MAX_PLAYER][2];
 	int hand[MAX_DECK], discarding[MAX_PLAYER];
 	int i, j, n, ns;
 	int lowest = MAX_DECK, low_i = -1;
@@ -10303,6 +10316,7 @@ void begin_game(game *g)
 
 			/* Add to start world choices */
 			start_picks[i][0] = start_red[n];
+			original_start_picks[i][0] = start_picks[i][0];
 
 			/* Collapse list */
 			start_red[n] = start_red[--num_start_red];
@@ -10312,6 +10326,7 @@ void begin_game(game *g)
 
 			/* Add to start world choices */
 			start_picks[i][1] = start_blue[n];
+			original_start_picks[i][1] = start_picks[i][1];
 
 			/* Collapse list */
 			start_blue[n] = start_blue[--num_start_blue];
@@ -10392,6 +10407,13 @@ void begin_game(game *g)
 			/* Get answer */
 			extract_choice(g, i, CHOICE_START, hand, &n,
 			               start_picks[i], &ns);
+
+			/* XXX Check for selecting second start world */
+			if (original_start_picks[i][0] != start_picks[i][0])
+			{
+				/* Remember other world */
+				start_picks[i][1] = original_start_picks[i][0];
+			}
 
 			/* Apply choice */
 			start_callback(g, i, hand, n, start_picks[i], ns);
