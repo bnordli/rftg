@@ -1672,7 +1672,7 @@ static void update_meta(int sid)
 	put_integer(s_ptr->disable_goal, &ptr1);
 	put_integer(s_ptr->disable_takeover, &ptr1);
 
-	/* Add variant information only to msg1 */
+	/* Add variant information only to msg1 (since 0.8.1k) */
 	put_integer(s_ptr->variant, &ptr1);
 
 	/* Loop over goals */
@@ -2905,8 +2905,8 @@ static void switch_ai(int sid, int who)
 	/* Send to session */
 	send_gamechat(sid, -1, "", text, 1);
 
-	/* Check for variants (not currently supported by AI) */
-	if (s_list[sid].variant)
+	/* Check for drafting variant (not currently supported by AI) */
+	if (s_list[sid].variant == VARIANT_DRAFTING)
 	{
 		/* Send untrained AI note */
 		send_gamechat(sid, -1, "", "Note: AI is not trained for the "
@@ -3718,8 +3718,8 @@ static void handle_add_ai(int cid, char *ptr)
 		return;
 	}
 
-	/* No ai players in variants */
-	if (s_ptr->variant) return;
+	/* No ai players in drafting variant */
+	if (s_ptr->variant == VARIANT_DRAFTING) return;
 
 	/* Check for maximum number of players already */
 	if (s_ptr->num_users >= s_ptr->max_player) return;

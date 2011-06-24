@@ -221,7 +221,7 @@
  * Variants.
  */
 #define VARIANT_DRAFTING 1
-#define VARIANT_PRIVATE 2
+#define VARIANT_PRIVATE  2
 
 /*
  * Card power effects by phase.

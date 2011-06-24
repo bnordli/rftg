@@ -856,7 +856,7 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 	}
 
 	/* XXX In case of too few unknown cards, add cards from wherever */
-	/* Probably also useful in normal games */
+	/* XXX Probably also useful in normal games */
 	if (g->variant == VARIANT_DRAFTING && *count < min)
 	{
 		/* Loop over all cards */
@@ -866,7 +866,7 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 			c_ptr = &g->deck[i];
 
 			/* Skip our cards where we don't know the location */
-			if (c_ptr->owner && !(c_ptr->known & (1 << who))) continue;
+			if (c_ptr->owner == who && !(c_ptr->known & (1 << who))) continue;
 
 			/* Remember card */
 			unknown[(*count)++] = i;
@@ -1297,15 +1297,19 @@ static double eval_game(game *g, int who)
 	/* Add simulated drawn cards to handsize */
 	hand += g->game_over ? 0 : g->p[who].fake_hand;
 
-	/* Get unknown cards */
-	get_unknown(g, who, p_ptr->total_fake, &count, unknown);
-
-	/* Loop over unknown cards */
-	for (i = 0; i < count; i++)
+	/* Do not scan cards if game over */
+	if (!g->game_over)
 	{
-		/* Add probability we would have this card */
-		eval.input_value[n + card_input[unknown[i]]] +=
-		                                1.0 * p_ptr->total_fake / count;
+		/* Get unknown cards */
+		get_unknown(g, who, p_ptr->total_fake, &count, unknown);
+
+		/* Loop over unknown cards */
+		for (i = 0; i < count; i++)
+		{
+			/* Add probability we would have this card */
+			eval.input_value[n + card_input[unknown[i]]] +=
+			                    1.0 * p_ptr->total_fake / count;
+		}
 	}
 
 	/* Advance input index */
