@@ -13577,7 +13577,7 @@ int main(int argc, char *argv[])
 	lobby_vbox = gtk_vbox_new(FALSE, 5);
 
 	/* Create list of open games */
-	game_list = gtk_tree_store_new(15,
+	game_list = gtk_tree_store_new(16,
 		G_TYPE_INT,    //  0: Game id
 		G_TYPE_STRING, //  1: Description
 		G_TYPE_STRING, //  2: Create name
@@ -13592,7 +13592,8 @@ int main(int argc, char *argv[])
 		G_TYPE_INT,    // 11: Game speed
 		G_TYPE_INT,    // 12: My game?
 		G_TYPE_INT,    // 13: Checkboxes visible?
-		G_TYPE_INT);   // 14: Min players
+		G_TYPE_INT,    // 14: Min players
+		G_TYPE_INT);   // 15: Max players
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));
