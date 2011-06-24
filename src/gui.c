@@ -114,19 +114,20 @@ int restart_loop;
 
 static char *goal_description[MAX_GOAL] =
 {
-	"First to have 5 VP chips",
-	"First to place worlds of all kinds",
-	"First to place 3 Alien cards",
+	"First to have five VP chips",
+	"First to have worlds of all four kinds",
+	"First to have three Alien cards",
 	"First to discard at end of round",
 	"First to have powers in all phases, plus Trade",
-	"First to place 6-cost development giving ? VPs",
-	"First to place 3 Uplift cards",
-	"First to have 4 goods",
-	"First to place 8 cards",
-	"First to have negative Military and 2 worlds or\n"
-	  " a takeover attack power and 2 Military worlds",
-	"First to have 2 prestige chips and 3 VP chips",
-	"First to place 3 Imperium cards or 4 Military worlds",
+	"First to place a 6-cost development giving ? VPs",
+	"First to have three Uplift cards",
+	"First to have four goods",
+	"First to have eight cards",
+	"First to have negative Military and two worlds\n"
+	  " or a takeover attack power and two Military worlds",
+	"First to have two prestige chips and three VP chips",
+	"First to have three Imperium cards\n"
+	  " or four Military worlds",
 
 	"Most total military",
 	"Most Novelty and/or Rare worlds",
@@ -13575,7 +13576,7 @@ int main(int argc, char *argv[])
 	lobby_vbox = gtk_vbox_new(FALSE, 5);
 
 	/* Create list of open games */
-	game_list = gtk_tree_store_new(15,
+	game_list = gtk_tree_store_new(16,
 		G_TYPE_INT,    //  0: Game id
 		G_TYPE_STRING, //  1: Description
 		G_TYPE_STRING, //  2: Create name
@@ -13590,7 +13591,8 @@ int main(int argc, char *argv[])
 		G_TYPE_INT,    // 11: Game speed
 		G_TYPE_INT,    // 12: My game?
 		G_TYPE_INT,    // 13: Checkboxes visible?
-		G_TYPE_INT);   // 14: Min players
+		G_TYPE_INT,    // 14: Min players
+		G_TYPE_INT);   // 15: Max players
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));

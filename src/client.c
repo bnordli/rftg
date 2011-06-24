@@ -306,7 +306,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 {
 	GtkTreePath *game_path;
 	GtkTreeIter game_iter, parent_iter;
-	int owned, variant, minp, user = 1, self;
+	int owned, variant, minp, maxp, user = 1, self, nump;
 
 	/* Check for ability to join game */
 	gtk_widget_set_sensitive(join_button, client_sid == -1);
@@ -348,7 +348,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 
 	/* Get game information */
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
-	                   9, &variant, 12, &owned, 14, &minp, -1);
+	                   9, &variant, 12, &owned, 14, &minp, 15, &maxp, -1);
 
 	/* Check for user */
 	if (user)
@@ -358,17 +358,19 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 		                   12, &self, -1);
 	}
 
+	/* Get current number of players */
+	nump = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(game_list),
+	                                      &parent_iter);
+
 	/* Check for ability to start game */
-	gtk_widget_set_sensitive(start_button, owned &&
-	               gtk_tree_model_iter_n_children(GTK_TREE_MODEL(game_list),
-	                                              &parent_iter) >= minp);
+	gtk_widget_set_sensitive(start_button, owned && nump >= minp);
 
 	/* Check for ability to kick player */
 	gtk_widget_set_sensitive(kick_button, user && !self && owned);
 
 	/* Check for ability to add AI player */
 	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned &&
-	                         !variant);
+	                         nump < maxp && !variant);
 }
 
 /*
@@ -430,8 +432,8 @@ static void handle_open_game(char *ptr)
 		sprintf(buf, "%d", x);
 	}
 
-	/* Set number of players string */
-	gtk_tree_store_set(game_list, &list_iter, 4, buf, 14, x, -1);
+	/* Set number of players */
+	gtk_tree_store_set(game_list, &list_iter, 4, buf, 14, x, 15, y, -1);
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
