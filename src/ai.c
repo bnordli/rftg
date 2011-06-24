@@ -828,6 +828,52 @@ static uint64_t gen_hash(unsigned char *k, int length)
 	return c;
 }
 
+/*
+ * Retrieve a list of cards unknown to this player.
+ */
+static void get_unknown(game *g, int who, int min, int *count, int *unknown)
+{
+	card *c_ptr;
+	int i;
+
+	/* Clear count of unknown cards */
+	*count = 0;
+
+	/* Loop over unknown cards */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Skip cards where we know the location */
+		if (c_ptr->known & (1 << who)) continue;
+
+		/* If drafting, skip cards not owned by us */
+		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
+
+		/* Remember unknown card */
+		unknown[(*count)++] = i;
+	}
+
+	/* XXX In case of too few unknown cards, add cards from wherever */
+	/* Probably also useful in normal games */
+	if (g->variant == VARIANT_DRAFTING && *count < min)
+	{
+		/* Loop over all cards */
+		for (i = 0; i < g->deck_size && *count < min; i++)
+		{
+			/* Get card pointer */
+			c_ptr = &g->deck[i];
+
+			/* Skip our cards where we don't know the location */
+			if (c_ptr->owner && !(c_ptr->known & (1 << who))) continue;
+
+			/* Remember card */
+			unknown[(*count)++] = i;
+		}
+	}
+}
+
 
 /*
  * Look up a game state in the result cache.
@@ -1146,6 +1192,7 @@ static double eval_game(game *g, int who)
 	player *p_ptr;
 	card *c_ptr;
 	eval_cache *e_ptr;
+	int unknown[MAX_DECK];
 	int i, x, count, n = 0, hand = 0;
 	int max = 0, max_prestige, clock;
 
@@ -1250,42 +1297,14 @@ static double eval_game(game *g, int who)
 	/* Add simulated drawn cards to handsize */
 	hand += g->game_over ? 0 : g->p[who].fake_hand;
 
-	/* Clear count of unknown cards */
-	count = 0;
+	/* Get unknown cards */
+	get_unknown(g, who, p_ptr->total_fake, &count, unknown);
 
 	/* Loop over unknown cards */
-	for (i = 0; i < g->deck_size; i++)
+	for (i = 0; i < count; i++)
 	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip cards where we know the location */
-		if (c_ptr->known & (1 << who)) continue;
-
-		/* If drafting, skip cards not owned by us */
-		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
-
-		/* Count unknown cards */
-		count++;
-	}
-
-	/* Loop over unknown cards */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Do not scan cards if game over */
-		if (g->game_over) break;
-
-		/* Skip cards where we know the location */
-		if (c_ptr->known & (1 << who)) continue;
-
-		/* If drafting, skip cards not owned by us */
-		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
-
 		/* Add probability we would have this card */
-		eval.input_value[n + card_input[c_ptr->d_ptr->index]] +=
+		eval.input_value[n + card_input[unknown[i]]] +=
 		                                1.0 * p_ptr->total_fake / count;
 	}
 
@@ -3176,7 +3195,6 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
                               int discard_any)
 {
 	game sim;
-	card *c_ptr;
 	int unknown[MAX_DECK], num_unknown = 0;
 	struct sample_score scores[5];
 	int i, j, k;
@@ -3200,21 +3218,8 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
 		return;
 	}
 
-	/* Loop over deck */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip known cards */
-		if (c_ptr->known & (1 << who)) continue;
-
-		/* If drafting, skip cards not owned by us */
-		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
-
-		/* Add to list */
-		unknown[num_unknown++] = i;
-	}
+	/* Get unknown cards */
+	get_unknown(g, who, draw, &num_unknown, unknown);
 
 	/* Try multiple random samples */
 	for (i = 0; i < 5; i++)
@@ -5134,26 +5139,14 @@ static int ai_choose_lucky(game *g, int who)
 	game sim;
 	card *c_ptr;
 	double score, base, b_s = -1;
+	int unknown[MAX_DECK];
 	int i, j, b_c = -1, count = 0;
 
 	/* Don't check probabilities in simulated game */
 	if (g->simulation) return 1;
 
-	/* Count unknown cards in deck */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip known cards */
-		if (c_ptr->known & (1 << who)) continue;
-
-		/* If drafting, skip cards not owned by us */
-		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
-
-		/* Count card */
-		count++;
-	}
+	/* Get unknown cards */
+	get_unknown(g, who, 0, &count, unknown);
 
 	/* Get base score if we choose wrong */
 	base = eval_game(g, who);
@@ -5164,18 +5157,11 @@ static int ai_choose_lucky(game *g, int who)
 		/* Clear score */
 		score = 0;
 
-		/* Loop over cards */
-		for (j = 0; j < g->deck_size; j++)
+		/* Loop over unknown cards */
+		for (j = 0; j < count; j++)
 		{
 			/* Get card pointer */
-			c_ptr = &g->deck[j];
-
-			/* Skip known cards */
-			if (c_ptr->known & (1 << who)) continue;
-
-			/* If drafting, skip cards not owned by us */
-			if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who)
-				continue;
+			c_ptr = &g->deck[unknown[j]];
 
 			/* Check for wrong cost */
 			if (c_ptr->d_ptr->cost != i)
@@ -5243,27 +5229,15 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 	game sim;
 	card *c_ptr;
 	double score, chance, b_s = -1;
+	int unknown[MAX_DECK];
 	int i, j, b_i = -1, count = 0, num_win;
 	int cost;
 
 	/* Don't ante in simulated game */
 	if (g->simulation) return -1;
 
-	/* Count unknown cards in deck */
-	for (i = 0; i < g->deck_size; i++)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[i];
-
-		/* Skip known cards */
-		if (c_ptr->known & (1 << who)) continue;
-
-		/* If drafting, skip cards not owned by us */
-		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
-
-		/* Count card */
-		count++;
-	}
+	/* Get unknown cards */
+	get_unknown(g, who, 0, &count, unknown);
 
 	/* Get base score if we choose nothing */
 	b_s = eval_game(g, who);
@@ -5277,18 +5251,11 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 		/* Assume no more expensive cards available */
 		num_win = 0;
 
-		/* Count unknown cards in deck */
-		for (j = 0; j < g->deck_size; j++)
+		/* Loop over unknown cards */
+		for (j = 0; j < count; j++)
 		{
 			/* Get card pointer */
-			c_ptr = &g->deck[j];
-
-			/* Skip known cards */
-			if (c_ptr->known & (1 << who)) continue;
-
-			/* If drafting, skip cards not owned by us */
-			if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who)
-				continue;
+			c_ptr = &g->deck[unknown[j]];
 
 			/* Check for more expensive card */
 			if (c_ptr->d_ptr->cost > cost) num_win++;
@@ -5696,12 +5663,12 @@ static int ai_choose_search_type(game *g, int who)
 			/* Skip cards with known location */
 			if (c_ptr->known & (1 << who)) continue;
 
-			/* Skip cards that do not match search category */
-			if (!search_match(g, j, i)) continue;
-
 			/* If drafting, skip cards not owned by us */
 			if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who)
 				continue;
+
+			/* Skip cards that do not match search category */
+			if (!search_match(g, j, i)) continue;
 
 			/* Simulate game */
 			simulate_game(&sim, g, who);
@@ -5776,11 +5743,11 @@ static int ai_choose_search_keep(game *g, int who, int which, int category)
 		/* Skip cards with known location */
 		if (c_ptr->known & (1 << who)) continue;
 
-		/* Skip cards that do not match search category */
-		if (!search_match(g, i, category)) continue;
-
 		/* If drafting, skip cards not owned by us */
 		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
+
+		/* Skip cards that do not match search category */
+		if (!search_match(g, i, category)) continue;
 
 		/* Simulate game */
 		simulate_game(&sim, g, who);
