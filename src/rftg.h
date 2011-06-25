@@ -497,8 +497,8 @@
 #define FORMAT_GOAL "goal"
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
-#define FORMAT_DISCARD "discard"
 #define FORMAT_DRAW "draw"
+#define FORMAT_DISCARD "discard"
 
 /*
  * Forward declaration.

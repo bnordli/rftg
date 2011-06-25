@@ -101,6 +101,9 @@ typedef struct options
 	/* Verbose log */
 	int verbose_log;
 
+	/* Draw log */
+	int draw_log;
+
 	/* Discard log */
 	int discard_log;
 
