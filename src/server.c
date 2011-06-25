@@ -79,6 +79,9 @@ typedef struct conn
 	/* Username of connected player */
 	char user[80];
 
+	/* Client version */
+	char version[80];
+
 	/* User ID */
 	int uid;
 
@@ -932,7 +935,7 @@ static void db_save_message(int sid, int uid, char* txt, char* tag)
 
 	/* Do not save message if game is replaying */
 	if (s_list[sid].replaying) return;
-	
+
 	/* Escape message and format */
 	mysql_real_escape_string(mysql, etxt, txt, strlen(txt));
 	mysql_real_escape_string(mysql, etag, tag, strlen(tag));
@@ -1213,6 +1216,9 @@ static int new_ai_client(int sid)
 	/* Clear username */
 	strcpy(c_list[i].user, "AI client");
 
+	/* Set version */
+	strcpy(c_list[i].version, RELEASE);
+
 	/* Return connection index */
 	return i;
 }
@@ -1462,12 +1468,9 @@ void message_add_formatted(game *g, char *txt, char *tag)
 {
 	/* TODO: This should become a separate message in a new version */
 	char msg[1024], *ptr = msg;
-	
+
 	/* Save message to db */
 	db_save_message(g->session_id, -1, txt, tag);
-
-	/* Do not send draw messages to clients */
-	if (!strcmp(tag, FORMAT_DRAW)) return;
 
 	/* Create log message */
 	start_msg(&ptr, MSG_LOG);
@@ -1475,7 +1478,7 @@ void message_add_formatted(game *g, char *txt, char *tag)
 	/* Add text of message */
 	put_string(txt, &ptr);
 
-	/* Add format of message */
+	/* Add format of message (since 0.8.1b) */
 	put_string(tag, &ptr);
 
 	/* Finish message */
@@ -1704,6 +1707,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 			/* XXX */
 			if (j >= g->deck_size)
 			{
+				/* Log message */
 				printf("Failed to find substitute good\n");
 				j = 0;
 				break;
@@ -2060,6 +2064,7 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	/* Player has option to play */
 	s_ptr->waiting[who] = WAIT_OPTION;
 
+	/* Log message */
 	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
 }
 
@@ -2105,6 +2110,7 @@ static void ask_client(int sid, int who)
 		return;
 	}
 
+	/* Log message */
 	printf("S:%d Asking %d (%s) for choice (type %d) at %d\n", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
 
 	/* Start choice message */
@@ -2270,6 +2276,7 @@ static void handle_choice(int cid, char *ptr)
 	/* Copy choice type to log */
 	*l_ptr++ = get_integer(&ptr);
 
+	/* Log message */
 	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
 	if (pos != p_ptr->choice_size)
@@ -2379,6 +2386,7 @@ static void handle_prepare(int cid, char *ptr)
 	/* Unlock mutex */
 	pthread_mutex_unlock(&s_ptr->session_mutex);
 
+	/* Log message */
 	printf("S:%d Received preparation complete from %d\n", sid, cid);
 }
 
@@ -2766,8 +2774,20 @@ void *run_game(void *arg)
 	/* Initialize game */
 	init_game(&s_ptr->g);
 
-	/* Set replaying flag to true */
-	s_ptr->replaying = 1;
+	/* Assume we are not replaying game */
+	s_ptr->replaying = 0;
+
+	/* Loop over all players in game */
+	for (i = 0; i < s_ptr->g.num_players; ++i)
+	{
+		/* Check for choices in log */
+		if (s_ptr->g.p[i].choice_size > 0)
+		{
+			/* Set replaying flag */
+			s_ptr->replaying = 1;
+			break;
+		}
+	}
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = s_ptr - s_list;
@@ -2937,7 +2957,20 @@ static void handle_login(int cid, char *ptr)
 	get_string(pass, &ptr);
 	get_string(version, &ptr);
 
-	printf("Login attempt from %s\n", user);
+	/* Check for release information */
+	if (ptr - c_list[cid].buf < c_list[cid].buf_full)
+	{
+		/* Use release as version */
+		get_string(c_list[cid].version, &ptr);
+	}
+	else
+	{
+		/* Just use version */
+		strcpy(c_list[cid].version, version);
+	}
+
+	/* Log message */
+	printf("Login attempt from %s (%s)\n", user, c_list[cid].version);
 
 	/* Check for too old version */
 	if (strcmp(version, "0.8.1") < 0)
@@ -2945,6 +2978,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
 
+		/* Log message */
 		printf("Denied (too old)\n");
 
 		/* Done */
@@ -2957,6 +2991,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too new");
 
+		/* Log message */
 		printf("Denied (too new)\n");
 
 		/* Done */
@@ -2969,6 +3004,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
+		/* Log message */
 		printf("Denied (illegal username)\n");
 
 		/* Done */
@@ -2984,6 +3020,7 @@ static void handle_login(int cid, char *ptr)
 			/* Send denied message */
 			send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
+			/* Log message */
 			printf("Denied (illegal username)\n");
 
 			/* Done */
@@ -3007,6 +3044,7 @@ static void handle_login(int cid, char *ptr)
 			send_msgf(cid, MSG_DENIED, "s",
 			          "User already logged in");
 
+			/* Log message */
 			printf("Denied (already logged in)\n");
 
 			/* Done */
@@ -3020,6 +3058,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Illegal password length");
 
+		/* Log message */
 		printf("Denied (illegal password length)\n");
 
 		/* Done */
@@ -3035,6 +3074,7 @@ static void handle_login(int cid, char *ptr)
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Incorrect password");
 
+		/* Log message */
 		printf("Denied (incorrect password)\n");
 
 		/* Done */
@@ -3089,7 +3129,7 @@ static void handle_login(int cid, char *ptr)
 
 			/* Tell client that game has started */
 			send_msgf(cid, MSG_START, "");
-			
+
 			/* Replay game messages */
 			replay_messages(s_ptr->gid, cid);
 
@@ -3850,6 +3890,7 @@ static void handle_msg(int cid)
 		/* Unknown type */
 		default:
 
+			/* Log message */
 			printf("Unknown message type %d\n", type);
 			break;
 

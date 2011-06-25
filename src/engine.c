@@ -2919,7 +2919,7 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 			{
 				/* Add bonus military */
 				military += o_ptr->value *
-				         count_active_flags(g, who, FLAG_REBEL | 
+				         count_active_flags(g, who, FLAG_REBEL |
 				                                    FLAG_MILITARY);
 			}
 		}

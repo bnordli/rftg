@@ -3455,7 +3455,7 @@ static char *card_develop_tooltip(game *g, int who, displayed *i_ptr)
 	/* Compute cost */
 	cost = devel_cost(g, who, i_ptr->index);
 
- 	/* Add cost */
+	/* Add cost */
 	p += sprintf(p, "Cost to place: %d", cost);
 
 	/* Return the text */
@@ -11570,6 +11570,7 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 		case WHERE_ACTIVE: name = "Active"; break;
 		case WHERE_GOOD: name = "Good"; break;
 		case WHERE_SAVED: name = "Saved"; break;
+		case WHERE_ASIDE: name = "Revealed"; break;
 		default: name = "Unknown"; break;
 	}
 

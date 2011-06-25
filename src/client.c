@@ -2097,9 +2097,10 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
-		send_msgf(server_fd, MSG_LOGIN, "sss",
+		/* RELEASE since 0.8.1k */
+		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
-		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION);
+		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
 
 
 		/* Enter main loop to wait for response */
