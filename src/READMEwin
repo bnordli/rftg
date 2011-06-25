@@ -13,16 +13,16 @@ Direct link to the Race for the Galaxy AI source:
 Link to the main page of this patch:
   http://dl.dropbox.com/u/7379896/rftg/index.html
 Direct link to the source code of this patch:
-  http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1j-source.zip.
+  http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1k-source.zip.
 
 INSTRUCTIONS
 
 Copy these files into your rftg installation directory:
 
- rftg8j.exe:  The program itself
+ rftg8k.exe:  The program itself
  icon0xx.png: The new icons
 
-Start the patch by running rftg8j.exe.
+Start the patch by running rftg8k.exe.
 
 NEW COMMAND LINE OPTIONS
 
