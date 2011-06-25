@@ -498,6 +498,7 @@
 #define FORMAT_PRESTIGE "prestige"
 #define FORMAT_VERBOSE "verbose"
 #define FORMAT_DISCARD "discard"
+#define FORMAT_DRAW "draw"
 
 /*
  * Forward declaration.
@@ -1005,4 +1006,4 @@ extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, int player_us,
                        const char *message,
                        int num_special, card** special_cards,
-                       void (*export_log)(FILE *fff));
+                       void (*export_log)(FILE *fff, int gid), int gid);

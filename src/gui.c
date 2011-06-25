@@ -602,19 +602,14 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer;
 
-	/* Check for verbose message while verbosity disabled */
-	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log)
-	{
-		/* Do not log message */
-		return;
-	}
+	/* Do not log draw messages */
+	if (!strcmp(tag, FORMAT_DRAW)) return;
 
-	/* Check for discard message while discard log disabled */
-	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log)
-	{
-		/* Do not log message */
-		return;
-	}
+	/* Do not log verbose message while verbosity is disabled */
+	if (!strcmp(tag, FORMAT_VERBOSE) && !opt.verbose_log) return;
+
+	/* Do not log discard messages while discard log is disabled */
+	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log) return;
 
 	/* Check for emphasized message formatting */
 	if (strcmp(tag, FORMAT_EM) && !opt.colored_log)
@@ -10403,7 +10398,7 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 /*
  * Export log. Implemented as a callback to avoid loadsave.c depending on gtk.
  */
-static void export_log(FILE *fff)
+static void export_log(FILE *fff, int gid)
 {
 	GtkTextIter iter_start, iter_end;
 	GtkTextBuffer *message_buffer;
@@ -10501,7 +10496,7 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 
 		/* Save to file */
 		if (export_game(&real_game, fname, player_us, line,
-		                num_special_cards, special_cards, export_log) < 0)
+		                num_special_cards, special_cards, export_log, 0) < 0)
 		{
 			/* Error */
 		}
