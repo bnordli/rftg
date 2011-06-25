@@ -2489,12 +2489,12 @@ static void accept_conn(int listen_fd)
 /*
  * Send a "game chat" message to everyone in the given session.
  */
-static void send_gamechat(int sid, int uid, char *user, char *text)
+static void send_gamechat(int sid, int uid, char *user, char *text, int save)
 {
 	char msg[1024], *ptr = msg;
 
 	/* Save message to db */
-	db_save_message(sid, uid, text, FORMAT_CHAT);
+	if (save) db_save_message(sid, uid, text, FORMAT_CHAT);
 
 	/* Start at beginning of message */
 	ptr = msg;
@@ -2572,7 +2572,7 @@ static void kick_player(int cid, char *reason)
 		sprintf(text, "%s disconnected.", c_list[cid].user);
 
 		/* Send to remaining players in session */
-		send_gamechat(sid, -1, "", text);
+		send_gamechat(sid, -1, "", text, 0);
 
 		/* Check for kick timeout */
 		if (kick_timeout)
@@ -2581,10 +2581,10 @@ static void kick_player(int cid, char *reason)
 			sprintf(text, "%s will be set to AI control in %d seconds.",
 			        c_list[cid].user,
 			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * 10);
-		}
 
-		/* Send to remaining players in session */
-		send_gamechat(sid, -1, "", text);
+			/* Send to remaining players in session */
+			send_gamechat(sid, -1, "", text, 0);
+		}
 	}
 }
 
@@ -2722,7 +2722,7 @@ static void switch_ai(int sid, int who)
 	        s_ptr->g.p[who].name);
 
 	/* Send to session */
-	send_gamechat(sid, -1, "", text);
+	send_gamechat(sid, -1, "", text, 1);
 
 	/* Have AI answer most recent choice question */
 	ask_client(sid, who);
@@ -3085,7 +3085,7 @@ static void handle_login(int cid, char *ptr)
 			sprintf(text, "%s reconnected.", user);
 
 			/* Send to session */
-			send_gamechat(i, -1, "", text);
+			send_gamechat(i, -1, "", text, 0);
 
 			/* Tell client about game state */
 			update_meta(i);
@@ -3531,7 +3531,7 @@ static void handle_gameover(int cid, char *ptr)
 	sprintf(text, "%s has returned to lobby.", c_list[cid].user);
 
 	/* Tell session that player has left */
-	send_gamechat(c_list[cid].sid, -1, "", text);
+	send_gamechat(c_list[cid].sid, -1, "", text, 0);
 
 	/* Move player back to lobby state */
 	c_list[cid].state = CS_LOBBY;
@@ -3569,7 +3569,7 @@ static void handle_resign(int cid, char *ptr)
 	sprintf(text, "%s resigns.", c_list[cid].user);
 
 	/* Send message to session */
-	send_gamechat(c_list[cid].sid, -1, "", text);
+	send_gamechat(c_list[cid].sid, -1, "", text, 1);
 
 	/* Acquire session mutex */
 	pthread_mutex_lock(&s_ptr->session_mutex);
@@ -3678,7 +3678,7 @@ static void handle_start(int cid, char *ptr)
 	sprintf(text, "Starting game #%d", s_ptr->gid);
 
 	/* Send message to session */
-	send_gamechat(sid, -1, "", text);
+	send_gamechat(sid, -1, "", text, 1);
 
 	/* Initialize and run game */
 	start_session(sid);
@@ -3712,7 +3712,7 @@ static void handle_chat(int cid, char *ptr)
 	{
 		/* Send to session */
 		send_gamechat(c_list[cid].sid, c_list[cid].uid, c_list[cid].user,
-		              chat);
+		              chat, 1);
 	}
 }
 
@@ -4131,7 +4131,7 @@ static void do_housekeeping(void)
 				        c_list[s_ptr->cids[j]].user);
 
 				/* Give warning */
-				send_gamechat(i, -1, "", msg);
+				send_gamechat(i, -1, "", msg, 0);
 
 				/* Remember warning given */
 				s_ptr->wait_ticks[j] = kick_timeout;
