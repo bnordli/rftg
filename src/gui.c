@@ -10598,12 +10598,34 @@ static GtkWidget *seed_entry;
 static int next_exp, next_player;
 
 /*
+ * Update button sensitivities.
+ */
+static void update_sensitivity()
+{
+	int i;
+
+	/* Set advanced checkbox sensitivity */
+	gtk_widget_set_sensitive(advanced_check, next_player == 2);
+
+	/* Set goal disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0);
+
+	/* Set takeover disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1);
+
+	/* Set player radio sensitivities */
+	for (i = 0; player_labels[i]; ++i)
+	{
+		gtk_widget_set_sensitive(num_players_radio[i], i < next_exp + 3);
+	}
+}
+
+/*
  * React to an expansion level button being toggled.
  */
 static void exp_toggle(GtkToggleButton *button, gpointer data)
 {
 	int i = GPOINTER_TO_INT(data);
-	int j;
 
 	/* Check for button set */
 	if (gtk_toggle_button_get_active(button))
@@ -10611,17 +10633,8 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 		/* Remember next expansion level */
 		next_exp = i;
 
-		/* Set goal disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_goal_check, i > 0);
-
-		/* Set takeover disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
-
-		/* Set player radio sensitivities */
-		for (j = 0; player_labels[j]; ++j)
-		{
-			gtk_widget_set_sensitive(num_players_radio[j], j < i + 3);
-		}
+		/* Update sensitivites */
+		update_sensitivity();
 	}
 }
 
@@ -10638,8 +10651,8 @@ static void player_toggle(GtkToggleButton *button, gpointer data)
 		/* Remember next game player number */
 		next_player = i + 2;
 
-		/* Set advanced game checkbox sensitivity */
-		gtk_widget_set_sensitive(advanced_check, next_player == 2);
+		/* Update sensitivites */
+		update_sensitivity();
 	}
 }
 
@@ -10895,9 +10908,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 			next_player = i + 2;
 		}
 
-		/* Set player radio sensitivity */
-		gtk_widget_set_sensitive(radio, i < next_exp + 3);
-
 		/* Add handler */
 		g_signal_connect(G_OBJECT(radio), "toggled",
 		                 G_CALLBACK(player_toggle), GINT_TO_POINTER(i));
@@ -10926,13 +10936,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  advanced_check);
 
-	/* Disable advanced checkbox if not two-player game */
-	if (real_game.num_players != 2)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(advanced_check, FALSE);
-	}
-
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
 
@@ -10943,13 +10946,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add checkbox to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  disable_goal_check);
-
-	/* Disable goal checkbox if not expanded game */
-	if (opt.expanded < 1)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(disable_goal_check, FALSE);
-	}
 
 	/* Create check box for disabled takeovers */
 	disable_takeover_check =
@@ -10962,13 +10958,6 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add checkbox to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  disable_takeover_check);
-
-	/* Disable takeover checkbox if not expanded game */
-	if (opt.expanded < 2)
-	{
-		/* Disable checkbox */
-		gtk_widget_set_sensitive(disable_takeover_check, FALSE);
-	}
 
 	/* Create vbox to hold seed specification widgets */
 	seed_box = gtk_vbox_new(FALSE, 0);
@@ -11023,6 +11012,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), seed_frame);
+
+	/* Update sensitivites */
+	update_sensitivity();
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
