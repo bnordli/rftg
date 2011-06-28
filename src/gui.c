@@ -1902,6 +1902,75 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 }
 
 /*
+ * Update sensitivity of the 'done' button.
+ */
+static void update_action_sensitivity()
+{
+	/* Check for "number" restriction on action button */
+	if (action_restrict == RESTRICT_NUM)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_number());
+	}
+
+	/* Check for "both hand and active" restriction on action button */
+	else if (action_restrict == RESTRICT_BOTH)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_both());
+	}
+
+	/* Check for "payment" restriction on action button */
+	else if (action_restrict == RESTRICT_PAY)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_payment());
+	}
+
+	/* Check for "goods" restriction on action button */
+	else if (action_restrict == RESTRICT_GOOD)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_goods());
+	}
+
+	/* Check for "takeover" restriction on action button */
+	else if (action_restrict == RESTRICT_TAKEOVER)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button,action_check_takeover());
+	}
+
+	/* Check for "defend" restriction on action button */
+	else if (action_restrict == RESTRICT_DEFEND)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_defend());
+	}
+
+	/* Check for "upgrade" restriction on action button */
+	else if (action_restrict == RESTRICT_UPGRADE)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_upgrade());
+	}
+
+	/* Check for "consume" restriction on action button */
+	else if (action_restrict == RESTRICT_CONSUME)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_consume());
+	}
+
+	/* Check for "start world" restriction on action button */
+	else if (action_restrict == RESTRICT_START)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(action_button, action_check_start());
+	}
+}
+
+/*
  * Card selected/deselected.
  */
 static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
@@ -2027,69 +2096,8 @@ static gboolean card_selected(GtkWidget *widget, GdkEventButton *event,
 		}
 	}
 
-	/* Check for "number" restriction on action button */
-	if (action_restrict == RESTRICT_NUM)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_number());
-	}
-
-	/* Check for "both hand and active" restriction on action button */
-	else if (action_restrict == RESTRICT_BOTH)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_both());
-	}
-
-	/* Check for "payment" restriction on action button */
-	else if (action_restrict == RESTRICT_PAY)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_payment());
-	}
-
-	/* Check for "goods" restriction on action button */
-	else if (action_restrict == RESTRICT_GOOD)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_goods());
-	}
-
-	/* Check for "takeover" restriction on action button */
-	else if (action_restrict == RESTRICT_TAKEOVER)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button,action_check_takeover());
-	}
-
-	/* Check for "defend" restriction on action button */
-	else if (action_restrict == RESTRICT_DEFEND)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_defend());
-	}
-
-	/* Check for "upgrade" restriction on action button */
-	else if (action_restrict == RESTRICT_UPGRADE)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_upgrade());
-	}
-
-	/* Check for "consume" restriction on action button */
-	else if (action_restrict == RESTRICT_CONSUME)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_consume());
-	}
-
-	/* Check for "start world" restriction on action button */
-	else if (action_restrict == RESTRICT_START)
-	{
-		/* Set sensitivity */
-		gtk_widget_set_sensitive(action_button, action_check_start());
-	}
-
+	/* Update done button sensitivity */
+	update_action_sensitivity();
 
 	/* Check for card in hand and no eligible cards on table */
 	if (i_ptr->hand && key_count == 0)
@@ -2143,6 +2151,9 @@ static void card_select_all(GtkWidget *widget, gpointer data)
 		/* Select/deselect card */
 		i_ptr->selected = select_all;
 	}
+
+	/* Update done button sensitivity */
+	update_action_sensitivity();
 
 	/* Check for no eligible cards on table */
 	if (key_count == 0)
