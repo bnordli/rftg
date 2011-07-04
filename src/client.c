@@ -1400,7 +1400,7 @@ static gboolean message_read(gpointer data)
 				                                 chat_buffer,
 				                                 &end_iter,
 				                                 text, -1,
-				                                 FORMAT_EM,
+				                                 FORMAT_CHAT,
 				                                 NULL);
 			}
 			else
