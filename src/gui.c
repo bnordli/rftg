@@ -3779,7 +3779,7 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	design *d_ptr;
 	displayed *j_ptr;
 	takeover_info takeovers[10], *t_ptr;
-	int num_takeovers = 0;
+	int num_takeovers = 0, total_takeovers = 0;
 	int i, j, k, which, defense, old_vp[2];
 	game sim;
 
@@ -3822,7 +3822,7 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 
 		/* Get next takeover struct */
 		t_ptr = takeovers + num_takeovers;
-		num_takeovers += 1;
+		++total_takeovers;
 
 		/* Store card */
 		t_ptr->card = j_ptr->index;
@@ -3839,8 +3839,12 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 		/* Assume the takeover always succeeds */
 		sim.p[attacker].bonus_military = 100;
 
-		/* Simulate usage of the takeover callback */
-		takeover_callback(&sim, t_ptr->card, which);
+		/* Simulate usage of the takeover callback, back out if illegal */
+		if (!takeover_callback(&sim, t_ptr->card, which))
+			continue;
+
+		/* Increase the takeover count */
+		++num_takeovers;
 
 		/* Check for non-military target */
 		if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
@@ -3907,7 +3911,7 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	p += sprintf(p, "Current defense: %d", defense);
 
 	/* Check for only one power */
-	if (num_takeovers == 1)
+	if (total_takeovers == 1)
 	{
 		/* Get takeover struct */
 		t_ptr = &takeovers[0];
