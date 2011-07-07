@@ -4867,9 +4867,9 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
  */
 static void compute_military(game *g, int who, mil_strength *m_ptr)
 {
-	power_where w_list[100];
+	card *c_ptr;
 	power *o_ptr;
-	int i, n;
+	int x, i;
 
 	/* Start strengths at 0 */
 	memset(m_ptr, 0, sizeof(mil_strength));
@@ -4880,69 +4880,83 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 	/* Set bonus military */
 	m_ptr->bonus = g->p[who].bonus_military;
 
-	/* Get settle phase powers */
-	n = get_powers(g, who, PHASE_SETTLE, w_list);
+	/* Get first active card */
+	x = g->p[who].start_head[WHERE_ACTIVE];
 
-	/* Loop over powers */
-	for (i = 0; i < n; i++)
+	/* Loop over cards */
+	for ( ; x != -1; x = g->deck[x].start_next)
 	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
+		/* Get card pointer */
+		c_ptr = &g->deck[x];
 
-		/* Check for defense power */
-		if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
+		/* Loop over card's powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; i++)
 		{
-			/* Add defense for military worlds */
-			m_ptr->defense +=
-				count_active_flags(g, who, FLAG_MILITARY);
+			/* Get power pointer */
+			o_ptr = &c_ptr->d_ptr->powers[i];
 
-			/* Add extra defense for Rebel military worlds */
-			m_ptr->defense +=
-				count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
-		}
+			/* Skip incorrect phase */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
 
-		/* Check for takeover imperium power */
-		if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
-		{
-			/* Set imperium attack */
-			m_ptr->attack_imperium =
-				2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+			/* Check for discard power */
+			if ((o_ptr->code & P3_DISCARD) && c_ptr->where == WHERE_DISCARD)
+				continue;
 
-			/* Check if card name already set */
-			if (strlen(m_ptr->imp_card))
+			/* Check for defense power */
+			if (o_ptr->code & P3_TAKEOVER_DEFENSE && takeovers_enabled(g))
 			{
-				/* XXX Use name of both cards */
-				strcpy(m_ptr->imp_card, "Rebel Alliance/Rebel Sneak Attack");
+				/* Add defense for military worlds */
+				m_ptr->defense +=
+					count_active_flags(g, who, FLAG_MILITARY);
+
+				/* Add extra defense for Rebel military worlds */
+				m_ptr->defense +=
+					count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 			}
-			else
+
+			/* Check for takeover imperium power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM && takeovers_enabled(g))
 			{
-				/* Remember name of card */
-				strcpy(m_ptr->imp_card, g->deck[w_list[i].c_idx].d_ptr->name);
+				/* Set imperium attack */
+				m_ptr->attack_imperium =
+					2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
+
+				/* Check if card name already set */
+				if (strlen(m_ptr->imp_card))
+				{
+					/* XXX Use name of both cards */
+					strcpy(m_ptr->imp_card, "Rebel Alliance/Rebel Sneak Attack");
+				}
+				else
+				{
+					/* Remember name of card */
+					strcpy(m_ptr->imp_card, c_ptr->d_ptr->name);
+				}
 			}
+
+			/* Skip non-military powers */
+			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
+
+			/* Check for strength against rebels */
+			if (o_ptr->code & P3_AGAINST_REBEL)
+				m_ptr->rebel += o_ptr->value;
+
+			/* Check for strength against Novelty worlds */
+			if (o_ptr->code & P3_NOVELTY)
+				m_ptr->specific[GOOD_NOVELTY] += o_ptr->value;
+
+			/* Check for strength against Rare worlds */
+			if (o_ptr->code & P3_RARE)
+				m_ptr->specific[GOOD_RARE] += o_ptr->value;
+
+			/* Check for strength against Genes worlds */
+			if (o_ptr->code & P3_GENE)
+				m_ptr->specific[GOOD_GENE] += o_ptr->value;
+
+			/* Check for strength against Alien worlds */
+			if (o_ptr->code & P3_ALIEN)
+				m_ptr->specific[GOOD_ALIEN] += o_ptr->value;
 		}
-
-		/* Skip non-military powers */
-		if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
-
-		/* Check for strength against rebels */
-		if (o_ptr->code & P3_AGAINST_REBEL)
-			m_ptr->rebel += o_ptr->value;
-
-		/* Check for strength against Novelty worlds */
-		if (o_ptr->code & P3_NOVELTY)
-			m_ptr->specific[GOOD_NOVELTY] += o_ptr->value;
-
-		/* Check for strength against Rare worlds */
-		if (o_ptr->code & P3_RARE)
-			m_ptr->specific[GOOD_RARE] += o_ptr->value;
-
-		/* Check for strength against Genes worlds */
-		if (o_ptr->code & P3_GENE)
-			m_ptr->specific[GOOD_GENE] += o_ptr->value;
-
-		/* Check for strength against Alien worlds */
-		if (o_ptr->code & P3_ALIEN)
-			m_ptr->specific[GOOD_ALIEN] += o_ptr->value;
 	}
 
 	/* Check for takeovers enabled and imperium card played */
