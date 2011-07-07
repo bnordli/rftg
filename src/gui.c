@@ -299,6 +299,9 @@ typedef struct mil_strength
 	/* Current temporary military */
 	int bonus;
 
+	/* Maximum additional temporary military */
+	int max_bonus;
+
 	/* Additional military against rebel worlds */
 	int rebel;
 
@@ -3138,6 +3141,14 @@ static char *get_military_tooltip(mil_strength *military)
 		strcat(msg, text);
 	}
 
+	/* Add maximum temporary military */
+	if (military->max_bonus)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional potential temporary military: %+d", military->max_bonus);
+		strcat(msg, text);
+	}
+
 	/* Check for active imperium card */
 	if (military->imperium)
 	{
@@ -4873,7 +4884,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 {
 	card *c_ptr;
 	power *o_ptr;
-	int x, i;
+	int x, i, hand_size, hand_military = 0, rare_goods;
 
 	/* Start strengths at 0 */
 	memset(m_ptr, 0, sizeof(mil_strength));
@@ -4886,6 +4897,9 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 
 	/* Get first active card */
 	x = g->p[who].start_head[WHERE_ACTIVE];
+
+	/* Count number of rare goods */
+	rare_goods = get_goods(g, who, NULL, GOOD_RARE);
 
 	/* Loop over cards */
 	for ( ; x != -1; x = g->deck[x].start_next)
@@ -4938,8 +4952,30 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 				}
 			}
 
+			/* Skip used powers */
+			if (c_ptr->used[i]) continue;
+
+			/* Check for military from hand */
+			if (o_ptr->code & P3_MILITARY_HAND)
+				hand_military += o_ptr->value;
+
 			/* Skip non-military powers */
 			if (!(o_ptr->code & P3_EXTRA_MILITARY)) continue;
+
+			/* Check for discard for military */
+			if (o_ptr->code & P3_DISCARD)
+				m_ptr->max_bonus += o_ptr->value;
+
+			/* Check for prestige for military */
+			if ((o_ptr->code & P3_CONSUME_PRESTIGE) && g->p[who].prestige)
+				m_ptr->max_bonus += o_ptr->value;
+
+			/* Check for good for military */
+			if ((o_ptr->code & P3_CONSUME_RARE) && rare_goods)
+			{
+				m_ptr->max_bonus += o_ptr->value;
+				--rare_goods;
+			}
 
 			/* Check for strength against rebels */
 			if (o_ptr->code & P3_AGAINST_REBEL)
@@ -4963,6 +4999,15 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 		}
 	}
 
+	/* Get player hand size */
+	hand_size = count_player_area(g, who, WHERE_HAND);
+
+	/* Reduce maximum military from hand */
+	if (hand_size < hand_military) hand_military = hand_size;
+
+	/* Add military from hand to max temporary military */
+	m_ptr->max_bonus += hand_military;
+
 	/* Check for takeovers enabled and imperium card played */
 	m_ptr->imperium = takeovers_enabled(g) &&
 		count_active_flags(g, who, FLAG_IMPERIUM);
@@ -4976,7 +5021,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 		m_ptr->specific[GOOD_NOVELTY] || m_ptr->specific[GOOD_RARE] ||
 		m_ptr->specific[GOOD_GENE] || m_ptr->specific[GOOD_ALIEN] ||
 		m_ptr->defense || m_ptr->attack_imperium || m_ptr->imperium ||
-		m_ptr->military_rebel;
+		m_ptr->military_rebel || m_ptr->max_bonus;
 }
 
 /*

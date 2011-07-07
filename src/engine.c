@@ -1139,7 +1139,7 @@ static int get_player_area(game *g, int who, int list[MAX_DECK], int where)
 /*
  * Return a list of cards holding the given type of good.
  */
-static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
+int get_goods(game *g, int who, int goods[], int type)
 {
 	card *c_ptr;
 	int x, n = 0;
@@ -1164,7 +1164,10 @@ static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
 		if (c_ptr->unpaid) continue;
 
 		/* Add card to list */
-		goods[n++] = x;
+		if (goods) goods[n] = x;
+
+		/* Increase number of goods */
+		++n;
 	}
 
 	/* Return number found */

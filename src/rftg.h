@@ -934,6 +934,7 @@ extern void draw_card(game *g, int who, char *reason);
 extern void draw_cards(game *g, int who, int num, char *reason);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
+extern int get_goods(game *g, int who, int goods[], int type);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
 extern int get_powers(game *g, int who, int phase, power_where *w_list);
