@@ -9647,7 +9647,7 @@ void reset_gui(void)
 /*
  * Modify GUI elements for the correct number of players.
  */
-void modify_gui(void)
+void modify_gui(int reset_card)
 {
 	int i;
 
@@ -9704,6 +9704,9 @@ void modify_gui(void)
 		/* Show image */
 		gtk_widget_show(full_image);
 	}
+
+	/* Reset full card */
+	if (reset_card) update_card(card_back);
 
 	/* Redraw full-size image */
 	redraw_full(NULL, NULL, NULL);
@@ -9768,7 +9771,7 @@ static void run_game(void)
 			init_game(&real_game);
 
 			/* Modify GUI for new game parameters */
-			modify_gui();
+			modify_gui(TRUE);
 		}
 
 		/* Check for restoring game */
@@ -9983,7 +9986,7 @@ static void run_game(void)
 			num_undo = 9999;
 
 			/* Modify GUI for new game parameters */
-			modify_gui();
+			modify_gui(TRUE);
 		}
 
 		/* Replay a loaded game */
@@ -10005,7 +10008,7 @@ static void run_game(void)
 			num_undo = 0;
 
 			/* Modify GUI for new game parameters */
-			modify_gui();
+			modify_gui(TRUE);
 		}
 
 		/* Replay to current position (to regenerate log) */
@@ -10875,7 +10878,7 @@ static void hide_card_changed(GtkToggleButton *hide_card_button,
 	opt.hide_card = 2 * gtk_toggle_button_get_active(hide_card_button);
 
 	/* Handle new options */
-	modify_gui();
+	modify_gui(FALSE);
 }
 
 /*
@@ -10906,7 +10909,7 @@ static void card_size_changed(GtkRange *card_size_scale,
 	}
 
 	/* Handle new options */
-	modify_gui();
+	modify_gui(FALSE);
 }
 
 /*
@@ -10937,7 +10940,7 @@ static void log_width_changed(GtkRange *log_width_scale,
 	}
 
 	/* Handle new options */
-	modify_gui();
+	modify_gui(FALSE);
 }
 
 /*
@@ -10951,7 +10954,7 @@ static void update_option(GtkToggleButton *button, gpointer option)
 	*opt_ptr = gtk_toggle_button_get_active(button);
 
 	/* Handle new options */
-	modify_gui();
+	modify_gui(FALSE);
 
 	/* Redraw everything */
 	redraw_everything();
@@ -11245,7 +11248,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		apply_options();
 
 		/* Recreate GUI elements for new number of players */
-		modify_gui();
+		modify_gui(TRUE);
 
 		/* Force game over */
 		real_game.game_over = 1;
@@ -11717,7 +11720,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Handle new options */
-	modify_gui();
+	modify_gui(FALSE);
 
 	/* Redraw everything */
 	redraw_everything();
@@ -13795,7 +13798,7 @@ int main(int argc, char *argv[])
 	reset_gui();
 
 	/* Modify GUI for current setup */
-	modify_gui();
+	modify_gui(TRUE);
 
 	if (fname)
 	{

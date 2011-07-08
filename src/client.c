@@ -602,7 +602,7 @@ static void handle_status_meta(char *ptr)
 	redraw_goal();
 
 	/* Modify GUI for expansion and number of players */
-	modify_gui();
+	modify_gui(TRUE);
 }
 
 /*

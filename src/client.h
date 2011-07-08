@@ -145,7 +145,7 @@ extern void redraw_status(void);
 extern void redraw_goal(void);
 extern void redraw_phase(void);
 extern void redraw_everything(void);
-extern void modify_gui(void);
+extern void modify_gui(int reset_card);
 extern void reset_gui(void);
 extern void switch_view(int lobby, int chat);
 extern void gui_client_state_changed(int playing_game, int making_choice);
