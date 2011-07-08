@@ -11399,7 +11399,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                 GTK_FILL, GTK_FILL, 3, 0);
 
 	/* Create log width scale */
-	log_width_scale = gtk_hscale_new_with_range(150, CARD_WIDTH, 10);
+	log_width_scale = gtk_hscale_new_with_range(150, CARD_WIDTH * 2, 10);
 
 	/* Do not display value */
 	gtk_scale_set_draw_value(GTK_SCALE(log_width_scale), FALSE);
