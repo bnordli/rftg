@@ -6139,6 +6139,7 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 	displayed *i_ptr;
 	card *c_ptr;
 	int i, j, n = 0;
+	int forced = opt.auto_select && discard == *num;
 
 	/* Create prompt */
 	sprintf(buf, "Choose %d card%s to discard", discard, PLURAL(discard));
@@ -6150,8 +6151,8 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 	action_restrict = RESTRICT_NUM;
 	action_min = action_max = discard;
 
-	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, FALSE);
+	/* (De)activate action button */
+	gtk_widget_set_sensitive(action_button, forced);
 
 	/* Reset displayed cards */
 	reset_cards(g, FALSE, TRUE);
@@ -6187,6 +6188,9 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 					/* Put gap before card */
 					i_ptr->gapped = 1;
 				}
+
+				/* Check for forced choice */
+				if (forced) i_ptr->selected = TRUE;
 			}
 		}
 	}
@@ -6216,7 +6220,7 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 }
 
 /*
- * Ask the player to save on of the given cards under a world.
+ * Ask the player to save one of the given cards under a world.
  */
 void gui_choose_save(game *g, int who, int list[], int *num)
 {
@@ -6504,6 +6508,74 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 }
 
 /*
+ * Find if there are any forced choices for payment.
+ */
+static void compute_forced_choice(int list[], int num,
+                                  int special[], int num_special,
+                                  long *special_mask, int *forced_hand)
+{
+	game sim;
+	int i, j, num_choice;
+	int special_choice[MAX_DECK];
+	long special_set;
+
+	/* Clear forced variables */
+	*special_mask = ~0;
+	*forced_hand = TRUE;
+
+	/* Loop over all reasonable hand payments */
+	for (i = 0; i <= num && i < 20; ++i)
+	{
+		/* Loop over all sets of special cards */
+		for (special_set = 0; special_set < (1 << num_special); ++special_set)
+		{
+			/* Clear number of special cards used */
+			num_choice = 0;
+
+			/* Loop over special cards */
+			for (j = 0; j < num_special; ++j)
+			{
+				/* Check for this special card selected */
+				if (special_set & (1 << j))
+				{
+					/* Add card */
+					special_choice[num_choice++] = special[j];
+				}
+			}
+
+			/* Copy game */
+			sim = real_game;
+
+			/* Set simulation flag */
+			sim.simulation = 1;
+
+			/* Loop over players */
+			for (j = 0; j < sim.num_players; j++)
+			{
+				/* Have AI make any pending decisions for this player */
+				sim.p[j].control = &ai_func;
+			}
+
+			/* Try to make payment */
+			if (payment_callback(&sim, player_us, action_payment_which,
+                                 list, i, special_choice, num_choice,
+			                     action_payment_mil))
+			{
+				/* Check for legal without all hand cards */
+				if (i != num) *forced_hand = FALSE;
+
+				/* Update mask */
+				*special_mask &= special_set;
+			}
+
+			/* Optimization */
+			if (!special_mask && !forced_hand) return;
+		}
+	}
+}
+
+
+/*
  * Choose method of payment for a placed card.
  *
  * We include some active cards that have powers that can be triggered,
@@ -6519,6 +6591,8 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	char buf[1024], *p;
 	int i, j, n = 0, ns = 0, high_color;
 	int military, cost, ict_mil, iif_mil;
+	int forced_hand;
+	long forced_special;
 
 	/* Get card we are paying for */
 	c_ptr = &real_game.deck[which];
@@ -6655,8 +6729,18 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	action_payment_which = which;
 	action_payment_mil = mil_only;
 
-	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, action_check_payment());
+	/* Check for auto-selecting forced choices */
+	if (opt.auto_select)
+	{
+		/* Find any forced choices */
+		compute_forced_choice(list, *num, special, *num_special,
+		                      &forced_special, &forced_hand);
+	} 
+	else
+	{
+		/* No forced payment */
+		forced_hand = forced_special = 0;
+	}
 
 	/* Loop over cards in list */
 	for (i = 0; i < *num; i++)
@@ -6678,6 +6762,9 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 
 				/* Card should be pushed up when selected */
 				i_ptr->push = 1;
+
+				/* Check for forced choice */
+				if (forced_hand) i_ptr->selected = TRUE;
 			}
 		}
 	}
@@ -6723,9 +6810,15 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = high_color;
+				
+				/* Check for forced choice */
+				if (forced_special & (1 << i)) i_ptr->selected = TRUE;
 			}
 		}
 	}
+
+	/* (De)activate action button */
+	gtk_widget_set_sensitive(action_button, action_check_payment());
 
 	/* Redraw everything */
 	redraw_everything();
@@ -7266,6 +7359,7 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 	char buf[1024];
 	displayed *i_ptr;
 	int i, j;
+	int forced = opt.auto_select && *num == 1;
 
 	/* Create prompt */
 	sprintf(buf, "Choose good to trade%s", no_bonus ? " (no bonuses)" : "");
@@ -7277,8 +7371,8 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 	action_restrict = RESTRICT_NUM;
 	action_min = action_max = 1;
 
-	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, FALSE);
+	/* (De)activate action button */
+	gtk_widget_set_sensitive(action_button, forced);
 
 	/* Reset displayed cards */
 	reset_cards(g, TRUE, FALSE);
@@ -7302,6 +7396,9 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
+
+				/* Check for forced choice */
+				if (forced ) i_ptr->selected = TRUE;
 			}
 		}
 	}
@@ -7923,6 +8020,7 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	char buf[1024];
 	displayed *i_ptr;
 	int i, j, n = 0;
+	int forced = opt.auto_select && min == max && min == *num;
 
 	/* Get pointer to card holding consume power */
 	c_ptr = &real_game.deck[c_idx];
@@ -7941,8 +8039,8 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	action_cidx = c_idx;
 	action_oidx = o_idx;
 
-	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, min == 0);
+	/* (De)activate action button */
+	gtk_widget_set_sensitive(action_button, min == 0 || forced);
 
 	/* Reset displayed cards */
 	reset_cards(g, TRUE, FALSE);
@@ -7964,6 +8062,9 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
+
+				/* Check for forced choice */
+				if (forced) i_ptr->selected = TRUE;
 			}
 		}
 	}
@@ -8206,6 +8307,7 @@ void gui_choose_windfall(game *g, int who, int list[], int *num)
 	char buf[1024];
 	displayed *i_ptr;
 	int i, j;
+	int forced = opt.auto_select && *num == 1;
 
 	/* Create prompt */
 	sprintf(buf, "Choose windfall world to produce");
@@ -8218,7 +8320,7 @@ void gui_choose_windfall(game *g, int who, int list[], int *num)
 	action_min = action_max = 1;
 
 	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, FALSE);
+	gtk_widget_set_sensitive(action_button, forced);
 
 	/* Reset displayed cards */
 	reset_cards(g, TRUE, FALSE);
@@ -8243,6 +8345,9 @@ void gui_choose_windfall(game *g, int who, int list[], int *num)
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
+
+				/* Check for forced choice */
+				if (forced) i_ptr->selected = TRUE;
 			}
 		}
 	}
@@ -10070,6 +10175,8 @@ static void read_prefs(void)
 	                                          "cost_in_hand", NULL);
 	opt.key_cues = g_key_file_get_boolean(pref_file, "gui",
 	                                      "key_cues", NULL);
+	opt.auto_select = g_key_file_get_boolean(pref_file, "gui",
+	                                         "auto_select", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
@@ -10160,6 +10267,8 @@ void save_prefs(void)
 	                       opt.cost_in_hand);
 	g_key_file_set_boolean(pref_file, "gui", "key_cues",
 	                       opt.key_cues);
+	g_key_file_set_boolean(pref_file, "gui", "auto_select",
+	                       opt.auto_select);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
 	g_key_file_set_boolean(pref_file, "gui", "save_log",
@@ -11203,6 +11312,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *game_view_box, *game_view_frame;
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
 	GtkWidget *hand_cost_button, *key_cues_button;
+	GtkWidget *interface_box, *interface_frame;
+	GtkWidget *auto_select_button;
 	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button;
 	GtkWidget *draw_log_button, *discard_log_button;
@@ -11413,6 +11524,36 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  game_view_frame);
+
+	/* ---- Interface ---- */
+	/* Create vbox to hold interface check boxes */
+	interface_box = gtk_vbox_new(FALSE, 0);
+
+	/* Create toggle button for auto selection */
+	auto_select_button =
+		gtk_check_button_new_with_label("Auto select forced choices");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(auto_select_button),
+	                             opt.auto_select);
+
+	/* Connect toggle button "toggled" signal */
+	g_signal_connect(G_OBJECT(auto_select_button), "toggled",
+	                 G_CALLBACK(update_option), &opt.auto_select);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(interface_box), auto_select_button,
+	                   FALSE, TRUE, 0);
+
+	/* Create frame around buttons */
+	interface_frame = gtk_frame_new("Interface");
+
+	/* Pack button box into frame */
+	gtk_container_add(GTK_CONTAINER(interface_frame), interface_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  interface_frame);
 
 	/* ---- Log options ---- */
 	/* Create vbox to hold log check boxes */

@@ -61,6 +61,9 @@ typedef struct options
 	/* Always display key cues */
 	int key_cues;
 
+	/* Auto select forced choices */
+	int auto_select;
+
 	/* Server name to connect to */
 	char *server_name;
 
