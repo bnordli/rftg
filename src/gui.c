@@ -424,7 +424,7 @@ static int action_cidx, action_oidx;
 /*
  * Number of icon images.
  */
-#define MAX_ICON 23
+#define MAX_ICON 25
 
 /*
  * Special icon numbers.
@@ -442,6 +442,8 @@ static int action_cidx, action_oidx;
 #define ICON_DISCOUNT   20
 #define ICON_DRAW       21
 #define ICON_DRAW_EMPTY 22
+#define ICON_EXPLORE    23
+#define ICON_CONSUME    24
 
 /*
  * Number of action card images.
@@ -485,8 +487,7 @@ static GtkWidget *player_box[MAX_PLAYER], *player_sep[MAX_PLAYER];
 static GtkWidget *goal_area;
 static GtkWidget *game_status;
 static GtkWidget *main_hbox, *lobby_vbox;
-static GtkWidget *phase_labels[MAX_ACTION];
-static GtkWidget *action_box;
+static GtkWidget *phase_box, *action_box;
 static GtkWidget *new_item, *new_parameters_item;
 static GtkWidget *load_item, *replay_item, *save_item, *export_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
@@ -4574,12 +4575,27 @@ void redraw_status(void)
 }
 
 /*
+ * Map from actions to phase icons.
+ */
+static int phase_icon[] = { 0, 23, 23, 3, 3, 5, 5, 24, 24, 9 };
+
+/*
  * Draw phase indicators.
  */
 void redraw_phase(void)
 {
-	int i;
-	char buf[1024], *name;
+	int i, size = 40;
+	GdkPixbuf *buf, *border_buf, *blank_buf;
+	GtkWidget *image;
+
+	/* Recompute size */
+	if (real_game.advanced && opt.log_width < 7 * size)
+		size = opt.log_width / 7;
+	else if (!real_game.advanced && opt.log_width < 5 * size)
+		size = opt.log_width / 5;
+
+	/* First destroy all pre-existing widgets */
+	gtk_container_foreach(GTK_CONTAINER(phase_box), destroy_widget, NULL);
 
 	/* Loop over actions */
 	for (i = ACT_EXPLORE_5_0; i <= ACT_PRODUCE; i++)
@@ -4587,59 +4603,71 @@ void redraw_phase(void)
 		/* Skip second explore/consume actions */
 		if (i == ACT_EXPLORE_1_1 || i == ACT_CONSUME_X2) continue;
 
-		/* Get phase name */
-		switch (i)
-		{
-			case ACT_EXPLORE_5_0: name = "Explore"; break;
-			case ACT_DEVELOP:
-			case ACT_DEVELOP2: name = "Develop"; break;
-			case ACT_SETTLE:
-			case ACT_SETTLE2: name = "Settle"; break;
-			case ACT_CONSUME_TRADE: name = "Consume"; break;
-			case ACT_PRODUCE: name = "Produce"; break;
-			default: name = ""; break;
-		}
-
 		/* Check for basic game and advanced actions */
 		if (!real_game.advanced &&
 		    (i == ACT_DEVELOP2 || i == ACT_SETTLE2))
 		{
-			/* Simply hide label */
-			gtk_widget_hide(phase_labels[i]);
-
-			/* Next label */
+			/* Skip action */
 			continue;
 		}
 
+		/* Scale phase icon down to correct size */
+		buf = gdk_pixbuf_scale_simple(icon_cache[phase_icon[i]],
+		                              size, size, GDK_INTERP_BILINEAR);
+
 		/* Check for inactive phase */
-		else if (!real_game.action_selected[i])
+		if (!real_game.action_selected[i])
 		{
-			/* Strikeout name */
-			sprintf(buf, "<s>%s</s>", name);
+			/* Desaturate */
+			gdk_pixbuf_saturate_and_pixelate(buf, buf, 0, TRUE);
 		}
 
 		/* Check for current phase */
 		else if (real_game.cur_action == i)
 		{
-			/* Bold name */
-			sprintf(buf,
-			  "<span foreground=\"blue\" weight=\"bold\">%s</span>",
-			  name);
+			/* Create a border pixbuf */
+			border_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8,
+			                            size, size);
+
+			/* Fill pixbuf with highlight color */
+			gdk_pixbuf_fill(border_buf, 0x0000ff99);
+
+			/* Create a blank pixbuf */
+			blank_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8,
+			                           size, size);
+
+			/* Fill pixbuf with transparent black */
+			gdk_pixbuf_fill(blank_buf, 0);
+
+			/* Copy blank space onto middle of border buffer */
+			gdk_pixbuf_copy_area(blank_buf, 3, 3,
+			                     size - 6, size - 6,
+								 border_buf, 3, 3);
+
+			/* Composite border onto phase image buffer */
+			gdk_pixbuf_composite(border_buf, buf, 0, 0, size, size, 0, 0, 1, 1,
+								 GDK_INTERP_BILINEAR, 255);
+
+			/* Release our copies of pixbufs */
+			g_object_unref(G_OBJECT(blank_buf));
+			g_object_unref(G_OBJECT(border_buf));
 		}
 
-		/* Normal phase */
-		else
-		{
-			/* Normal name */
-			sprintf(buf, "%s", name);
-		}
+		/* Make image widget */
+		image = gtk_image_new_from_pixbuf(buf);
 
-		/* Set label text */
-		gtk_label_set_markup(GTK_LABEL(phase_labels[i]), buf);
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
 
-		/* Show label */
-		gtk_widget_show(phase_labels[i]);
+		/* Add tooltip */
+		gtk_widget_set_tooltip_markup(image, plain_actname[i]);
+
+		/* Pack icon into box */
+		gtk_box_pack_start(GTK_BOX(phase_box), image, FALSE, FALSE, 0);
 	}
+
+	/* Show everything */
+	gtk_widget_show_all(phase_box);
 }
 
 /*
@@ -10939,6 +10967,9 @@ static void log_width_changed(GtkRange *log_width_scale,
 		opt.card_size = opt.log_width;
 	}
 
+	/* Redraw phase bar */
+	redraw_phase();
+
 	/* Handle new options */
 	modify_gui(FALSE);
 }
@@ -12645,7 +12676,7 @@ int main(int argc, char *argv[])
 	GtkWidget *msg_scroll;
 	GtkWidget *table_box, *active_box;
 	GtkWidget *top_box, *top_view, *top_scroll, *area;
-	GtkWidget *phase_box, *label;
+	GtkWidget *label;
 	guint accel_key;
 	GdkModifierType accel_mod;
 	GtkSizeGroup *top_size_group;
@@ -13134,7 +13165,7 @@ int main(int argc, char *argv[])
 	/* Create "card view" image */
 	full_image = gtk_image_new();
 
-	/* Create separator for status info */
+	/* Create separator for image box */
 	h_sep = gtk_hseparator_new();
 
 	/* Pack image and separator into left vbox */
@@ -13144,8 +13175,22 @@ int main(int argc, char *argv[])
 	/* Create game status label */
 	game_status = gtk_hbox_new(TRUE, 0);
 
+	/* Create separator for status info */
+	h_sep = gtk_hseparator_new();
+
 	/* Add game status to status vbox */
 	gtk_box_pack_start(GTK_BOX(left_vbox), game_status, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(left_vbox), h_sep, FALSE, FALSE, 0);
+
+	/* Create hbox for phase buttons/indicators */
+	phase_box = gtk_hbox_new(TRUE, 0);
+
+	/* Create separator between our area and phase indicator */
+	h_sep = gtk_hseparator_new();
+
+	/* Pack status area and separator */
+	gtk_box_pack_start(GTK_BOX(left_vbox), phase_box, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(left_vbox), h_sep, FALSE, TRUE, 0);
 
 	/* Create text view for message area */
 	message_view = gtk_text_view_new();
@@ -13374,25 +13419,6 @@ int main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(goal_area), "size-allocate",
 	                 G_CALLBACK(goal_allocated), NULL);
 
-	/* Create hbox for phase buttons/indicators */
-	phase_box = gtk_hbox_new(TRUE, 0);
-
-	/* Create labels for phase indicators */
-	for (i = ACT_EXPLORE_5_0; i < MAX_ACTION; i++)
-	{
-		/* Skip some actions */
-		if (i == ACT_EXPLORE_1_1 || i == ACT_CONSUME_X2) continue;
-
-		/* Create label */
-		label = gtk_label_new("");
-
-		/* Pack label into phase box */
-		gtk_box_pack_start(GTK_BOX(phase_box), label, TRUE, TRUE, 0);
-
-		/* Remember label widget */
-		phase_labels[i] = label;
-	}
-
 	/* Create box for action area */
 	action_box = gtk_hbox_new(FALSE, 0);
 
@@ -13419,19 +13445,12 @@ int main(int argc, char *argv[])
 	/* Set action button as default widget */
 	gtk_window_set_default(GTK_WINDOW(window), action_button);
 
-	/* Pack laben and button into action box */
+	/* Pack label and button into action box */
 	gtk_box_pack_start(GTK_BOX(action_box), action_prompt, TRUE, TRUE, 0);
 	gtk_box_pack_end(GTK_BOX(action_box), action_button, FALSE, TRUE, 0);
 
 	/* Pack table area into right vbox */
 	gtk_box_pack_start(GTK_BOX(right_vbox), table_box, TRUE, TRUE, 0);
-
-	/* Create separator between our area and phase indicator */
-	h_sep = gtk_hseparator_new();
-
-	/* Pack separator and status area */
-	gtk_box_pack_start(GTK_BOX(right_vbox), h_sep, FALSE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(right_vbox), phase_box, FALSE, TRUE, 0);
 
 	/* Create separator between phase indicator and action area */
 	h_sep = gtk_hseparator_new();
