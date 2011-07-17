@@ -10103,6 +10103,9 @@ static void run_game(void)
 			continue;
 		}
 
+		/* Clear current phases */
+		for (i = 0; i < MAX_ACTION; i++) real_game.action_selected[i] = 0;
+
 		/* Deactivate action button */
 		gtk_widget_set_sensitive(action_button, FALSE);
 
