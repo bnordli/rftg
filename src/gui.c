@@ -12610,6 +12610,9 @@ static void action_pressed(GtkButton *button, gpointer data)
 
 	/* Quit innermost loop */
 	gtk_main_quit();
+
+	/* Handle pending events */
+	while (gtk_events_pending()) gtk_main_iteration();
 }
 
 /*
