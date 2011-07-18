@@ -10318,16 +10318,6 @@ int game_round(game *g)
 	int i, j, target, act[2];
 	char msg[1024], last;
 
-	/* Assume no phases will be executed */
-	for (i = 0; i < MAX_ACTION; i++) g->action_selected[i] = 0;
-
-	/* Clear action choices */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Clear both choices */
-		g->p[i].action[0] = g->p[i].action[1] = -1;
-	}
-
 	/* Increment round counter */
 	g->round++;
 
@@ -10675,6 +10665,16 @@ int game_round(game *g)
 
 	/* Check for too many rounds */
 	if (g->round >= 30) g->game_over = 1;
+
+	/* Clear phases */
+	for (i = 0; i < MAX_ACTION; i++) g->action_selected[i] = 0;
+
+	/* Clear action choices */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Clear both choices */
+		g->p[i].action[0] = g->p[i].action[1] = -1;
+	}
 
 	/* Check for finished game */
 	if (g->game_over) return 0;

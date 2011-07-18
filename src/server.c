@@ -2811,9 +2811,6 @@ void *run_game(void *arg)
 	/* Play game rounds until finished */
 	while (game_round(&s_ptr->g));
 
-	/* Clear current phases */
-	for (i = 0; i < MAX_ACTION; i++) real_game.action_selected[i] = 0;
-
 	/* Score game */
 	score_game(&s_ptr->g);
 
