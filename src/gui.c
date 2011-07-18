@@ -12599,14 +12599,20 @@ Send bug reports to keldon@keldon.net");
  */
 static void action_pressed(GtkButton *button, gpointer data)
 {
+	char *msg;
+
 	/* Move text separator to bottom */
 	reset_text_separator();
 
 	/* Disable action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
 
+	/* Select string */
+	msg = real_game.num_players == 2 ? "Waiting for opponent" :
+	                                   "Waiting for opponents";
+
 	/* Reset action prompt */
-	gtk_label_set_text(GTK_LABEL(action_prompt), "Waiting for opponents");
+	gtk_label_set_text(GTK_LABEL(action_prompt), msg);
 
 	/* Quit innermost loop */
 	gtk_main_quit();
