@@ -4235,14 +4235,14 @@ int main(int argc, char *argv[])
 		/* Check for timeout settings */
 		if (!strcmp(argv[i], "-t"))
 		{
-			/* Set database name */
+			/* Set new timeout */
 			timeout = atoi(argv[++i]);
 		}
 
 		/* Check for kick timeout settings */
 		if (!strcmp(argv[i], "-k"))
 		{
-			/* Set database name */
+			/* Set new kick timeout */
 			kick_timeout = atoi(argv[++i]);
 		}
 
