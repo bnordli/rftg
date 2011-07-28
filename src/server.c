@@ -249,6 +249,35 @@ static char* exports_folder = ".";
 MYSQL *mysql;
 
 /*
+ * Log message to stdout.
+ */
+static void log(char *format, ...)
+{
+	va_list args;
+	time_t raw_time;
+	struct tm* timeinfo;
+	char formatted_time[32];
+
+	/* Get the current time */
+	time(&raw_time);
+
+	/* Format the time */
+	strftime(formatted_time, 32, "%m%d %H:%M:%S", timeinfo);
+
+	/* Print the current time */
+	printf("(%s) ", formatted_time);
+
+	/* Forward the log string to printf */
+	va_start(args, fmt);
+	vprintf(fmt, args);
+	va_end(args);
+
+	/* End with a newline */
+	printf("\n");
+}
+
+
+/*
  * Check for a user in the database with the given password.
  *
  * If the user does not exist, create an entry for them.
@@ -410,9 +439,11 @@ static int db_new_game(int sid)
 	if (*mysql_error(mysql))
 	{
 		/* Print error */
-		printf("%s\n", mysql_error(mysql));
+		log("%s", mysql_error(mysql));
 		exit(1);
 	}
+
+	vprintf();
 
 	/* Get ID of game inserted */
 	strcpy(query, "SELECT LAST_INSERT_ID()");
@@ -547,7 +578,7 @@ static void db_load_attendance(void)
 		if (i == num_session)
 		{
 			/* Error */
-			printf("Bad attendance: no gid %d\n", gid);
+			log("Bad attendance: no gid %d", gid);
 			continue;
 		}
 
@@ -916,12 +947,12 @@ static void db_save_results(int sid)
 	    export_log, s_ptr->gid) < 0)
 	{
 		/* Log error */
-		printf("Could not export game to %s\n", filename);
+		log("Could not export game to %s", filename);
 	}
 	else
 	{
 		/* Log export location */
-		printf("Game exported to %s\n", filename);
+		log("Game exported to %s", filename);
 	}
 }
 
@@ -952,7 +983,7 @@ static void db_save_message(int sid, int uid, char* txt, char* tag)
 	if (*mysql_error(mysql))
 	{
 		/* Print error */
-		printf("%s\n", mysql_error(mysql));
+		log("%s", mysql_error(mysql));
 		exit(1);
 	}
 }
@@ -1708,7 +1739,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 			if (j >= g->deck_size)
 			{
 				/* Log message */
-				printf("Failed to find substitute good\n");
+				log("Failed to find substitute good");
 				j = 0;
 				break;
 			}
@@ -2065,7 +2096,7 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	s_ptr->waiting[who] = WAIT_OPTION;
 
 	/* Log message */
-	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
+	log("S:%d Asking %d to prepare for phase %d at %d", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
 }
 
 /*
@@ -2111,7 +2142,7 @@ static void ask_client(int sid, int who)
 	}
 
 	/* Log message */
-	printf("S:%d Asking %d (%s) for choice (type %d) at %d\n", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
+	log("S:%d Asking %d (%s) for choice (type %d) at %d", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
 
 	/* Start choice message */
 	start_msg(&ptr, MSG_CHOOSE);
@@ -2277,7 +2308,7 @@ static void handle_choice(int cid, char *ptr)
 	*l_ptr++ = get_integer(&ptr);
 
 	/* Log message */
-	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
+	log("S:%d Received choice type %d position %d from %d, current size is %d.", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
 	if (pos != p_ptr->choice_size)
 	{
@@ -2387,7 +2418,7 @@ static void handle_prepare(int cid, char *ptr)
 	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Log message */
-	printf("S:%d Received preparation complete from %d\n", sid, cid);
+	log("S:%d Received preparation complete from %d", sid, cid);
 }
 
 /*
@@ -2506,7 +2537,7 @@ static void accept_conn(int listen_fd)
 	strcpy(c_list[i].user, "");
 
 	/* Print message */
-	printf("New connection %d from %s\n", i, c_list[i].addr);
+	log("New connection %d from %s", i, c_list[i].addr);
 }
 
 /*
@@ -2547,7 +2578,7 @@ static void kick_player(int cid, char *reason)
 	char text[1024];
 
 	/* Print message */
-	printf("Kicking player %d for %s\n", cid, reason);
+	log("Kicking player %d for %s", cid, reason);
 
 	/* Send goodbye message */
 	send_msgf(cid, MSG_GOODBYE, "s", reason);
@@ -2970,7 +3001,7 @@ static void handle_login(int cid, char *ptr)
 	}
 
 	/* Log message */
-	printf("Login attempt from %s (%s)\n", user, c_list[cid].version);
+	log("Login attempt from %s (%s)", user, c_list[cid].version);
 
 	/* Check for too old version */
 	if (strcmp(version, "0.8.1") < 0)
@@ -2979,7 +3010,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
 
 		/* Log message */
-		printf("Denied (too old)\n");
+		log("Denied (too old)");
 
 		/* Done */
 		return;
@@ -2992,7 +3023,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Client version too new");
 
 		/* Log message */
-		printf("Denied (too new)\n");
+		log("Denied (too new)");
 
 		/* Done */
 		return;
@@ -3005,7 +3036,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
 		/* Log message */
-		printf("Denied (illegal username)\n");
+		log("Denied (illegal username)");
 
 		/* Done */
 		return;
@@ -3021,7 +3052,7 @@ static void handle_login(int cid, char *ptr)
 			send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
 			/* Log message */
-			printf("Denied (illegal username)\n");
+			log("Denied (illegal username)");
 
 			/* Done */
 			return;
@@ -3045,7 +3076,7 @@ static void handle_login(int cid, char *ptr)
 			          "User already logged in");
 
 			/* Log message */
-			printf("Denied (already logged in)\n");
+			log("Denied (already logged in)");
 
 			/* Done */
 			return;
@@ -3059,7 +3090,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Illegal password length");
 
 		/* Log message */
-		printf("Denied (illegal password length)\n");
+		log("Denied (illegal password length)");
 
 		/* Done */
 		return;
@@ -3075,14 +3106,14 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Incorrect password");
 
 		/* Log message */
-		printf("Denied (incorrect password)\n");
+		log("Denied (incorrect password)");
 
 		/* Done */
 		return;
 	}
 
 	/* Print message */
-	printf("Connection %d logged in with %s\n", cid, user);
+	log("Connection %d logged in with %s", cid, user);
 
 	/* Set username */
 	strcpy(c_list[cid].user, user);
@@ -3727,7 +3758,7 @@ static void handle_start(int cid, char *ptr)
 	}
 
 	/* Message */
-	printf("Starting game %s (session %d)\n", s_ptr->desc, sid);
+	log("Starting game %s (session %d)", s_ptr->desc, sid);
 
 	/* Format game number message */
 	sprintf(text, "Starting game #%d", s_ptr->gid);
@@ -3891,7 +3922,7 @@ static void handle_msg(int cid)
 		default:
 
 			/* Log message */
-			printf("Unknown message type %d\n", type);
+			log("Unknown message type %d", type);
 			break;
 
 			/* Kick player */
@@ -4268,7 +4299,7 @@ int main(int argc, char *argv[])
 	if (!mysql)
 	{
 		/* Print error and exit */
-		printf("Couldn't initialize database library!\n");
+		log("Couldn't initialize database library!");
 		exit(1);
 	}
 
@@ -4276,7 +4307,7 @@ int main(int argc, char *argv[])
 	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, db, 0, NULL, 0))
 	{
 		/* Print error and exit */
-		printf("Database connection: %s\n", mysql_error(mysql));
+		log("Database connection: %s", mysql_error(mysql));
 		exit(1);
 	}
 
@@ -4330,7 +4361,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Print ready message */
-	printf("Server ready. Waiting for connections...\n");
+	log("Server ready. Waiting for connections...");
 
 	/* Loop forever */
 	while (1)
