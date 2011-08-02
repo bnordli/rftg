@@ -922,6 +922,7 @@ extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
 extern void save_log(void);
+extern void auto_export(void);
 extern int game_rand(game *g);
 extern int read_cards(void);
 extern void init_game(game *g);
@@ -1009,6 +1010,6 @@ extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
 extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, int player_us,
-                       int export_save_game, const char *message,
+                       int export_save, const char *message,
                        int num_special, card** special_cards,
                        void (*export_log)(FILE *fff, int gid), int gid);

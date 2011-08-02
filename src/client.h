@@ -98,6 +98,9 @@ typedef struct options
 	/* Save log at end of game */
 	int save_log;
 
+	/* Export game at end of game */
+	int auto_export;
+
 	/* Colored log */
 	int colored_log;
 

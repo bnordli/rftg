@@ -1571,6 +1571,9 @@ static gboolean message_read(gpointer data)
 			/* Save log */
 			save_log();
 
+			/* Auto export game */
+			auto_export();
+
 			/* Enable action button */
 			gtk_widget_set_sensitive(action_button, TRUE);
 

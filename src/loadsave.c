@@ -379,7 +379,7 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
  * Export the game state to the given filename.
  */
 int export_game(game *g, char *filename, int player_us,
-                int export_save_game, const char *message,
+                int export_save, const char *message,
                 int num_special_cards, card **special_cards,
                 void (*export_log)(FILE *fff, int gid), int gid)
 {
@@ -714,7 +714,7 @@ int export_game(game *g, char *filename, int player_us,
 	}
 
 	/* Check for export save game */
-	if (export_save_game && player_us >= 0)
+	if (export_save && player_us >= 0)
 	{
 		/* Start game tag and CDATA */
 		fputs("  <Save>\n<![CDATA[\n", fff);

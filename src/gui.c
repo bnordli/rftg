@@ -692,76 +692,6 @@ void display_error(char *msg)
 }
 
 /*
- * Saves the message log to a time stamped file.
- */
-void save_log(void)
-{
-	FILE *fff;
-	char filename[30];
-	char *full_filename;
-
-	time_t raw_time;
-	struct tm* timeinfo;
-
-	GtkTextIter start_iter;
-	GtkTextIter end_iter;
-	GtkTextBuffer *message_buffer;
-	gchar *all_text;
-
-	/* Check for save log option */
-	if (!opt.save_log) return;
-
-	/* Get message buffer */
-	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
-
-	/* Get start mark */
-	gtk_text_buffer_get_start_iter(message_buffer, &start_iter);
-
-	/* Get end mark */
-	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);
-
-	/* Get the buffer text */
-	all_text = gtk_text_buffer_get_text(message_buffer, &start_iter, &end_iter,
-	                                    FALSE);
-
-	/* Get the time */
-	time(&raw_time);
-
-	/* Get the local time */
-	timeinfo = localtime(&raw_time);
-
-	/* Generate file name */
-	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
-
-	/* Build full file name */
-	full_filename = g_build_filename(
-	    opt.data_folder ? opt.data_folder : RFTGDIR, filename, NULL);
-
-	/* Open file for writing */
-	fff = fopen(full_filename, "w");
-
-	/* Destroy filename */
-	g_free(full_filename);
-
-	/* Check for failure */
-	if (!fff)
-	{
-		/* Destroy text */
-		g_free(all_text);
-		return;
-	}
-
-	/* Write log */
-	fprintf(fff, "%s", all_text);
-
-	/* Close file */
-	fclose(fff);
-
-	/* Destroy text */
-	g_free(all_text);
-}
-
-/*
  * Use simple random number generator.
  */
 int game_rand(game *g)
@@ -10118,8 +10048,15 @@ static void run_game(void)
 		/* Auto save */
 		auto_save_end(&real_game, player_us);
 
-		/* Dump log */
-		save_log();
+		/* Check if game is replaying */
+		if (!game_replaying)
+		{
+			/* Dump log */
+			save_log();
+
+			/* Auto export game */
+			auto_export();
+		}
 
 		/* Reset displayed cards */
 		reset_cards(&real_game, TRUE, TRUE);
@@ -10211,6 +10148,8 @@ static void read_prefs(void)
 	                                       "auto_save", NULL);
 	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
 	                                      "save_log", NULL);
+	opt.auto_export = g_key_file_get_boolean(pref_file, "gui",
+	                                         "auto_export", NULL);
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "colored_log", NULL);
 	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
@@ -10303,6 +10242,8 @@ void save_prefs(void)
 		                   opt.auto_save);
 	g_key_file_set_boolean(pref_file, "gui", "save_log",
 		                   opt.save_log);
+	g_key_file_set_boolean(pref_file, "gui", "auto_export",
+		                   opt.auto_export);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
 		                   opt.colored_log);
 	g_key_file_set_boolean(pref_file, "gui", "verbose_log",
@@ -10453,6 +10394,197 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			gtk_widget_set_sensitive(export_item, making_choice);
 		}
 	}
+}
+
+/*
+ * Export log. Implemented as a callback to avoid loadsave.c depending on gtk.
+ */
+static void export_log(FILE *fff, int gid)
+{
+	GtkTextIter iter_start, iter_end;
+	GtkTextBuffer *message_buffer;
+	GSList *list;
+	char *tag, *line;
+
+	/* Get message buffer */
+	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Get start of buffer */
+	gtk_text_buffer_get_start_iter(message_buffer, &iter_start);
+
+	/* Loop until end of buffer */
+	while (!gtk_text_iter_is_end(&iter_start))
+	{
+		/* Find tags */
+		list = gtk_text_iter_get_tags(&iter_start);
+
+		/* XXX Only look for first tag */
+		if (list)
+		{
+			/* Get name of tag */
+			g_object_get(G_OBJECT(list->data), "name", &tag, NULL);
+
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", tag);
+
+			/* Clean up */
+			g_free(tag);
+			g_slist_free(list);
+		}
+		else
+		{
+			/* Write xml start tag */
+			fputs("    <Message>", fff);
+		}
+
+		/* Get end of line */
+		iter_end = iter_start;
+		gtk_text_iter_forward_line(&iter_end);
+		gtk_text_iter_backward_char(&iter_end);
+
+		/* Get line contents */
+		line = gtk_text_iter_get_text(&iter_start, &iter_end);
+
+		/* Write message and xml end tag */
+		fprintf(fff, "%s</Message>\n", xml_escape(line));
+
+		/* Destroy line */
+		g_free(line);
+
+		/* Get start of next line */
+		iter_start = iter_end;
+		gtk_text_iter_forward_char(&iter_start);
+	}
+}
+
+/*
+ * Saves the message log to a time stamped file.
+ */
+void save_log(void)
+{
+	FILE *fff;
+	char filename[30];
+	char *full_filename;
+
+	time_t raw_time;
+	struct tm* timeinfo;
+
+	GtkTextIter start_iter;
+	GtkTextIter end_iter;
+	GtkTextBuffer *message_buffer;
+	gchar *all_text;
+
+	/* Check for save log option */
+	if (!opt.save_log) return;
+
+	/* Get message buffer */
+	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
+
+	/* Get start mark */
+	gtk_text_buffer_get_start_iter(message_buffer, &start_iter);
+
+	/* Get end mark */
+	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);
+
+	/* Get the buffer text */
+	all_text = gtk_text_buffer_get_text(message_buffer, &start_iter, &end_iter,
+	                                    FALSE);
+
+	/* Get the time */
+	time(&raw_time);
+
+	/* Get the local time */
+	timeinfo = localtime(&raw_time);
+
+	/* Generate file name */
+	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
+
+	/* Build full file name */
+	full_filename = g_build_filename(
+	    opt.data_folder ? opt.data_folder : RFTGDIR, filename, NULL);
+
+	/* Open file for writing */
+	fff = fopen(full_filename, "w");
+
+	/* Destroy filename */
+	g_free(full_filename);
+
+	/* Check for failure */
+	if (!fff)
+	{
+		/* Destroy text */
+		g_free(all_text);
+		return;
+	}
+
+	/* Write log */
+	fprintf(fff, "%s", all_text);
+
+	/* Close file */
+	fclose(fff);
+
+	/* Destroy text */
+	g_free(all_text);
+}
+
+/*
+ * Exports the game to a time stamped file.
+ */
+void auto_export(void)
+{
+	FILE *fff;
+	char filename[30];
+	char *full_filename;
+	const char *line;
+
+	time_t raw_time;
+	struct tm* timeinfo;
+	int export_save;
+
+	/* Check for auto export option */
+	if (!opt.auto_export) return;
+
+	/* Get the time */
+	time(&raw_time);
+
+	/* Get the local time */
+	timeinfo = localtime(&raw_time);
+
+	/* Generate file name */
+	strftime(filename, 30, "export_%y%m%d_%H%M.xml", timeinfo);
+
+	/* Build full file name */
+	full_filename = g_build_filename(
+	    opt.data_folder ? opt.data_folder : RFTGDIR, filename, NULL);
+
+	/* Open file for writing */
+	fff = fopen(full_filename, "w");
+
+	/* Check for failure */
+	if (!fff)
+	{
+		return;
+	}
+
+	/* Check whether saved game should be exported */
+	export_save = client_state == CS_DISCONN &&
+	              !(game_tampered & TAMPERED_MOVE);
+
+	/* Get current message */
+	line = gtk_label_get_text(GTK_LABEL(action_prompt));
+
+	/* Save to file */
+	if (export_game(&real_game, full_filename, player_us, export_save, line,
+	                num_special_cards, special_cards, export_log, 0) < 0)
+	{
+		/* Error */
+	}
+
+	/* Destroy filename */
+	g_free(full_filename);
+
+	/* Close file */
+	fclose(fff);
 }
 
 /*
@@ -10627,67 +10759,6 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
- * Export log. Implemented as a callback to avoid loadsave.c depending on gtk.
- */
-static void export_log(FILE *fff, int gid)
-{
-	GtkTextIter iter_start, iter_end;
-	GtkTextBuffer *message_buffer;
-	GSList *list;
-	char *tag, *line;
-
-	/* Get message buffer */
-	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
-
-	/* Get start of buffer */
-	gtk_text_buffer_get_start_iter(message_buffer, &iter_start);
-
-	/* Loop until end of buffer */
-	while (!gtk_text_iter_is_end(&iter_start))
-	{
-		/* Find tags */
-		list = gtk_text_iter_get_tags(&iter_start);
-
-		/* XXX Only look for first tag */
-		if (list)
-		{
-			/* Get name of tag */
-			g_object_get(G_OBJECT(list->data), "name", &tag, NULL);
-
-			/* Write xml start tag with format attribute */
-			fprintf(fff, "    <Message format=\"%s\">", tag);
-
-			/* Clean up */
-			g_free(tag);
-			g_slist_free(list);
-		}
-		else
-		{
-			/* Write xml start tag */
-			fputs("    <Message>", fff);
-		}
-
-		/* Get end of line */
-		iter_end = iter_start;
-		gtk_text_iter_forward_line(&iter_end);
-		gtk_text_iter_backward_char(&iter_end);
-
-		/* Get line contents */
-		line = gtk_text_iter_get_text(&iter_start, &iter_end);
-
-		/* Write message and xml end tag */
-		fprintf(fff, "%s</Message>\n", xml_escape(line));
-
-		/* Destroy line */
-		g_free(line);
-
-		/* Get start of next line */
-		iter_start = iter_end;
-		gtk_text_iter_forward_char(&iter_start);
-	}
-}
-
-/*
  * Export game.
  */
 static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
@@ -10695,7 +10766,7 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *dialog;
 	char *fname;
 	const char *line;
-	int export_save_game;
+	int export_save;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
@@ -10725,14 +10796,14 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
 		/* Check whether saved game should be exported */
-		export_save_game = client_state == CS_DISCONN &&
-		                   !(game_tampered & TAMPERED_MOVE);
+		export_save = client_state == CS_DISCONN &&
+		              !(game_tampered & TAMPERED_MOVE);
 
 		/* Get current message */
 		line = gtk_label_get_text(GTK_LABEL(action_prompt));
 
 		/* Save to file */
-		if (export_game(&real_game, fname, player_us, export_save_game, line,
+		if (export_game(&real_game, fname, player_us, export_save, line,
 		                num_special_cards, special_cards, export_log, 0) < 0)
 		{
 			/* Error */
@@ -11357,7 +11428,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *colored_log_button, *verbose_button;
 	GtkWidget *draw_log_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
-	GtkWidget *autosave_button, *save_log_button, *file_location_button;
+	GtkWidget *autosave_button, *save_log_button, *auto_export_button;
+	GtkWidget *file_location_button;
 
 	options old_options = opt;
 
@@ -11675,6 +11747,17 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(file_box), save_log_button, FALSE, TRUE, 0);
 
+	/* Create toggle button for auto-export */
+	auto_export_button = gtk_check_button_new_with_label(
+	    "Export game when finished");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(auto_export_button),
+	                             opt.auto_export);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(file_box), auto_export_button, FALSE, TRUE, 0);
+
 	/* Create file location button */
 	file_location_button = gtk_button_new_with_label("Choose folder...");
 
@@ -11709,6 +11792,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set save_log option */
 		opt.save_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(save_log_button));
+
+		/* Set auto export option */
+		opt.auto_export =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(auto_export_button));
 
 		/* Set colored log option */
 		opt.colored_log =
