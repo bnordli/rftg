@@ -726,7 +726,7 @@ static void handle_status_goal(char *ptr)
  */
 static void handle_status_misc(char *ptr)
 {
-	int i;
+	int i, redraw_cards;
 
 	/* Read round number */
 	real_game.round = get_integer(&ptr);
@@ -754,12 +754,19 @@ static void handle_status_misc(char *ptr)
 	/* Redraw phase status */
 	redraw_phase();
 
-	/* Check for locked hand/table areas */
-	if (!prevent_update && !making_choice && cards_updated)
+	/* Check for needing to redraw cards */
+	redraw_cards = cards_updated && !prevent_update && !making_choice;
+
+	/* Check for needing to reset structures */
+	if (redraw_cards || status_updated)
 	{
 		/* Reset cards in hand/table area */
 		reset_cards(&real_game, TRUE, TRUE);
+	}
 
+	/* Check for locked hand/table areas */
+	if (redraw_cards)
+	{
 		/* Redraw hand and table areas */
 		redraw_table();
 		redraw_hand();
