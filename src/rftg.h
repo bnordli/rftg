@@ -1009,6 +1009,6 @@ extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
 extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, int player_us,
-                       const char *message,
+                       int export_save_game, const char *message,
                        int num_special, card** special_cards,
                        void (*export_log)(FILE *fff, int gid), int gid);

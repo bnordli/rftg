@@ -10695,6 +10695,7 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *dialog;
 	char *fname;
 	const char *line;
+	int export_save_game;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
@@ -10714,7 +10715,8 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		/* Get folder used */
-		opt.last_save = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
+		opt.last_save =
+			gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
 
 		/* Save prefs */
 		save_prefs();
@@ -10722,11 +10724,15 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 		/* Get filename */
 		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
+		/* Check whether saved game should be exported */
+		export_save_game = client_state == CS_DISCONN &&
+		                   !(game_tampered & TAMPERED_MOVE);
+
 		/* Get current message */
 		line = gtk_label_get_text(GTK_LABEL(action_prompt));
 
 		/* Save to file */
-		if (export_game(&real_game, fname, player_us, line,
+		if (export_game(&real_game, fname, player_us, export_save_game, line,
 		                num_special_cards, special_cards, export_log, 0) < 0)
 		{
 			/* Error */
@@ -13827,6 +13833,7 @@ int main(int argc, char *argv[])
 	/* Modify GUI for current setup */
 	modify_gui(TRUE);
 
+	/* Check if loading from file */
 	if (fname)
 	{
 		/* Try to load savefile into load state */

@@ -23,27 +23,14 @@
 #include "rftg.h"
 
 /*
- * Load a game from the given filename.
+ * Read a game from a file.
  */
-int load_game(game *g, char *filename)
+static int read_game(game *g, FILE* fff)
 {
-	FILE *fff;
 	player *p_ptr;
 	char buf[1024];
 	char version[1024];
 	int i, j;
-
-	/* Open file for reading */
-	fff = fopen(filename, "r");
-
-	/* Check for failure */
-	if (!fff) return -1;
-
-	/* Read header */
-	fgets(buf, 1024, fff);
-
-	/* Check for correct header */
-	if (strcmp(buf, "RFTG Save\n")) return -1;
 
 	/* Read version line */
 	fgets(version, 1024, fff);
@@ -105,34 +92,84 @@ int load_game(game *g, char *filename)
 			}
 
 			/* If still characters left, set human name */
-			if (strlen(buf)) g->human_name = strdup(buf);
+			if (strlen(buf) && strcmp(buf, "]]>"))
+				g->human_name = strdup(buf);
 		}
 	}
-
-	/* Close file */
-	fclose(fff);
 
 	/* Success */
 	return 0;
 }
 
 /*
- * Save a game to the given filename.
+ * Load a game from the given filename.
  */
-int save_game(game *g, char *filename, int player_us)
+int load_game(game *g, char *filename)
 {
 	FILE *fff;
-	player *p_ptr;
-	int i, j, n;
+	char buf[1024];
+	int ret_val = -1;
 
-	/* Open file for writing */
-	fff = fopen(filename, "w");
+	/* Open file for reading */
+	fff = fopen(filename, "r");
 
 	/* Check for failure */
 	if (!fff) return -1;
 
-	/* Write header information */
-	fputs("RFTG Save\n", fff);
+	/* Read header */
+	fgets(buf, 1024, fff);
+
+	/* Check for possible export file */
+	if (!strncmp(buf, "<?xml", 5))
+	{
+		/* Loop over lines */
+		while (fgets(buf, 1024, fff))
+		{
+			/* Check for Save start tag */
+			if (!strcmp(buf, "  <Save>\n"))
+			{
+				/* Skip CDATA line */
+				fgets(buf, 1024, fff);
+
+				/* Success */
+				ret_val = 0;
+
+				/* Stop searching */
+				break;
+			}
+		}
+	}
+
+	/* Check for correct header */
+	else if (!strcmp(buf, "RFTG Save\n"))
+	{
+		/* Success */
+		ret_val = 0;
+	}
+
+	/* Check for success */
+	if (ret_val == 0)
+	{
+		/* Read the game from the file */
+		ret_val = read_game(g, fff);
+	}
+
+	/* Close file */
+	fclose(fff);
+
+	/* Finished */
+	return ret_val;
+}
+
+/*
+ * Write a game to the given file.
+ */
+static void write_game(game *g, FILE *fff, int player_us)
+{
+	player *p_ptr;
+	int i, j, n;
+
+	/* Write version information */
 	fprintf(fff, "%s\n", VERSION);
 
 	/* Write start of game random seed */
@@ -167,8 +204,29 @@ int save_game(game *g, char *filename, int player_us)
 	}
 
 	/* Save name of human player (if any) */
-	if (g->human_name && strlen(g->human_name))
+	if (g->human_name && strlen(g->human_name) &&
+	    !strstr(g->human_name, "]]>"))
 		fprintf(fff, "%s\n", g->human_name);
+}
+
+/*
+ * Save a game to the given filename.
+ */
+int save_game(game *g, char *filename, int player_us)
+{
+	FILE *fff;
+
+	/* Open file for writing */
+	fff = fopen(filename, "w");
+
+	/* Check for failure */
+	if (!fff) return -1;
+
+	/* Write header information */
+	fputs("RFTG Save\n", fff);
+
+	/* Write game to file */
+	write_game(g, fff, player_us);
 
 	/* Close file */
 	fclose(fff);
@@ -321,7 +379,7 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
  * Export the game state to the given filename.
  */
 int export_game(game *g, char *filename, int player_us,
-                const char *message,
+                int export_save_game, const char *message,
                 int num_special_cards, card **special_cards,
                 void (*export_log)(FILE *fff, int gid), int gid)
 {
@@ -653,6 +711,19 @@ int export_game(game *g, char *filename, int player_us,
 
 		/* Write log end tag */
 		fputs("  </Log>\n", fff);
+	}
+
+	/* Check for export save game */
+	if (export_save_game && player_us >= 0)
+	{
+		/* Start game tag and CDATA */
+		fputs("  <Save>\n<![CDATA[\n", fff);
+
+		/* Write save game */
+		write_game(g, fff, player_us);
+
+		/* Writed end tags */
+		fputs("]]>\n  </Save>\n", fff);
 	}
 
 	/* End top level tag */

@@ -944,7 +944,7 @@ static void db_save_results(int sid)
 	sprintf(filename, "%s/Game_%06d.xml", exports_folder, s_ptr->gid);
 
 	/* Export game to file */
-	if (export_game(&s_ptr->g, filename, -1, NULL, 0, NULL,
+	if (export_game(&s_ptr->g, filename, -1, 0, NULL, 0, NULL,
 	    export_log, s_ptr->gid) < 0)
 	{
 		/* Log error */
