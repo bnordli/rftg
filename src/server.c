@@ -1501,11 +1501,21 @@ static void server_wait(game *g, int who)
 	/* Get session pointer */
 	s_ptr = &s_list[g->session_id];
 
-	/* Wait until player is ready */
-	while (s_ptr->waiting[who])
+	/* Check if we are waiting on player */
+	if (s_ptr->waiting[who])
 	{
-		/* Wait for signal */
-		pthread_cond_wait(&s_ptr->wait_cond, &s_ptr->session_mutex);
+		/* Wait until player is ready */
+		while (s_ptr->waiting[who])
+		{
+			/* Log message */
+			printf("S:%d waiting on player %d\n", g->session_id, who);
+
+			/* Wait for signal */
+			pthread_cond_wait(&s_ptr->wait_cond, &s_ptr->session_mutex);
+		}
+
+		/* Log message */
+		printf("S:%d finished waiting on player %d\n", g->session_id, who);
 	}
 }
 
@@ -2065,7 +2075,10 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	s_ptr->waiting[who] = WAIT_OPTION;
 
 	/* Log message */
-	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
+	printf("S:%d P:%d Asking %d to prepare for phase %d at %d\n", g->session_id, who, s_ptr->cids[who], phase, g->p[who].choice_size);
+
+	/* Log message */
+	printf("S:%d P:%d OPTION\n", g->session_id, who);
 }
 
 /*
@@ -2111,7 +2124,7 @@ static void ask_client(int sid, int who)
 	}
 
 	/* Log message */
-	printf("S:%d Asking %d (%s) for choice (type %d) at %d\n", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
+	printf("S:%d P:%d Asking %d (%s) for choice (type %d) at %d\n", sid, who, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
 
 	/* Start choice message */
 	start_msg(&ptr, MSG_CHOOSE);
@@ -2174,6 +2187,9 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Mark player as being waited on */
 	s_ptr->waiting[who] = WAIT_BLOCKED;
+
+	/* Log message */
+	printf("S:%d P:%d BLOCKED\n", sid, who);
 
 	/* Start counting ticks waiting */
 	s_ptr->wait_ticks[who] = 0;
@@ -2277,7 +2293,7 @@ static void handle_choice(int cid, char *ptr)
 	*l_ptr++ = get_integer(&ptr);
 
 	/* Log message */
-	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
+	printf("S:%d P:%d Received choice type %d position %d from %d, current size is %d.\n", sid, who, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
 	if (pos != p_ptr->choice_size)
 	{
@@ -2331,6 +2347,9 @@ static void handle_choice(int cid, char *ptr)
 	{
 		/* Mark player as ready */
 		s_ptr->waiting[who] = WAIT_READY;
+
+		/* Log message */
+		printf("S:%d P:%d READY\n", sid, who);
 	}
 
 	/* Mark time of activity */
@@ -2375,6 +2394,9 @@ static void handle_prepare(int cid, char *ptr)
 	{
 		/* Mark player as ready */
 		s_ptr->waiting[who] = WAIT_READY;
+
+		/* Log message */
+		printf("S:%d P:%d READY\n", sid, who);
 	}
 
 	/* Signal game thread to continue */
@@ -2387,7 +2409,7 @@ static void handle_prepare(int cid, char *ptr)
 	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Log message */
-	printf("S:%d Received preparation complete from %d\n", sid, cid);
+	printf("S:%d P:%d Received preparation complete from %d\n", sid, who, cid);
 }
 
 /*
@@ -2507,6 +2529,9 @@ static void accept_conn(int listen_fd)
 
 	/* Print message */
 	printf("New connection %d from %s\n", i, c_list[i].addr);
+
+	/* Log new connection */
+	printf("State for connection %d set to INIT\n", i);
 }
 
 /*
@@ -2554,6 +2579,9 @@ static void kick_player(int cid, char *reason)
 
 	/* Set state to disconnected */
 	c_list[cid].state = CS_DISCONN;
+
+	/* Log connection state */
+	printf("State for connection %d set to DISCONN\n", cid);
 
 	/* Close connection */
 	close(c_list[cid].fd);
@@ -2707,6 +2735,28 @@ static void leave_game(int sid, int who)
 	db_leave_game(uid, s_ptr->gid);
 }
 
+static void log_waiting(int who, int state)
+{
+	/* Log player state */
+	printf("Waiting state for %d is ", who);
+
+	/* Check waiting status */
+	switch (state)
+	{
+		case WAIT_READY:
+			printf("READY\n");
+			break;
+		case WAIT_BLOCKED:
+			printf("BLOCKED\n");
+			break;
+		case WAIT_OPTION:
+			printf("OPTION\n");
+			break;
+			default:
+		printf("??\n");
+	}
+}
+
 /*
  * Switch a player to AI control.
  */
@@ -2727,6 +2777,12 @@ static void switch_ai(int sid, int who)
 
 	/* Client is playing */
 	c_list[cid].state = CS_PLAYING;
+
+	/* Log connection state */
+	printf("State for connection %d set to PLAYING\n", cid);
+
+	/* Log player state */
+	log_waiting(who, s_ptr->waiting[who]);
 
 	/* Tell client about game state */
 	update_meta(sid);
@@ -3090,6 +3146,9 @@ static void handle_login(int cid, char *ptr)
 	/* Set state to lobby */
 	c_list[cid].state = CS_LOBBY;
 
+	/* Log connection state */
+	printf("State for connection %d set to LOBBY\n", cid);
+
 	/* Tell client that login was successful */
 	send_msgf(cid, MSG_HELLO, "s", RELEASE);
 
@@ -3138,6 +3197,12 @@ static void handle_login(int cid, char *ptr)
 
 			/* Format message */
 			sprintf(text, "%s reconnected.", user);
+
+			/* Log connection state */
+			printf("State for connection %d set to PLAYING\n", cid);
+
+			/* Log player state */
+			log_waiting(j, s_ptr->waiting[j]);
 
 			/* Send to session */
 			send_gamechat(i, -1, "", text, 0);
@@ -3591,6 +3656,9 @@ static void handle_gameover(int cid, char *ptr)
 	/* Move player back to lobby state */
 	c_list[cid].state = CS_LOBBY;
 
+	/* Log connection state */
+	printf("State for connection %d set to LOBBY\n", cid);
+
 	/* Remove player from session */
 	c_list[cid].sid = -1;
 
@@ -3656,6 +3724,9 @@ static void handle_resign(int cid, char *ptr)
 	/* Move player back to lobby state */
 	c_list[cid].state = CS_LOBBY;
 
+	/* Log connection state */
+	printf("State for connection %d set to LOBBY\n", cid);
+
 	/* Remove player from session */
 	c_list[cid].sid = -1;
 
@@ -3718,6 +3789,12 @@ static void handle_start(int cid, char *ptr)
 
 		/* Set client status */
 		c_list[cid].state = CS_PLAYING;
+
+		/* Log connection state */
+		printf("State for connection %d set to PLAYING\n", cid);
+
+		/* Log player state */
+		log_waiting(i, s_ptr->waiting[i]);
 
 		/* Send game started message */
 		send_msgf(cid, MSG_START, "");
