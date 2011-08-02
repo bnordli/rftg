@@ -37,7 +37,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef WIN32
 #include "stdint.h"
+#else
+#include <stdint.h>
+#endif
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
