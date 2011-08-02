@@ -3096,15 +3096,11 @@ static void handle_login(int cid, char *ptr)
 		/* Check for matching username */
 		if (!strcmp(c_list[i].user, user))
 		{
-			/* Send denied message */
-			send_msgf(cid, MSG_DENIED, "s",
-			          "User already logged in");
+			/* Kick original player */
+			kick_player(i, "User logged in from elsewhere");
 
 			/* Log message */
-			printf("Denied (already logged in)\n");
-
-			/* Done */
-			return;
+			printf("Kicked old connection\n");
 		}
 	}
 
