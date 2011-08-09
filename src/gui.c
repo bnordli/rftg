@@ -5108,7 +5108,7 @@ static void reset_table(game *g, int who, int color)
 /*
  * Reset status information for a player.
  */
-static void reset_status(game *g, int who)
+void reset_status(game *g, int who)
 {
 	int i;
 

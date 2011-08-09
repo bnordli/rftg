@@ -142,6 +142,7 @@ extern int waiting_player[MAX_PLAYER];
 
 extern void save_prefs(void);
 extern void reset_cards(game *g, int color_hand, int color_table);
+extern void reset_status(game *g, int who);
 extern void redraw_hand(void);
 extern void redraw_table(void);
 extern void redraw_status(void);
