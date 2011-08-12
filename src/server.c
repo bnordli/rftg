@@ -241,7 +241,17 @@ static int kick_timeout = 30;
 /*
  * Log exports folder.
  */
-static char* exports_folder = ".";
+static char* export_folder = ".";
+
+/*
+ * Export file style sheet.
+ */
+static char* export_style_sheet = NULL;
+
+/*
+ * Server name (used in exports).
+ */
+static char* server_name = NULL;
 
 /*
  * Connection to the database server.
@@ -941,11 +951,11 @@ static void db_save_results(int sid)
 	}
 
 	/* Create file name */
-	sprintf(filename, "%s/Game_%06d.xml", exports_folder, s_ptr->gid);
+	sprintf(filename, "%s/Game_%06d.xml", export_folder, s_ptr->gid);
 
 	/* Export game to file */
-	if (export_game(&s_ptr->g, filename, -1, 0, NULL, 0, NULL,
-	    export_log, s_ptr->gid) < 0)
+	if (export_game(&s_ptr->g, filename, export_style_sheet, server_name,
+	    -1, -1, 0, NULL, 0, NULL, export_log, s_ptr->gid) < 0)
 	{
 		/* Log error */
 		server_log("Could not export game to %s", filename);
@@ -4278,7 +4288,21 @@ int main(int argc, char *argv[])
 		if (!strcmp(argv[i], "-e"))
 		{
 			/* Set exports folder */
-			exports_folder = argv[++i];
+			export_folder = argv[++i];
+		}
+
+		/* Check for server name */
+		if (!strcmp(argv[i], "-s"))
+		{
+			/* Set server name */
+			server_name = argv[++i];
+		}
+
+		/* Check for export style sheet */
+		if (!strcmp(argv[i], "-ss"))
+		{
+			/* Set style sheet */
+			export_style_sheet = argv[++i];
 		}
 	}
 

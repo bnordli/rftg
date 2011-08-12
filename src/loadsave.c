@@ -378,7 +378,8 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
 /*
  * Export the game state to the given filename.
  */
-int export_game(game *g, char *filename, int player_us,
+int export_game(game *g, char *filename, char *style_sheet,
+                char *server, int tampered, int player_us,
                 int export_save, const char *message,
                 int num_special_cards, card **special_cards,
                 void (*export_log)(FILE *fff, int gid), int gid)
@@ -397,12 +398,29 @@ int export_game(game *g, char *filename, int player_us,
 	/* Score game to get end totals */
 	score_game(g);
 
-	/* Write header and top level tag */
+	/* Write header */
 	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", fff);
+
+	/* Check for style sheet */
+	if (style_sheet && strlen(style_sheet))
+	{
+		/* Write style sheet link */
+		fprintf(fff, "<?xml-stylesheet href=\"%s\" type=\"text/xsl\"?>\n",
+		        xml_escape(style_sheet));
+	}
+
+	/* Write top level tag */
 	fputs("<RftgExport>\n", fff);
 
 	/* Write version */
 	fprintf(fff, "  <Version>%s</Version>\n", RELEASE);
+
+	/* Check for server */
+	if (server && strlen(server))
+	{
+		/* Write server */
+		fprintf(fff, "  <Server>%s</Server>\n", xml_escape(server));
+	}
 
 	/* Write setup start tag */
 	fputs("  <Setup>\n", fff);
@@ -432,9 +450,13 @@ int export_game(game *g, char *filename, int player_us,
 	/* Write status start tag */
 	fputs("  <Status>\n", fff);
 
+	/* Check for tampered game */
+	if (tampered >= 0)
+		fprintf(fff, "    <Tampered>%d</Tampered>\n", tampered);
+
 	/* Check for messsage */
-	if (message) fprintf(fff, "    <Message>%s</Message>\n",
-	                     xml_escape(message));
+	if (message)
+		fprintf(fff, "    <Message>%s</Message>\n", xml_escape(message));
 
 	/* Write current round phase */
 	fprintf(fff, "    <Round>%d</Round>\n", g->round);

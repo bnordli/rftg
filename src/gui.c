@@ -10185,6 +10185,10 @@ static void read_prefs(void)
 	opt.multi_max = g_key_file_get_integer(pref_file, "multiplayer",
 	                                       "max_player", NULL);
 
+	/* Read export options */
+	opt.export_style_sheet = g_key_file_get_string(pref_file, "export",
+	                                               "style_sheet", NULL);
+
 	/* Check range of values */
 	if (opt.num_players < 2) opt.num_players = 2;
 	if (opt.num_players > MAX_PLAYER) opt.num_players = MAX_PLAYER;
@@ -10275,9 +10279,13 @@ void save_prefs(void)
 	g_key_file_set_string(pref_file, "multiplayer", "game_pass",
 	                      opt.game_pass);
 	g_key_file_set_integer(pref_file, "multiplayer", "min_player",
-	                      opt.multi_min);
+	                       opt.multi_min);
 	g_key_file_set_integer(pref_file, "multiplayer", "max_player",
-	                      opt.multi_max);
+	                       opt.multi_max);
+
+	/* Set export options */
+	g_key_file_set_string(pref_file, "export", "style_sheet",
+	                      opt.export_style_sheet);
 
 	/* Open file for writing */
 	fff = fopen(path, "w");
@@ -10528,6 +10536,32 @@ void save_log(void)
 }
 
 /*
+ * Helper method to collect parameters to export_game.
+ */
+static void do_export(char* filename, const char* message)
+{
+	char msg[1024];
+	int export_save;
+
+	/* Check whether saved game should be exported */
+	export_save = client_state == CS_DISCONN &&
+	              !(game_tampered & TAMPERED_MOVE);
+
+	/* Save to file */
+	if (export_game(&real_game, filename, opt.export_style_sheet,
+	                client_state == CS_DISCONN ? "local" : opt.server_name,
+	                game_tampered, player_us, export_save, message,
+	                num_special_cards, special_cards, export_log, 0) < 0)
+	{
+		/* Format error */
+		sprintf(msg, "Error: Could not export game to %s.", filename);
+
+		/* Display error */
+		display_error(msg);
+	}
+}
+
+/*
  * Exports the game to a time stamped file.
  */
 void auto_export(void)
@@ -10535,11 +10569,9 @@ void auto_export(void)
 	FILE *fff;
 	char filename[30];
 	char *full_filename;
-	const char *line;
 
 	time_t raw_time;
 	struct tm* timeinfo;
-	int export_save;
 
 	/* Check for auto export option */
 	if (!opt.auto_export) return;
@@ -10566,19 +10598,8 @@ void auto_export(void)
 		return;
 	}
 
-	/* Check whether saved game should be exported */
-	export_save = client_state == CS_DISCONN &&
-	              !(game_tampered & TAMPERED_MOVE);
-
-	/* Get current message */
-	line = gtk_label_get_text(GTK_LABEL(action_prompt));
-
 	/* Save to file */
-	if (export_game(&real_game, full_filename, player_us, export_save, line,
-	                num_special_cards, special_cards, export_log, 0) < 0)
-	{
-		/* Error */
-	}
+	do_export(full_filename, gtk_label_get_text(GTK_LABEL(action_prompt)));
 
 	/* Destroy filename */
 	g_free(full_filename);
@@ -10764,9 +10785,7 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
-	char *fname;
-	const char *line;
-	int export_save;
+	char *file_name;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Export game", NULL,
@@ -10793,24 +10812,13 @@ static void gui_export_game(GtkMenuItem *menu_item, gpointer data)
 		save_prefs();
 
 		/* Get filename */
-		fname = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+		file_name = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 
-		/* Check whether saved game should be exported */
-		export_save = client_state == CS_DISCONN &&
-		              !(game_tampered & TAMPERED_MOVE);
-
-		/* Get current message */
-		line = gtk_label_get_text(GTK_LABEL(action_prompt));
-
-		/* Save to file */
-		if (export_game(&real_game, fname, player_us, export_save, line,
-		                num_special_cards, special_cards, export_log, 0) < 0)
-		{
-			/* Error */
-		}
+		/* Export to file */
+		do_export(file_name, gtk_label_get_text(GTK_LABEL(action_prompt)));
 
 		/* Destroy filename */
-		g_free(fname);
+		g_free(file_name);
 	}
 
 	/* Destroy file chooser dialog */
@@ -11423,12 +11431,14 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
 	GtkWidget *hand_cost_button, *key_cues_button;
 	GtkWidget *interface_box, *interface_frame;
+	GtkWidget *export_box, *export_frame;
 	GtkWidget *auto_select_button;
 	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button;
 	GtkWidget *draw_log_button, *discard_log_button;
 	GtkWidget *file_box, *file_frame;
 	GtkWidget *autosave_button, *save_log_button, *auto_export_button;
+	GtkWidget *style_sheet_box, *style_sheet_label, *style_sheet_entry;
 	GtkWidget *file_location_button;
 
 	options old_options = opt;
@@ -11636,7 +11646,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  game_view_frame);
 
-	/* ---- Interface ---- */
+	/* ---- Interface options ---- */
 	/* Create vbox to hold interface check boxes */
 	interface_box = gtk_vbox_new(FALSE, 0);
 
@@ -11657,7 +11667,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                   FALSE, TRUE, 0);
 
 	/* Create frame around buttons */
-	interface_frame = gtk_frame_new("Interface");
+	interface_frame = gtk_frame_new("Interface options");
 
 	/* Pack button box into frame */
 	gtk_container_add(GTK_CONTAINER(interface_frame), interface_box);
@@ -11779,6 +11789,57 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  file_frame);
 
+	/* ---- Export options ---- */
+	/* Create vbox to hold export widgets */
+	export_box = gtk_vbox_new(FALSE, 0);
+
+	/* Create hbox to hold style sheet label and entry */
+	style_sheet_box = gtk_hbox_new(FALSE, 0);
+
+	/* Create style sheet label */
+	style_sheet_label = gtk_label_new("Export style sheet:");
+
+	/* Pack name label into name box */
+	gtk_box_pack_start(GTK_BOX(style_sheet_box), style_sheet_label,
+	                   FALSE, TRUE, 5);
+
+	/* Create text entry for style sheet */
+	style_sheet_entry = gtk_entry_new();
+
+	/* Set max length */
+	gtk_entry_set_max_length(GTK_ENTRY(style_sheet_entry), 50);
+
+	/* Set request size */
+	gtk_widget_set_size_request(style_sheet_entry, 120, -1);
+
+	/* Set style sheet contents */
+	gtk_entry_set_text(GTK_ENTRY(style_sheet_entry),
+	                   opt.export_style_sheet ? opt.export_style_sheet : "");
+
+	/* Connect the style sheet entry's activate signal to */
+	/* the accept response on the dialog */
+	g_signal_connect(G_OBJECT(style_sheet_entry), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+
+	/* Pack style sheet entry into style sheet box */
+	gtk_box_pack_start(GTK_BOX(style_sheet_box), style_sheet_entry,
+	                   FALSE, TRUE, 0);
+
+	/* Pack style sheet box into export box */
+	gtk_container_add(GTK_CONTAINER(export_box), style_sheet_box);
+
+	/* Create frame around widgets */
+	export_frame = gtk_frame_new("Export");
+
+	/* Pack export box into frame */
+	gtk_container_add(GTK_CONTAINER(export_frame), export_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	                  export_frame);
+
+	/* ---- End ---- */
+
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
 
@@ -11812,6 +11873,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set discard log option */
 		opt.discard_log =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discard_log_button));
+
+		/* Set export style sheet option */
+		opt.export_style_sheet =
+		 strdup(gtk_entry_get_text(GTK_ENTRY(style_sheet_entry)));
 
 		/* Save preferences */
 		save_prefs();

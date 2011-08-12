@@ -76,6 +76,9 @@ typedef struct options
 	/* Password */
 	char *password;
 
+	/* Export style sheet */
+	char *export_style_sheet;
+
 	/* Game description when creating */
 	char *game_desc;
 
