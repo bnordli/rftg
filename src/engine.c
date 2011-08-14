@@ -4199,7 +4199,7 @@ int takeover_callback(game *g, int special, int world)
  * Check if a player can takeover opponent's cards, and if so, ask
  * player which card to declare an attempt on.
  */
-int settle_check_takeover(game *g, int who)
+int settle_check_takeover(game *g, int who, card *extra)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -4399,6 +4399,17 @@ int settle_check_takeover(game *g, int who)
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Check for card used for extra placement */
+		if (extra)
+		{
+			/* Format message */
+			sprintf(msg, "%s uses %s to attempt to take over a world.\n",
+					p_ptr->name, extra->d_ptr->name);
+
+			/* Add message */
+			message_add(g, msg);
+		}
+
 		/* Format message */
 		sprintf(msg, "%s uses %s to attempt takeover of %s.\n",
 		        p_ptr->name, c_ptr->d_ptr->name,
@@ -4875,19 +4886,8 @@ void settle_action(game *g, int who, int world)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask for takeover declaration if possible */
-			if (settle_check_takeover(g, who))
+			if (settle_check_takeover(g, who, c_ptr))
 			{
-				/* Message */
-				if (!g->simulation)
-				{
-					/* Format message */
-					sprintf(msg, "%s uses %s to attempt to take over a world.\n",
-					        p_ptr->name, c_ptr->d_ptr->name);
-
-					/* Add message */
-					message_add(g, msg);
-				}
-
 				/* Act on declaration */
 				settle_action(g, who, -1);
 			}
@@ -5952,7 +5952,7 @@ void phase_settle(game *g)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask player for takeover choice instead */
-			settle_check_takeover(g, i);
+			settle_check_takeover(g, i, NULL);
 
 			/* Check for aborted game */
 			if (g->game_over) return;

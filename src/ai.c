@@ -3385,7 +3385,7 @@ static double ai_choose_place_opp_aux(game *g, int who, int which, int phase)
 	if (phase == PHASE_SETTLE)
 	{
 		/* Check for takeovers or placement */
-		if (which != -1 || settle_check_takeover(&sim, who))
+		if (which != -1 || settle_check_takeover(&sim, who, NULL))
 		{
 			/* Take no-place action */
 			settle_action(&sim, who, which);
@@ -3542,7 +3542,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
 	if (phase == PHASE_SETTLE)
 	{
 		/* Check for takeovers */
-		if (settle_check_takeover(&sim, who))
+		if (settle_check_takeover(&sim, who, NULL))
 		{
 			/* Take no-place action */
 			settle_action(&sim, who, -1);
