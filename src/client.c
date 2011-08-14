@@ -1568,9 +1568,6 @@ static gboolean message_read(gpointer data)
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			           "Game Over - Press Done to return to lobby");
 
-			/* Save log */
-			save_log();
-
 			/* Auto export game */
 			auto_export();
 

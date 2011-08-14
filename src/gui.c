@@ -491,7 +491,7 @@ static GtkWidget *new_item, *new_parameters_item;
 static GtkWidget *load_item, *replay_item, *save_item, *export_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
-static GtkWidget *option_item, *quit_item;
+static GtkWidget *option_item, *advanced_item, *quit_item;
 static GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *entry_hbox;
@@ -10051,9 +10051,6 @@ static void run_game(void)
 		/* Check if game is replaying */
 		if (!game_replaying)
 		{
-			/* Dump log */
-			save_log();
-
 			/* Auto export game */
 			auto_export();
 		}
@@ -10146,8 +10143,6 @@ static void read_prefs(void)
 	                                         "auto_select", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
-	opt.save_log = g_key_file_get_boolean(pref_file, "gui",
-	                                      "save_log", NULL);
 	opt.auto_export = g_key_file_get_boolean(pref_file, "gui",
 	                                         "auto_export", NULL);
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
@@ -10164,6 +10159,8 @@ static void read_prefs(void)
 	                                      "last_save", NULL);
 	opt.data_folder = g_key_file_get_string(pref_file, "folders",
 	                                       "data_folder", NULL);
+	opt.export_folder = g_key_file_get_string(pref_file, "folders",
+	                                          "export_folder", NULL);
 
 	/* Read multiplayer options */
 	opt.server_name = g_key_file_get_string(pref_file, "multiplayer",
@@ -10244,8 +10241,6 @@ void save_prefs(void)
 	                       opt.auto_select);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
 		                   opt.auto_save);
-	g_key_file_set_boolean(pref_file, "gui", "save_log",
-		                   opt.save_log);
 	g_key_file_set_boolean(pref_file, "gui", "auto_export",
 		                   opt.auto_export);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
@@ -10262,6 +10257,8 @@ void save_prefs(void)
 	                      opt.last_save);
 	g_key_file_set_string(pref_file, "folders", "data_folder",
 	                      opt.data_folder);
+	g_key_file_set_string(pref_file, "folders", "export_folder",
+	                      opt.export_folder);
 
 	/* Set multiplayer options */
 	g_key_file_set_string(pref_file, "multiplayer", "server_name",
@@ -10328,6 +10325,7 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(save_item, TRUE);
 		gtk_widget_set_sensitive(export_item, TRUE);
 		gtk_widget_set_sensitive(option_item, TRUE);
+		gtk_widget_set_sensitive(advanced_item, TRUE);
 		gtk_widget_set_sensitive(undo_item, TRUE);
 		gtk_widget_set_sensitive(undo_round_item, TRUE);
 		gtk_widget_set_sensitive(undo_game_item, TRUE);
@@ -10376,23 +10374,26 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			/* resign_item too, but this is deliberately left active. */
 			if (making_choice)
 			{
-				/* Activate the export, option and about items */
+				/* Activate the export, options and about items */
 				gtk_widget_set_sensitive(export_item, TRUE);
 				gtk_widget_set_sensitive(option_item, TRUE);
+				gtk_widget_set_sensitive(advanced_item, TRUE);
 				gtk_widget_set_sensitive(about_item, TRUE);
 			}
 			else
 			{
-				/* Deactivate the export, option and about items */
+				/* Deactivate the export, option ands about items */
 				gtk_widget_set_sensitive(export_item, FALSE);
 				gtk_widget_set_sensitive(option_item, FALSE);
+				gtk_widget_set_sensitive(advanced_item, FALSE);
 				gtk_widget_set_sensitive(about_item, FALSE);
 			}
 		}
 		else
 		{
-			/* Activate the option and about items */
+			/* Activate the options and about items */
 			gtk_widget_set_sensitive(option_item, TRUE);
+			gtk_widget_set_sensitive(advanced_item, TRUE);
 			gtk_widget_set_sensitive(about_item, TRUE);
 
 			/* Deactivate the resign menu items */
@@ -10466,76 +10467,6 @@ static void export_log(FILE *fff, int gid)
 }
 
 /*
- * Saves the message log to a time stamped file.
- */
-void save_log(void)
-{
-	FILE *fff;
-	char filename[30];
-	char *full_filename;
-
-	time_t raw_time;
-	struct tm* timeinfo;
-
-	GtkTextIter start_iter;
-	GtkTextIter end_iter;
-	GtkTextBuffer *message_buffer;
-	gchar *all_text;
-
-	/* Check for save log option */
-	if (!opt.save_log) return;
-
-	/* Get message buffer */
-	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
-
-	/* Get start mark */
-	gtk_text_buffer_get_start_iter(message_buffer, &start_iter);
-
-	/* Get end mark */
-	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);
-
-	/* Get the buffer text */
-	all_text = gtk_text_buffer_get_text(message_buffer, &start_iter, &end_iter,
-	                                    FALSE);
-
-	/* Get the time */
-	time(&raw_time);
-
-	/* Get the local time */
-	timeinfo = localtime(&raw_time);
-
-	/* Generate file name */
-	strftime(filename, 30, "gamelog_%y%m%d_%H%M.txt", timeinfo);
-
-	/* Build full file name */
-	full_filename = g_build_filename(
-	    opt.data_folder ? opt.data_folder : RFTGDIR, filename, NULL);
-
-	/* Open file for writing */
-	fff = fopen(full_filename, "w");
-
-	/* Destroy filename */
-	g_free(full_filename);
-
-	/* Check for failure */
-	if (!fff)
-	{
-		/* Destroy text */
-		g_free(all_text);
-		return;
-	}
-
-	/* Write log */
-	fprintf(fff, "%s", all_text);
-
-	/* Close file */
-	fclose(fff);
-
-	/* Destroy text */
-	g_free(all_text);
-}
-
-/*
  * Helper method to collect parameters to export_game.
  */
 static void do_export(char* filename, const char* message)
@@ -10587,7 +10518,7 @@ void auto_export(void)
 
 	/* Build full file name */
 	full_filename = g_build_filename(
-	    opt.data_folder ? opt.data_folder : RFTGDIR, filename, NULL);
+	    opt.export_folder ? opt.export_folder : RFTGDIR, filename, NULL);
 
 	/* Open file for writing */
 	fff = fopen(full_filename, "w");
@@ -11389,6 +11320,7 @@ static void file_location_pressed(GtkButton *button, gpointer data)
 {
 	GtkWidget *dialog;
 	char *folder_name;
+	char **option = (char **) data;
 
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Choose location", NULL,
@@ -11398,10 +11330,10 @@ static void file_location_pressed(GtkButton *button, gpointer data)
 	                                     NULL);
 
 	/* Check if last folder location is set */
-	if (opt.data_folder)
+	if (*option)
 	{
 		/* Set current folder to last save */
-		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), opt.data_folder);
+		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), *option);
 	}
 
 	/* Run dialog and check response */
@@ -11411,7 +11343,7 @@ static void file_location_pressed(GtkButton *button, gpointer data)
 		folder_name = gtk_file_chooser_get_current_folder(GTK_FILE_CHOOSER(dialog));
 
 		/* Save folder name to options */
-		opt.data_folder = folder_name;
+		*option = folder_name;
 	}
 
 	/* Destroy file choose dialog */
@@ -11431,15 +11363,10 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *shrink_button, *discount_button, *hand_vp_button;
 	GtkWidget *hand_cost_button, *key_cues_button;
 	GtkWidget *interface_box, *interface_frame;
-	GtkWidget *export_box, *export_frame;
 	GtkWidget *auto_select_button;
 	GtkWidget *log_box, *log_frame;
 	GtkWidget *colored_log_button, *verbose_button;
 	GtkWidget *draw_log_button, *discard_log_button;
-	GtkWidget *file_box, *file_frame;
-	GtkWidget *autosave_button, *save_log_button, *auto_export_button;
-	GtkWidget *style_sheet_box, *style_sheet_label, *style_sheet_entry;
-	GtkWidget *file_location_button;
 
 	options old_options = opt;
 
@@ -11732,9 +11659,101 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 	                  log_frame);
 
-	/* ---- File options ---- */
+	/* ---- End ---- */
+
+	/* Show all widgets */
+	gtk_widget_show_all(dialog);
+
+	/* Run dialog */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Set colored log option */
+		opt.colored_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
+
+		/* Set verbose log option */
+		opt.verbose_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
+
+		/* Set draw log option */
+		opt.draw_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draw_log_button));
+
+		/* Set discard log option */
+		opt.discard_log =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discard_log_button));
+
+		/* Save preferences */
+		save_prefs();
+
+		/* Restart main loop if not online and log options changed */
+		if (client_state == CS_DISCONN &&
+		    !(game_tampered & TAMPERED_MOVE) &&
+		    (opt.colored_log != old_options.colored_log ||
+		     opt.verbose_log != old_options.verbose_log ||
+		     opt.draw_log != old_options.draw_log ||
+		     opt.discard_log != old_options.discard_log ||
+		     opt.vp_in_hand != old_options.vp_in_hand ||
+		     opt.cost_in_hand != old_options.cost_in_hand))
+		{
+			/* Force current game over */
+			real_game.game_over = 1;
+
+			/* Replay to current position */
+			restart_loop = RESTART_CURRENT;
+
+			/* Quit waiting for events */
+			gtk_main_quit();
+		}
+	}
+	else
+	{
+		/* Restore old options */
+		opt = old_options;
+	}
+
+	/* Handle new options */
+	modify_gui(FALSE);
+
+	/* Redraw everything */
+	redraw_everything();
+
+	/* Destroy dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
+ * Modify advanced options.
+ */
+static void advanced_options(GtkMenuItem *menu_item, gpointer data)
+{
+	GtkWidget *dialog;
+	GtkWidget *autosave_box, *autosave_frame;
+	GtkWidget *autosave_button, *autosave_location_button;
+	GtkWidget *export_box, *export_frame;
+	GtkWidget *autoexport_button;
+	GtkWidget *style_sheet_box, *style_sheet_label, *style_sheet_entry;
+	GtkWidget *autoexport_location_button;
+
+	options old_options = opt;
+
+	/* Create dialog box */
+	dialog = gtk_dialog_new_with_buttons("Advanced options", NULL,
+	                                     GTK_DIALOG_MODAL,
+	                                     GTK_STOCK_OK,
+	                                     GTK_RESPONSE_ACCEPT,
+	                                     GTK_STOCK_CANCEL,
+	                                     GTK_RESPONSE_REJECT, NULL);
+
+	/* Make some space */
+	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 4);
+
+	/* Set window title */
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
+
+	/* ---- Autosave options ---- */
 	/* Create vbox to hold file options check boxes */
-	file_box = gtk_vbox_new(FALSE, 0);
+	autosave_box = gtk_vbox_new(FALSE, 0);
 
 	/* Create toggle button for autosaving */
 	autosave_button = gtk_check_button_new_with_label("Autosave");
@@ -11744,54 +11763,44 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                             opt.auto_save);
 
 	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(file_box), autosave_button, FALSE, TRUE, 0);
-
-	/* Create toggle button for log saving */
-	save_log_button = gtk_check_button_new_with_label(
-	    "Save log at end of game");
-
-	/* Set toggled status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(save_log_button),
-	                             opt.save_log);
-
-	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(file_box), save_log_button, FALSE, TRUE, 0);
-
-	/* Create toggle button for auto-export */
-	auto_export_button = gtk_check_button_new_with_label(
-	    "Export game when finished");
-
-	/* Set toggled status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(auto_export_button),
-	                             opt.auto_export);
-
-	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(file_box), auto_export_button, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(autosave_box), autosave_button, FALSE, TRUE, 0);
 
 	/* Create file location button */
-	file_location_button = gtk_button_new_with_label("Choose folder...");
+	autosave_location_button =
+		gtk_button_new_with_label("Choose autosave folder...");
 
 	/* Attach event */
-	g_signal_connect(G_OBJECT(file_location_button), "clicked",
-	                 G_CALLBACK(file_location_pressed), NULL);
+	g_signal_connect(G_OBJECT(autosave_location_button), "clicked",
+	                 G_CALLBACK(file_location_pressed), &opt.data_folder);
 
 	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(file_box), file_location_button,
+	gtk_box_pack_start(GTK_BOX(autosave_box), autosave_location_button,
 	                   FALSE, TRUE, 0);
 
 	/* Create frame around buttons */
-	file_frame = gtk_frame_new("File options");
+	autosave_frame = gtk_frame_new("Autosave options");
 
 	/* Pack button box into frame */
-	gtk_container_add(GTK_CONTAINER(file_frame), file_box);
+	gtk_container_add(GTK_CONTAINER(autosave_frame), autosave_box);
 
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  file_frame);
+	                  autosave_frame);
 
 	/* ---- Export options ---- */
 	/* Create vbox to hold export widgets */
 	export_box = gtk_vbox_new(FALSE, 0);
+
+	/* Create toggle button for auto-export */
+	autoexport_button = gtk_check_button_new_with_label(
+	    "Export game when finished");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(autoexport_button),
+	                             opt.auto_export);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(export_box), autoexport_button, FALSE, TRUE, 0);
 
 	/* Create hbox to hold style sheet label and entry */
 	style_sheet_box = gtk_hbox_new(FALSE, 0);
@@ -11828,8 +11837,20 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack style sheet box into export box */
 	gtk_container_add(GTK_CONTAINER(export_box), style_sheet_box);
 
+	/* Create file location button */
+	autoexport_location_button =
+		gtk_button_new_with_label("Choose export folder...");
+
+	/* Attach event */
+	g_signal_connect(G_OBJECT(autoexport_location_button), "clicked",
+	                 G_CALLBACK(file_location_pressed), &opt.export_folder);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(export_box), autoexport_location_button,
+	                   FALSE, TRUE, 0);
+
 	/* Create frame around widgets */
-	export_frame = gtk_frame_new("Export");
+	export_frame = gtk_frame_new("Export options");
 
 	/* Pack export box into frame */
 	gtk_container_add(GTK_CONTAINER(export_frame), export_box);
@@ -11850,29 +11871,9 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 		opt.auto_save =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autosave_button));
 
-		/* Set save_log option */
-		opt.save_log =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(save_log_button));
-
 		/* Set auto export option */
 		opt.auto_export =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(auto_export_button));
-
-		/* Set colored log option */
-		opt.colored_log =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
-
-		/* Set verbose log option */
-		opt.verbose_log =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(verbose_button));
-
-		/* Set draw log option */
-		opt.draw_log =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draw_log_button));
-
-		/* Set discard log option */
-		opt.discard_log =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(discard_log_button));
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autoexport_button));
 
 		/* Set export style sheet option */
 		opt.export_style_sheet =
@@ -11880,38 +11881,12 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 		/* Save preferences */
 		save_prefs();
-
-		/* Restart main loop if not online and log options changed */
-		if (client_state == CS_DISCONN &&
-		    !(game_tampered & TAMPERED_MOVE) &&
-		    (opt.colored_log != old_options.colored_log ||
-		     opt.verbose_log != old_options.verbose_log ||
-		     opt.draw_log != old_options.draw_log ||
-		     opt.discard_log != old_options.discard_log ||
-		     opt.vp_in_hand != old_options.vp_in_hand ||
-		     opt.cost_in_hand != old_options.cost_in_hand))
-		{
-			/* Force current game over */
-			real_game.game_over = 1;
-
-			/* Replay to current position */
-			restart_loop = RESTART_CURRENT;
-
-			/* Quit waiting for events */
-			gtk_main_quit();
-		}
 	}
 	else
 	{
 		/* Restore old options */
 		opt = old_options;
 	}
-
-	/* Handle new options */
-	modify_gui(FALSE);
-
-	/* Redraw everything */
-	redraw_everything();
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);
@@ -13151,6 +13126,7 @@ int main(int argc, char *argv[])
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");
 	export_item = gtk_menu_item_new_with_mnemonic("E_xport to XML...");
 	option_item = gtk_menu_item_new_with_mnemonic("_GUI Options...");
+	advanced_item = gtk_menu_item_new_with_mnemonic("_Advanced Options...");
 	quit_item = gtk_menu_item_new_with_mnemonic("_Quit");
 
 	/* Add accelerators for game menu items */
@@ -13169,6 +13145,8 @@ int main(int argc, char *argv[])
 	                           'E', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(option_item, "activate", window_accel,
 	                           'G', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(advanced_item, "activate", window_accel,
+	                           'A', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(quit_item, "activate", window_accel,
 	                           'Q', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 
@@ -13180,6 +13158,7 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), export_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), advanced_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
 	/* Create undo menu */
@@ -13284,6 +13263,8 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_export_game), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
+	g_signal_connect(G_OBJECT(advanced_item), "activate",
+	                 G_CALLBACK(advanced_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
 	                 G_CALLBACK(gui_quit_game), NULL);
 

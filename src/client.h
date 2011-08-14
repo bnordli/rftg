@@ -98,9 +98,6 @@ typedef struct options
 	/* Autosave */
 	int auto_save;
 
-	/* Save log at end of game */
-	int save_log;
-
 	/* Export game at end of game */
 	int auto_export;
 
@@ -119,8 +116,11 @@ typedef struct options
 	/* Last save location */
 	char *last_save;
 
-	/* Data folder location */
+	/* Data folder (autosave) location */
 	char *data_folder;
+
+	/* Export folder location */
+	char *export_folder;
 
 } options;
 
