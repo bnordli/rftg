@@ -201,7 +201,7 @@ typedef struct session
 	/* Player(s) being waited upon */
 	int waiting[MAX_PLAYER];
 
-	/* Ticks (roughly 10 seconds) we've been waiting on each player */
+	/* Ticks we've been waiting on each player */
 	int wait_ticks[MAX_PLAYER];
 
 	/* Mutex for access to session variables */
@@ -229,14 +229,24 @@ static session s_list[1024];
 static int num_session;
 
 /*
+ * Tick size (in seconds).
+ */
+static int tick_size = 10;
+
+/*
  * Timeout value (in seconds).
  */
 static int timeout = 60;
 
 /*
- * Kick timeout value (in ten seconds).
+ * Kick timeout value (in ticks).
  */
 static int kick_timeout = 30;
+
+/*
+ * Ping timeout (in seconds).
+ */
+static int ping_timeout = 20;
 
 /*
  * Log exports folder.
@@ -2663,7 +2673,7 @@ static void kick_player(int cid, char *reason)
 			/* Format time to AI control message */
 			sprintf(text, "%s will be set to AI control in %d seconds.",
 			        c_list[cid].user,
-			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * 10);
+			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * tick_size);
 
 			/* Send to remaining players in session */
 			send_gamechat(sid, -1, "", text, 0);
@@ -4162,8 +4172,7 @@ static void do_housekeeping(void)
 		}
 
 		/* Check for no recent data from client */
-		if (timeout &&
-		    cur_time - c_list[i].last_seen > timeout - 40)
+		if (cur_time - c_list[i].last_seen > timeout - ping_timeout)
 		{
 			/* Send client a ping */
 			send_msgf(i, MSG_PING, "");
@@ -4288,8 +4297,9 @@ static void do_housekeeping(void)
 			{
 				/* Create warning message */
 				sprintf(msg, "WARNING: %s will be set to AI "
-				        "control in 10 seconds.",
-				        c_list[s_ptr->cids[j]].user);
+				        "control in %d second%s.",
+				        c_list[s_ptr->cids[j]].user,
+				        tick_size, PLURAL(tick_size));
 
 				/* Give warning */
 				send_gamechat(i, -1, "", msg, 0);
@@ -4340,8 +4350,9 @@ int main(int argc, char *argv[])
 		/* Check for timeout settings */
 		if (!strcmp(argv[i], "-t"))
 		{
-			/* Set database name */
+			/* Set new timeouts */
 			timeout = atoi(argv[++i]);
+			ping_timeout = timeout < 50 ? 10 : timeout - 40;
 		}
 
 		/* Check for kick timeout settings */
@@ -4479,8 +4490,8 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		/* Wait no more than 10 seconds */
-		sel_timeout.tv_sec = 10;
+		/* Wait no more than one tick */
+		sel_timeout.tv_sec = tick_size;
 		sel_timeout.tv_usec = 0;
 
 		/* Wait for activity on any connection */
@@ -4516,7 +4527,7 @@ int main(int argc, char *argv[])
 		}
 
 		/* Check time since last housekeeping */
-		if (time(NULL) - last_housekeep >= 10)
+		if (time(NULL) - last_housekeep >= tick_size)
 		{
 			/* Perform housekeeping */
 			do_housekeeping();
