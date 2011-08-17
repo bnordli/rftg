@@ -1550,14 +1550,14 @@ static void server_wait(game *g, int who)
 		while (s_ptr->waiting[who])
 		{
 			/* Log message */
-			server_log("S:%d waiting on player %d\n", g->session_id, who);
+			server_log("S:%d waiting on player %d", g->session_id, who);
 
 			/* Wait for signal */
 			pthread_cond_wait(&s_ptr->wait_cond, &s_ptr->session_mutex);
 		}
 
 		/* Log message */
-		server_log("S:%d finished waiting on player %d\n", g->session_id, who);
+		server_log("S:%d finished waiting on player %d", g->session_id, who);
 	}
 }
 
@@ -2120,7 +2120,7 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	server_log("S:%d P:%d Asking %d to prepare for phase %d at %d", g->session_id, who, s_ptr->cids[who], phase, g->p[who].choice_size);
 
 	/* Log message */
-	server_log("S:%d P:%d OPTION\n", g->session_id, who);
+	server_log("S:%d P:%d OPTION", g->session_id, who);
 }
 
 /*
@@ -2231,7 +2231,7 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 	s_ptr->waiting[who] = WAIT_BLOCKED;
 
 	/* Log message */
-	server_log("S:%d P:%d BLOCKED\n", sid, who);
+	server_log("S:%d P:%d BLOCKED", sid, who);
 
 	/* Start counting ticks waiting */
 	s_ptr->wait_ticks[who] = 0;
@@ -2391,7 +2391,7 @@ static void handle_choice(int cid, char *ptr)
 		s_ptr->waiting[who] = WAIT_READY;
 
 		/* Log message */
-		server_log("S:%d P:%d READY\n", sid, who);
+		server_log("S:%d P:%d READY", sid, who);
 	}
 
 	/* Mark time of activity */
@@ -2438,7 +2438,7 @@ static void handle_prepare(int cid, char *ptr)
 		s_ptr->waiting[who] = WAIT_READY;
 
 		/* Log message */
-		server_log("S:%d P:%d READY\n", sid, who);
+		server_log("S:%d P:%d READY", sid, who);
 	}
 
 	/* Signal game thread to continue */
@@ -2573,7 +2573,7 @@ static void accept_conn(int listen_fd)
 	server_log("New connection %d from %s", i, c_list[i].addr);
 
 	/* Log new connection */
-	server_log("State for connection %d set to INIT\n", i);
+	server_log("State for connection %d set to INIT", i);
 }
 
 /*
@@ -2623,7 +2623,7 @@ static void kick_player(int cid, char *reason)
 	c_list[cid].state = CS_DISCONN;
 
 	/* Log connection state */
-	server_log("State for connection %d set to DISCONN\n", cid);
+	server_log("State for connection %d set to DISCONN", cid);
 
 	/* Close connection */
 	close(c_list[cid].fd);
@@ -2786,16 +2786,16 @@ static void log_waiting(int who, int state)
 	switch (state)
 	{
 		case WAIT_READY:
-			server_log("READY\n");
+			server_log("READY");
 			break;
 		case WAIT_BLOCKED:
-			server_log("BLOCKED\n");
+			server_log("BLOCKED");
 			break;
 		case WAIT_OPTION:
-			server_log("OPTION\n");
+			server_log("OPTION");
 			break;
 			default:
-		server_log("??\n");
+		server_log("??");
 	}
 }
 
@@ -2821,7 +2821,7 @@ static void switch_ai(int sid, int who)
 	c_list[cid].state = CS_PLAYING;
 
 	/* Log connection state */
-	server_log("State for connection %d set to PLAYING\n", cid);
+	server_log("State for connection %d set to PLAYING", cid);
 
 	/* Log player state */
 	log_waiting(who, s_ptr->waiting[who]);
@@ -3142,7 +3142,7 @@ static void handle_login(int cid, char *ptr)
 			kick_player(i, "User logged in from elsewhere");
 
 			/* Log message */
-			server_log("Kicked old connection\n");
+			server_log("Kicked old connection");
 		}
 	}
 
@@ -3185,7 +3185,7 @@ static void handle_login(int cid, char *ptr)
 	c_list[cid].state = CS_LOBBY;
 
 	/* Log connection state */
-	server_log("State for connection %d set to LOBBY\n", cid);
+	server_log("State for connection %d set to LOBBY", cid);
 
 	/* Tell client that login was successful */
 	send_msgf(cid, MSG_HELLO, "s", RELEASE);
@@ -3237,7 +3237,7 @@ static void handle_login(int cid, char *ptr)
 			sprintf(text, "%s reconnected.", user);
 
 			/* Log connection state */
-			server_log("State for connection %d set to PLAYING\n", cid);
+			server_log("State for connection %d set to PLAYING", cid);
 
 			/* Log player state */
 			log_waiting(j, s_ptr->waiting[j]);
@@ -3695,7 +3695,7 @@ static void handle_gameover(int cid, char *ptr)
 	c_list[cid].state = CS_LOBBY;
 
 	/* Log connection state */
-	server_log("State for connection %d set to LOBBY\n", cid);
+	server_log("State for connection %d set to LOBBY", cid);
 
 	/* Remove player from session */
 	c_list[cid].sid = -1;
@@ -3763,7 +3763,7 @@ static void handle_resign(int cid, char *ptr)
 	c_list[cid].state = CS_LOBBY;
 
 	/* Log connection state */
-	server_log("State for connection %d set to LOBBY\n", cid);
+	server_log("State for connection %d set to LOBBY", cid);
 
 	/* Remove player from session */
 	c_list[cid].sid = -1;
@@ -3829,7 +3829,7 @@ static void handle_start(int cid, char *ptr)
 		c_list[cid].state = CS_PLAYING;
 
 		/* Log connection state */
-		server_log("State for connection %d set to PLAYING\n", cid);
+		server_log("State for connection %d set to PLAYING", cid);
 
 		/* Log player state */
 		log_waiting(i, s_ptr->waiting[i]);
