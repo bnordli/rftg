@@ -1931,6 +1931,13 @@ static void update_status_one(int sid, int who)
 			/* Add covered flag */
 			put_integer(c_ptr->covered, &ptr);
 
+			/* Loop over all powers */
+			for (j = 0; j < c_ptr->d_ptr->num_power; ++j)
+			{
+				/* Put used flag (since 0.8.1l) */
+				put_integer(c_ptr->used[j], &ptr);
+			}
+
 			/* Finish message */
 			finish_msg(msg, ptr);
 

@@ -659,11 +659,12 @@ static void handle_status_player(char *ptr)
 /*
  * Handle a status update about a card.
  */
-static void handle_status_card(char *ptr)
+static void handle_status_card(char *ptr, int size)
 {
 	card *c_ptr;
-	int x;
+	int x, i;
 	int owner, where, start_owner, start_where;
+	char *start = ptr;
 
 	/* Read card index */
 	x = get_integer(&ptr);
@@ -697,6 +698,17 @@ static void handle_status_card(char *ptr)
 	/* Card locations have been updated */
 	cards_updated = 1;
 	status_updated = 1;
+
+	/* Check for 'used' flags (since 0.8.1l) */
+	if (size > ptr - start)
+	{
+		/* Loop over all powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
+		{
+			/* Read used flag */
+			c_ptr->used[i] = get_integer(&ptr);
+		}
+	}
 
 	/* Track latest played card */
 	if (c_ptr->owner >= 0 &&
@@ -1502,7 +1514,7 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_CARD:
 
 			/* Handle message */
-			handle_status_card(ptr);
+			handle_status_card(ptr, size - 8);
 			break;
 
 		/* Goal status update */
