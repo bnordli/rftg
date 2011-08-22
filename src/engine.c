@@ -9920,15 +9920,15 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 	discard_callback(g, who, list, n);
 
 	/* Message */
-	if (!g->simulation && g->p[who].control->private_message)
+	if (!g->simulation && p_ptr->control->private_message)
 	{
 		/* Format message */
 		sprintf(msg, "%s discards the start world %s.\n",
-			    p_ptr->name,
-			    g->deck[special[1]].d_ptr->name);
+		        p_ptr->name,
+		        g->deck[special[1]].d_ptr->name);
 
 		/* Send message */
-		g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		p_ptr->control->private_message(g, who, msg, FORMAT_DISCARD);
 	}
 
 	/* Place start card */
@@ -10067,11 +10067,35 @@ void begin_game(game *g)
 			/* XXX Move card to discard */
 			c_ptr->where = WHERE_DISCARD;
 
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+				        g->p[i].name,
+						c_ptr->d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
+
 			/* Get card pointer to second start choice */
 			c_ptr = &g->deck[start_picks[i][1]];
 
 			/* XXX Move card to discard */
 			c_ptr->where = WHERE_DISCARD;
+
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+				        g->p[i].name,
+						c_ptr->d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
 		}
 
 		/* Loop over players again */
