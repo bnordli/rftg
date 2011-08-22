@@ -980,6 +980,9 @@ void perform_debug_moves(game *g, int who)
 
 		/* Set log position to current */
 		p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
+
+		/* Update unread position */
+		p_ptr->choice_unread_pos = p_ptr->choice_pos;
 	}
 }
 

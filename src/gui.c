@@ -9151,6 +9151,38 @@ static int load_auto_save(game *g)
 }
 
 /*
+ * Should be called when a choice is done, in order to update undo information.
+ */
+static void choice_done(game *g)
+{
+	int i;
+
+	/* Loop over all players */
+	for (i = 0; i < g->num_players; ++i)
+	{
+		/* Skip human player */
+		if (i != player_us)
+		{
+			/* Reset size of log */
+			g->p[i].choice_size = g->p[i].choice_unread_pos;
+		}
+
+		/* Remember new log size */
+		orig_log_size[((i-player_us) + g->num_players) % g->num_players] =
+			g->p[i].choice_size;
+	}
+
+	/* Stop game replaying */
+	game_replaying = FALSE;
+
+	/* Add one to undo position */
+	++num_undo;
+
+	/* Clear redo possibility */
+	max_undo = num_undo;
+}
+
+/*
  * Make a choice of the given type.
  */
 static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
@@ -9425,29 +9457,8 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Mark new size of choice log */
 	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
 
-	/* Loop over all players */
-	for (i = 0; i < g->num_players; ++i)
-	{
-		/* Skip human player */
-		if (i != player_us)
-		{
-			/* Reset size of log */
-			g->p[i].choice_size = g->p[i].choice_unread_pos;
-		}
-
-		/* Remember new log size */
-		orig_log_size[((i-player_us) + g->num_players) % g->num_players] =
-		    g->p[i].choice_size;
-	}
-
-	/* Stop game replaying */
-	game_replaying = FALSE;
-
-	/* Add one to undo position */
-	++num_undo;
-
-	/* Clear redo possibility */
-	max_undo = num_undo;
+	/* Mark one choice is done */
+	choice_done(g);
 }
 
 /*
@@ -9994,8 +10005,6 @@ static void run_game(void)
 		{
 			/* Update log position */
 			pos = next_choice(real_game.p[0].choice_log, pos);
-
-			// TODO: Decide what to do with DEBUG_CHOICE
 
 			/* Add one to choice count */
 			++choice;
@@ -12072,6 +12081,9 @@ static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
 
 		/* Mark new size of choice log */
 		p_ptr->choice_size = l_ptr - p_ptr->choice_log;
+
+		/* Mark one choice done */
+		choice_done(&real_game);
 	}
 
 	/* Continue the foreach loop */
@@ -12303,11 +12315,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 		if (client_state == CS_DISCONN)
 			perform_debug_moves(&real_game, player_us);
 
-		/* Add one to undo position */
-		++num_undo;
-
-		/* Clear redo possibility */
-		max_undo = num_undo;
+		/* Update menu items */
+		update_menu_items();
 	}
 
 	/* Destroy dialog */
