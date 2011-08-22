@@ -6389,6 +6389,13 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 		strcat(buf, g->deck[special].d_ptr->name);
 	}
 
+	/* Check for settle phase and possible takeover */
+	if (phase == PHASE_SETTLE && settle_check_takeover(g, who, NULL, FALSE))
+	{
+		/* Append takeover information */
+		strcat(buf, " (or pass if you want to perform a takeover)");
+	}
+
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 

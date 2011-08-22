@@ -963,7 +963,7 @@ extern int payment_callback(game *g, int who, int which, int list[], int num,
 extern int settle_legal(game *g, int who, int which, int mil_bonus,
                         int mil_only);
 extern int takeover_callback(game *g, int special, int world);
-extern int settle_check_takeover(game *g, int who, card *extra);
+extern int settle_check_takeover(game *g, int who, card *extra, int ask);
 extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,

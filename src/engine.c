@@ -4276,10 +4276,10 @@ int takeover_callback(game *g, int special, int world)
 }
 
 /*
- * Check if a player can takeover opponent's cards, and if so, ask
- * player which card to declare an attempt on.
+ * Check if a player can takeover opponent's cards, and if desired,
+ * ask player which card to declare an attempt on.
  */
-int settle_check_takeover(game *g, int who, card *extra)
+int settle_check_takeover(game *g, int who, card *extra, int ask)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -4453,6 +4453,9 @@ int settle_check_takeover(game *g, int who, card *extra)
 
 	/* Check for no legal choices */
 	if (!n) return 0;
+
+	/* Return if not asking */
+	if (!ask) return 1;
 
 	/* Ask player which world to attempt to takeover */
 	target = ask_player(g, who, CHOICE_TAKEOVER, list, &n,
@@ -4966,7 +4969,7 @@ void settle_action(game *g, int who, int world)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask for takeover declaration if possible */
-			if (settle_check_takeover(g, who, c_ptr))
+			if (settle_check_takeover(g, who, c_ptr, 1))
 			{
 				/* Act on declaration */
 				settle_action(g, who, -1);
@@ -6032,7 +6035,7 @@ void phase_settle(game *g)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask player for takeover choice instead */
-			settle_check_takeover(g, i, NULL);
+			settle_check_takeover(g, i, NULL, 1);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
