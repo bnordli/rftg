@@ -264,6 +264,11 @@ static char* export_style_sheet = NULL;
 static char* server_name = NULL;
 
 /*
+ * Accept debug messages?
+ */
+static int debug_server = 0;
+
+/*
  * Connection to the database server.
  */
 MYSQL *mysql;
@@ -2286,14 +2291,117 @@ static int server_verify_choice(game *g, int who, int type, int list[], int *nl,
 }
 
 /*
+ * Send a "game chat" message to everyone in the given session.
+ */
+static void send_gamechat(int sid, int uid, char *user, char *text, int save)
+{
+	char msg[1024], *ptr = msg;
+
+	/* Save message to db */
+	if (save) db_save_message(sid, uid, text, FORMAT_CHAT);
+
+	/* Start at beginning of message */
+	ptr = msg;
+
+	/* Create log message */
+	start_msg(&ptr, MSG_GAMECHAT);
+
+	/* Copy user sending chat to message */
+	put_string(user, &ptr);
+
+	/* Copy chat text to message */
+	put_string(text, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send to session */
+	send_to_session(sid, msg);
+}
+
+/*
+ * Kick a player from the server.
+ */
+static void kick_player(int cid, char *reason)
+{
+	int sid, i;
+	char text[1024];
+
+	/* Print message */
+	server_log("Kicking player %d for %s", cid, reason);
+
+	/* Send goodbye message */
+	send_msgf(cid, MSG_GOODBYE, "s", reason);
+
+	/* Set state to disconnected */
+	c_list[cid].state = CS_DISCONN;
+
+	/* Close connection */
+	close(c_list[cid].fd);
+
+	/* Clear file descriptor */
+	c_list[cid].fd = -1;
+
+	/* Send disconnect to everyone */
+	send_player(cid);
+
+	/* Check for no session joined */
+	if (c_list[cid].sid < 0) return;
+
+	/* Remember session player was in */
+	sid = c_list[cid].sid;
+
+	/* Remove from session */
+	c_list[cid].sid = -1;
+
+	/* Loop over connections in session */
+	for (i = 0; i < s_list[sid].num_users; i++)
+	{
+		/* Check for match */
+		if (s_list[sid].cids[i] == cid)
+		{
+			/* Clear connection ID */
+			s_list[sid].cids[i] = -1;
+			break;
+		}
+	}
+
+	/* Send session details */
+	send_session(sid);
+
+	/* Check for active session */
+	if (s_list[sid].state == SS_STARTED)
+	{
+		/* Format offline message */
+		sprintf(text, "%s disconnected.", c_list[cid].user);
+
+		/* Send to remaining players in session */
+		send_gamechat(sid, -1, "", text, 0);
+
+		/* Check for kick timeout */
+		if (kick_timeout)
+		{
+			/* Format time to AI control message */
+			sprintf(text, "%s will be set to AI control in %d seconds.",
+			        c_list[cid].user,
+			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * tick_size);
+
+			/* Send to remaining players in session */
+			send_gamechat(sid, -1, "", text, 0);
+		}
+	}
+}
+
+/*
  * Handle a choice reply message from a client.
  */
-static void handle_choice(int cid, char *ptr)
+static void handle_choice(int cid, char *ptr, int size)
 {
 	session *s_ptr;
 	player *p_ptr;
-	int who, i, num, sid, pos;
+	int who, i, num, sid, pos, type, got_choice = 0;
 	int *l_ptr;
+	char *start = ptr;
 
 	/* Get session ID from player */
 	sid = c_list[cid].sid;
@@ -2322,48 +2430,74 @@ static void handle_choice(int cid, char *ptr)
 	/* Get position in choice log that client is sending */
 	pos = get_integer(&ptr);
 
-	/* Get pointer to end of choice log */
-	l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
-
-	/* Copy choice type to log */
-	*l_ptr++ = get_integer(&ptr);
-
-	/* Log message */
-	server_log("S:%d Received choice type %d position %d from %d, current size is %d.", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
-
+	/* Check for invalid log position */
 	if (pos != p_ptr->choice_size)
 	{
+		/* Kick player */
+		kick_player(cid, "Invalid message received");
+
+		/* Release lock and discard the rest of the message */
 		pthread_mutex_unlock(&s_ptr->session_mutex);
 		return;
 	}
 
-	/* Copy return value */
-	*l_ptr++ = get_integer(&ptr);
+	/* Get pointer to end of choice log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
 
-	/* Get number of items in list */
-	num = get_integer(&ptr);
-
-	/* Copy number of items to log */
-	*l_ptr++ = num;
-
-	/* Loop over list entries */
-	for (i = 0; i < num; i++)
+	/* Loop over received choices */
+	while (ptr - start < size)
 	{
-		/* Copy item */
+		/* Get choice type */
+		type = get_integer(&ptr);
+
+		/* Check whether we got a real choice */
+		got_choice |= (type != CHOICE_DEBUG);
+
+		/* Copy choice type to log */
+		*l_ptr++ = type;
+
+		/* Log message */
+		server_log("S:%d Received choice type %d position %d from %d, current size is %d.", sid, type, pos, cid, p_ptr->choice_size);
+
+		/* Check for debug choice */
+		if (type == CHOICE_DEBUG && !debug_server)
+		{
+			/* Kick player */
+			kick_player(cid, "This server does not accept debug message");
+
+			/* Release lock and discard the rest of the message */
+			pthread_mutex_unlock(&s_ptr->session_mutex);
+			return;
+		}
+
+		/* Copy return value */
 		*l_ptr++ = get_integer(&ptr);
-	}
 
-	/* Get number of special items in list */
-	num = get_integer(&ptr);
+		/* Get number of items in list */
+		num = get_integer(&ptr);
 
-	/* Copy number of special items to log */
-	*l_ptr++ = num;
+		/* Copy number of items to log */
+		*l_ptr++ = num;
 
-	/* Loop over special entries */
-	for (i = 0; i < num; i++)
-	{
-		/* Copy item */
-		*l_ptr++ = get_integer(&ptr);
+		/* Loop over list entries */
+		for (i = 0; i < num; i++)
+		{
+			/* Copy item */
+			*l_ptr++ = get_integer(&ptr);
+		}
+
+		/* Get number of special items in list */
+		num = get_integer(&ptr);
+
+		/* Copy number of special items to log */
+		*l_ptr++ = num;
+
+		/* Loop over special entries */
+		for (i = 0; i < num; i++)
+		{
+			/* Copy item */
+			*l_ptr++ = get_integer(&ptr);
+		}
 	}
 
 	/* Mark new size of choice log */
@@ -2379,7 +2513,7 @@ static void handle_choice(int cid, char *ptr)
 	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Check for blocked player */
-	if (s_ptr->waiting[who] == WAIT_BLOCKED)
+	if (s_ptr->waiting[who] == WAIT_BLOCKED && got_choice)
 	{
 		/* Mark player as ready */
 		s_ptr->waiting[who] = WAIT_READY;
@@ -2559,108 +2693,6 @@ static void accept_conn(int listen_fd)
 
 	/* Print message */
 	server_log("New connection %d from %s", i, c_list[i].addr);
-}
-
-/*
- * Send a "game chat" message to everyone in the given session.
- */
-static void send_gamechat(int sid, int uid, char *user, char *text, int save)
-{
-	char msg[1024], *ptr = msg;
-
-	/* Save message to db */
-	if (save) db_save_message(sid, uid, text, FORMAT_CHAT);
-
-	/* Start at beginning of message */
-	ptr = msg;
-
-	/* Create log message */
-	start_msg(&ptr, MSG_GAMECHAT);
-
-	/* Copy user sending chat to message */
-	put_string(user, &ptr);
-
-	/* Copy chat text to message */
-	put_string(text, &ptr);
-
-	/* Finish message */
-	finish_msg(msg, ptr);
-
-	/* Send to session */
-	send_to_session(sid, msg);
-}
-
-/*
- * Kick a player from the server.
- */
-static void kick_player(int cid, char *reason)
-{
-	int sid, i;
-	char text[1024];
-
-	/* Print message */
-	server_log("Kicking player %d for %s", cid, reason);
-
-	/* Send goodbye message */
-	send_msgf(cid, MSG_GOODBYE, "s", reason);
-
-	/* Set state to disconnected */
-	c_list[cid].state = CS_DISCONN;
-
-	/* Close connection */
-	close(c_list[cid].fd);
-
-	/* Clear file descriptor */
-	c_list[cid].fd = -1;
-
-	/* Send disconnect to everyone */
-	send_player(cid);
-
-	/* Check for no session joined */
-	if (c_list[cid].sid < 0) return;
-
-	/* Remember session player was in */
-	sid = c_list[cid].sid;
-
-	/* Remove from session */
-	c_list[cid].sid = -1;
-
-	/* Loop over connections in session */
-	for (i = 0; i < s_list[sid].num_users; i++)
-	{
-		/* Check for match */
-		if (s_list[sid].cids[i] == cid)
-		{
-			/* Clear connection ID */
-			s_list[sid].cids[i] = -1;
-			break;
-		}
-	}
-
-	/* Send session details */
-	send_session(sid);
-
-	/* Check for active session */
-	if (s_list[sid].state == SS_STARTED)
-	{
-		/* Format offline message */
-		sprintf(text, "%s disconnected.", c_list[cid].user);
-
-		/* Send to remaining players in session */
-		send_gamechat(sid, -1, "", text, 0);
-
-		/* Check for kick timeout */
-		if (kick_timeout)
-		{
-			/* Format time to AI control message */
-			sprintf(text, "%s will be set to AI control in %d seconds.",
-			        c_list[cid].user,
-			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * tick_size);
-
-			/* Send to remaining players in session */
-			send_gamechat(sid, -1, "", text, 0);
-		}
-	}
 }
 
 /*
@@ -3138,8 +3170,14 @@ static void handle_login(int cid, char *ptr)
 	/* Set state to lobby */
 	c_list[cid].state = CS_LOBBY;
 
+	/* Copy RELEASE information */
+	strcpy(text, RELEASE);
+
+	/* If debug server, append debug information */
+	if (debug_server) strcat(text, "-debug");
+
 	/* Tell client that login was successful */
-	send_msgf(cid, MSG_HELLO, "s", RELEASE);
+	send_msgf(cid, MSG_HELLO, "s", text);
 
 	/* Send welcome chat to client */
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
@@ -3910,7 +3948,7 @@ static void handle_msg(int cid)
 		case MSG_CHOOSE:
 
 			/* Handle choice made */
-			handle_choice(cid, ptr);
+			handle_choice(cid, ptr, size - 8);
 			break;
 
 		/* Done preparing */
@@ -4295,13 +4333,6 @@ int main(int argc, char *argv[])
 			kick_timeout = atoi(argv[++i]);
 		}
 
-		/* Check for exports folder */
-		if (!strcmp(argv[i], "-e"))
-		{
-			/* Set exports folder */
-			export_folder = argv[++i];
-		}
-
 		/* Check for server name */
 		if (!strcmp(argv[i], "-s"))
 		{
@@ -4309,11 +4340,25 @@ int main(int argc, char *argv[])
 			server_name = argv[++i];
 		}
 
+		/* Check for exports folder */
+		if (!strcmp(argv[i], "-e"))
+		{
+			/* Set exports folder */
+			export_folder = argv[++i];
+		}
+
 		/* Check for export style sheet */
 		if (!strcmp(argv[i], "-ss"))
 		{
 			/* Set style sheet */
 			export_style_sheet = argv[++i];
+		}
+
+		/* Check for debug server */
+		if (!strcmp(argv[i], "-debug"))
+		{
+			/* Set the debug flag */
+			debug_server = 1;
 		}
 	}
 

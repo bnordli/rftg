@@ -47,6 +47,20 @@ char *player_labels[MAX_PLAYER] =
 	NULL
 };
 
+/*
+ * Textual representation for card locations.
+ */
+char *location_names[7] =
+{
+	"Deck",
+	"Discard",
+	"Hand",
+	"Active",
+	"Good",
+	"Saved",
+	"Revealed",
+};
+
 void dump_hand(game *g, int who)
 {
 	card *c_ptr;
@@ -916,6 +930,60 @@ int next_choice(int* log, int pos)
 }
 
 /*
+ * Look for CHOICE_DEBUG in the log and execute the choices.
+ */
+void perform_debug_moves(game *g, int who)
+{
+	player *p_ptr;
+	int *l_ptr;
+	char msg[1024];
+	int c, owner, where;
+
+	/* Get player pointer */
+	p_ptr = &g->p[who];
+
+	/* Get current position in log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
+
+	/* Loop for debug choices */
+	while (*l_ptr == CHOICE_DEBUG && p_ptr->choice_pos < p_ptr->choice_size)
+	{
+		/* Advance pointer */
+		l_ptr++;
+
+		/* Get card index value */
+		c = *l_ptr++;
+
+		/* Advance pointer to start of list */
+		l_ptr++;
+
+		/* Get new owner */
+		owner = *l_ptr++;
+
+		/* Get new location */
+		where = *l_ptr++;
+
+		/* Format message */
+		sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
+		        g->deck[c].d_ptr->name,
+		        owner == -1 ? "None" : g->p[owner].name,
+		        location_names[where]);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_DEBUG);
+
+		/* Move card */
+		move_card(g, c, owner, where);
+
+		/* Advance pointer to next choice */
+		l_ptr++;
+
+		/* Set log position to current */
+		p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
+	}
+}
+
+/*
  * Extract an answer to a pending choice from the player's choice log.
  */
 static int extract_choice(game *g, int who, int type, int list[], int *nl,
@@ -928,9 +996,6 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
-	/* Get current position in log */
-	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
-
 	/* Check for no data in log */
 	if (p_ptr->choice_pos >= p_ptr->choice_size)
 	{
@@ -938,6 +1003,12 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 		printf("No data available in choice log!\n");
 		exit(1);
 	}
+
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
+
+	/* Get current position in log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
 
 	/* Check for correct type of answer */
 	if (*l_ptr != type)
@@ -1036,7 +1107,10 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
-	/* Check for unconsumed choices in log */
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
+
+	/* Check for (still) unconsumed choices in log */
 	if (p_ptr->choice_pos < p_ptr->choice_size)
 	{
 		/* Return logged answer */
@@ -1065,7 +1139,7 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
  * Ask a player to make a decision.
  *
  * In this function we will return immediately after asking.  The answer
- * can later be retrieved using extract_answer() above.
+ * can later be retrieved using extract_choice() above.
  */
 static void send_choice(game *g, int who, int type, int list[], int *nl,
                         int special[], int *ns, int arg1, int arg2, int arg3)
@@ -1074,6 +1148,9 @@ static void send_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
+
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
 
 	/* Check for unconsumed choices in log */
 	if (p_ptr->choice_pos < p_ptr->choice_size)

@@ -490,6 +490,8 @@
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
 
+#define CHOICE_DEBUG            -10
+
 
 /*
  * GUI: Text formatting
@@ -503,6 +505,7 @@
 #define FORMAT_VERBOSE "verbose"
 #define FORMAT_DRAW "draw"
 #define FORMAT_DISCARD "discard"
+#define FORMAT_DEBUG "debug"
 
 /*
  * Forward declaration.
@@ -905,6 +908,7 @@ extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
 extern char *player_labels[MAX_PLAYER];
+extern char *location_names[7];
 extern decisions ai_func;
 extern decisions gui_func;
 
@@ -927,6 +931,7 @@ extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);
+extern void perform_debug_moves(game *g, int who);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);

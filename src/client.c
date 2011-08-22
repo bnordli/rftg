@@ -41,9 +41,14 @@ static GSource *server_src;
 int client_state = CS_DISCONN;
 
 /*
- * Whether we play against a new server or not.
+ * The version of the server we are connected to.
  */
-int new_server;
+char server_version[30];
+
+/*
+ * Whether the connected server accepts debug choices.
+ */
+int debug_server;
 
 /*
  * Our joined session ID.
@@ -1139,8 +1144,19 @@ static gboolean message_read(gpointer data)
 		/* Login successful */
 		case MSG_HELLO:
 
+			/* Assume no server version */
+			strcpy(server_version, "");
+			debug_server = 0;
+
 			/* Only new servers send version information */
-			new_server = (size > 8);
+			if (size > 8)
+			{
+				/* Get server version */
+				get_string(server_version, &ptr);
+
+				/* Get debug server */
+				debug_server = strstr(server_version, "-debug") != NULL;
+			}
 
 			/* Set state */
 			client_state = CS_LOBBY;

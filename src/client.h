@@ -140,7 +140,8 @@ extern int player_us;
 extern int restart_loop;
 
 extern int client_state;
-extern int new_server;
+extern char server_version[30];
+extern int debug_server;
 extern int waiting_player[MAX_PLAYER];
 
 extern void save_prefs(void);

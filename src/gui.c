@@ -2615,7 +2615,7 @@ static char *goal_tooltip(game *g, int goal)
 		/* Report progress for one-dimensional first goals */
 		/* (if local or server supports it) */
 		else if (goal_minimum(goal) > 1 &&
-		         (client_state == CS_DISCONN || new_server))
+		         (client_state == CS_DISCONN || strlen(server_version)))
 		{
 			/* Add text to tooltip */
 			strcat(msg, "\n\nProgress:");
@@ -9001,7 +9001,7 @@ void update_menu_items(void)
 	if (client_state != CS_DISCONN) return;
 
 	/* Check for no undo possibility */
-	if (num_undo == 0 || (game_tampered & TAMPERED_MOVE))
+	if (num_undo == 0)
 	{
 		/* Disable undo items */
 		gtk_widget_set_sensitive(undo_item, FALSE);
@@ -9017,7 +9017,7 @@ void update_menu_items(void)
 	}
 
 	/* Check for no redo possibility */
-	if (num_undo == max_undo || (game_tampered & TAMPERED_MOVE))
+	if (num_undo == max_undo)
 	{
 		/* Disable redo items */
 		gtk_widget_set_sensitive(redo_item, FALSE);
@@ -9032,17 +9032,8 @@ void update_menu_items(void)
 		gtk_widget_set_sensitive(redo_game_item, TRUE);
 	}
 
-	/* Check for game tampered */
-	if (game_tampered & TAMPERED_MOVE)
-	{
-		/* Disable save item */
-		gtk_widget_set_sensitive(save_item, FALSE);
-	}
-	else
-	{
-		/* Enable save item */
-		gtk_widget_set_sensitive(save_item, TRUE);
-	}
+	/* Enable save item */
+	gtk_widget_set_sensitive(save_item, TRUE);
 }
 
 /*
@@ -9053,8 +9044,7 @@ static void auto_save_choice(game *g, int who)
 	char *full_name;
 
 	/* Check for autosave disabled */
-	if (client_state != CS_DISCONN || !opt.auto_save ||
-	    (game_tampered & TAMPERED_MOVE)) return;
+	if (client_state != CS_DISCONN || !opt.auto_save) return;
 
 	/* Build full file name */
 	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
@@ -9083,8 +9073,7 @@ static void auto_save_end(game *g, int who)
 	char *full_name;
 
 	/* Check for autosave disabled */
-	if (client_state != CS_DISCONN || !opt.auto_save ||
-	    (game_tampered & TAMPERED_MOVE)) return;
+	if (client_state != CS_DISCONN || !opt.auto_save) return;
 
 	/* Build file name of choice save file */
 	full_name = g_build_filename(opt.data_folder ? opt.data_folder : RFTGDIR,
@@ -10006,6 +9995,8 @@ static void run_game(void)
 			/* Update log position */
 			pos = next_choice(real_game.p[0].choice_log, pos);
 
+			// TODO: Decide what to do with DEBUG_CHOICE
+
 			/* Add one to choice count */
 			++choice;
 		}
@@ -10355,7 +10346,6 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(redo_item, FALSE);
 		gtk_widget_set_sensitive(redo_round_item, FALSE);
 		gtk_widget_set_sensitive(redo_game_item, FALSE);
-		gtk_widget_set_sensitive(debug_card_item, FALSE);
 		gtk_widget_set_sensitive(debug_ai_item, FALSE);
 		gtk_widget_set_sensitive(connect_item, FALSE);
 
@@ -10374,18 +10364,20 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			/* resign_item too, but this is deliberately left active. */
 			if (making_choice)
 			{
-				/* Activate the export, options and about items */
+				/* Activate items */
 				gtk_widget_set_sensitive(export_item, TRUE);
 				gtk_widget_set_sensitive(option_item, TRUE);
 				gtk_widget_set_sensitive(advanced_item, TRUE);
+				gtk_widget_set_sensitive(debug_card_item, debug_server);
 				gtk_widget_set_sensitive(about_item, TRUE);
 			}
 			else
 			{
-				/* Deactivate the export, option ands about items */
+				/* Deactivate items */
 				gtk_widget_set_sensitive(export_item, FALSE);
 				gtk_widget_set_sensitive(option_item, FALSE);
 				gtk_widget_set_sensitive(advanced_item, FALSE);
+				gtk_widget_set_sensitive(debug_card_item, FALSE);
 				gtk_widget_set_sensitive(about_item, FALSE);
 			}
 		}
@@ -10396,8 +10388,9 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			gtk_widget_set_sensitive(advanced_item, TRUE);
 			gtk_widget_set_sensitive(about_item, TRUE);
 
-			/* Deactivate the resign menu items */
+			/* Deactivate the resign and debug menu items */
 			gtk_widget_set_sensitive(resign_item, FALSE);
+			gtk_widget_set_sensitive(debug_card_item, FALSE);
 
 			/* Set the export item depending on whether game is over or not */
 			gtk_widget_set_sensitive(export_item, making_choice);
@@ -10475,8 +10468,7 @@ static void do_export(char* filename, const char* message)
 	int export_save;
 
 	/* Check whether saved game should be exported */
-	export_save = client_state == CS_DISCONN &&
-	              !(game_tampered & TAMPERED_MOVE);
+	export_save = client_state == CS_DISCONN;
 
 	/* Save to file */
 	if (export_game(&real_game, filename, opt.export_style_sheet,
@@ -10662,9 +10654,6 @@ static void gui_save_game(GtkMenuItem *menu_item, gpointer data)
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
 
-	/* Check for tampered game */
-	if (game_tampered & TAMPERED_MOVE) return;
-
 	/* Create file chooser dialog box */
 	dialog = gtk_file_chooser_dialog_new("Save game", NULL,
 	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
@@ -10767,9 +10756,6 @@ static void gui_undo(GtkMenuItem *menu_item, gpointer data)
 	/* Check for nothing to undo */
 	if (num_undo == 0) return;
 
-	/* Check for tampered game */
-	if (game_tampered & TAMPERED_MOVE) return;
-
 	/* Set the tampered undo flag */
 	game_tampered |= TAMPERED_UNDO;
 
@@ -10793,9 +10779,6 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 
 	/* Check for nothing to redo */
 	if (num_undo == max_undo) return;
-
-	/* Check for tampered game */
-	if (game_tampered & TAMPERED_MOVE) return;
 
 	/* Set the tampered undo flag */
 	game_tampered |= TAMPERED_UNDO;
@@ -11688,7 +11671,6 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 		/* Restart main loop if not online and log options changed */
 		if (client_state == CS_DISCONN &&
-		    !(game_tampered & TAMPERED_MOVE) &&
 		    (opt.colored_log != old_options.colored_log ||
 		     opt.verbose_log != old_options.verbose_log ||
 		     opt.draw_log != old_options.draw_log ||
@@ -11935,117 +11917,10 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 	gtk_tree_model_get(model, iter, 3, &i, -1);
 
 	/* Set name string */
-	switch (i)
-	{
-		case WHERE_DECK: name = "Deck"; break;
-		case WHERE_DISCARD: name = "Discard"; break;
-		case WHERE_HAND: name = "Hand"; break;
-		case WHERE_ACTIVE: name = "Active"; break;
-		case WHERE_GOOD: name = "Good"; break;
-		case WHERE_SAVED: name = "Saved"; break;
-		case WHERE_ASIDE: name = "Revealed"; break;
-		default: name = "Unknown"; break;
-	}
+	name = (i < 0 || i > 6) ? "Unknown" : location_names[i];
 
 	/* Set "text" property of renderer */
 	g_object_set(cell, "text", name, NULL);
-}
-
-/*
- * Attempt to place a moved card into the proper display table.
- */
-static void debug_card_moved(int c, int old_owner, int old_where)
-{
-	card *c_ptr;
-	displayed *i_ptr;
-	int i;
-
-	/* Set the tampered move flag */
-	game_tampered |= TAMPERED_MOVE;
-
-	/* Disable some menu items */
-	update_menu_items();
-
-	/* Get card pointer */
-	c_ptr = &real_game.deck[c];
-
-	/* Check for moving from our hand */
-	if (old_owner == player_us && old_where == WHERE_HAND)
-	{
-		/* Loop over our hand */
-		for (i = 0; i < hand_size; i++)
-		{
-			/* Get displayed card pointer */
-			i_ptr = &hand[i];
-
-			/* Check for match */
-			if (i_ptr->index == c)
-			{
-				/* Remove from hand */
-				hand[i] = hand[--hand_size];
-
-				/* Done */
-				break;
-			}
-		}
-	}
-
-	/* Check for moving from active area */
-	if (old_where == WHERE_ACTIVE && old_owner != -1)
-	{
-		/* Loop over table area */
-		for (i = 0; i < table_size[old_owner]; i++)
-		{
-			/* Get displayed card pointer */
-			i_ptr = &table[old_owner][i];
-
-			/* Check for match */
-			if (i_ptr->index == c)
-			{
-				/* Remove from table */
-				table[old_owner][i] =
-				      table[old_owner][--table_size[old_owner]];
-
-				/* Done */
-				break;
-			}
-		}
-	}
-
-	/* Check for adding card to our hand */
-	if (c_ptr->owner == player_us && c_ptr->where == WHERE_HAND)
-	{
-		/* Add card to hand */
-		i_ptr = &hand[hand_size++];
-
-		/* Set design and index */
-		i_ptr->d_ptr = c_ptr->d_ptr;
-		i_ptr->index = c;
-
-		/* Clear all other fields */
-		i_ptr->eligible = i_ptr->gapped = 0;
-		i_ptr->selected = i_ptr->color = 0;
-		i_ptr->covered = 0;
-	}
-
-	/* Check for adding card to active area */
-	if (c_ptr->owner != -1 && c_ptr->where == WHERE_ACTIVE)
-	{
-		/* Add card to hand */
-		i_ptr = &table[c_ptr->owner][table_size[c_ptr->owner]++];
-
-		/* Set design and index */
-		i_ptr->d_ptr = c_ptr->d_ptr;
-		i_ptr->index = c;
-
-		/* Clear all other fields */
-		i_ptr->eligible = i_ptr->gapped = 0;
-		i_ptr->selected = i_ptr->color = 0;
-		i_ptr->covered = 0;
-	}
-
-	/* Redraw */
-	redraw_everything();
 }
 
 /*
@@ -12054,9 +11929,19 @@ static void debug_card_moved(int c, int old_owner, int old_where)
 static GtkListStore *card_list;
 
 /*
+ * The column for the last changed cell in the debug dialog.
+ */
+static int new_column;
+
+/*
  * The path for the last changed cell in the debug dialog.
  */
-static GtkTreePath *previous_path;
+static GtkTreePath *new_path;
+
+/*
+ * The current value for the last changed cell in the debug dialog.
+ */
+static int new_value;
 
 /*
  * Called when the player cell of the debug window has been changed.
@@ -12064,78 +11949,30 @@ static GtkTreePath *previous_path;
 static void player_changed(GtkCellRendererCombo *cell, char *path_str,
                            GtkTreeIter *new_iter, gpointer data)
 {
-	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
-	GtkTreePath *path;
-	GtkTreeIter iter;
-	card *c_ptr;
-	int c, old_owner, new_owner;
+	/* Save the column */
+	new_column = 2;
 
-	/* Retrieve the new owner */
-	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_owner, -1);
+	/* Save path from path string */
+	new_path = gtk_tree_path_new_from_string(path_str);
 
-	/* Create path from path string */
-	path = gtk_tree_path_new_from_string(path_str);
-
-	/* Save path */
-	previous_path = path;
-
-	/* Get iterator for path */
-	gtk_tree_model_get_iter(model, &iter, path);
-
-	/* Get card index for this row */
-	gtk_tree_model_get(model, &iter, 0, &c, -1);
-
-	/* Get card pointer */
-	c_ptr = &real_game.deck[c];
-
-	/* Remember current owner */
-	old_owner = c_ptr->owner;
-
-	/* Move card */
-	move_card(&real_game, c, new_owner, c_ptr->where);
-
-	/* Notice card movement */
-	debug_card_moved(c, old_owner, c_ptr->where);
+	/* Save the new value */
+	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_value, -1);
 }
 
 /*
- * Called when the location cell of the debug window has been changed.
+ * Called when the where cell of the debug window has been changed.
  */
 static void where_changed(GtkCellRendererCombo *cell, char *path_str,
                           GtkTreeIter *new_iter, gpointer data)
 {
-	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
-	GtkTreePath *path;
-	GtkTreeIter iter;
-	card *c_ptr;
-	int c, old_where, new_where;
+	/* Save the column */
+	new_column = 3;
 
-	/* Retrieve the new location */
-	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_where, -1);
+	/* Save path from path string */
+	new_path = gtk_tree_path_new_from_string(path_str);
 
-	/* Create path from path string */
-	path = gtk_tree_path_new_from_string(path_str);
-
-	/* Save path */
-	previous_path = path;
-
-	/* Get iterator for path */
-	gtk_tree_model_get_iter(model, &iter, path);
-
-	/* Get card index for this row */
-	gtk_tree_model_get(model, &iter, 0, &c, -1);
-
-	/* Get card pointer */
-	c_ptr = &real_game.deck[c];
-
-	/* Remember current location */
-	old_where = c_ptr->where;
-
-	/* Move card */
-	move_card(&real_game, c, c_ptr->owner, new_where);
-
-	/* Notice card movement */
-	debug_card_moved(c, c_ptr->owner, old_where);
+	/* Save the new value */
+	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter, 0, &new_value, -1);
 }
 
 /*
@@ -12147,8 +11984,10 @@ static void debug_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
 	GtkTreePath *path;
 	GtkTreeIter iter;
-	card *c_ptr;
-	int c, column = GPOINTER_TO_INT(data), value;
+	int column = GPOINTER_TO_INT(data);
+
+	/* No changes */
+	if (!new_path) return;
 
 	/* Create path from path string */
 	path = gtk_tree_path_new_from_string(path_str);
@@ -12156,17 +11995,11 @@ static void debug_edit(GtkCellRendererCombo *cell, char *path_str, char *text,
 	/* Get iterator for path */
 	gtk_tree_model_get_iter(model, &iter, path);
 
-	/* Get card index for this row */
-	gtk_tree_model_get(model, &iter, 0, &c, -1);
-
-	/* Get card pointer */
-	c_ptr = &real_game.deck[c];
-
-	/* Find new value */
-	value = column == 2 ? c_ptr->owner : c_ptr->where;
-
 	/* Store new value in model */
-	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, value, -1);
+	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, new_value, -1);
+
+	/* Clear the current path */
+	new_path = NULL;
 }
 
 /*
@@ -12176,26 +12009,73 @@ static void debug_canceled(GtkCellRendererCombo *cell, gpointer data)
 {
 	GtkTreeModel *model = GTK_TREE_MODEL(card_list);
 	GtkTreeIter iter;
-	card *c_ptr;
-	int c, column = GPOINTER_TO_INT(data), value;
+	int column = GPOINTER_TO_INT(data);
 
-	/* Safety check */
-	if (!previous_path) return;
+	/* No changes */
+	if (!new_path) return;
 
 	/* Get iterator for path */
-	gtk_tree_model_get_iter(model, &iter, previous_path);
-
-	/* Get card index for this row */
-	gtk_tree_model_get(model, &iter, 0, &c, -1);
-
-	/* Get card pointer */
-	c_ptr = &real_game.deck[c];
-
-	/* Find new value */
-	value = column == 2 ? c_ptr->owner : c_ptr->where;
+	gtk_tree_model_get_iter(model, &iter, new_path);
 
 	/* Store new value in model (i.e. ignore the cancel event) */
-	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, value, -1);
+	gtk_list_store_set(GTK_LIST_STORE(model), &iter, column, new_value, -1);
+
+	/* Clear the current path */
+	new_path = NULL;
+}
+
+/*
+ * Called on each row of the debug_card_dialog after it has been
+ * successfully closed. Will add DEBUG_CHOICE values to the log if
+ * card locations has been changed.
+ */
+static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
+                             GtkTreeIter *iter, gpointer data)
+{
+	int c, owner, where;
+	player *p_ptr;
+	card *c_ptr;
+	int *l_ptr;
+
+	/* Get row values */
+	gtk_tree_model_get(model, iter, 0, &c, 2, &owner, 3, &where, -1);
+
+	/* Get card */
+	c_ptr = &real_game.deck[c];
+
+	/* Check for changed location */
+	if (c_ptr->owner != owner || c_ptr->where != where)
+	{
+		/* Get player pointer */
+		p_ptr = &real_game.p[player_us];
+
+		/* Get pointer to end of choice log */
+		l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
+
+		/* Add debug choice type to log */
+		*l_ptr++ = CHOICE_DEBUG;
+
+		/* Add card index to log */
+		*l_ptr++ = c;
+
+		/* Add data size to log */
+		*l_ptr++ = 2;
+
+		/* Add new card owner to log */
+		*l_ptr++ = owner;
+
+		/* Add new card position to log */
+		*l_ptr++ = where;
+
+		/* Add empty special list */
+		*l_ptr++ = 0;
+
+		/* Mark new size of choice log */
+		p_ptr->choice_size = l_ptr - p_ptr->choice_log;
+	}
+
+	/* Continue the foreach loop */
+	return FALSE;
 }
 
 /*
@@ -12204,7 +12084,7 @@ static void debug_canceled(GtkCellRendererCombo *cell, gpointer data)
 static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
-	GtkWidget *note_label, *list_view, *list_scroll;
+	GtkWidget *list_view, *list_scroll;
 	GtkListStore *player_list, *where_list;
 	GtkTreeViewColumn *tree_view_column;
 	GtkTreeIter list_iter;
@@ -12212,8 +12092,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	card *c_ptr;
 	int i;
 
-	/* Check for connected to server */
-	if (client_state != CS_DISCONN) return;
+	/* Check for connected to non-debug server */
+	if (client_state != CS_DISCONN && !debug_server) return;
 
 	/* Set the tampered look flag */
 	game_tampered |= TAMPERED_LOOK;
@@ -12221,22 +12101,15 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Debug", NULL, 0,
 	                                     GTK_STOCK_OK,
-	                                     GTK_RESPONSE_ACCEPT, NULL);
+	                                     GTK_RESPONSE_ACCEPT,
+	                                     GTK_STOCK_CANCEL,
+	                                     GTK_RESPONSE_REJECT, NULL);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Set default height */
 	gtk_window_set_default_size(GTK_WINDOW(dialog), -1, 600);
-
-	/* Create a note label */
-	note_label = gtk_label_new(
-	    "Moving a card for debugging purposes will disable\n"
-	    "saving, undo and redo for the rest of this game.");
-
-	/* Add note label to dialog */
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), note_label,
-	                   FALSE, FALSE, 0);
 
 	/* Create a card list */
 	card_list = gtk_list_store_new(4, G_TYPE_INT, G_TYPE_STRING,
@@ -12339,7 +12212,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
 	/* Connect "changed" signal */
-	g_signal_connect(render, "changed", G_CALLBACK(player_changed), player_list);
+	g_signal_connect(render, "changed", G_CALLBACK(player_changed),
+	                 player_list);
 
 	/* Connect "edited" signal */
 	g_signal_connect(render, "edited", G_CALLBACK(debug_edit),
@@ -12371,7 +12245,8 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
 	/* Connect "changed" signal */
-	g_signal_connect(render, "changed", G_CALLBACK(where_changed), where_list);
+	g_signal_connect(render, "changed", G_CALLBACK(where_changed),
+	                 where_list);
 
 	/* Connect "edited" signal */
 	g_signal_connect(render, "edited", G_CALLBACK(debug_edit),
@@ -12415,7 +12290,25 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	gtk_widget_show_all(dialog);
 
 	/* Run dialog */
-	gtk_dialog_run(GTK_DIALOG(dialog));
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Simulate a canceled event (otherwise it would occur too late) */
+		debug_canceled(NULL, GINT_TO_POINTER(new_column));
+
+		/* Loop over list and potentially move cards */
+		gtk_tree_model_foreach(GTK_TREE_MODEL(card_list), debug_update_card,
+		                       NULL);
+
+		/* Execute the debug moves immediately if game is local */
+		if (client_state == CS_DISCONN)
+			perform_debug_moves(&real_game, player_us);
+
+		/* Add one to undo position */
+		++num_undo;
+
+		/* Clear redo possibility */
+		max_undo = num_undo;
+	}
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);
@@ -13389,6 +13282,10 @@ int main(int argc, char *argv[])
 	/* Create "discard" tag for message buffer */
 	gtk_text_buffer_create_tag(message_buffer, FORMAT_DISCARD,
 	                           "foreground", "#aaaaaa", NULL);
+
+	/* Create "debug" tag for message buffer */
+	gtk_text_buffer_create_tag(message_buffer, FORMAT_DEBUG,
+	                           "background", "#ff5555", NULL);
 
 	/* Get iterator for end of buffer */
 	gtk_text_buffer_get_end_iter(message_buffer, &end_iter);
