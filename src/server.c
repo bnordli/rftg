@@ -4143,7 +4143,7 @@ static void do_housekeeping(void)
 		}
 
 		/* Check for no recent data from client */
-		if (cur_time - c_list[i].last_seen > timeout - ping_timeout)
+		if (cur_time - c_list[i].last_seen > ping_timeout)
 		{
 			/* Send client a ping */
 			send_msgf(i, MSG_PING, "");
