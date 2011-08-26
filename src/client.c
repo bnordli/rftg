@@ -808,13 +808,31 @@ static void handle_status_misc(char *ptr)
  */
 static void handle_waiting(char *ptr)
 {
-	int i;
+	int i, waiting_for_server = TRUE;
+	char *msg;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Get wait status */
 		waiting_player[i] = get_integer(&ptr);
+
+		/* Check if we are waiting for the player */
+		if (i != player_us && waiting_player[i] == WAIT_BLOCKED)
+		{
+			/* Remember we are waiting for a player */
+			waiting_for_server = FALSE;
+		}
+	}
+
+	if (!making_choice)
+	{
+		if (waiting_for_server) msg = "Waiting for server";
+		else if (real_game.num_players == 2) msg = "Waiting for opponent";
+		else msg = "Waiting for opponents";
+
+		/* Reset action prompt */
+		gtk_label_set_text(GTK_LABEL(action_prompt), msg);
 	}
 
 	/* Update status areas */

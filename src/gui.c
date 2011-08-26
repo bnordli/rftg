@@ -12637,6 +12637,7 @@ Send bug reports to keldon@keldon.net");
  */
 static void action_pressed(GtkButton *button, gpointer data)
 {
+	int i, waiting_for_server = FALSE;
 	char *msg;
 
 	/* Move text separator to bottom */
@@ -12645,9 +12646,29 @@ static void action_pressed(GtkButton *button, gpointer data)
 	/* Disable action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
 
+	/* Check if we are online */
+	if (client_state != CS_DISCONN)
+	{
+		/* Assume we are waiting for the server */
+		waiting_for_server = TRUE;
+
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; ++i)
+		{
+			/* Check if we are waiting for the player */
+			if (i != player_us && waiting_player[i] == WAIT_BLOCKED)
+			{
+				/* Remember we are waiting for a player */
+				waiting_for_server = FALSE;
+				break;
+			}
+		}
+	}
+
 	/* Select string */
-	msg = real_game.num_players == 2 ? "Waiting for opponent" :
-	                                   "Waiting for opponents";
+	if (waiting_for_server) msg = "Waiting for server";
+	else if (real_game.num_players == 2) msg = "Waiting for opponent";
+	else msg = "Waiting for opponents";
 
 	/* Reset action prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), msg);
