@@ -2841,24 +2841,26 @@ static void leave_game(int sid, int who)
 
 static void log_waiting(int who, int state)
 {
-	/* Log player state */
-	server_log("Waiting state for %d is ", who);
+	char *state_str;
 
 	/* Check waiting status */
 	switch (state)
 	{
 		case WAIT_READY:
-			server_log("READY");
+			state_str = "READY";
 			break;
 		case WAIT_BLOCKED:
-			server_log("BLOCKED");
+			state_str = "BLOCKED";
 			break;
 		case WAIT_OPTION:
-			server_log("OPTION");
+			state_str = "OPTION";
 			break;
 			default:
 		server_log("??");
 	}
+
+	/* Log player state */
+	server_log("Waiting state for %d is %s", who, state_str);
 }
 
 /*
