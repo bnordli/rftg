@@ -11728,8 +11728,8 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *autosave_box, *autosave_frame;
 	GtkWidget *autosave_button, *autosave_location_button;
 	GtkWidget *export_box, *export_frame;
-	GtkWidget *autoexport_button;
 	GtkWidget *style_sheet_box, *style_sheet_label, *style_sheet_entry;
+	GtkWidget *autoexport_button;
 	GtkWidget *autoexport_location_button;
 
 	options old_options = opt;
@@ -11788,17 +11788,6 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 	/* Create vbox to hold export widgets */
 	export_box = gtk_vbox_new(FALSE, 0);
 
-	/* Create toggle button for auto-export */
-	autoexport_button = gtk_check_button_new_with_label(
-	    "Export game when finished");
-
-	/* Set toggled status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(autoexport_button),
-	                             opt.auto_export);
-
-	/* Pack button into box */
-	gtk_box_pack_start(GTK_BOX(export_box), autoexport_button, FALSE, TRUE, 0);
-
 	/* Create hbox to hold style sheet label and entry */
 	style_sheet_box = gtk_hbox_new(FALSE, 0);
 
@@ -11833,6 +11822,17 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Pack style sheet box into export box */
 	gtk_container_add(GTK_CONTAINER(export_box), style_sheet_box);
+
+	/* Create toggle button for auto-export */
+	autoexport_button = gtk_check_button_new_with_label(
+	    "Export game when finished");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(autoexport_button),
+	                             opt.auto_export);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(export_box), autoexport_button, FALSE, TRUE, 0);
 
 	/* Create file location button */
 	autoexport_location_button =
