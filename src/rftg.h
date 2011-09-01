@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -682,11 +682,6 @@ typedef struct decisions
 	/* Take sample cards into hand from Explore phase */
 	void (*explore_sample)(struct game *g, int who, int draw, int keep,
 	                       int discard_any);
-
-	/* Verify a choice in the log */
-	int (*verify_choice)(struct game *g, int who, int type, int list[],
-	                     int *nl, int special[], int *ns, int arg1,
-	                     int arg2, int arg3);
 
 	/* Game over */
 	void (*game_over)(struct game *g, int who);

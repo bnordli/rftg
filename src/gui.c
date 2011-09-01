@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -9477,7 +9477,6 @@ decisions gui_func =
 	gui_notify_rotation,
 	NULL,
 	gui_make_choice,
-	NULL,
 	NULL,
 	NULL,
 	NULL,

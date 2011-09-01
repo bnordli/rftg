@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2288,16 +2288,6 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 }
 
 /*
- * Verify that a decision in the given player's choice log is legal.
- */
-static int server_verify_choice(game *g, int who, int type, int list[], int *nl,
-                                int special[], int *ns, int arg1, int arg2,
-                                int arg3)
-{
-	return 1;
-}
-
-/*
  * Send a "game chat" message to everyone in the given session.
  */
 static void send_gamechat(int sid, int uid, char *user, char *text, int save)
@@ -2400,14 +2390,24 @@ static void kick_player(int cid, char *reason)
 }
 
 /*
+ * Verify that a decision from a client is choice log is legal.
+ */
+static int verify_choice(session *s_ptr, int who, int type, int list[], int nl,
+                         int special[], int ns)
+{
+	/* XXX Only check the type for now */
+	return type == s_ptr->out[who].type;
+}
+
+/*
  * Handle a choice reply message from a client.
  */
 static void handle_choice(int cid, char *ptr, int size)
 {
 	session *s_ptr;
 	player *p_ptr;
-	int who, i, num, sid, pos, type, got_choice = 0;
-	int *l_ptr;
+	int who, i, sid, pos, type, nl, ns, got_choice = 0;
+	int *l_ptr, *list, *special;
 	char *start = ptr;
 
 	/* Get session ID from player */
@@ -2481,30 +2481,47 @@ static void handle_choice(int cid, char *ptr, int size)
 		*l_ptr++ = get_integer(&ptr);
 
 		/* Get number of items in list */
-		num = get_integer(&ptr);
+		nl = get_integer(&ptr);
 
 		/* Copy number of items to log */
-		*l_ptr++ = num;
+		*l_ptr++ = nl;
+
+		/* Remember list position */
+		list = l_ptr;
 
 		/* Loop over list entries */
-		for (i = 0; i < num; i++)
+		for (i = 0; i < nl; i++)
 		{
 			/* Copy item */
 			*l_ptr++ = get_integer(&ptr);
 		}
 
 		/* Get number of special items in list */
-		num = get_integer(&ptr);
+		ns = get_integer(&ptr);
 
 		/* Copy number of special items to log */
-		*l_ptr++ = num;
+		*l_ptr++ = ns;
+
+		/* Remember special position */
+		special = l_ptr;
 
 		/* Loop over special entries */
-		for (i = 0; i < num; i++)
+		for (i = 0; i < ns; i++)
 		{
 			/* Copy item */
 			*l_ptr++ = get_integer(&ptr);
 		}
+	}
+
+	/* Check for illegal answer */
+	if (!verify_choice(s_ptr, who, type, list, nl, special, ns))
+	{
+		/* Kick player for illegal play */
+		kick_player(cid, "Illegal choice!");
+
+		/* Release lock and don't store the answer */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
+		return;
 	}
 
 	/* Mark new size of choice log */
@@ -2630,7 +2647,6 @@ decisions server_func =
 	server_make_choice,
 	server_wait,
 	NULL,
-	server_verify_choice,
 	NULL,
 	NULL,
 	server_private_message,
