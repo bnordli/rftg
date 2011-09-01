@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, August 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,6 +45,20 @@ char *player_labels[MAX_PLAYER] =
 	"Five players",
 	"Six players",
 	NULL
+};
+
+/*
+ * Textual representation for card locations.
+ */
+char *location_names[7] =
+{
+	"Deck",
+	"Discard",
+	"Hand",
+	"Active",
+	"Good",
+	"Saved",
+	"Revealed",
 };
 
 void dump_hand(game *g, int who)
@@ -916,6 +930,63 @@ int next_choice(int* log, int pos)
 }
 
 /*
+ * Look for CHOICE_DEBUG in the log and execute the choices.
+ */
+void perform_debug_moves(game *g, int who)
+{
+	player *p_ptr;
+	int *l_ptr;
+	char msg[1024];
+	int c, owner, where;
+
+	/* Get player pointer */
+	p_ptr = &g->p[who];
+
+	/* Get current position in log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
+
+	/* Loop for debug choices */
+	while (*l_ptr == CHOICE_DEBUG && p_ptr->choice_pos < p_ptr->choice_size)
+	{
+		/* Advance pointer */
+		l_ptr++;
+
+		/* Get card index value */
+		c = *l_ptr++;
+
+		/* Advance pointer to start of list */
+		l_ptr++;
+
+		/* Get new owner */
+		owner = *l_ptr++;
+
+		/* Get new location */
+		where = *l_ptr++;
+
+		/* Format message */
+		sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
+		        g->deck[c].d_ptr->name,
+		        owner == -1 ? "None" : g->p[owner].name,
+		        location_names[where]);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_DEBUG);
+
+		/* Move card */
+		move_card(g, c, owner, where);
+
+		/* Advance pointer to next choice */
+		l_ptr++;
+
+		/* Set log position to current */
+		p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
+
+		/* Update unread position */
+		p_ptr->choice_unread_pos = p_ptr->choice_pos;
+	}
+}
+
+/*
  * Extract an answer to a pending choice from the player's choice log.
  */
 static int extract_choice(game *g, int who, int type, int list[], int *nl,
@@ -928,9 +999,6 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
-	/* Get current position in log */
-	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
-
 	/* Check for no data in log */
 	if (p_ptr->choice_pos >= p_ptr->choice_size)
 	{
@@ -938,6 +1006,12 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 		printf("No data available in choice log!\n");
 		exit(1);
 	}
+
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
+
+	/* Get current position in log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
 
 	/* Check for correct type of answer */
 	if (*l_ptr != type)
@@ -1036,7 +1110,10 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
-	/* Check for unconsumed choices in log */
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
+
+	/* Check for (still) unconsumed choices in log */
 	if (p_ptr->choice_pos < p_ptr->choice_size)
 	{
 		/* Return logged answer */
@@ -1065,7 +1142,7 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
  * Ask a player to make a decision.
  *
  * In this function we will return immediately after asking.  The answer
- * can later be retrieved using extract_answer() above.
+ * can later be retrieved using extract_choice() above.
  */
 static void send_choice(game *g, int who, int type, int list[], int *nl,
                         int special[], int *ns, int arg1, int arg2, int arg3)
@@ -1074,6 +1151,9 @@ static void send_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
+
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
 
 	/* Check for unconsumed choices in log */
 	if (p_ptr->choice_pos < p_ptr->choice_size)
@@ -1139,7 +1219,7 @@ static int get_player_area(game *g, int who, int list[MAX_DECK], int where)
 /*
  * Return a list of cards holding the given type of good.
  */
-static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
+int get_goods(game *g, int who, int goods[], int type)
 {
 	card *c_ptr;
 	int x, n = 0;
@@ -1164,7 +1244,10 @@ static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
 		if (c_ptr->unpaid) continue;
 
 		/* Add card to list */
-		goods[n++] = x;
+		if (goods) goods[n] = x;
+
+		/* Increase number of goods */
+		++n;
 	}
 
 	/* Return number found */
@@ -4193,10 +4276,10 @@ int takeover_callback(game *g, int special, int world)
 }
 
 /*
- * Check if a player can takeover opponent's cards, and if so, ask
- * player which card to declare an attempt on.
+ * Check if a player can takeover opponent's cards, and if desired,
+ * ask player which card to declare an attempt on.
  */
-int settle_check_takeover(game *g, int who)
+int settle_check_takeover(game *g, int who, card *extra, int ask)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -4371,6 +4454,9 @@ int settle_check_takeover(game *g, int who)
 	/* Check for no legal choices */
 	if (!n) return 0;
 
+	/* Return if not asking */
+	if (!ask) return 1;
+
 	/* Ask player which world to attempt to takeover */
 	target = ask_player(g, who, CHOICE_TAKEOVER, list, &n,
 	                    special, &num_special, 0, 0, 0);
@@ -4396,6 +4482,17 @@ int settle_check_takeover(game *g, int who)
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Check for card used for extra placement */
+		if (extra)
+		{
+			/* Format message */
+			sprintf(msg, "%s uses %s to attempt to take over a world.\n",
+					p_ptr->name, extra->d_ptr->name);
+
+			/* Add message */
+			message_add(g, msg);
+		}
+
 		/* Format message */
 		sprintf(msg, "%s uses %s to attempt takeover of %s.\n",
 		        p_ptr->name, c_ptr->d_ptr->name,
@@ -4872,19 +4969,8 @@ void settle_action(game *g, int who, int world)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask for takeover declaration if possible */
-			if (settle_check_takeover(g, who))
+			if (settle_check_takeover(g, who, c_ptr, 1))
 			{
-				/* Message */
-				if (!g->simulation)
-				{
-					/* Format message */
-					sprintf(msg, "%s uses %s to attempt to take over a world.\n",
-					        p_ptr->name, c_ptr->d_ptr->name);
-
-					/* Add message */
-					message_add(g, msg);
-				}
-
 				/* Act on declaration */
 				settle_action(g, who, -1);
 			}
@@ -5949,7 +6035,7 @@ void phase_settle(game *g)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask player for takeover choice instead */
-			settle_check_takeover(g, i);
+			settle_check_takeover(g, i, NULL, 1);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
@@ -9837,15 +9923,15 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 	discard_callback(g, who, list, n);
 
 	/* Message */
-	if (!g->simulation && g->p[who].control->private_message)
+	if (!g->simulation && p_ptr->control->private_message)
 	{
 		/* Format message */
 		sprintf(msg, "%s discards the start world %s.\n",
-			    p_ptr->name,
-			    g->deck[special[1]].d_ptr->name);
+		        p_ptr->name,
+		        g->deck[special[1]].d_ptr->name);
 
 		/* Send message */
-		g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		p_ptr->control->private_message(g, who, msg, FORMAT_DISCARD);
 	}
 
 	/* Place start card */
@@ -9984,11 +10070,35 @@ void begin_game(game *g)
 			/* XXX Move card to discard */
 			c_ptr->where = WHERE_DISCARD;
 
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+				        g->p[i].name,
+						c_ptr->d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
+
 			/* Get card pointer to second start choice */
 			c_ptr = &g->deck[start_picks[i][1]];
 
 			/* XXX Move card to discard */
 			c_ptr->where = WHERE_DISCARD;
+
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+				        g->p[i].name,
+						c_ptr->d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
 		}
 
 		/* Loop over players again */
@@ -10314,16 +10424,6 @@ int game_round(game *g)
 	player *p_ptr;
 	int i, j, target, act[2];
 	char msg[1024], last;
-
-	/* Assume no phases will be executed */
-	for (i = 0; i < MAX_ACTION; i++) g->action_selected[i] = 0;
-
-	/* Clear action choices */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Clear both choices */
-		g->p[i].action[0] = g->p[i].action[1] = -1;
-	}
 
 	/* Increment round counter */
 	g->round++;
@@ -10672,6 +10772,16 @@ int game_round(game *g)
 
 	/* Check for too many rounds */
 	if (g->round >= 30) g->game_over = 1;
+
+	/* Clear phases */
+	for (i = 0; i < MAX_ACTION; i++) g->action_selected[i] = 0;
+
+	/* Clear action choices */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Clear both choices */
+		g->p[i].action[0] = g->p[i].action[1] = -1;
+	}
 
 	/* Check for finished game */
 	if (g->game_over) return 0;

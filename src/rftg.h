@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,12 +32,16 @@
 #endif
 
 #ifndef RELEASE
-#define RELEASE VERSION "k"
+#define RELEASE VERSION "l"
 #endif
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef WIN32
 #include "stdint.h"
+#else
+#include <stdint.h>
+#endif
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
@@ -486,6 +490,8 @@
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
 
+#define CHOICE_DEBUG            -10
+
 
 /*
  * GUI: Text formatting
@@ -499,6 +505,7 @@
 #define FORMAT_VERBOSE "verbose"
 #define FORMAT_DRAW "draw"
 #define FORMAT_DISCARD "discard"
+#define FORMAT_DEBUG "debug"
 
 /*
  * Forward declaration.
@@ -675,11 +682,6 @@ typedef struct decisions
 	/* Take sample cards into hand from Explore phase */
 	void (*explore_sample)(struct game *g, int who, int draw, int keep,
 	                       int discard_any);
-
-	/* Verify a choice in the log */
-	int (*verify_choice)(struct game *g, int who, int type, int list[],
-	                     int *nl, int special[], int *ns, int arg1,
-	                     int arg2, int arg3);
 
 	/* Game over */
 	void (*game_over)(struct game *g, int who);
@@ -901,6 +903,7 @@ extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
 extern char *player_labels[MAX_PLAYER];
+extern char *location_names[7];
 extern decisions ai_func;
 extern decisions gui_func;
 
@@ -917,12 +920,13 @@ extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
-extern void save_log(void);
+extern void auto_export(void);
 extern int game_rand(game *g);
 extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);
+extern void perform_debug_moves(game *g, int who);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_chose(game *g, int who, int act);
@@ -934,6 +938,7 @@ extern void draw_card(game *g, int who, char *reason);
 extern void draw_cards(game *g, int who, int num, char *reason);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
+extern int get_goods(game *g, int who, int goods[], int type);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
 extern int get_powers(game *g, int who, int phase, power_where *w_list);
@@ -953,7 +958,7 @@ extern int payment_callback(game *g, int who, int which, int list[], int num,
 extern int settle_legal(game *g, int who, int which, int mil_bonus,
                         int mil_only);
 extern int takeover_callback(game *g, int special, int world);
-extern int settle_check_takeover(game *g, int who);
+extern int settle_check_takeover(game *g, int who, card *extra, int ask);
 extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
@@ -1003,7 +1008,8 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
 extern char *xml_escape(const char *s);
-extern int export_game(game *g, char *filename, int player_us,
-                       const char *message,
+extern int export_game(game *g, char *filename, char *style_sheet,
+                       char *server, int tampered, int player_us,
+                       int export_save, const char *message,
                        int num_special, card** special_cards,
                        void (*export_log)(FILE *fff, int gid), int gid);

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,9 +41,14 @@ static GSource *server_src;
 int client_state = CS_DISCONN;
 
 /*
- * Whether we play against a new server or not.
+ * The version of the server we are connected to.
  */
-int new_server;
+char server_version[30];
+
+/*
+ * Whether the connected server accepts debug choices.
+ */
+int debug_server;
 
 /*
  * Our joined session ID.
@@ -602,7 +607,7 @@ static void handle_status_meta(char *ptr)
 	redraw_goal();
 
 	/* Modify GUI for expansion and number of players */
-	modify_gui();
+	modify_gui(TRUE);
 }
 
 /*
@@ -654,11 +659,12 @@ static void handle_status_player(char *ptr)
 /*
  * Handle a status update about a card.
  */
-static void handle_status_card(char *ptr)
+static void handle_status_card(char *ptr, int size)
 {
 	card *c_ptr;
-	int x;
+	int x, i;
 	int owner, where, start_owner, start_where;
+	char *start = ptr;
 
 	/* Read card index */
 	x = get_integer(&ptr);
@@ -692,6 +698,17 @@ static void handle_status_card(char *ptr)
 	/* Card locations have been updated */
 	cards_updated = 1;
 	status_updated = 1;
+
+	/* Check for 'used' flags (since 0.8.1l) */
+	if (size > ptr - start)
+	{
+		/* Loop over all powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
+		{
+			/* Read used flag */
+			c_ptr->used[i] = get_integer(&ptr);
+		}
+	}
 
 	/* Track latest played card */
 	if (c_ptr->owner >= 0 &&
@@ -771,6 +788,13 @@ static void handle_status_misc(char *ptr)
 	/* Check for update in status */
 	if (status_updated)
 	{
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; i++)
+		{
+			/* Reset status information for player */
+			reset_status(&real_game, i);
+		}
+
 		/* Redraw status areas */
 		redraw_status();
 
@@ -784,13 +808,31 @@ static void handle_status_misc(char *ptr)
  */
 static void handle_waiting(char *ptr)
 {
-	int i;
+	int i, waiting_for_server = TRUE;
+	char *msg;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Get wait status */
 		waiting_player[i] = get_integer(&ptr);
+
+		/* Check if we are waiting for the player */
+		if (i != player_us && waiting_player[i] == WAIT_BLOCKED)
+		{
+			/* Remember we are waiting for a player */
+			waiting_for_server = FALSE;
+		}
+	}
+
+	if (!making_choice)
+	{
+		if (waiting_for_server) msg = "Waiting for server";
+		else if (real_game.num_players == 2) msg = "Waiting for opponent";
+		else msg = "Waiting for opponents";
+
+		/* Reset action prompt */
+		gtk_label_set_text(GTK_LABEL(action_prompt), msg);
 	}
 
 	/* Update status areas */
@@ -988,7 +1030,6 @@ static decisions prepare_func =
 	NULL,
 	NULL,
 	NULL,
-	NULL,
 };
 
 /*
@@ -1132,8 +1173,19 @@ static gboolean message_read(gpointer data)
 		/* Login successful */
 		case MSG_HELLO:
 
+			/* Assume no server version */
+			strcpy(server_version, "");
+			debug_server = 0;
+
 			/* Only new servers send version information */
-			new_server = (size > 8);
+			if (size > 8)
+			{
+				/* Get server version */
+				get_string(server_version, &ptr);
+
+				/* Get debug server */
+				debug_server = strstr(server_version, "-debug") != NULL;
+			}
 
 			/* Set state */
 			client_state = CS_LOBBY;
@@ -1400,7 +1452,7 @@ static gboolean message_read(gpointer data)
 				                                 chat_buffer,
 				                                 &end_iter,
 				                                 text, -1,
-				                                 FORMAT_EM,
+				                                 FORMAT_CHAT,
 				                                 NULL);
 			}
 			else
@@ -1479,7 +1531,7 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_CARD:
 
 			/* Handle message */
-			handle_status_card(ptr);
+			handle_status_card(ptr, size - 8);
 			break;
 
 		/* Goal status update */
@@ -1561,8 +1613,8 @@ static gboolean message_read(gpointer data)
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			           "Game Over - Press Done to return to lobby");
 
-			/* Save log */
-			save_log();
+			/* Auto export game */
+			auto_export();
 
 			/* Enable action button */
 			gtk_widget_set_sensitive(action_button, TRUE);

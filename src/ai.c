@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -3385,7 +3385,7 @@ static double ai_choose_place_opp_aux(game *g, int who, int which, int phase)
 	if (phase == PHASE_SETTLE)
 	{
 		/* Check for takeovers or placement */
-		if (which != -1 || settle_check_takeover(&sim, who))
+		if (which != -1 || settle_check_takeover(&sim, who, NULL, 1))
 		{
 			/* Take no-place action */
 			settle_action(&sim, who, which);
@@ -3542,7 +3542,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
 	if (phase == PHASE_SETTLE)
 	{
 		/* Check for takeovers */
-		if (settle_check_takeover(&sim, who))
+		if (settle_check_takeover(&sim, who, NULL, 1))
 		{
 			/* Take no-place action */
 			settle_action(&sim, who, -1);
@@ -6184,7 +6184,6 @@ decisions ai_func =
 	ai_make_choice,
 	NULL,
 	ai_explore_sample,
-	NULL,
 	ai_game_over,
 	ai_shutdown,
 	NULL,
