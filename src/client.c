@@ -825,8 +825,10 @@ static void handle_waiting(char *ptr)
 		}
 	}
 
+	/* Don't update the prompt if the user is currently making a choice */
 	if (!making_choice)
 	{
+		/* Select appropriate message */
 		if (waiting_for_server) msg = "Waiting for server";
 		else if (real_game.num_players == 2) msg = "Waiting for opponent";
 		else msg = "Waiting for opponents";
@@ -1183,7 +1185,7 @@ static gboolean message_read(gpointer data)
 				/* Get server version */
 				get_string(server_version, &ptr);
 
-				/* Get debug server */
+				/* Check for debug server */
 				debug_server = strstr(server_version, "-debug") != NULL;
 			}
 

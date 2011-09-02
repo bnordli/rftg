@@ -4487,7 +4487,7 @@ int settle_check_takeover(game *g, int who, card *extra, int ask)
 		{
 			/* Format message */
 			sprintf(msg, "%s uses %s to attempt to take over a world.\n",
-					p_ptr->name, extra->d_ptr->name);
+			        p_ptr->name, extra->d_ptr->name);
 
 			/* Add message */
 			message_add(g, msg);
@@ -10076,7 +10076,7 @@ void begin_game(game *g)
 				/* Format message */
 				sprintf(msg, "%s draws the start world %s.\n",
 				        g->p[i].name,
-						c_ptr->d_ptr->name);
+				        c_ptr->d_ptr->name);
 
 				/* Send message */
 				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
@@ -10094,7 +10094,7 @@ void begin_game(game *g)
 				/* Format message */
 				sprintf(msg, "%s draws the start world %s.\n",
 				        g->p[i].name,
-						c_ptr->d_ptr->name);
+				        c_ptr->d_ptr->name);
 
 				/* Send message */
 				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);

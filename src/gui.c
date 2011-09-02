@@ -4571,13 +4571,13 @@ void redraw_phase(void)
 			/* Copy blank space onto middle of border buffer */
 			gdk_pixbuf_copy_area(blank_buf, 3, 3,
 			                     size - 6, size - 6,
-								 border_buf, 3, 3);
+			                     border_buf, 3, 3);
 
 			/* Composite border onto phase image buffer */
 			gdk_pixbuf_composite(border_buf, buf, 0, 0, size, size, 0, 0, 1, 1,
-								 GDK_INTERP_BILINEAR, 255);
+			                     GDK_INTERP_BILINEAR, 255);
 
-			/* Release our copies of pixbufs */
+			/* Release our copies of the pixbufs */
 			g_object_unref(G_OBJECT(blank_buf));
 			g_object_unref(G_OBJECT(border_buf));
 		}
@@ -6522,7 +6522,7 @@ static void compute_forced_choice(int list[], int num,
 
 			/* Try to make payment */
 			if (payment_callback(&sim, player_us, action_payment_which,
-                                 list, i, special_choice, num_choice,
+			                     list, i, special_choice, num_choice,
 			                     action_payment_mil))
 			{
 				/* Check for legal without all hand cards */
@@ -7362,7 +7362,7 @@ void gui_choose_trade(game *g, int who, int list[], int *num, int no_bonus)
 				i_ptr->push = 1;
 
 				/* Check for forced choice */
-				if (forced ) i_ptr->selected = TRUE;
+				if (forced) i_ptr->selected = TRUE;
 			}
 		}
 	}
@@ -12263,8 +12263,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
 	/* Connect "changed" signal */
-	g_signal_connect(render, "changed", G_CALLBACK(where_changed),
-	                 where_list);
+	g_signal_connect(render, "changed", G_CALLBACK(where_changed), where_list);
 
 	/* Connect "edited" signal */
 	g_signal_connect(render, "edited", G_CALLBACK(debug_edit),
