@@ -975,6 +975,9 @@ void perform_debug_moves(game *g, int who)
 		/* Move card */
 		move_card(g, c, owner, where);
 
+		/* Always place debug cards first in order */
+		g->deck[c].order = -1;
+
 		/* Advance pointer to next choice */
 		l_ptr++;
 

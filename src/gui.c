@@ -5002,7 +5002,11 @@ static int cmp_table(const void *t1, const void *t2)
 	displayed *i_ptr1 = (displayed *)t1, *i_ptr2 = (displayed *)t2;
 
 	/* Sort by order played */
-	return i_ptr1->order - i_ptr2->order;
+	if (i_ptr1->order != i_ptr2->order)
+		return i_ptr1->order - i_ptr2->order;
+
+	/* Then sort by cardi index */
+	return i_ptr1->index - i_ptr2->index;
 }
 
 /*
@@ -11939,6 +11943,119 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 }
 
 /*
+ * Attempt to place a moved card into the proper display table.
+ */
+static void debug_card_moved(int c, int owner, int where)
+{
+	card *c_ptr;
+	displayed *i_ptr;
+	int i, old_size;
+
+	/* Get card pointer */
+	c_ptr = &real_game.deck[c];
+
+	/* Check for moving from our hand */
+	if (c_ptr->owner == player_us && c_ptr->where == WHERE_HAND)
+	{
+		/* Loop over our hand */
+		for (i = 0; i < hand_size; i++)
+		{
+			/* Get displayed card pointer */
+			i_ptr = &hand[i];
+
+			/* Check for match */
+			if (i_ptr->index == c)
+			{
+				/* Remove from hand */
+				old_size = --hand_size;
+				hand[i] = hand[old_size];
+				hand[old_size].tooltip = NULL;
+
+				/* Sort hand */
+				qsort(hand, hand_size, sizeof(displayed), cmp_hand);
+
+				/* Done */
+				break;
+			}
+		}
+	}
+
+	/* Check for moving from active area */
+	if (c_ptr->where == WHERE_ACTIVE && c_ptr->owner != -1)
+	{
+		/* Loop over table area */
+		for (i = 0; i < table_size[c_ptr->owner]; i++)
+		{
+			/* Get displayed card pointer */
+			i_ptr = &table[c_ptr->owner][i];
+
+			/* Check for match */
+			if (i_ptr->index == c)
+			{
+				/* Remove from table */
+				old_size = --table_size[c_ptr->owner];
+				table[c_ptr->owner][i] = table[c_ptr->owner][old_size];
+				table[c_ptr->owner][old_size].tooltip = NULL;
+
+				/* Sort list */
+				qsort(table[c_ptr->owner], table_size[c_ptr->owner],
+				      sizeof(displayed), cmp_table);
+
+				/* Done */
+				break;
+			}
+		}
+	}
+
+	/* Check for adding card to our hand */
+	if (owner == player_us && where == WHERE_HAND)
+	{
+		/* Add card to hand */
+		i_ptr = &hand[hand_size++];
+
+		/* Set design and index */
+		i_ptr->d_ptr = c_ptr->d_ptr;
+		i_ptr->index = c;
+
+		/* Clear all other fields */
+		i_ptr->eligible = i_ptr->gapped = 0;
+		i_ptr->selected = i_ptr->color = 0;
+		i_ptr->covered = 0;
+		i_ptr->order = -1;
+
+		/* Generate tool tip */
+		i_ptr->tooltip = card_hand_tooltip(&real_game, player_us, c);
+
+		/* Sort hand */
+		qsort(hand, hand_size, sizeof(displayed), cmp_hand);
+	}
+
+	/* Check for adding card to active area */
+	if (owner != -1 && where == WHERE_ACTIVE)
+	{
+		/* Add card to hand */
+		i_ptr = &table[owner][table_size[owner]++];
+
+		/* Set design and index */
+		i_ptr->d_ptr = c_ptr->d_ptr;
+		i_ptr->index = c;
+
+		/* Clear all other fields */
+		i_ptr->eligible = i_ptr->gapped = 0;
+		i_ptr->selected = i_ptr->color = 0;
+		i_ptr->covered = 0;
+		i_ptr->order = -1;
+
+		/* Generate tool tip */
+		i_ptr->tooltip = card_table_tooltip(&real_game, player_us, c);
+
+		/* Sort list */
+		qsort(table[owner], table_size[owner],
+		      sizeof(displayed), cmp_table);
+	}
+}
+
+/*
  * The card list store of the debug dialog.
  */
 static GtkListStore *card_list;
@@ -12090,6 +12207,13 @@ static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
 
 		/* Mark one choice done */
 		choice_done(&real_game);
+
+		/* Check for local game */
+		if (client_state == CS_DISCONN)
+		{
+			/* Move card to its proper location immediately */
+			debug_card_moved(c, owner, where);
+		}
 	}
 
 	/* Continue the foreach loop */
@@ -12316,9 +12440,15 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 		gtk_tree_model_foreach(GTK_TREE_MODEL(card_list), debug_update_card,
 		                       NULL);
 
-		/* Execute the debug moves immediately if game is local */
+		/* Check for local game */
 		if (client_state == CS_DISCONN)
+		{
+			/* Execute the debug moves immediately */
 			perform_debug_moves(&real_game, player_us);
+
+			/* Redraw table and hand */
+			redraw_everything();
+		}
 
 		/* Update menu items */
 		update_menu_items();
