@@ -4403,6 +4403,27 @@ int main(int argc, char *argv[])
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
 	{
+		/* Check for help */
+		if (!strcmp(argv[i], "-h"))
+		{
+			/* Print usage */
+			printf("Race for the Galaxy server, version " RELEASE "\n\n");
+			printf("Arguments:\n");
+			printf("  -p     Port number to listen to. Default: 16309\n");
+			printf("  -d     MySQL database name. Default: \"rftg\"\n");
+			printf("  -t     Client timeout in seconds. 0 means do not kick players. Default: 60\n");
+			printf("  -k     Timeout to replace players with A.I. in ticks (%d seconds).\n", tick_size);
+			printf("            0 means do not replace players. Default: 30\n");
+			printf("  -e     Folder to put exported games. Default: \".\"\n");
+			printf("  -s     Server name (to be used in exports). Default: [none]\n");
+			printf("  -ss    XSLT style sheets for exported games. Default: [none]\n");
+			printf("  -debug Accept debug card messages.\n");
+			printf("  -h     Print this usage text and exit.\n\n");
+			printf("For more information, see the following web sites:\n");
+			printf("  http://keldon.net/rftg\n  http://dl.dropbox.com/u/7379896/rftg/index.html\n");
+			exit(1);
+		}
+
 		/* Check for port number */
 		if (!strcmp(argv[i], "-p"))
 		{
