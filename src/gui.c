@@ -6703,7 +6703,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 		/* Find any forced choices */
 		compute_forced_choice(list, *num, special, *num_special,
 		                      &forced_special, &forced_hand);
-	} 
+	}
 	else
 	{
 		/* No forced payment */
@@ -6778,7 +6778,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = high_color;
-				
+
 				/* Check for forced choice */
 				if (forced_special & (1 << i)) i_ptr->selected = TRUE;
 			}
@@ -10153,8 +10153,20 @@ static void read_prefs(void)
 	                                         "auto_select", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
-	opt.auto_export = g_key_file_get_boolean(pref_file, "gui",
-	                                         "auto_export", NULL);
+
+	/* Check for auto_export key present (since 0.8.1l) */
+	if (g_key_file_has_key(pref_file, "gui", "auto_export", NULL))
+	{
+		opt.auto_export = g_key_file_get_boolean(pref_file, "gui",
+		                                         "auto_export", NULL);
+	}
+	else
+	{
+		/* For backwards compatibility, read the old save_log key */
+		opt.auto_export = g_key_file_get_boolean(pref_file, "gui",
+		                                         "save_log", NULL);
+	}
+
 	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
 	                                         "colored_log", NULL);
 	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
