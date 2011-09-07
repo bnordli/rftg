@@ -2855,8 +2855,9 @@ static void log_waiting(int who, int state)
 		case WAIT_OPTION:
 			state_str = "OPTION";
 			break;
-			default:
-		server_log("??");
+		default:
+			state_str = "??";
+			break;
 	}
 
 	/* Log player state */

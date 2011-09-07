@@ -10505,7 +10505,7 @@ static void do_export(char* filename, const char* message)
 		export_save = FALSE;
 
 		/* Check for known server version */
-		if (server_version && strlen(server_version))
+		if (strlen(server_version))
 		{
 			/* Use server version with server name */
 			sprintf(server, "%s (%s)", opt.server_name, server_version);
