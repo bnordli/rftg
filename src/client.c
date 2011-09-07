@@ -1647,7 +1647,8 @@ static gboolean message_read(gpointer data)
 			break;
 
 		default:
-			printf("Unknown message type %d\n", type);
+			sprintf(text, "Unknown message type %d\n", type);
+			display_error(text);
 			break;
 	}
 
@@ -1693,7 +1694,7 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 	if (x > 1024)
 	{
 		/* Error */
-		printf("Received too long message!\n");
+		display_error("Received too long message!\n");
 		exit(1);
 	}
 
@@ -1747,7 +1748,7 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 		if (x < 8)
 		{
 			/* Print error */
-			printf("Got too small message!\n");
+			display_error("Got too small message!\n");
 			exit(1);
 		}
 

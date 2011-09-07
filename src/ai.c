@@ -233,7 +233,7 @@ static void complete_turn(game *g, int partial)
 	if (!g->simulation)
 	{
 		/* Error */
-		printf("complete_turn() called with real game!\n");
+		display_error("complete_turn() called with real game!\n");
 		exit(1);
 	}
 
@@ -578,7 +578,8 @@ static void setup_nets(game *g)
 
 	if (n != inputs)
 	{
-		printf("Bad role setup %d %d!\n", n, inputs);
+		sprintf(buf, "Bad role setup %d %d!\n", n, inputs);
+		display_error(buf);
 		exit(1);
 	}
 
@@ -725,7 +726,8 @@ static void setup_nets(game *g)
 
 	if (n != inputs)
 	{
-		printf("Bad role setup %d %d!\n", n, inputs);
+		sprintf(buf, "Bad role setup %d %d!\n", n, inputs);
+		display_error(buf);
 		exit(1);
 	}
 }
@@ -2277,7 +2279,7 @@ static void ai_choose_action_advanced(game *g, int who, int action[2], int one)
 	if (b_s == 0)
 	{
 		/* Error */
-		printf("Did not find any action choices!\n");
+		display_error("Did not find any action choices!\n");
 		exit(1);
 	}
 
@@ -2605,7 +2607,7 @@ static void ai_choose_action(game *g, int who, int action[2], int one)
 	if (b_s < 0)
 	{
 		/* Error */
-		printf("No action selected!\n");
+		display_error("No action selected!\n");
 		exit(1);
 	}
 
@@ -2872,7 +2874,7 @@ static void ai_choose_discard(game *g, int who, int list[], int *num,
 	if (b_s == -1)
 	{
 		/* Error */
-		printf("Failed to find good discard set!\n");
+		display_error("Failed to find good discard set!\n");
 		exit(1);
 	}
 
@@ -3285,7 +3287,7 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
 	}
 
 	/* XXX */
-	printf("Ran out of explore sample result entries!\n");
+	display_error("Ran out of explore sample result entries!\n");
 	exit(1);
 }
 
@@ -3802,7 +3804,7 @@ static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
 
 	if (b_s == -1)
 	{
-		printf("Couldn't find valid payment!\n");
+		display_error("Couldn't find valid payment!\n");
 		exit(1);
 	}
 
@@ -4140,7 +4142,7 @@ static void ai_choose_defend(game *g, int who, int which, int opponent,
 
 	if (b_s == -1)
 	{
-		printf("Couldn't find valid payment!\n");
+		display_error("Couldn't find valid payment!\n");
 		exit(1);
 	}
 
@@ -4481,7 +4483,7 @@ static void ai_choose_trade(game *g, int who, int list[], int *num,
 	if (best == -1)
 	{
 		/* Error */
-		printf("Could not find trade\n");
+		display_error("Could not find trade\n");
 		exit(1);
 	}
 
@@ -4802,7 +4804,7 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 	{
 		if (!optional)
 		{
-			printf("Selected no power, but some are mandatory!\n");
+			display_error("Selected no power, but some are mandatory!\n");
 			exit(1);
 		}
 		/* Select nothing */
@@ -4966,7 +4968,7 @@ static void ai_choose_consume_hand(game *g, int who, int c_idx, int o_idx,
 	if (b_s == -1)
 	{
 		/* Error */
-		printf("Failed to find good discard set!\n");
+		display_error("Failed to find good discard set!\n");
 		exit(1);
 	}
 
@@ -5095,7 +5097,7 @@ static void ai_choose_good(game *g, int who, int c_idx, int o_idx,
 	if (b_s == -1)
 	{
 		/* Error */
-		printf("Failed to find consume set!\n");
+		display_error("Failed to find consume set!\n");
 		exit(1);
 	}
 
@@ -5392,7 +5394,7 @@ static void ai_choose_windfall(game *g, int who, int list[], int *num,
 	if (best == -1)
 	{
 		/* Error */
-		printf("Could not find windfall production\n");
+		display_error("Could not find windfall production\n");
 		exit(1);
 	}
 
@@ -5995,7 +5997,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 
 		/* Error */
 		default:
-			printf("Unknown choice type!\n");
+			display_error("Unknown choice type!\n");
 			exit(1);
 	}
 

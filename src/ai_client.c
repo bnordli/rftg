@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -411,12 +411,12 @@ static void message_read(char *data)
 
 		/* Server disconnect */
 		case MSG_GOODBYE:
-
 			/* Read reason */
 			get_string(text, &ptr);
 
 			/* Print reason and exit */
-			printf("Server disconnected: %s\n", text);
+			sprintf(text + 512, "Server disconnected: %s\n", text);
+			display_error(text + 512);
 			exit(0);
 			break;
 
@@ -461,7 +461,7 @@ static void data_ready(void)
 	if (x > 1024)
 	{
 		/* Error */
-		printf("Received too long message!\n");
+		display_error("Received too long message!\n");
 		exit(1);
 	}
 
@@ -496,7 +496,7 @@ static void data_ready(void)
 		if (x < 8)
 		{
 			/* Print error */
-			printf("Got too small message!\n");
+			display_error("Got too small message!\n");
 			exit(1);
 		}
 

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, May 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -256,6 +256,7 @@ static char *vp_name[] =
 static uint64_t lookup_power(char *ptr, int phase)
 {
 	int i = 0;
+	char message[1024];
 
 	/* Loop over power names */
 	while (power_name[phase][i])
@@ -268,7 +269,8 @@ static uint64_t lookup_power(char *ptr, int phase)
 	}
 
 	/* No match */
-	printf("No power named '%s'\n", ptr);
+	sprintf(message, "No power named '%s'\n", ptr);
+	display_error(message);
 	exit(1);
 }
 

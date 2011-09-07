@@ -9408,7 +9408,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 		/* Error */
 		default:
-			printf("Unknown choice type!\n");
+			display_error("Unknown choice type!\n");
 			exit(1);
 	}
 
@@ -10495,15 +10495,38 @@ static void export_log(FILE *fff, int gid)
  */
 static void do_export(char* filename, const char* message)
 {
-	char msg[1024];
+	char msg[1024], server[1024];
 	int export_save;
 
-	/* Check whether saved game should be exported */
-	export_save = client_state == CS_DISCONN;
+	/* Check for connected client */
+	if (client_state != CS_DISCONN)
+	{
+		/* Do not export save */
+		export_save = FALSE;
+
+		/* Check for known server version */
+		if (server_version && strlen(server_version))
+		{
+			/* Use server version with server name */
+			sprintf(server, "%s (%s)", opt.server_name, server_version);
+		}
+		else
+		{
+			/* Use only server name */
+			strcpy(server, opt.server_name);
+		}
+	}
+	else
+	{
+		/* Export save */
+		export_save = TRUE;
+
+		/* Use local name */
+		strcpy(server, "local");
+	}
 
 	/* Save to file */
-	if (export_game(&real_game, filename, opt.export_style_sheet,
-	                client_state == CS_DISCONN ? "local" : opt.server_name,
+	if (export_game(&real_game, filename, opt.export_style_sheet, server,
 	                game_tampered, player_us, export_save, message,
 	                num_special_cards, special_cards, export_log, 0) < 0)
 	{

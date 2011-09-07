@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2011.
+ * Source file modified by B. Nordli, September 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -998,6 +998,7 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	player *p_ptr;
 	int *l_ptr;
 	int rv, i, num;
+	char message[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -1006,7 +1007,7 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	if (p_ptr->choice_pos >= p_ptr->choice_size)
 	{
 		/* Error */
-		printf("No data available in choice log!\n");
+		display_error("No data available in choice log!\n");
 		exit(1);
 	}
 
@@ -1020,8 +1021,9 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	if (*l_ptr != type)
 	{
 		/* Error */
-		printf("Expected %d in choice log for player %d, found %d!\n",
-		       type, who, *l_ptr);
+		sprintf(message, "Expected %d in choice log for player %d, found %d!\n",
+		        type, who, *l_ptr);
+		display_error(message);
 		exit(1);
 	}
 
@@ -1053,7 +1055,7 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 		if (num)
 		{
 			/* Error */
-			printf("Log has items but nowhere to copy them!\n");
+			display_error("Log has items but nowhere to copy them!\n");
 			exit(1);
 		}
 	}
@@ -1080,7 +1082,7 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 		if (num)
 		{
 			/* Error */
-			printf("Log has specials but nowhere to copy them!\n");
+			display_error("Log has specials but nowhere to copy them!\n");
 			exit(1);
 		}
 	}
@@ -6436,7 +6438,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 
 		if (c_ptr->covered == -1)
 		{
-			printf("Passed card without good!\n");
+			display_error("Passed card without good!\n");
 			exit(1);
 		}
 
