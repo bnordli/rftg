@@ -2391,6 +2391,13 @@ static void kick_player(int cid, char *reason)
 		/* Send to remaining players in session */
 		send_gamechat(sid, -1, "", text, 0);
 
+		/* Remove prepare flag */
+		if (s_list[sid].waiting[i] == WAIT_OPTION)
+			s_list[sid].waiting[i] = WAIT_READY;
+
+		/* Send new waiting status */
+		update_waiting(sid);
+
 		/* Check for kick timeout */
 		if (kick_timeout)
 		{
@@ -2915,6 +2922,13 @@ static void switch_ai(int sid, int who)
 
 	/* Send to session */
 	send_gamechat(sid, -1, "", text, 1);
+
+	/* Remove prepare flag */
+	if (s_ptr->waiting[who] == WAIT_OPTION)
+		s_ptr->waiting[who] = WAIT_READY;
+
+	/* Send new waiting status */
+	update_waiting(sid);
 
 	/* Have AI answer most recent choice question */
 	ask_client(sid, who);

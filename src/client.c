@@ -1369,6 +1369,9 @@ static gboolean message_read(gpointer data)
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			                   "Waiting for server");
 
+			/* Client can be updated */
+			prevent_update = 0;
+
 			/* Revert to game view */
 			switch_view(0, 1);
 
