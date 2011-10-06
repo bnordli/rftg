@@ -2411,6 +2411,9 @@ static void kick_player(int cid, char *reason)
 static int verify_choice(session *s_ptr, int who, int type, int list[], int nl,
                          int special[], int ns)
 {
+	/* XXX Disable this feature */
+	return 1;
+
 	/* XXX Don't check when player is preparing phase */
 	if (s_ptr->waiting[who] == WAIT_OPTION) return 1;
 
