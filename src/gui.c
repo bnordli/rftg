@@ -5270,7 +5270,7 @@ static int prestige_action;
 /*
  * Action button widgets.
  */
-static GtkWidget *action_toggle[MAX_ACTION];
+static GtkWidget *action_toggle[MAX_ACTION], *prestige_toggle;
 
 
 /*
@@ -5376,14 +5376,23 @@ static void action_choice_changed_advanced(GtkToggleButton *button,
 		actions_chosen--;
 	}
 
-	/* Check for prestige action toggled */
-	if (i == prestige_action)
+	/* Check for needing to reset prestige action */
+	if (i == prestige_action || (i == ACT_SEARCH && prestige_action != -1))
 	{
+		/* Reset icon to non-prestige version */
+		reset_action_icon(GTK_WIDGET(action_toggle[prestige_action]),
+		                  prestige_action);
+
 		/* Clear prestige boost */
 		prestige_action = -1;
+	}
 
-		/* Reset icon to non-prestige version */
-		reset_action_icon(GTK_WIDGET(button), i);
+	/* Check for search action toggle while prestige toggle visible */
+	if (i == ACT_SEARCH && prestige_toggle)
+	{
+		/* Change the sensitivity of the prestige toggle button */
+		gtk_widget_set_sensitive(GTK_WIDGET(prestige_toggle),
+		                         !gtk_toggle_button_get_active(button));
 	}
 
 	/* Check for exactly 2 actions chosen */
@@ -5479,7 +5488,7 @@ static void combo_down(GtkWidget *widget, gpointer data)
  */
 static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 {
-	GtkWidget *prestige = NULL, *image, *label;
+	GtkWidget *image, *label;
 	int i, a, h, n = 0, key = GDK_1;
 
 	/* Deactivate action button */
@@ -5632,7 +5641,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	    real_game.p[who].prestige > 0 && prestige_action == -1)
 	{
 		/* Create button to toggle prestige */
-		prestige = gtk_button_new();
+		prestige_toggle = gtk_button_new();
 
 		/* Get icon for action */
 		image = action_icon(ICON_PRESTIGE, h);
@@ -5641,17 +5650,17 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		gtk_widget_set_size_request(image, -1, 0);
 
 		/* Pack image into button */
-		gtk_container_add(GTK_CONTAINER(prestige), image);
+		gtk_container_add(GTK_CONTAINER(prestige_toggle), image);
 
 		/* Pack button into action box */
-		gtk_box_pack_start(GTK_BOX(action_box), prestige, FALSE,
+		gtk_box_pack_start(GTK_BOX(action_box), prestige_toggle, FALSE,
 		                   FALSE, h);
 
 		/* Create tooltip for button */
-		gtk_widget_set_tooltip_text(prestige, "Prestige");
+		gtk_widget_set_tooltip_text(prestige_toggle, "Prestige");
 
 		/* Add handler for keypresses */
-		gtk_widget_add_accelerator(prestige, "key-signal",
+		gtk_widget_add_accelerator(prestige_toggle, "key-signal",
 		                           window_accel,
 		                           accel_keys[6],
 		                           accel_mods[6], 0);
@@ -5660,25 +5669,30 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		if (client_state == CS_DISCONN)
 		{
 			/* Add 'P' keypress */
-			gtk_widget_add_accelerator(prestige, "key-signal",
+			gtk_widget_add_accelerator(prestige_toggle, "key-signal",
 			                           window_accel, GDK_p, 0, 0);
 		}
 
 		/* Connect "pointer enter" signal */
-		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",
+		g_signal_connect(G_OBJECT(prestige_toggle), "enter-notify-event",
 		                 G_CALLBACK(redraw_action),
 		                 GINT_TO_POINTER(10));
 
 		/* Connect "pressed" signal */
-		g_signal_connect(G_OBJECT(prestige), "pressed",
+		g_signal_connect(G_OBJECT(prestige_toggle), "pressed",
 		                 G_CALLBACK(prestige_pressed), NULL);
 
 		/* Connect key-signal */
-		g_signal_connect(G_OBJECT(prestige), "key-signal",
+		g_signal_connect(G_OBJECT(prestige_toggle), "key-signal",
 		                 G_CALLBACK(prestige_pressed), NULL);
 
 		/* Show everything */
-		gtk_widget_show_all(prestige);
+		gtk_widget_show_all(prestige_toggle);
+	}
+	else
+	{
+		/* Reset the prestige toggle pointer */
+		prestige_toggle = NULL;
 	}
 
 	/* Create filler label */
@@ -5731,7 +5745,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	gtk_widget_destroy(label);
 
 	/* Destroy prestige button if created */
-	if (prestige) gtk_widget_destroy(prestige);
+	if (prestige_toggle) gtk_widget_destroy(prestige_toggle);
 
 	/* Check for second Develop chosen without first */
 	if ((action[0] & ACT_MASK) == ACT_DEVELOP2)
