@@ -6393,7 +6393,7 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 {
 	char buf[1024];
 	displayed *i_ptr;
-	int i, j;
+	int i, j, allow_takeover = (phase == PHASE_SETTLE);
 
 	/* Create prompt */
 	sprintf(buf, "Choose card to %s",
@@ -6405,10 +6405,17 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 		/* Append name to prompt */
 		strcat(buf, " using ");
 		strcat(buf, g->deck[special].d_ptr->name);
+
+		/* XXX Check for "Rebel Sneak Attack" */
+		if (!strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack"))
+		{
+			/* Takeover not allowed */
+			allow_takeover = FALSE;
+		}
 	}
 
 	/* Check for settle phase and possible takeover */
-	if (phase == PHASE_SETTLE && settle_check_takeover(g, who, NULL, FALSE))
+	if (allow_takeover && settle_check_takeover(g, who, NULL, FALSE))
 	{
 		/* Append takeover information */
 		strcat(buf, " (or pass if you want to perform a takeover)");
