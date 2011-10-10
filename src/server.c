@@ -249,6 +249,11 @@ static int kick_timeout = 30;
 static int ping_timeout = 20;
 
 /*
+ * Inactive game timeout (in seconds).
+ */
+static int game_timeout = 3600;
+
+/*
  * Log exports folder.
  */
 static char* export_folder = ".";
@@ -4296,7 +4301,7 @@ static void do_housekeeping(void)
 		if (num) continue;
 
 		/* Check for long time since join activity */
-		if (time(NULL) - s_ptr->last_join > 3600)
+		if (time(NULL) - s_ptr->last_join > game_timeout)
 		{
 			/* Abandon session */
 			abandon_session(i);
@@ -4435,6 +4440,7 @@ int main(int argc, char *argv[])
 			printf("  -t     Client timeout in seconds. 0 means do not kick players. Default: 60\n");
 			printf("  -k     Timeout to replace players with A.I. in ticks (%d seconds).\n", tick_size);
 			printf("            0 means do not replace players. Default: 30\n");
+			printf("  -gt    Timeout to drop games that haven't been started yet. Default: 3600\n");
 			printf("  -e     Folder to put exported games. Default: \".\"\n");
 			printf("  -s     Server name (to be used in exports). Default: [none]\n");
 			printf("  -ss    XSLT style sheets for exported games. Default: [none]\n");
@@ -4472,6 +4478,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set new kick timeout */
 			kick_timeout = atoi(argv[++i]);
+		}
+
+		/* Check for game timeout settings */
+		if (!strcmp(argv[i], "-gt"))
+		{
+			/* Set new game timeout */
+			game_timeout = atoi(argv[++i]);
 		}
 
 		/* Check for server name */
