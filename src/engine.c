@@ -4724,7 +4724,8 @@ static int upgrade_world(game *g, int who)
 /*
  * Award player bonus cards for successfully placing a world.
  */
-static void settle_bonus(game *g, int who, int world, int takeover)
+static void settle_bonus(game *g, int who, int world, int takeover,
+                         int simulated)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -4817,7 +4818,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 	}
 
 	/* Check for need to discard */
-	if (explore)
+	if (explore && !simulated)
 	{
 		/* Have player discard */
 		player_discard(g, who, explore);
@@ -4877,7 +4878,7 @@ void settle_action(game *g, int who, int world)
 	if (world != -1 && !takeover)
 	{
 		/* Award bonuses for settling */
-		settle_bonus(g, who, world, 0);
+		settle_bonus(g, who, world, 0, 0);
 
 		/* Check for aborted game */
 		if (g->game_over) return;
@@ -5082,7 +5083,7 @@ void settle_action(game *g, int who, int world)
 			if (g->game_over) return;
 
 			/* Award bonuses for settling */
-			settle_bonus(g, who, p_ptr->placing, 0);
+			settle_bonus(g, who, p_ptr->placing, 0, 0);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
@@ -5452,7 +5453,7 @@ static void defend_takeover(game *g, int who, int world, int attacker,
  * Resolve a takeover.
  */
 int resolve_takeover(game *g, int who, int world, int special,
-                     int defeated)
+                     int defeated, int simulated)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -5562,7 +5563,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Check for successful takeover */
-	if (!defeated && attack >= defense)
+	if (!defeated && attack >= defense && !simulated)
 	{
 		/* Ask defender for any extra defense to spend */
 		defend_takeover(g, c_ptr->owner, world, who, attack - defense);
@@ -5645,7 +5646,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 		move_card(g, world, -1, WHERE_DISCARD);
 
 		/* Award settle bonus */
-		settle_bonus(g, who, world, 1);
+		settle_bonus(g, who, world, 1, simulated);
 
 		/* Check for aborted game */
 		if (g->game_over) return 0;
@@ -5719,7 +5720,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Award settle bonus */
-	settle_bonus(g, who, world, 1);
+	settle_bonus(g, who, world, 1, simulated);
 
 	/* Check for aborted game */
 	if (g->game_over) return 0;
@@ -5827,7 +5828,8 @@ void resolve_takeovers(game *g)
 		if (!resolve_takeover(g, g->takeover_who[i],
 		                         g->takeover_target[i],
 		                         g->takeover_power[i],
-		                         g->takeover_defeated[i]))
+		                         g->takeover_defeated[i],
+		                         0))
 		{
 			/* Fail future declarations if one fails */
 			for (j = i + 1; j < g->num_takeover; j++)

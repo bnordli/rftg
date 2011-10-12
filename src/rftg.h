@@ -964,7 +964,7 @@ extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
 extern int resolve_takeover(game *g, int who, int world, int special,
-                            int defeated);
+                            int defeated, int simulated);
 extern void resolve_takeovers(game *g);
 extern void phase_settle(game *g);
 extern int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus);

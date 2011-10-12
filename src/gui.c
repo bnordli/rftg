@@ -3813,7 +3813,7 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 		}
 
 		/* Simulate the takeover resolution */
-		resolve_takeover(&sim, attacker, which, t_ptr->card, 0);
+		resolve_takeover(&sim, attacker, which, t_ptr->card, 0, 1);
 
 		/* Simulate end of phase (for self-scoring cards) */
 		clear_temp(&sim);
