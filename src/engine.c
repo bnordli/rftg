@@ -11497,15 +11497,5 @@ void declare_winner(game *g)
 				message_add_formatted(g, msg, FORMAT_EM);
 			}
 		}
-
-		/* Print seed if the game was local */
-		if (g->start_seed)
-		{
-			/* Format message */
-			sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
-
-			/* Send message */
-			message_add(g, msg);
-		}
 	}
 }

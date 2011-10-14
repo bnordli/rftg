@@ -10069,6 +10069,12 @@ static void run_game(void)
 		/* Declare winner */
 		declare_winner(&real_game);
 
+		/* Format seed message */
+		sprintf(buf, "(The seed for this game was %u.)\n", real_game.start_seed);
+
+		/* Send message */
+		message_add(&real_game, buf);
+
 		/* Check for tampered game */
 		if (game_tampered & TAMPERED_MOVE)
 		{
