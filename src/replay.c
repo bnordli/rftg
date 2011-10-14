@@ -186,6 +186,34 @@ static void export_log(FILE *fff, int who)
 	log_pos[who] = num_messages;
 }
 
+/*
+ * Export callback for previous and next.
+ */
+static void export_callback(FILE *fff, int orig_who)
+{
+	/* Write start tag */
+	fputs("  <Links>\n", fff);
+
+	/* Check for previous choice available */
+	if (num_choices[orig_who] > 0)
+	{
+		/* Export previous choices */
+		fprintf(fff, "    <Link text=\"Previous\">Game_%06d_p%d_d%d.xml</Link>\n",
+		             gid, orig_who, num_choices[orig_who] - 1);
+	}
+
+	/* Check for next choice available */
+	if (!g.game_over)
+	{
+		/* Export next choices */
+		fprintf(fff, "    <Link text=\"Next\">Game_%06d_p%d_d%d.xml</Link>\n",
+		             gid, orig_who, num_choices[orig_who] + 1);
+	}
+
+	/* Write end tag */
+	fputs("  </Links>\n", fff);
+}
+
 /* Export the game seen from a specific player */
 static void export(game *g, int who)
 {
@@ -196,11 +224,12 @@ static void export(game *g, int who)
 	orig_who = original_id(who);
 	
 	/* Create file name */
-	sprintf(filename, "%s/Game_%06d_p%d_d%d.xml", export_folder, gid, orig_who, num_choices[orig_who]);
+	sprintf(filename, "%s/Game_%06d_p%d_d%d.xml",
+	                  export_folder, gid, orig_who, num_choices[orig_who]);
 	
 	/* Export game to file */
 	if (export_game(g, filename, export_style_sheet, server_name,
-	    -1, who, 0, NULL, 0, NULL, export_log, orig_who) < 0)
+	    who, NULL, 0, NULL, export_log, export_callback, orig_who) < 0)
 	{
 		/* Log error */
 		printf("Could not export game to %s\n", filename);
@@ -236,7 +265,8 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 	next = next_choice(choice_logs[orig_who], current);
 	
 	/* Copy choices from database */
-	memcpy(g->p[who].choice_log + current, choice_logs[orig_who] + current, sizeof(int) * (next - current));
+	memcpy(g->p[who].choice_log + current, choice_logs[orig_who] + current,
+	       sizeof(int) * (next - current));
 	
 	/* Update choice position */
 	g->p[who].choice_size = next;
@@ -344,7 +374,8 @@ static void db_load_game(int gid)
 	mysql_free_result(res);
 
 	/* Format query */
-	sprintf(query, "SELECT uid FROM attendance WHERE gid = %d ORDER BY seat", gid);
+	sprintf(query, "SELECT uid FROM attendance WHERE gid = %d ORDER BY seat",
+	               gid);
 
 	/* Run query */
 	mysql_query(mysql, query);
