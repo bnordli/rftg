@@ -164,7 +164,7 @@ int load_game(game *g, char *filename)
 /*
  * Write a game to the given file.
  */
-static void write_game(game *g, FILE *fff, int player_us)
+void write_game(game *g, FILE *fff, int player_us)
 {
 	player *p_ptr;
 	int i, j, n;
@@ -379,10 +379,10 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
  * Export the game state to the given filename.
  */
 int export_game(game *g, char *filename, char *style_sheet,
-                char *server, int tampered, int player_us,
-                int export_save, const char *message,
+                char *server, int player_us, const char *message,
                 int num_special_cards, card **special_cards,
-                void (*export_log)(FILE *fff, int gid), int gid)
+                void (*export_log)(FILE *fff, int gid),
+				void (*export_callback)(FILE *fff, int gid), int gid)
 {
 	FILE *fff;
 	player *p_ptr;
@@ -449,10 +449,6 @@ int export_game(game *g, char *filename, char *style_sheet,
 
 	/* Write status start tag */
 	fputs("  <Status>\n", fff);
-
-	/* Check for tampered game */
-	if (tampered >= 0)
-		fprintf(fff, "    <Tampered>%d</Tampered>\n", tampered);
 
 	/* Check for messsage */
 	if (message)
@@ -735,17 +731,11 @@ int export_game(game *g, char *filename, char *style_sheet,
 		fputs("  </Log>\n", fff);
 	}
 
-	/* Check for export save game */
-	if (export_save && player_us >= 0)
+	/* Check for export callback */
+	if (export_callback)
 	{
-		/* Start game tag and CDATA */
-		fputs("  <Save>\n<![CDATA[\n", fff);
-
-		/* Write save game */
-		write_game(g, fff, player_us);
-
-		/* Writed end tags */
-		fputs("]]>\n  </Save>\n", fff);
+		/* Export extra information */
+		export_callback(fff, gid);
 	}
 
 	/* End top level tag */

@@ -10518,19 +10518,38 @@ static void export_log(FILE *fff, int gid)
 }
 
 /*
+ * Callback during export to add tampered state and save game.
+ */
+static void export_callback(FILE *fff, int gid)
+{
+	/* Check for tampered game */
+	if (game_tampered >= 0)
+		fprintf(fff, "  <Tampered>%d</Tampered>\n", game_tampered);
+
+	/* Check for connected client */
+	if (client_state == CS_DISCONN)
+	{
+		/* Start game tag and CDATA */
+		fputs("  <Save>\n<![CDATA[\n", fff);
+
+		/* Write save game */
+		write_game(&real_game, fff, player_us);
+
+		/* Writed end tags */
+		fputs("]]>\n  </Save>\n", fff);
+	}
+}
+
+/*
  * Helper method to collect parameters to export_game.
  */
 static void do_export(char* filename, const char* message)
 {
 	char msg[1024], server[1024];
-	int export_save;
 
 	/* Check for connected client */
 	if (client_state != CS_DISCONN)
 	{
-		/* Do not export save */
-		export_save = FALSE;
-
 		/* Check for known server version */
 		if (strlen(server_version))
 		{
@@ -10545,17 +10564,14 @@ static void do_export(char* filename, const char* message)
 	}
 	else
 	{
-		/* Export save */
-		export_save = TRUE;
-
 		/* Use local name */
 		strcpy(server, "local");
 	}
 
 	/* Save to file */
 	if (export_game(&real_game, filename, opt.export_style_sheet, server,
-	                game_tampered, player_us, export_save, message,
-	                num_special_cards, special_cards, export_log, 0) < 0)
+	                player_us, message, num_special_cards, special_cards,
+	                export_log, export_callback, 0) < 0)
 	{
 		/* Format error */
 		sprintf(msg, "Error: Could not export game to %s.", filename);

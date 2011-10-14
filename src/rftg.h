@@ -1007,9 +1007,10 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 
 extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
+extern void write_game(game *g, FILE *fff, int player_us);
 extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, char *style_sheet,
-                       char *server, int tampered, int player_us,
-                       int export_save, const char *message,
+                       char *server, int player_us, const char *message,
                        int num_special, card** special_cards,
-                       void (*export_log)(FILE *fff, int gid), int gid);
+                       void (*export_log)(FILE *fff, int gid),
+                       void (*export_callback)(FILE *fff, int gid), int gid);

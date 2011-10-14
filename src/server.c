@@ -975,7 +975,7 @@ static void db_save_results(int sid)
 
 	/* Export game to file */
 	if (export_game(&s_ptr->g, filename, export_style_sheet, server_name,
-	    -1, -1, 0, NULL, 0, NULL, export_log, s_ptr->gid) < 0)
+	    -1, NULL, 0, NULL, export_log, NULL, s_ptr->gid) < 0)
 	{
 		/* Log error */
 		server_log("Could not export game to %s", filename);
