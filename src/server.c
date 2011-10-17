@@ -105,6 +105,10 @@ typedef struct conn
 
 } conn;
 
+/*
+ * A special choice for prepare messages.
+ */
+#define CHOICE_PREPARE 999
 
 /*
  * An outstanding choice to be made.
@@ -2112,50 +2116,12 @@ static void server_notify_rotation(game *g, int who)
 }
 
 /*
- * Ask player to prepare choices for the given phase.
- */
-static void server_prepare(game *g, int who, int phase, int arg)
-{
-	session *s_ptr = &s_list[g->session_id];
-
-	/* Don't prepare in simulated games */
-	if (g->simulation) return;
-
-	/* Don't ask players who aren't connected */
-	if (s_ptr->cids[who] < 0) return;
-
-	/* Don't ask AI players to prepare */
-	if (s_ptr->ai_control[who]) return;
-
-	/* Don't ask players who already have choices in log */
-	if (g->p[who].choice_size > g->p[who].choice_pos) return;
-
-	/* Send game updates to session */
-	update_status(g->session_id);
-
-	/* Game is not replaying anymore */
-	s_ptr->replaying = 0;
-
-	/* Ask player to prepare */
-	send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
-	          g->p[who].choice_size, phase, arg);
-
-	/* Player has option to play */
-	s_ptr->waiting[who] = WAIT_OPTION;
-
-	/* Log message */
-	server_log("S:%d P:%d Asking %d to prepare for phase %d at %d", g->session_id, who, s_ptr->cids[who], phase, g->p[who].choice_size);
-
-	/* Log message */
-	server_log("S:%d P:%d OPTION", g->session_id, who);
-}
-
-/*
  * (Re-)Ask a client to make a game choice.
  */
 static void ask_client(int sid, int who)
 {
 	session *s_ptr = &s_list[sid];
+	game *g = &s_ptr->g;
 	conn *c_ptr;
 	choice *o_ptr;
 	int cid;
@@ -2172,8 +2138,7 @@ static void ask_client(int sid, int who)
 	cid = s_ptr->cids[who];
 
 	/* Check for no outstanding choice for this client */
-	if (s_ptr->waiting[who] == WAIT_READY ||
-	    s_ptr->waiting[who] == WAIT_OPTION)
+	if (s_ptr->waiting[who] == WAIT_READY)
 	{
 		/* Nothing to do */
 		return;
@@ -2186,20 +2151,34 @@ static void ask_client(int sid, int who)
 	c_ptr = &c_list[cid];
 
 	/* Check for choice already received */
-	if (s_ptr->g.p[who].choice_size > s_ptr->g.p[who].choice_pos)
+	if (g->p[who].choice_size > g->p[who].choice_pos)
 	{
 		/* Done */
 		return;
 	}
 
+	/* Check for prepare message */
+	if (o_ptr->type == CHOICE_PREPARE)
+	{
+		/* Log message */
+		server_log("S:%d P:%d Asking %d to prepare for phase %d at %d", g->session_id, who, s_ptr->cids[who], o_ptr->arg1, g->p[who].choice_size);
+
+		/* Ask player to prepare */
+		send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
+				  g->p[who].choice_size, o_ptr->arg1, o_ptr->arg2);
+
+		/* Finished */
+		return;
+	}
+
 	/* Log message */
-	server_log("S:%d P:%d Asking %d (%s) for choice (type %d) at %d", sid, who, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
+	server_log("S:%d P:%d Asking %d (%s) for choice (type %d) at %d", sid, who, cid, g->p[who].name, o_ptr->type, g->p[who].choice_size);
 
 	/* Start choice message */
 	start_msg(&ptr, MSG_CHOOSE);
 
 	/* Add current choice log position */
-	put_integer(s_ptr->g.p[who].choice_size, &ptr);
+	put_integer(g->p[who].choice_size, &ptr);
 
 	/* Add choice type */
 	put_integer(o_ptr->type, &ptr);
@@ -2234,6 +2213,46 @@ static void ask_client(int sid, int who)
 
 	/* Send message to client */
 	send_msg(cid, msg);
+}
+
+/*
+ * Ask player to prepare choices for the given phase.
+ */
+static void server_prepare(game *g, int who, int phase, int arg)
+{
+	int sid = g->session_id;
+	session *s_ptr = &s_list[sid];
+	choice *o_ptr = &s_ptr->out[who];
+
+	/* Don't prepare in simulated games */
+	if (g->simulation) return;
+
+	/* Don't ask AI players to prepare */
+	if (s_ptr->ai_control[who]) return;
+
+	/* Don't ask players who already have choices in log */
+	if (g->p[who].choice_size > g->p[who].choice_pos) return;
+
+	/* Game is not replaying anymore */
+	s_ptr->replaying = 0;
+
+	/* Player has option to play */
+	s_ptr->waiting[who] = WAIT_OPTION;
+
+	/* Log message */
+	server_log("S:%d P:%d OPTION", g->session_id, who);
+
+	/* Save type */
+	o_ptr->type = CHOICE_PREPARE;
+
+	/* Save phase */
+	o_ptr->arg1 = phase;
+
+	/* Save arg */
+	o_ptr->arg2 = arg;
+
+	/* Ask client to respond */
+	ask_client(sid, who);
 }
 
 /*
@@ -2395,10 +2414,6 @@ static void kick_player(int cid, char *reason)
 
 		/* Send to remaining players in session */
 		send_gamechat(sid, -1, "", text, 0);
-
-		/* Remove prepare flag */
-		if (s_list[sid].waiting[i] == WAIT_OPTION)
-			s_list[sid].waiting[i] = WAIT_READY;
 
 		/* Send new waiting status */
 		update_waiting(sid);
