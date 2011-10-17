@@ -50,6 +50,12 @@ static int choice_size[MAX_PLAYER] = { 0 };
 /* Number of decisions */
 static int num_choices[MAX_PLAYER] = { 0 };
 
+/* Number of decisions at start of round */
+static int this_round[MAX_PLAYER] = { 0 };
+
+/* Current game round */
+static int current_round = 0;
+
 /* Number of game rotations */
 static int rotations = 0;
 
@@ -61,6 +67,16 @@ static int original_id(int who)
 	
 	/* If overflow, find the correct player */
 	return ret < g.num_players ? ret : ret - g.num_players;
+}
+
+/* Compute the new player id of an original player */
+static int new_id(int who)
+{
+	/* Start with substracting the number of rotations */
+	int ret = who - rotations;
+
+	/* If overflow, find the correct player */
+	return ret >= 0 ? ret : ret + g.num_players;
 }
 
 /* A log message */
@@ -191,6 +207,37 @@ static void export_log(FILE *fff, int who)
  */
 static void export_callback(FILE *fff, int orig_who)
 {
+	int i;
+
+	/* Write start tag */
+	fputs("  <Links>\n", fff);
+
+	/* Export full game link */
+	fprintf(fff, "    <Link text=\"Full game\">../Game_%06d.xml</Link>\n", gid);
+
+	/* Loop over players */
+	for (i = 0; i < g.num_players; ++i)
+	{
+		/* Print link to start of game for this player */
+		fprintf(fff, "    <Link text=\"%s (Start)\">Game_%06d_p%d_d0.xml</Link>\n", g.p[new_id(i)].name, gid, i);
+	}
+
+	/* Write end tag */
+	fputs("  </Links>\n", fff);
+
+	/* Write start tag */
+	fputs("  <Links>\n", fff);
+
+	/* Loop over players */
+	for (i = 0; i < g.num_players; ++i)
+	{
+		/* Print link to current round for this player */
+		fprintf(fff, "    <Link text=\"%s (Round %d)\">Game_%06d_p%d_d%d.xml</Link>\n", g.p[new_id(i)].name, g.round, gid, i, this_round[i]);
+	}
+
+	/* Write end tag */
+	fputs("  </Links>\n", fff);
+
 	/* Write start tag */
 	fputs("  <Links>\n", fff);
 
@@ -198,7 +245,7 @@ static void export_callback(FILE *fff, int orig_who)
 	if (num_choices[orig_who] > 0)
 	{
 		/* Export previous choices */
-		fprintf(fff, "    <Link text=\"Previous\">Game_%06d_p%d_d%d.xml</Link>\n",
+		fprintf(fff, "    <Link text=\"Previous choice\">Game_%06d_p%d_d%d.xml</Link>\n",
 		             gid, orig_who, num_choices[orig_who] - 1);
 	}
 
@@ -206,7 +253,7 @@ static void export_callback(FILE *fff, int orig_who)
 	if (!g.game_over)
 	{
 		/* Export next choices */
-		fprintf(fff, "    <Link text=\"Next\">Game_%06d_p%d_d%d.xml</Link>\n",
+		fprintf(fff, "    <Link text=\"Next choice\">Game_%06d_p%d_d%d.xml</Link>\n",
 		             gid, orig_who, num_choices[orig_who] + 1);
 	}
 
@@ -315,6 +362,20 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Compute the original player seat */
 	orig_who = original_id(who);
+
+	/* Check for new round */
+	if (who == 0 && g->round != current_round)
+	{
+		/* Update round */
+		current_round = g->round;
+
+		/* Loop over players */
+		for (i = 0; i < g->num_players; ++i)
+		{
+			/* Update this round */
+			this_round[i] = num_choices[i];
+		}
+	}
 
 	/* Determine type of choice */
 	switch (type)
@@ -873,6 +934,9 @@ void replay_game()
 
 	/* Declare winner */
 	declare_winner(&g);
+
+	/* Clear message */
+	strcpy(msg, "");
 
 	/* Loop over players */
 	for (i = 0; i < g.num_players; ++i)
