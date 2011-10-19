@@ -51,19 +51,19 @@ static game g;
 static int *choice_logs[MAX_PLAYER];
 
 /* Size of choice_logs */
-static int choice_size[MAX_PLAYER] = { 0 };
+static int choice_size[MAX_PLAYER];
 
 /* Number of decisions */
-static int num_choices[MAX_PLAYER] = { 0 };
+static int num_choices[MAX_PLAYER];
 
 /* Number of decisions at start of round */
-static int this_round[MAX_PLAYER] = { 0 };
+static int this_round[MAX_PLAYER];
 
 /* Current game round */
-static int current_round = 0;
+static int current_round;
 
 /* Number of game rotations */
-static int rotations = 0;
+static int rotations;
 
 /* Compute the original player id of a player */
 static int original_id(int who)
@@ -103,10 +103,10 @@ typedef struct message
 static message log[4096];
 
 /* The number of messages so far */
-static int num_messages = 0;
+static int num_messages;
 
 /* Log position for previous choice */
-static int log_pos[MAX_PLAYER] = { 0 };
+static int log_pos[MAX_PLAYER];
 
 /*
  * Log exports folder.
@@ -697,8 +697,18 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 	/* Read the current choice position */
 	current = g->p[who].choice_pos;
 
-	/* Compute the next choice position */
-	next = next_choice(choice_logs[orig_who], current);
+	/* Set next position */
+	next = current;
+
+	/* Loop until a non-debug choice is found */
+	while (choice_logs[orig_who][next] < 0)
+	{
+		/* Compute the next choice position */
+		next = next_choice(choice_logs[orig_who], next);
+	}
+
+	/* Take the next choice position */
+	next = next_choice(choice_logs[orig_who], next);
 
 	/* Copy choices from database */
 	memcpy(g->p[who].choice_log + current, choice_logs[orig_who] + current,
@@ -767,7 +777,7 @@ static void db_user_name(int uid, char *name)
 /*
  * Read game from database.
  */
-static void db_load_game(int gid)
+static int db_load_game(int gid)
 {
 	MYSQL_RES *res;
 	MYSQL_ROW row;
@@ -778,7 +788,7 @@ static void db_load_game(int gid)
 
 	/* Format query */
 	sprintf(query, "SELECT exp, adv, dis_goal, dis_takeover \
-	                FROM games WHERE gid = %d", gid);
+	                FROM games WHERE gid = %d AND state = 'DONE'", gid);
 
 	/* Run query */
 	mysql_query(mysql, query);
@@ -794,7 +804,7 @@ static void db_load_game(int gid)
 
 		/* No pool to load */
 		printf("Could not load game\n");
-		exit(1);
+		return 0;
 	}
 
 	/* Clear simulated */
@@ -876,7 +886,7 @@ static void db_load_game(int gid)
 
 		/* No pool to load */
 		printf("Could not load random pool\n");
-		exit(1);
+		return 0;
 	}
 
 	/* Copy returned data to random byte pool */
@@ -924,6 +934,9 @@ static void db_load_game(int gid)
 		/* Free result */
 		mysql_free_result(res);
 	}
+
+	/* Success */
+	return 1;
 }
 
 /*
@@ -1027,7 +1040,7 @@ void replay_game()
  */
 int main(int argc, char *argv[])
 {
-	int i;
+	int i, j;
 	my_bool reconnect = 1;
 	char *db = "rftg";
 
@@ -1040,22 +1053,31 @@ int main(int argc, char *argv[])
 			/* Print usage */
 			printf("Race for the Galaxy replay utility, version " RELEASE "\n\n");
 			printf("Arguments:\n");
-			printf("  -g     Game id to replay\n");
+			printf("  -gs    Game id to start replay from\n");
+			printf("  -ge    Game id to end replay at\n");
 			printf("  -d     MySQL database name. Default: \"rftg\"\n");
 			printf("  -e     Folder to put exported games. Default: \".\"\n");
 			printf("  -s     Server name (to be used in exports). Default: [none]\n");
-			printf("  -ss    XSLT style sheets for exported games. Default: [none]\n");
+			printf("  -ss    XSLT style sheets for exported complete games. Default: [none]\n");
+			printf("  -ssr   XSLT style sheets for exported replay games. Default: [none]\n");
 			printf("  -h     Print this usage text and exit.\n\n");
 			printf("For more information, see the following web sites:\n");
 			printf("  http://keldon.net/rftg\n  http://dl.dropbox.com/u/7379896/rftg/index.html\n");
 			exit(1);
 		}
 
-		/* Check for database name */
-		if (!strcmp(argv[i], "-g"))
+		/* Check for start game id */
+		if (!strcmp(argv[i], "-gs"))
 		{
-			/* Set database name */
-			gid = atoi(argv[++i]);
+			/* Set start game id */
+			gid_min = atoi(argv[++i]);
+		}
+
+		/* Check for end game id */
+		if (!strcmp(argv[i], "-ge"))
+		{
+			/* Set end game id */
+			gid_max = atoi(argv[++i]);
 		}
 
 		/* Check for database name */
@@ -1122,13 +1144,39 @@ int main(int argc, char *argv[])
 
 	/* Reconnect automatically when connection to database is lost */
 	mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
-	
-	/* Read game state from database */
-	db_load_game(gid);
 
-    /* Replay the game */	
-	replay_game();
-	
+	/* Loop over all games */
+	for (i = gid_min; i <= gid_max; ++i)
+	{
+		/* Set game */
+		gid = i;
+
+		/* Log message */
+		printf("Replaying game %d\n", gid);
+
+		/* Clear fields */
+		random_pos = 0;
+		current_round = 0;
+		rotations = 0;
+		num_messages = 0;
+
+		/* Loop over players */
+		for (j = 0; j < MAX_PLAYER; ++j)
+		{
+			/* Clear player fields */
+			choice_size[j] = 0;
+			num_choices[j] = 0;
+			this_round[j] = 0;
+			log_pos[j] = 0;
+		}
+
+		/* Read game state from database */
+		if (!db_load_game(gid)) continue;
+
+		/* Replay the game */
+		replay_game();
+	}
+
 	/* Success */
 	return 1;
 }
