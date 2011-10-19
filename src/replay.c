@@ -38,6 +38,12 @@ static int random_pos;
 /* The gid to replay */
 static int gid;
 
+/* The gid to start at */
+static int gid_min = -1;
+
+/* The gid to end at */
+static int gid_max = -1;
+
 /* Game to be replayed */
 static game g;
 
@@ -64,7 +70,7 @@ static int original_id(int who)
 {
 	/* Start with substracting the number of rotations */
 	int ret = who + rotations;
-	
+
 	/* If overflow, find the correct player */
 	return ret < g.num_players ? ret : ret - g.num_players;
 }
@@ -84,10 +90,10 @@ typedef struct message
 {
 	/* The text of the message */
 	char text[256];
-	
+
 	/* The format of the message */
 	char* format;
-	
+
 	/* The player id if a private message */
 	int player;
 
@@ -113,6 +119,11 @@ static char* export_folder = ".";
 static char* export_style_sheet = NULL;
 
 /*
+ * Export file style sheet.
+ */
+static char* export_style_sheet_replay = NULL;
+
+/*
  * Server name (used in exports).
  */
 static char* server_name = NULL;
@@ -127,19 +138,19 @@ static void save_message(char *txt, char *tag, int player)
 {
 	/* Print the message */
 	printf("%s", txt);
-	
+
 	/* Copy the message text */
 	strcpy(log[num_messages].text, txt);
-	
+
 	/* Chop newline */
 	log[num_messages].text[strlen(log[num_messages].text) - 1] = '\0';
 
 	/* Save the message format */
 	log[num_messages].format = tag;
-	
+
 	/* Save the private id */
 	log[num_messages].player = player;
-	
+
 	/* Increase the number of messages */
 	++num_messages;
 }
@@ -154,21 +165,23 @@ static void replay_notify_rotation(game *g, int who)
 }
 
 /*
- * Export log from a specific player.
+ * Export log (from a specific player).
  */
 static void export_log(FILE *fff, int who)
 {
-	int i;
+	int i, start;
 	char name[1024];
 
+	start = who < 0 ? 0 : log_pos[who];
+
 	/* Loop over messages */
-	for (i = log_pos[who]; i < num_messages; ++i)
+	for (i = start; i < num_messages; ++i)
 	{
 		/* Check for private message */
 		if (log[i].player >= 0)
 		{
 			/* Skip wrong player */
-			if (log[i].player != who) continue;
+			if (who >= 0 && log[i].player != who) continue;
 
 			/* Add user name */
 			sprintf(name, " private=\"%s\"",
@@ -197,13 +210,25 @@ static void export_log(FILE *fff, int who)
 		/* Write message and xml end tag */
 		fprintf(fff, "%s</Message>\n", xml_escape(log[i].text));
 	}
-	
+
 	/* Update log position for this player */
-	log_pos[who] = num_messages;
+	if (who >= 0) log_pos[who] = num_messages;
+}
+
+/* The name of the replay file for a given game, player and choices */
+static char *replay_file_name(int gid, int who, int choice)
+{
+	static char filename[1024];
+
+	/* Format the file name */
+	sprintf(filename, "Game_%06d_p%d_d%d.xml", gid, who, choice);
+
+	/* Return the formatted file name */
+	return filename;
 }
 
 /*
- * Export callback for previous and next.
+ * Export callback for generating links.
  */
 static void export_callback(FILE *fff, int orig_who)
 {
@@ -219,7 +244,8 @@ static void export_callback(FILE *fff, int orig_who)
 	for (i = 0; i < g.num_players; ++i)
 	{
 		/* Print link to start of game for this player */
-		fprintf(fff, "    <Link text=\"%s (Start)\">Game_%06d_p%d_d0.xml</Link>\n", g.p[new_id(i)].name, gid, i);
+		fprintf(fff, "    <Link text=\"%s (Start)\">%s</Link>\n",
+		        g.p[new_id(i)].name, replay_file_name(gid, i, 0));
 	}
 
 	/* Write end tag */
@@ -232,7 +258,9 @@ static void export_callback(FILE *fff, int orig_who)
 	for (i = 0; i < g.num_players; ++i)
 	{
 		/* Print link to current round for this player */
-		fprintf(fff, "    <Link text=\"%s (Round %d)\">Game_%06d_p%d_d%d.xml</Link>\n", g.p[new_id(i)].name, g.round, gid, i, this_round[i]);
+		fprintf(fff, "    <Link text=\"%s (Round %d)\">%s</Link>\n",
+		        g.p[new_id(i)].name, g.round,
+		        replay_file_name(gid, i, this_round[i]));
 	}
 
 	/* Write end tag */
@@ -245,16 +273,38 @@ static void export_callback(FILE *fff, int orig_who)
 	if (num_choices[orig_who] > 0)
 	{
 		/* Export previous choices */
-		fprintf(fff, "    <Link text=\"Previous choice\">Game_%06d_p%d_d%d.xml</Link>\n",
-		             gid, orig_who, num_choices[orig_who] - 1);
+		fprintf(fff, "    <Link text=\"Previous choice\">%s</Link>\n",
+		        replay_file_name(gid, orig_who, num_choices[orig_who] - 1));
 	}
 
 	/* Check for next choice available */
 	if (!g.game_over)
 	{
 		/* Export next choices */
-		fprintf(fff, "    <Link text=\"Next choice\">Game_%06d_p%d_d%d.xml</Link>\n",
-		             gid, orig_who, num_choices[orig_who] + 1);
+		fprintf(fff, "    <Link text=\"Next choice\">%s</Link>\n",
+		        replay_file_name(gid, orig_who, num_choices[orig_who] + 1));
+	}
+
+	/* Write end tag */
+	fputs("  </Links>\n", fff);
+}
+
+/*
+ * Export callback for complete game.
+ */
+static void export_end_callback(FILE *fff, int dummy)
+{
+	int i;
+
+	/* Write start tag */
+	fputs("  <Links>\n", fff);
+
+	/* Loop over players */
+	for (i = 0; i < g.num_players; ++i)
+	{
+		/* Print link to start of game for this player */
+		fprintf(fff, "    <Link text=\"%s (Replay)\">replay/%s</Link>\n",
+		        g.p[new_id(i)].name, replay_file_name(gid, i, 0));
 	}
 
 	/* Write end tag */
@@ -275,18 +325,40 @@ static void export(game *g, int who)
 {
 	int orig_who;
 	char filename[1024];
-	
+
 	/* Compute the original player seat */
 	orig_who = original_id(who);
-	
+
 	/* Create file name */
-	sprintf(filename, "%s/Game_%06d_p%d_d%d.xml",
-	                  export_folder, gid, orig_who, num_choices[orig_who]);
-	
+	sprintf(filename, "%s/replay/%s", export_folder,
+	        replay_file_name(gid, orig_who, num_choices[orig_who]));
+
 	/* Export game to file */
-	if (export_game(g, filename, export_style_sheet, server_name,
+	if (export_game(g, filename, export_style_sheet_replay, server_name,
 	    who, msg, num_special_cards, special_cards,
 	    export_log, export_callback, orig_who) < 0)
+	{
+		/* Log error */
+		printf("Could not export game to %s\n", filename);
+	}
+	else
+	{
+		/* Log export location */
+		printf("Game exported to %s\n", filename);
+	}
+}
+
+/* Export the complete game */
+static void export_end(game *g)
+{
+	char filename[1024];
+
+	/* Create file name */
+	sprintf(filename, "%s/Game_%06d.xml", export_folder, gid);
+
+	/* Export game to file */
+	if (export_game(g, filename, export_style_sheet, server_name,
+	    -1, NULL, 0, NULL, export_log, export_end_callback, -1) < 0)
 	{
 		/* Log error */
 		printf("Could not export game to %s\n", filename);
@@ -527,7 +599,7 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 				{
 					/* Read power size */
 					i = g->deck[arg1].d_ptr->powers[arg2].times;
-					
+
 					/* Create prompt */
 					sprintf(msg, "Choose up to %d card%s to consume on %s",
 							i, PLURAL(i), g->deck[arg1].d_ptr->name);
@@ -615,10 +687,10 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 			display_error("Unknown choice type!\n");
 			exit(1);
 	}
-	
+
 	/* Export the game */
 	export(g, who);
-	
+
 	/* Clear the number of special cards */
 	num_special_cards = 0;
 
@@ -627,11 +699,11 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Compute the next choice position */
 	next = next_choice(choice_logs[orig_who], current);
-	
+
 	/* Copy choices from database */
 	memcpy(g->p[who].choice_log + current, choice_logs[orig_who] + current,
 	       sizeof(int) * (next - current));
-	
+
 	/* Update choice position */
 	g->p[who].choice_size = next;
 
@@ -703,7 +775,7 @@ static void db_load_game(int gid)
 	unsigned long *field_len;
 	char query[1024];
 	char name[80];
-	
+
 	/* Format query */
 	sprintf(query, "SELECT exp, adv, dis_goal, dis_takeover \
 	                FROM games WHERE gid = %d", gid);
@@ -724,7 +796,7 @@ static void db_load_game(int gid)
 		printf("Could not load game\n");
 		exit(1);
 	}
-	
+
 	/* Clear simulated */
 	g.simulation = 0;
 
@@ -733,7 +805,7 @@ static void db_load_game(int gid)
 	g.advanced = strtol(row[1], NULL, 0);
 	g.goal_disabled = strtol(row[2], NULL, 0);
 	g.takeover_disabled = strtol(row[3], NULL, 0);
-		
+
 	/* Free results */
 	mysql_free_result(res);
 
@@ -743,7 +815,7 @@ static void db_load_game(int gid)
 
 	/* Run query */
 	mysql_query(mysql, query);
-	
+
 	/* Fetch results */
 	res = mysql_store_result(mysql);
 
@@ -752,7 +824,7 @@ static void db_load_game(int gid)
 	{
 		/* Store user ids */
 		uids[players] = strtol(row[0], NULL, 0);
-		
+
 		/* Set player interface function */
 		g.p[players].control = &replay_func;
 
@@ -769,7 +841,7 @@ static void db_load_game(int gid)
 
 		/* Copy player's name */
 		g.p[players].name = strdup(name);
-	
+
 		/* Next player */
 		++players;
 	}
@@ -919,7 +991,7 @@ int game_rand(game *g)
 void replay_game()
 {
 	int i;
-	
+
 	/* Initialize game */
 	init_game(&g);
 
@@ -944,6 +1016,9 @@ void replay_game()
 		/* Export the game */
 		export(&g, i);
 	}
+
+	/* Export full game */
+	export_end(&g);
 }
 
 /*
@@ -1009,6 +1084,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set style sheet */
 			export_style_sheet = argv[++i];
+		}
+
+		/* Check for export style sheet */
+		if (!strcmp(argv[i], "-ssr"))
+		{
+			/* Set style sheet */
+			export_style_sheet_replay = argv[++i];
 		}
 	}
 
