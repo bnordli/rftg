@@ -57,10 +57,16 @@ static int choice_size[MAX_PLAYER];
 static int num_choices[MAX_PLAYER];
 
 /* Number of decisions at start of round */
-static int this_round[MAX_PLAYER];
+static int decision_round[MAX_PLAYER][40];
+
+/* Current replay pass */
+static int pass;
 
 /* Current game round */
 static int current_round;
+
+/* Last game round */
+static int last_round;
 
 /* Number of game rotations */
 static int rotations;
@@ -136,6 +142,9 @@ MYSQL *mysql;
 /* Save a game message */
 static void save_message(char *txt, char *tag, int player)
 {
+	/* Skip during first pass */
+	if (pass == 1) return;
+
 	/* Print the message */
 	printf("%s", txt);
 
@@ -232,42 +241,45 @@ static char *replay_file_name(int gid, int who, int choice)
  */
 static void export_callback(FILE *fff, int orig_who)
 {
-	int i;
+	int i, j;
 
 	/* Write start tag */
-	fputs("  <Links>\n", fff);
+	fputs("  <Links text=\"Full game\">\n", fff);
 
 	/* Export full game link */
-	fprintf(fff, "    <Link text=\"Full game\">../Game_%06d.xml</Link>\n", gid);
+	fprintf(fff, "    <Link text=\"Game #%d\">../Game_%06d.xml</Link>\n", gid, gid);
+
+	/* Write end tag */
+	fputs("  </Links>\n", fff);
 
 	/* Loop over players */
 	for (i = 0; i < g.num_players; ++i)
 	{
+		/* Write start tag */
+		fprintf(fff, "  <Links text=\"%s\">\n", g.p[new_id(i)].name);
+
 		/* Print link to start of game for this player */
-		fprintf(fff, "    <Link text=\"%s (Start)\">%s</Link>\n",
-		        g.p[new_id(i)].name, replay_file_name(gid, i, 0));
+		fprintf(fff, "    <Link text=\"Start\">%s</Link>\n",
+		        replay_file_name(gid, i, decision_round[i][0]));
+
+		/* Loop over rounds */
+		for (j = 1; j <= last_round; ++j)
+		{
+			/* Print link to this round for this player */
+			fprintf(fff, "    <Link text=\"%d\">%s</Link>\n",
+			        j, replay_file_name(gid, i, decision_round[i][j]));
+		}
+
+		/* Print link to end of game for this player */
+		fprintf(fff, "    <Link text=\"End\">%s</Link>\n",
+		        replay_file_name(gid, i, decision_round[i][last_round + 1]));
+
+		/* Write end tag */
+		fputs("  </Links>\n", fff);
 	}
 
-	/* Write end tag */
-	fputs("  </Links>\n", fff);
-
 	/* Write start tag */
-	fputs("  <Links>\n", fff);
-
-	/* Loop over players */
-	for (i = 0; i < g.num_players; ++i)
-	{
-		/* Print link to current round for this player */
-		fprintf(fff, "    <Link text=\"%s (Round %d)\">%s</Link>\n",
-		        g.p[new_id(i)].name, g.round,
-		        replay_file_name(gid, i, this_round[i]));
-	}
-
-	/* Write end tag */
-	fputs("  </Links>\n", fff);
-
-	/* Write start tag */
-	fputs("  <Links>\n", fff);
+	fputs("  <Links text=\"Navigate\">\n", fff);
 
 	/* Check for previous choice available */
 	if (num_choices[orig_who] > 0)
@@ -297,13 +309,13 @@ static void export_end_callback(FILE *fff, int dummy)
 	int i;
 
 	/* Write start tag */
-	fputs("  <Links>\n", fff);
+	fputs("  <Links text=\"Replays\">\n", fff);
 
 	/* Loop over players */
 	for (i = 0; i < g.num_players; ++i)
 	{
 		/* Print link to start of game for this player */
-		fprintf(fff, "    <Link text=\"%s (Replay)\">replay/%s</Link>\n",
+		fprintf(fff, "    <Link text=\"%s\">replay/%s</Link>\n",
 		        g.p[new_id(i)].name, replay_file_name(gid, i, 0));
 	}
 
@@ -325,6 +337,7 @@ static void export(game *g, int who)
 {
 	int orig_who;
 	char filename[1024];
+	char new_msg[1024];
 
 	/* Compute the original player seat */
 	orig_who = original_id(who);
@@ -333,9 +346,12 @@ static void export(game *g, int who)
 	sprintf(filename, "%s/replay/%s", export_folder,
 	        replay_file_name(gid, orig_who, num_choices[orig_who]));
 
+	/* Add name to message */
+	sprintf(new_msg, "%s: %s", g->p[who].name ,msg);
+
 	/* Export game to file */
 	if (export_game(g, filename, export_style_sheet_replay, server_name,
-	    who, msg, num_special_cards, special_cards,
+	    who, new_msg, num_special_cards, special_cards,
 	    export_log, export_callback, orig_who) < 0)
 	{
 		/* Log error */
@@ -423,31 +439,12 @@ static void choose_pay(game *g, int who, int which, int list[], int *num,
 	sprintf(msg, "Choose payment for %s ", c_ptr->d_ptr->name);
 }
 
-/*
- * Store the player's next choice.
- */
-static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
-                               int special[], int *ns, int arg1, int arg2,
-                               int arg3)
+/* Find the message to the player */
+static void determine_message(game *g, int who, int type, int list[], int *nl,
+                              int special[], int *ns, int arg1, int arg2,
+                              int arg3)
 {
-	int i, current, next, orig_who;
-
-	/* Compute the original player seat */
-	orig_who = original_id(who);
-
-	/* Check for new round */
-	if (who == 0 && g->round != current_round)
-	{
-		/* Update round */
-		current_round = g->round;
-
-		/* Loop over players */
-		for (i = 0; i < g->num_players; ++i)
-		{
-			/* Update this round */
-			this_round[i] = num_choices[i];
-		}
-	}
+	int i;
 
 	/* Determine type of choice */
 	switch (type)
@@ -687,12 +684,46 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 			display_error("Unknown choice type!\n");
 			exit(1);
 	}
+}
 
-	/* Export the game */
-	export(g, who);
+/*
+ * Store the player's next choice.
+ */
+static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
+                               int special[], int *ns, int arg1, int arg2,
+                               int arg3)
+{
+	int i, current, next, orig_who;
 
-	/* Clear the number of special cards */
-	num_special_cards = 0;
+	/* Compute the original player seat */
+	orig_who = original_id(who);
+
+	/* Check for new round */
+	if (pass == 1 && who == 0 && g->round != current_round)
+	{
+		/* Update round */
+		current_round = g->round;
+
+		/* Loop over players */
+		for (i = 0; i < g->num_players; ++i)
+		{
+			/* Update this round */
+			decision_round[i][current_round] = num_choices[i];
+		}
+	}
+
+	/* Check for second pass */
+	if (pass == 2)
+	{
+		/* Find message */
+		determine_message(g, who, type, list, nl, special, ns, arg1, arg2, arg3);
+
+		/* Export the game */
+		export(g, who);
+
+		/* Clear the number of special cards */
+		num_special_cards = 0;
+	}
 
 	/* Read the current choice position */
 	current = g->p[who].choice_pos;
@@ -842,10 +873,6 @@ static int db_load_game(int gid)
 		g.p[players].choice_log = (int *)malloc(sizeof(int) * 4096);
 		choice_logs[players] = (int *)malloc(sizeof(int) * 4096);
 
-		/* Clear choice log size and position */
-		g.p[players].choice_size = 0;
-		g.p[players].choice_pos = 0;
-
 		/* Get player's name */
 		db_user_name(uids[players], name);
 
@@ -891,9 +918,6 @@ static int db_load_game(int gid)
 
 	/* Copy returned data to random byte pool */
 	memcpy(random_pool, row[0], MAX_RAND);
-
-	/* Start at beginning of byte pool */
-	random_pos = 0;
 
 	/* Free result */
 	mysql_free_result(res);
@@ -1005,6 +1029,9 @@ void replay_game()
 {
 	int i;
 
+	/* Log message */
+	printf("Replaying game %d (Pass %d)\n", gid, pass);
+
 	/* Initialize game */
 	init_game(&g);
 
@@ -1020,18 +1047,34 @@ void replay_game()
 	/* Declare winner */
 	declare_winner(&g);
 
-	/* Clear message */
-	strcpy(msg, "");
-
-	/* Loop over players */
-	for (i = 0; i < g.num_players; ++i)
+	/* Check for first pass */
+	if (pass == 1)
 	{
-		/* Export the game */
-		export(&g, i);
-	}
+		/* Store last round */
+		last_round = g.round;
 
-	/* Export full game */
-	export_end(&g);
+		/* Loop over players */
+		for (i = 0; i < g.num_players; ++i)
+		{
+			/* Store end decisions */
+			decision_round[i][last_round + 1] = num_choices[i];
+		}
+	}
+	else
+	{
+		/* Clear message */
+		strcpy(msg, "");
+
+		/* Loop over players */
+		for (i = 0; i < g.num_players; ++i)
+		{
+			/* Export the game */
+			export(&g, i);
+		}
+
+		/* Export full game */
+		export_end(&g);
+	}
 }
 
 /*
@@ -1151,30 +1194,34 @@ int main(int argc, char *argv[])
 		/* Set game */
 		gid = i;
 
-		/* Log message */
-		printf("Replaying game %d\n", gid);
-
-		/* Clear fields */
-		random_pos = 0;
-		current_round = 0;
-		rotations = 0;
-		num_messages = 0;
-
-		/* Loop over players */
-		for (j = 0; j < MAX_PLAYER; ++j)
-		{
-			/* Clear player fields */
-			choice_size[j] = 0;
-			num_choices[j] = 0;
-			this_round[j] = 0;
-			log_pos[j] = 0;
-		}
-
 		/* Read game state from database */
 		if (!db_load_game(gid)) continue;
 
-		/* Replay the game */
-		replay_game();
+		/* Run two passes */
+		for (pass = 1; pass <= 2; ++pass)
+		{
+			/* Clear fields */
+			random_pos = 0;
+			current_round = 0;
+			rotations = 0;
+			num_messages = 0;
+
+			/* Loop over players */
+			for (j = 0; j < MAX_PLAYER; ++j)
+			{
+				/* Clear player fields */
+				num_choices[j] = 0;
+				decision_round[j][0] = 0;
+				log_pos[j] = 0;
+
+				/* Clear choice log size and position */
+				g.p[j].choice_size = 0;
+				g.p[j].choice_pos = 0;
+			}
+
+			/* Replay the game */
+			replay_game();
+		}
 	}
 
 	/* Success */
