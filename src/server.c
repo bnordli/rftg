@@ -148,6 +148,9 @@ typedef struct session
 	/* Password needed to join this game */
 	char pass[21];
 
+	/* Session number */
+	int sid;
+
 	/* Game number */
 	int gid;
 
@@ -527,6 +530,9 @@ static void db_load_sessions(void)
 	{
 		/* Get pointer to session */
 		s_ptr = &s_list[sid];
+
+		/* Store sid */
+		s_ptr->sid = sid;
 
 		/* Read fields */
 		s_ptr->gid = strtol(row[0], NULL, 0);
@@ -3039,6 +3045,12 @@ void *run_game(void *arg)
 	/* Release mutex */
 	pthread_mutex_unlock(&s_ptr->session_mutex);
 
+	/* Save state */
+	db_save_game_state(s_ptr->sid);
+
+	/* Save results */
+	db_save_results(s_ptr->sid);
+
 	/* Done */
 	return NULL;
 }
@@ -3413,6 +3425,9 @@ static void handle_create(int cid, char *ptr)
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
 
+	/* Store sid */
+	s_ptr->sid = sid;
+
 	/* Clear password and description */
 	memset(pass, 0, 2048);
 	memset(desc, 0, 2048);
@@ -3504,7 +3519,7 @@ static void handle_create(int cid, char *ptr)
 	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */
-	s_list[sid].gid = db_new_game(sid);
+	s_ptr->gid = db_new_game(sid);
 
 	/* Have creating player join game */
 	join_game(cid, sid);
@@ -4250,12 +4265,6 @@ static void do_housekeeping(void)
 
 			/* Do not clear sessions that still have players */
 			if (num) continue;
-
-			/* Save state */
-			db_save_game_state(i);
-
-			/* Save results */
-			db_save_results(i);
 
 			/* Mark session as empty once more */
 			s_ptr->state = SS_EMPTY;
