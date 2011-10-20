@@ -342,6 +342,9 @@ static void export(game *g, int who)
 	char filename[1024];
 	char new_msg[1024];
 
+	/* Check for replay style sheet enabled */
+	if (!export_style_sheet_replay) return;
+
 	/* Compute the original player seat */
 	orig_who = original_id(who);
 
@@ -371,6 +374,9 @@ static void export(game *g, int who)
 static void export_end(game *g)
 {
 	char filename[1024];
+
+	/* Check for style sheet enabled */
+	if (!export_style_sheet) return;
 
 	/* Create file name */
 	sprintf(filename, "%s/Game_%06d.xml", export_folder, gid);
