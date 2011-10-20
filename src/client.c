@@ -567,10 +567,11 @@ static void handle_game_player(char *ptr)
 /*
  * Handle a message about game parameters.
  */
-static void handle_status_meta(char *ptr)
+static void handle_status_meta(char *ptr, int size)
 {
 	char name[1024];
 	int i;
+	char *start = ptr;
 
 	/* Read basic game parameters */
 	real_game.num_players = get_integer(&ptr);
@@ -600,6 +601,17 @@ static void handle_status_meta(char *ptr)
 
 		/* Copy name */
 		real_game.p[i].name = strdup(name);
+	}
+
+	/* Check for ai information (since 0.8.1m) */
+	if (size > ptr - start)
+	{
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; i++)
+		{
+			/* Copy ai flag */
+			real_game.p[i].ai = get_integer(&ptr);
+		}
 	}
 
 	/* Redraw status areas */
@@ -1520,7 +1532,7 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_META:
 
 			/* Handle message */
-			handle_status_meta(ptr);
+			handle_status_meta(ptr, size - 8);
 
 			/* XXX Do not free data */
 			return FALSE;

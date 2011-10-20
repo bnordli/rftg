@@ -5116,8 +5116,9 @@ void reset_status(game *g, int who)
 {
 	int i;
 
-	/* Copy player's name */
-	strcpy(status_player[who].name, g->p[who].name);
+	/* Copy player's name (with ai info) */
+	sprintf(status_player[who].name, "%s%s", g->p[who].ai ? "*" : "",
+	        g->p[who].name);
 
 	/* Check for actions known */
 	if (g->advanced && g->cur_action < ACT_SEARCH && who == player_us &&
@@ -9617,12 +9618,14 @@ void reset_gui(void)
 
 	/* Restore player control functions */
 	real_game.p[player_us].control = &gui_func;
+	real_game.p[player_us].ai = FALSE;
 
 	/* Loop over AI players */
 	for (i = 1; i < MAX_PLAYER; i++)
 	{
 		/* Set control to AI functions */
 		real_game.p[i].control = &ai_func;
+		real_game.p[i].ai = TRUE;
 
 		/* Call initialization function */
 		real_game.p[i].control->init(&real_game, i, 0.0);

@@ -702,6 +702,9 @@ typedef struct player
 	/* Player's name/color */
 	char *name;
 
+	/* Whether the player is played by the AI */
+	int ai;
+
 	/* Ask player to make decisions */
 	decisions *control;
 

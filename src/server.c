@@ -634,6 +634,7 @@ static void db_load_attendance(void)
 
 		/* Set AI control */
 		s_ptr->ai_control[s_ptr->num_users] = ai;
+		s_ptr->g.p[s_ptr->num_users].ai = ai;
 
 		/* Count users */
 		s_ptr->num_users++;
@@ -1702,6 +1703,13 @@ static void update_meta(int sid)
 	{
 		/* Add player's name to message */
 		put_string(s_ptr->g.p[i].name, &ptr);
+	}
+
+	/* Loop over players again (since 0.8.1m) */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Add ai flag to message */
+		put_integer(s_ptr->g.p[i].ai, &ptr);
 	}
 
 	/* Finish message */
@@ -2938,6 +2946,7 @@ static void switch_ai(int sid, int who)
 
 	/* Mark player as AI */
 	s_ptr->ai_control[who] = 1;
+	s_ptr->g.p[who].ai = 1;
 
 	/* Save AI control in database */
 	db_save_ai_control(sid);
@@ -3109,6 +3118,12 @@ static void start_session(int sid)
 		{
 			/* Create AI client connection */
 			s_ptr->cids[i] = new_ai_client(sid);
+			s_ptr->g.p[i].ai = 1;
+		}
+		else
+		{
+			/* Player is not AI-controlled */
+			s_ptr->g.p[i].ai = 0;
 		}
 	}
 

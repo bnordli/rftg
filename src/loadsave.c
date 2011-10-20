@@ -528,7 +528,8 @@ int export_game(game *g, char *filename, char *style_sheet,
 		p_ptr = &g->p[n];
 
 		/* Write player start tag */
-		fprintf(fff, "  <Player id=\"%d\"%s>\n", n,
+		fprintf(fff, "  <Player id=\"%d\"%s%s>\n", n,
+		        p_ptr->ai ? " ai=\"yes\"" : "",
 		        p_ptr->winner ? " winner=\"yes\"" : "");
 
 		/* Write player name */
