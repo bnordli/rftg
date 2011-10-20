@@ -762,7 +762,7 @@ void replay_private_message(game *g, int who, char *txt, char *tag)
 }
 
 /*
- * Set of functions called by game engine to notify/ask clients.
+ * Set of functions called by game engine to ask for choices.
  */
 decisions replay_func =
 {
@@ -851,7 +851,7 @@ static int db_load_game(int gid)
 	mysql_free_result(res);
 
 	/* Format query */
-	sprintf(query, "SELECT uid FROM attendance WHERE gid = %d ORDER BY seat",
+	sprintf(query, "SELECT uid, ai FROM attendance WHERE gid = %d ORDER BY seat",
 	               gid);
 
 	/* Run query */
@@ -878,6 +878,9 @@ static int db_load_game(int gid)
 
 		/* Copy player's name */
 		g.p[players].name = strdup(name);
+
+		/* Copy ai information */
+		g.p[players].ai = strtol(row[1], NULL, 0);
 
 		/* Next player */
 		++players;
