@@ -5117,7 +5117,7 @@ void reset_status(game *g, int who)
 	int i;
 
 	/* Copy player's name (with ai info) */
-	sprintf(status_player[who].name, "%s%s", g->p[who].ai ? "*" : "",
+	sprintf(status_player[who].name, "%s%s", g->p[who].ai ? "[AI] " : "",
 	        g->p[who].name);
 
 	/* Check for actions known */
