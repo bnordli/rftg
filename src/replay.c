@@ -134,6 +134,9 @@ static char* export_style_sheet_replay = NULL;
  */
 static char* server_name = NULL;
 
+/* Verbosity */
+static int verbose = 0;
+
 /*
  * Connection to the database server.
  */
@@ -146,7 +149,7 @@ static void save_message(char *txt, char *tag, int player)
 	if (pass == 1) return;
 
 	/* Print the message */
-	printf("%s", txt);
+	if (verbose) printf("%s", txt);
 
 	/* Copy the message text */
 	strcpy(log[num_messages].text, txt);
@@ -360,7 +363,7 @@ static void export(game *g, int who)
 	else
 	{
 		/* Log export location */
-		printf("Game exported to %s\n", filename);
+		if (verbose) printf("Game exported to %s\n", filename);
 	}
 }
 
@@ -382,7 +385,7 @@ static void export_end(game *g)
 	else
 	{
 		/* Log export location */
-		printf("Game exported to %s\n", filename);
+		if (verbose) printf("Game exported to %s\n", filename);
 	}
 }
 
@@ -1107,6 +1110,7 @@ int main(int argc, char *argv[])
 			printf("  -ss    XSLT style sheets for exported complete games. Default: [none]\n");
 			printf("  -ssr   XSLT style sheets for exported replay games. Default: [none]\n");
 			printf("  -h     Print this usage text and exit.\n\n");
+			printf("  -v     Verbose (print messages as they appear). Default: false.\n\n");
 			printf("For more information, see the following web sites:\n");
 			printf("  http://keldon.net/rftg\n  http://dl.dropbox.com/u/7379896/rftg/index.html\n");
 			exit(1);
@@ -1159,6 +1163,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set style sheet */
 			export_style_sheet_replay = argv[++i];
+		}
+
+		/* Check for verbosity */
+		if (!strcmp(argv[i], "-v"))
+		{
+			/* Set verbosity */
+			verbose = 1;
 		}
 	}
 
