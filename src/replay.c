@@ -1214,12 +1214,12 @@ int main(int argc, char *argv[])
 		/* Set game */
 		gid = i;
 
-		/* Read game state from database */
-		if (!db_load_game(gid)) continue;
-
 		/* Run two passes */
 		for (pass = 1; pass <= 2; ++pass)
 		{
+			/* Read game state from database */
+			if (!db_load_game(gid)) continue;
+
 			/* Clear fields */
 			random_pos = 0;
 			current_round = 0;
