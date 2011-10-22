@@ -866,6 +866,41 @@ static void db_save_choices(int sid, int who)
 }
 
 /*
+ * Save the waiting state of a player.
+ */
+static void db_save_waiting(int sid, int who)
+{
+	session *s_ptr = &s_list[sid];
+	char query[1024];
+	char *state_str;
+
+	/* Check waiting status */
+	switch (s_ptr->waiting[who])
+	{
+		case WAIT_READY:
+			state_str = "'READY'";
+			break;
+		case WAIT_BLOCKED:
+			state_str = "'BLOCKED'";
+			break;
+		case WAIT_OPTION:
+			state_str = "'OPTION'";
+			break;
+		default:
+			state_str = "NULL";
+			break;
+	}
+
+	/* Update waiting status */
+	sprintf(query, "UPDATE attendance SET waiting=%s \
+		            WHERE gid=%d AND uid=%d",
+		            state_str, s_ptr->gid, s_ptr->uids[who]);
+
+	/* Run query */
+	mysql_query(mysql, query);
+}
+
+/*
  * Export log of a specific game.
  */
 static void export_log(FILE *fff, int gid)
@@ -2253,6 +2288,9 @@ static void server_prepare(game *g, int who, int phase, int arg)
 	/* Player has option to play */
 	s_ptr->waiting[who] = WAIT_OPTION;
 
+	/* Save waiting status */
+	db_save_waiting(sid, who);
+
 	/* Log message */
 	server_log("S:%d P:%d OPTION", g->session_id, who);
 
@@ -2289,6 +2327,9 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Mark player as being waited on */
 	s_ptr->waiting[who] = WAIT_BLOCKED;
+
+	/* Save waiting status */
+	db_save_waiting(sid, who);
 
 	/* Log message */
 	server_log("S:%d P:%d BLOCKED", sid, who);
@@ -2605,6 +2646,9 @@ static void handle_choice(int cid, char *ptr, int size)
 		/* Mark player as ready */
 		s_ptr->waiting[who] = WAIT_READY;
 
+		/* Save waiting status */
+		db_save_waiting(sid, who);
+
 		/* Log message */
 		server_log("S:%d P:%d READY", sid, who);
 	}
@@ -2651,6 +2695,9 @@ static void handle_prepare(int cid, char *ptr)
 	{
 		/* Mark player as ready */
 		s_ptr->waiting[who] = WAIT_READY;
+
+		/* Save waiting status */
+		db_save_waiting(sid, who);
 
 		/* Log message */
 		server_log("S:%d P:%d READY", sid, who);
@@ -2958,9 +3005,15 @@ static void switch_ai(int sid, int who)
 	/* Send to session */
 	send_gamechat(sid, -1, "", text, 1);
 
-	/* Remove prepare flag */
+	/* Check for prepare message sent */
 	if (s_ptr->waiting[who] == WAIT_OPTION)
+	{
+		/* Remove prepare flag */
 		s_ptr->waiting[who] = WAIT_READY;
+
+		/* Save waiting status */
+		db_save_waiting(sid, who);
+	}
 
 	/* Send new waiting status */
 	update_waiting(sid);
