@@ -181,19 +181,17 @@ static void replay_notify_rotation(game *g, int who)
  */
 static void export_log(FILE *fff, int who)
 {
-	int i, start;
+	int i;
 	char name[1024];
 
-	start = who < 0 ? 0 : log_pos[who];
-
 	/* Loop over messages */
-	for (i = start; i < num_messages; ++i)
+	for (i = log_pos[who]; i < num_messages; ++i)
 	{
 		/* Check for private message */
 		if (log[i].player >= 0)
 		{
 			/* Skip wrong player */
-			if (who >= 0 && log[i].player != who) continue;
+			if (log[i].player != who) continue;
 
 			/* Add user name */
 			sprintf(name, " private=\"%s\"",
@@ -224,7 +222,87 @@ static void export_log(FILE *fff, int who)
 	}
 
 	/* Update log position for this player */
-	if (who >= 0) log_pos[who] = num_messages;
+	log_pos[who] = num_messages;
+}
+
+/*
+ * Export log of a specific game.
+ */
+static void export_end_log(FILE *fff, int gid)
+{
+	MYSQL_RES *res;
+	MYSQL_ROW row;
+	char query[1024];
+	char msg[1024], name[1024], *ptr;
+
+	/* Create lookup query */
+	sprintf(query, "SELECT message, format, user "
+	               "FROM messages LEFT JOIN users USING (uid) "
+	               "WHERE gid=%d ORDER BY mid", gid);
+
+	/* Run query */
+	mysql_query(mysql, query);
+
+	/* Fetch results */
+	res = mysql_store_result(mysql);
+
+	/* Loop over rows returned */
+	while ((row = mysql_fetch_row(res)))
+	{
+		/* Reset message */
+		ptr = msg;
+
+		/* Check for chat message */
+		if (!strcmp(row[1], FORMAT_CHAT))
+		{
+			/* Write xml start tag with format attribute */
+			fprintf(fff, "    <Message format=\"%s\">", row[1]);
+
+			/* Check for player chat */
+			if (row[2])
+			{
+				/* Put user name */
+				fprintf(fff, "%s: ", xml_escape(row[2]));
+			}
+		}
+		else
+		{
+			/* Chop newline */
+			row[0][strlen(row[0]) - 1] = '\0';
+
+			/* Check for private message */
+			if (row[2])
+			{
+				/* Add user name */
+				sprintf(name, " private=\"%s\"", xml_escape(row[2]));
+			}
+			else
+			{
+				/* Clear user name */
+				strcpy(name, "");
+			}
+
+			/* Check for no format */
+			if (!strlen(row[1]))
+			{
+				/* Write xml start tag */
+				fprintf(fff, "    <Message%s>", name);
+			}
+
+			/* Formatted message */
+			else
+			{
+				/* Write xml start tag with format attribute */
+				fprintf(fff, "    <Message format=\"%s\"%s>", row[1], name);
+			}
+		}
+
+		/* Write message and xml end tag */
+		fprintf(fff, "%s</Message>\n", xml_escape(row[0]));
+	}
+
+	/* Free results */
+	mysql_free_result(res);
 }
 
 /* The name of the replay file for a given game, player and choices */
@@ -383,7 +461,7 @@ static void export_end(game *g)
 
 	/* Export game to file */
 	if (export_game(g, filename, export_style_sheet, server_name,
-	    -1, NULL, 0, NULL, export_log, export_end_callback, -1) < 0)
+	    -1, NULL, 0, NULL, export_end_log, export_end_callback, gid) < 0)
 	{
 		/* Log error */
 		printf("Could not export game to %s\n", filename);
@@ -1071,6 +1149,9 @@ void replay_game()
 			/* Store end decisions */
 			decision_round[i][last_round + 1] = num_choices[i];
 		}
+
+		/* Export full game */
+		export_end(&g);
 	}
 	else
 	{
@@ -1083,9 +1164,6 @@ void replay_game()
 			/* Export the game */
 			export(&g, i);
 		}
-
-		/* Export full game */
-		export_end(&g);
 	}
 }
 
@@ -1241,17 +1319,12 @@ int main(int argc, char *argv[])
 
 			/* Replay the game */
 			replay_game();
+
+			/* Check for only one pass needed */
+			if (!export_style_sheet_replay) break;
 		}
 	}
 
 	/* Success */
 	return 1;
-}
-
-
-/*
- * Send message to server.
- */
-void send_msg(int fd, char *msg)
-{
 }
