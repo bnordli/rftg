@@ -271,7 +271,7 @@ static char* export_folder = ".";
 static char* export_style_sheet = NULL;
 
 /*
- * Server name (used in exports).
+ * Server name.
  */
 static char* server_name = NULL;
 
@@ -3330,6 +3330,16 @@ static void handle_login(int cid, char *ptr)
 
 	/* Send welcome chat to client */
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
+
+	/* Check for server name */
+	if (server_name)
+	{
+		/* Format message */
+		sprintf(text, "Server name: %s", server_name);
+
+		/* Send message */
+		send_msgf(cid, MSG_CHAT, "ss", "", text);
+	}
 
 	/* Clear session ID */
 	c_list[cid].sid = -1;
