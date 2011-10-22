@@ -24,19 +24,8 @@
 #include "comm.h"
 #include <mysql/mysql.h>
 
-/*
- * Number of random bytes stored per game.
- */
+/* Number of random bytes stored per game */
 #define MAX_RAND     1024
-
-/* Pool of random bytes. */
-static unsigned char random_pool[MAX_RAND];
-
-/* Current position in random pool */
-static int random_pos;
-
-/* The gid to replay */
-static int gid;
 
 /* The gid to start at */
 static int gid_min = -1;
@@ -44,8 +33,44 @@ static int gid_min = -1;
 /* The gid to end at */
 static int gid_max = -1;
 
+/* Log exports folder */
+static char* export_folder = ".";
+
+/* Server name */
+static char* server_name = NULL;
+
+/* Export file style sheet */
+static char* export_style_sheet = NULL;
+
+/* Export file style sheet */
+static char* export_style_sheet_replay = NULL;
+
+/* Verbosity */
+static int verbose = 0;
+
+/* Connection to the database server */
+MYSQL *mysql;
+
+/* The current replaying gid */
+static int gid;
+
 /* Game to be replayed */
 static game g;
+
+/* Current replay pass */
+static int pass;
+
+/* Current game round */
+static int current_round;
+
+/* Number of rounds in the game */
+static int num_rounds;
+
+/* Pool of random bytes. */
+static unsigned char random_pool[MAX_RAND];
+
+/* Current position in random pool */
+static int random_pos;
 
 /* Choices loaded from db */
 static int *choice_logs[MAX_PLAYER];
@@ -56,20 +81,18 @@ static int choice_size[MAX_PLAYER];
 /* Number of decisions */
 static int num_choices[MAX_PLAYER];
 
-/* Number of decisions at start of round */
+/* Number of decisions at start of each round */
 static int decision_round[MAX_PLAYER][40];
-
-/* Current replay pass */
-static int pass;
-
-/* Current game round */
-static int current_round;
-
-/* Last game round */
-static int last_round;
 
 /* Number of game rotations */
 static int rotations;
+
+/* Player spots have been rotated */
+static void replay_notify_rotation(game *g, int who)
+{
+	/* Only rotate once per set of players */
+	if (who == 0) ++rotations;
+}
 
 /* Compute the original player id of a player */
 static int original_id(int who)
@@ -114,34 +137,6 @@ static int num_messages;
 /* Log position for previous choice */
 static int log_pos[MAX_PLAYER];
 
-/*
- * Log exports folder.
- */
-static char* export_folder = ".";
-
-/*
- * Export file style sheet.
- */
-static char* export_style_sheet = NULL;
-
-/*
- * Export file style sheet.
- */
-static char* export_style_sheet_replay = NULL;
-
-/*
- * Server name (used in exports).
- */
-static char* server_name = NULL;
-
-/* Verbosity */
-static int verbose = 0;
-
-/*
- * Connection to the database server.
- */
-MYSQL *mysql;
-
 /* Save a game message */
 static void save_message(char *txt, char *tag, int player)
 {
@@ -168,15 +163,6 @@ static void save_message(char *txt, char *tag, int player)
 }
 
 /*
- * Player spots have been rotated.
- */
-static void replay_notify_rotation(game *g, int who)
-{
-	/* Only rotate once per set of players */
-	if (who == 0) ++rotations;
-}
-
-/*
  * Export log (from a specific player).
  */
 static void export_log(FILE *fff, int who)
@@ -195,7 +181,7 @@ static void export_log(FILE *fff, int who)
 
 			/* Add user name */
 			sprintf(name, " private=\"%s\"",
-						   xml_escape(g.p[log[i].player].name));
+			        xml_escape(g.p[log[i].player].name));
 		}
 		else
 		{
@@ -344,7 +330,7 @@ static void export_callback(FILE *fff, int orig_who)
 		        replay_file_name(gid, i, decision_round[i][0]));
 
 		/* Loop over rounds */
-		for (j = 1; j <= last_round; ++j)
+		for (j = 1; j <= num_rounds; ++j)
 		{
 			/* Print link to this round for this player */
 			fprintf(fff, "    <Link text=\"%d\">%s</Link>\n",
@@ -353,7 +339,7 @@ static void export_callback(FILE *fff, int orig_who)
 
 		/* Print link to end of game for this player */
 		fprintf(fff, "    <Link text=\"End\">%s</Link>\n",
-		        replay_file_name(gid, i, decision_round[i][last_round + 1]));
+		        replay_file_name(gid, i, decision_round[i][num_rounds + 1]));
 
 		/* Write end tag */
 		fputs("  </Links>\n", fff);
@@ -840,6 +826,24 @@ static void replay_make_choice(game *g, int who, int type, int list[], int *nl,
 }
 
 /*
+ * Handle a game message.
+ */
+void message_add(game *g, char *txt)
+{
+	/* Save the message */
+	save_message(txt, NULL, -1);
+}
+
+/*
+ * Handle a formatted game message.
+ */
+void message_add_formatted(game *g, char *txt, char *tag)
+{
+	/* Save the message */
+	save_message(txt, tag, -1);
+}
+
+/*
  * Handle a private message.
  */
 void replay_private_message(game *g, int who, char *txt, char *tag)
@@ -1063,24 +1067,6 @@ void display_error(char *msg)
 }
 
 /*
- * Handle a game message.
- */
-void message_add(game *g, char *txt)
-{
-	/* Save the message */
-	save_message(txt, NULL, -1);
-}
-
-/*
- * Handle a formatted game message.
- */
-void message_add_formatted(game *g, char *txt, char *tag)
-{
-	/* Save the message */
-	save_message(txt, tag, -1);
-}
-
-/*
  * More complex random number generator for multiplayer games.
  *
  * Call simple RNG in simulated games, otherwise use the results from the
@@ -1141,13 +1127,13 @@ void replay_game()
 	if (pass == 1)
 	{
 		/* Store last round */
-		last_round = g.round;
+		num_rounds = g.round;
 
 		/* Loop over players */
 		for (i = 0; i < g.num_players; ++i)
 		{
 			/* Store end decisions */
-			decision_round[i][last_round + 1] = num_choices[i];
+			decision_round[i][num_rounds + 1] = num_choices[i];
 		}
 
 		/* Export full game */
@@ -1168,8 +1154,7 @@ void replay_game()
 }
 
 /*
- * Initialize connection to database, open main listening socket, then loop
- * forever waiting for incoming data on connections.
+ * Initialize connection to database, load game and replay it.
  */
 int main(int argc, char *argv[])
 {
@@ -1193,8 +1178,8 @@ int main(int argc, char *argv[])
 			printf("  -s     Server name (to be used in exports). Default: [none]\n");
 			printf("  -ss    XSLT style sheets for exported complete games. Default: [none]\n");
 			printf("  -ssr   XSLT style sheets for exported replay games. Default: [none]\n");
-			printf("  -h     Print this usage text and exit.\n\n");
 			printf("  -v     Verbose (print messages as they appear). Default: false.\n\n");
+			printf("  -h     Print this usage text and exit.\n\n");
 			printf("For more information, see the following web sites:\n");
 			printf("  http://keldon.net/rftg\n  http://dl.dropbox.com/u/7379896/rftg/index.html\n");
 			exit(1);
