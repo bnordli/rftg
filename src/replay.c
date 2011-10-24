@@ -87,6 +87,9 @@ static int decision_round[MAX_PLAYER][40];
 /* Number of game rotations */
 static int rotations;
 
+/* Set if any errors occurred */
+static int error = 0;
+
 /* Player spots have been rotated */
 static void replay_notify_rotation(game *g, int who)
 {
@@ -304,17 +307,22 @@ static char *replay_file_name(int gid, int who, int choice)
 }
 
 /*
- * Export callback for generating links.
+ * Export callback for generating player name links.
  */
 static void export_callback(FILE *fff, int orig_who)
 {
 	int i, j;
 
+	/* Write player name */
+	fprintf(fff, "  <ReplayPlayer>%s</ReplayPlayer>\n",
+	        g.p[new_id(orig_who)].name);
+
 	/* Write start tag */
 	fputs("  <Links text=\"Full game\">\n", fff);
 
 	/* Export full game link */
-	fprintf(fff, "    <Link text=\"Game #%d\">../Game_%06d.xml</Link>\n", gid, gid);
+	fprintf(fff, "    <Link text=\"Game #%d\">../Game_%06d.xml</Link>\n",
+	        gid, gid);
 
 	/* Write end tag */
 	fputs("  </Links>\n", fff);
@@ -404,7 +412,6 @@ static void export(game *g, int who)
 {
 	int orig_who;
 	char filename[1024];
-	char new_msg[1024];
 
 	/* Check for replay style sheet enabled */
 	if (!export_style_sheet_replay) return;
@@ -416,16 +423,16 @@ static void export(game *g, int who)
 	sprintf(filename, "%s/replay/%s", export_folder,
 	        replay_file_name(gid, orig_who, num_choices[orig_who]));
 
-	/* Add name to message */
-	sprintf(new_msg, "%s: %s", g->p[who].name ,msg);
-
 	/* Export game to file */
 	if (export_game(g, filename, export_style_sheet_replay, server_name,
-	    who, new_msg, num_special_cards, special_cards,
+	    who, msg, num_special_cards, special_cards,
 	    export_log, export_callback, orig_who) < 0)
 	{
 		/* Log error */
 		printf("Could not export game to %s\n", filename);
+
+		/* Save error */
+		error = 1;
 	}
 	else
 	{
@@ -451,6 +458,9 @@ static void export_end(game *g)
 	{
 		/* Log error */
 		printf("Could not export game to %s\n", filename);
+
+		/* Save error */
+		error = 1;
 	}
 	else
 	{
@@ -1333,6 +1343,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* Success */
-	return 0;
+	/* Return error value */
+	return error;
 }
