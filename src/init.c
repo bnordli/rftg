@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, September 2011.
+ * Source file modified by B. Nordli, October 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -277,7 +277,7 @@ static uint64_t lookup_power(char *ptr, int phase)
 /*
  * Read card designs from 'cards.txt' file.
  */
-int read_cards(void)
+int read_cards(char *suggestion)
 {
 	FILE *fff;
 	char buf[1024], *ptr;
@@ -296,6 +296,16 @@ int read_cards(void)
 	{
 		/* Try reading from current directory instead */
 		fff = fopen("cards.txt", "r");
+	}
+
+	/* Check for error and alternative suggestion */
+	if (!fff && suggestion)
+	{
+		/* Combine the paths */
+		sprintf(buf, "%s/cards.txt", suggestion);
+
+		/* Try reading from suggested directory instead */
+		fff = fopen(buf, "r");
 	}
 
 	/* Check for failure */

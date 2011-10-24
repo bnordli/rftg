@@ -4619,7 +4619,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Read card library */
-	if (read_cards() < 0)
+	if (read_cards(NULL) < 0)
 	{
 		/* Exit */
 		exit(1);

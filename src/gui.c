@@ -13002,7 +13002,7 @@ int main(int argc, char *argv[])
 #endif
 
 	/* Load card designs */
-	err = read_cards();
+	err = read_cards(NULL);
 
 	/* Check for errors */
 	if (err == -1)

@@ -1161,6 +1161,7 @@ int main(int argc, char *argv[])
 	int i, j;
 	my_bool reconnect = 1;
 	char *db = "rftg";
+	char buf[1024];
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
@@ -1242,11 +1243,33 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* Read card library */
-	if (read_cards() < 0)
+	/* Make a copy of the program path */
+	strcpy(buf, argv[0]);
+
+	/* Search for path in program path */
+	if (strrchr(buf, '/'))
 	{
-		/* Exit */
-		exit(1);
+		/* Make a copy */
+		strcpy(buf, argv[0]);
+
+		/* Chop string */
+		*strrchr(buf, '/') = '\0';
+
+		/* Read card library */
+		if (read_cards(buf) < 0)
+		{
+			/* Exit */
+			exit(1);
+		}
+	}
+	else
+	{
+		/* Read card library */
+		if (read_cards(NULL) < 0)
+		{
+			/* Exit */
+			exit(1);
+		}
 	}
 
 	/* Initialize database library */
@@ -1311,5 +1334,5 @@ int main(int argc, char *argv[])
 	}
 
 	/* Success */
-	return 1;
+	return 0;
 }

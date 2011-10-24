@@ -925,7 +925,7 @@ extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
 extern void auto_export(void);
 extern int game_rand(game *g);
-extern int read_cards(void);
+extern int read_cards(char *suggestion);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);
