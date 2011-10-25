@@ -1955,6 +1955,9 @@ static void update_status_one(int sid, int who)
 			put_integer(p_ptr->bonus_military, &ptr);
 			put_integer(p_ptr->bonus_reduce, &ptr);
 
+			/* Add whether player has prestige on the tile (since 0.8.1m) */
+			put_integer(p_ptr->prestige_turn, &ptr);
+
 			/* Finish message */
 			finish_msg(msg, ptr);
 

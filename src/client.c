@@ -625,10 +625,11 @@ static void handle_status_meta(char *ptr, int size)
 /*
  * Handle a status update about a player.
  */
-static void handle_status_player(char *ptr)
+static void handle_status_player(char *ptr, int size)
 {
 	player *p_ptr;
 	int x;
+	char *start = ptr;
 
 	/* Get player index */
 	x = get_integer(&ptr);
@@ -663,6 +664,13 @@ static void handle_status_player(char *ptr)
 	p_ptr->phase_bonus_used = get_integer(&ptr);
 	p_ptr->bonus_military = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
+
+	/* Check for prestige on the tile information (since 0.8.1m) */
+	if (size > ptr - start)
+	{
+		/* Copy ai flag */
+		p_ptr->prestige_turn = get_integer(&ptr);
+	}
 
 	/* Redraw status information later */
 	status_updated = 1;
@@ -1541,7 +1549,7 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_PLAYER:
 
 			/* Handle message */
-			handle_status_player(ptr);
+			handle_status_player(ptr, size - 8);
 			break;
 
 		/* Card status update */
