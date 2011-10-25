@@ -422,6 +422,14 @@ int export_game(game *g, char *filename, char *style_sheet,
 		fprintf(fff, "  <Server>%s</Server>\n", xml_escape(server));
 	}
 
+	/* Check for player */
+	if (player_us != -1)
+	{
+		/* Write player name */
+		fprintf(fff, "  <PlayerName>%s</PlayerName>\n",
+		        xml_escape(g->p[player_us].name));
+	}
+
 	/* Write setup start tag */
 	fputs("  <Setup>\n", fff);
 

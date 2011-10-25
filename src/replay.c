@@ -313,10 +313,6 @@ static void export_callback(FILE *fff, int orig_who)
 {
 	int i, j;
 
-	/* Write player name */
-	fprintf(fff, "  <ReplayPlayer>%s</ReplayPlayer>\n",
-	        g.p[new_id(orig_who)].name);
-
 	/* Write start tag */
 	fputs("  <Links text=\"Full game\">\n", fff);
 
