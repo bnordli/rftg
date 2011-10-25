@@ -143,9 +143,6 @@ static int log_pos[MAX_PLAYER];
 /* Save a game message */
 static void save_message(char *txt, char *tag, int player)
 {
-	/* Skip during first pass */
-	if (pass == 1) return;
-
 	/* Print the message */
 	if (verbose) printf("%s", txt);
 
@@ -170,14 +167,17 @@ static void save_message(char *txt, char *tag, int player)
  */
 static void export_log(FILE *fff, int who)
 {
-	int i;
+	int i, start;
 	char name[1024];
 
+	/* Compute start message */
+	start = who < 0 ? 0 : log_pos[who];
+
 	/* Loop over messages */
-	for (i = log_pos[who]; i < num_messages; ++i)
+	for (i = start; i < num_messages; ++i)
 	{
 		/* Check for private message */
-		if (log[i].player >= 0)
+		if (who >= 0 && log[i].player >= 0)
 		{
 			/* Skip wrong player */
 			if (log[i].player != who) continue;
@@ -211,7 +211,7 @@ static void export_log(FILE *fff, int who)
 	}
 
 	/* Update log position for this player */
-	log_pos[who] = num_messages;
+	if (who >= 0) log_pos[who] = num_messages;
 }
 
 /*
@@ -234,6 +234,14 @@ static void export_end_log(FILE *fff, int gid)
 
 	/* Fetch results */
 	res = mysql_store_result(mysql);
+
+	/* Check for no rows */
+	if (mysql_num_rows(res) == 0)
+	{
+		/* Fallback to saved logs */
+		export_log(fff, -1);
+		return;
+	}
 
 	/* Loop over rows returned */
 	while ((row = mysql_fetch_row(res)))
