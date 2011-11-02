@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, Octpber 2011.
+ * Source file modified by B. Nordli, October 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -382,7 +382,7 @@ int export_game(game *g, char *filename, char *style_sheet,
                 char *server, int player_us, const char *message,
                 int num_special_cards, card **special_cards,
                 void (*export_log)(FILE *fff, int gid),
-				void (*export_callback)(FILE *fff, int gid), int gid)
+                void (*export_callback)(FILE *fff, int gid), int gid)
 {
 	FILE *fff;
 	player *p_ptr;

@@ -5124,7 +5124,7 @@ void reset_status(game *g, int who)
 	}
 	else
 	{
-		/* Just copy player name */
+		/* Copy player's name */
 		strcpy(status_player[who].name, g->p[who].name);
 	}
 
