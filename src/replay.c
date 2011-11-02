@@ -940,6 +940,7 @@ static int db_load_game(int gid)
 
 		/* No pool to load */
 		printf("Could not load game\n");
+		error = 1;
 		return 0;
 	}
 
