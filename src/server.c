@@ -3228,6 +3228,7 @@ static void start_all_sessions(void)
  */
 static void handle_login(int cid, char *ptr)
 {
+	FILE *fff;
 	session *s_ptr;
 	char user[1024], pass[1024], version[1024];
 	char text[1024];
@@ -3390,14 +3391,30 @@ static void handle_login(int cid, char *ptr)
 	/* Send welcome chat to client */
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
 
-	/* Check for server name */
-	if (server_name)
-	{
-		/* Format message */
-		sprintf(text, "Server name: %s", server_name);
+	/* Open welcome message */
+	fff = fopen(RFTGDIR "/welcome.txt", "r");
 
-		/* Send message */
-		send_msgf(cid, MSG_CHAT, "ss", "", text);
+	/* Check for success */
+	if (fff)
+	{
+		/* Loop over file */
+		while (1)
+		{
+			/* Read a line */
+			fgets(text, 1024, fff);
+
+			/* Check for end of file */
+			if (feof(fff)) break;
+
+			/* Strip newline */
+			text[strlen(text) - 1] = '\0';
+
+			/* Skip comments and blank lines */
+			if (!text[0] || text[0] == '#') continue;
+
+			/* Send line to player */
+			send_msgf(cid, MSG_CHAT, "ss", "", text);
+		}
 	}
 
 	/* Clear session ID */
