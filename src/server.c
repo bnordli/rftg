@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2423,7 +2423,7 @@ static void kick_player(int cid, char *reason)
 	char text[1024];
 
 	/* Print message */
-	server_log("Kicking player %d for %s", cid, reason);
+	server_log("Kicking connection %d for %s", cid, reason);
 
 	/* Send goodbye message */
 	send_msgf(cid, MSG_GOODBYE, "s", reason);
@@ -2936,7 +2936,7 @@ static void leave_game(int sid, int who)
 	db_leave_game(uid, s_ptr->gid);
 }
 
-static void log_waiting(int who, int state)
+static void log_waiting(int sid, int who, int state)
 {
 	char *state_str;
 
@@ -2958,7 +2958,7 @@ static void log_waiting(int who, int state)
 	}
 
 	/* Log player state */
-	server_log("Waiting state for %d is %s", who, state_str);
+	server_log("S:%d P:%d Waiting state is %s", sid, who, state_str);
 }
 
 /*
@@ -2985,8 +2985,11 @@ static void switch_ai(int sid, int who)
 	/* Log connection state */
 	server_log("State for connection %d set to PLAYING", cid);
 
+	/* Log game seat */
+	server_log("S:%d P:%d Connection %d joined", sid, who, cid);
+
 	/* Log player state */
-	log_waiting(who, s_ptr->waiting[who]);
+	log_waiting(sid, who, s_ptr->waiting[who]);
 
 	/* Tell client about game state */
 	update_meta(sid);
@@ -3364,7 +3367,7 @@ static void handle_login(int cid, char *ptr)
 	}
 
 	/* Print message */
-	server_log("Connection %d logged in with %s", cid, user);
+	server_log("Connection %d logged in with user name %s", cid, user);
 
 	/* Set username */
 	strcpy(c_list[cid].user, user);
@@ -3443,8 +3446,11 @@ static void handle_login(int cid, char *ptr)
 			/* Log connection state */
 			server_log("State for connection %d set to PLAYING", cid);
 
+			/* Log game seat */
+			server_log("S:%d P:%d Connection %d joined", i, j, cid);
+
 			/* Log player state */
-			log_waiting(j, s_ptr->waiting[j]);
+			log_waiting(i, j, s_ptr->waiting[j]);
 
 			/* Send to session */
 			send_gamechat(i, -1, "", text, 0);
@@ -4038,8 +4044,11 @@ static void handle_start(int cid, char *ptr)
 		/* Log connection state */
 		server_log("State for connection %d set to PLAYING", cid);
 
+		/* Log game seat */
+		server_log("S:%d P:%d Connection %d joined", sid, i, cid);
+
 		/* Log player state */
-		log_waiting(i, s_ptr->waiting[i]);
+		log_waiting(sid, i, s_ptr->waiting[i]);
 
 		/* Send game started message */
 		send_msgf(cid, MSG_START, "");
