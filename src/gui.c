@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -5116,9 +5116,17 @@ void reset_status(game *g, int who)
 {
 	int i;
 
-	/* Copy player's name (with ai info) */
-	sprintf(status_player[who].name, "%s%s", g->p[who].ai ? "[AI] " : "",
-	        g->p[who].name);
+	/* Check for needing to add [AI] to player name */
+	if (g->p[who].ai && strstr(g->p[who].name, "[AI]") != g->p[who].name)
+	{
+		/* Add [AI] to player name */
+		sprintf(status_player[who].name, "[AI] %s", g->p[who].name);
+	}
+	else
+	{
+		/* Just copy player name */
+		strcpy(status_player[who].name, g->p[who].name);
+	}
 
 	/* Check for actions known */
 	if (g->advanced && g->cur_action < ACT_SEARCH && who == player_us &&
