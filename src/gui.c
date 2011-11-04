@@ -1075,7 +1075,7 @@ static void load_images(void)
 			if (!icon_cache[i])
 			{
 				/* Construct image filename */
-				sprintf(fn, "icon%03d.png", i);
+				sprintf(fn, RFTGDIR "/icon%03d.png", i);
 
 				/* Load image */
 				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
