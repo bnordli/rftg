@@ -4717,7 +4717,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Print ready message */
-	server_log("Server ready. Waiting for connections...");
+	server_log("Server ready. Listening on port %d...", port);
 
 	/* Loop forever */
 	while (1)
