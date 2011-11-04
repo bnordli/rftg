@@ -2496,14 +2496,8 @@ static void kick_player(int cid, char *reason)
 static int verify_choice(session *s_ptr, int who, int type, int list[], int nl,
                          int special[], int ns)
 {
-	/* XXX Disable this feature */
+	/* XXX Disable this feature for now */
 	return 1;
-
-	/* XXX Don't check when player is preparing phase */
-	if (s_ptr->waiting[who] == WAIT_OPTION) return 1;
-
-	/* XXX Only check the type for now */
-	return type == s_ptr->out[who].type;
 }
 
 /*
@@ -4432,7 +4426,7 @@ static void do_housekeeping(void)
 		if (num) continue;
 
 		/* Check for long time since join activity */
-		if (time(NULL) - s_ptr->last_join > game_timeout)
+		if (game_timeout > 0 && time(NULL) - s_ptr->last_join > game_timeout)
 		{
 			/* Abandon session */
 			abandon_session(i);
