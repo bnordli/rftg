@@ -892,6 +892,7 @@ static void load_image_bundle(void)
 	GFile *bundle;
 	GInputStream *fs, *ms;
 	GdkPixbuf **pix_ptr;
+	GdkPixbuf *tmp_pixbuf;
 	char buf[1024], *data_buf;
 	int count, x;
 
@@ -914,8 +915,7 @@ static void load_image_bundle(void)
 	/* Check for error */
 	if (!fs)
 	{
-		/* Error */
-		display_error("Error: Can't open raw images or image bundle!\n");
+		/* File not found */
 		return;
 	}
 
@@ -1030,7 +1030,19 @@ static void load_image_bundle(void)
 		ms = g_memory_input_stream_new_from_data(data_buf, x, NULL);
 
 		/* Read image from file stream */
-		*pix_ptr = gdk_pixbuf_new_from_stream(ms, NULL, NULL);
+		tmp_pixbuf = gdk_pixbuf_new_from_stream(ms, NULL, NULL);
+
+		/* Check for image not already loaded */
+		if (!(*pix_ptr))
+		{
+			/* Use this image */
+			*pix_ptr = tmp_pixbuf;
+		}
+		else
+		{
+			/* Destroy the unneeded pixbuf */
+			g_object_unref(G_OBJECT(buf));
+		}
 
 		/* Close memory stream */
 		g_input_stream_close(ms, NULL, NULL);
@@ -1054,80 +1066,32 @@ static void load_image_bundle(void)
 /*
  * Load pixbufs with card images.
  */
-static void load_images(void)
+static int load_images(void)
 {
 	int i;
 	char fn[1024], msg[1024];
 
 	/* Load card back image */
-	card_back = gdk_pixbuf_new_from_file("image/cardback.jpg",NULL);
-
-	/* Check for failure */
-	if (!card_back)
-	{
-		/* Try to load image data from bundle instead */
-		load_image_bundle();
-
-		/* TODO: Pack extra icons into images.data */
-		for (i = ICON_VP_EMPTY; i < MAX_ICON; ++i)
-		{
-			/* Check for missing icon */
-			if (!icon_cache[i])
-			{
-				/* Construct image filename */
-				sprintf(fn, RFTGDIR "/icon%03d.png", i);
-
-				/* Load image */
-				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-				/* Check for error */
-				if (!icon_cache[i])
-				{
-					/* Format message */
-					sprintf(msg, "Error: Cannot open icon image %s!\n", fn);
-
-					/* Show error */
-					display_error(msg);
-				}
-			}
-		}
-
-		/* Done */
-		return;
-	}
+	card_back = gdk_pixbuf_new_from_file(RFTGDIR "/image/cardback.jpg", NULL);
 
 	/* Loop over designs */
 	for (i = 0; i < MAX_DESIGN; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, "image/card%03d.jpg", i);
+		sprintf(fn, RFTGDIR "/image/card%03d.jpg", i);
 
 		/* Load image */
 		image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-		/* Check for error */
-		if (!image_cache[i])
-		{
-			/* Print error */
-			printf("Cannot open card image %s!\n", fn);
-		}
 	}
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, "image/goal%02d.jpg", i);
+		sprintf(fn, RFTGDIR "/image/goal%02d.jpg", i);
 
 		/* Load image */
 		goal_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-		/* Check for error */
-		if (!goal_cache[i])
-		{
-			/* Print error */
-			printf("Cannot open goal image %s!\n", fn);
-		}
 	}
 
 	/* Loop over icons */
@@ -1137,7 +1101,7 @@ static void load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, "image/icon%02d.png", i);
+		sprintf(fn, RFTGDIR "/image/icon%02d.png", i);
 
 		/* Load image */
 		icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
@@ -1145,8 +1109,11 @@ static void load_images(void)
 		/* Check for error */
 		if (!icon_cache[i])
 		{
-			/* Print error */
-			printf("Cannot open icon image %s!\n", fn);
+			/* Try base folder */
+			sprintf(fn, RFTGDIR "/icon%03d.png", i);
+
+			/* Load image */
+			icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
 		}
 	}
 
@@ -1157,18 +1124,91 @@ static void load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, "image/action%02d.jpg", i);
+		sprintf(fn, RFTGDIR "/image/action%02d.jpg", i);
 
 		/* Load image */
 		action_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+	}
 
-		/* Check for error */
-		if (!action_cache[i])
+	/* Try to load rest of image data from bundle */
+	load_image_bundle();
+
+	/* Check for card back image */
+	if (!card_back)
+	{
+		/* Error */
+		display_error("Error: Could not load card back image!\n");
+		return -1;
+	}
+
+	/* Loop over designs */
+	for (i = 0; i < MAX_DESIGN; i++)
+	{
+		/* Check for card image */
+		if (!image_cache[i])
 		{
-			/* Print error */
-			printf("Cannot open action card image %s!\n", fn);
+			/* Format error message */
+			sprintf(msg, "Error: Could not load card image %3d!\n", i);
+
+			/* Error */
+			display_error(msg);
+			return -1;
 		}
 	}
+
+	/* Loop over goals */
+	for (i = 0; i < MAX_GOAL; i++)
+	{
+		/* Check for goal image */
+		if (!goal_cache[i])
+		{
+			/* Format error message */
+			sprintf(msg, "Error: Could not load goal image %2d!\n", i);
+
+			/* Error */
+			display_error(msg);
+			return -1;
+		}
+	}
+
+	/* Loop over icons */
+	for (i = 0; i < MAX_ICON; i++)
+	{
+		/* Skip second develop/settle action */
+		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
+
+		/* Check for icon image */
+		if (!icon_cache[i])
+		{
+			/* Format error message */
+			sprintf(msg, "Error: Could not load icon image %2d!\n", i);
+
+			/* Error */
+			display_error(msg);
+			return -1;
+		}
+	}
+
+	/* Loop over actions */
+	for (i = 0; i < MAX_ACT_CARD; i++)
+	{
+		/* Skip second develop/settle action */
+		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
+
+		/* Check for card image */
+		if (!action_cache[i])
+		{
+			/* Format error message */
+			sprintf(msg, "Error: Could not load action card image %2d!\n", i);
+
+			/* Error */
+			display_error(msg);
+			return -1;
+		}
+	}
+
+	/* Success */
+	return 0;
 }
 
 /*
@@ -10585,7 +10625,7 @@ static void do_export(char* filename, const char* message)
 	                export_log, export_callback, 0) < 0)
 	{
 		/* Format error */
-		sprintf(msg, "Error: Could not export game to %s.", filename);
+		sprintf(msg, "Error: Could not export game to %s!\n", filename);
 
 		/* Display error */
 		display_error(msg);
@@ -10709,7 +10749,7 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 		if (load_game(&load_state, fname) < 0)
 		{
 			/* Error */
-			display_error("Warning: Failed to load game");
+			display_error("Warning: Failed to load game!\n");
 
 			/* Destroy filename */
 			g_free(fname);
@@ -13016,18 +13056,22 @@ int main(int argc, char *argv[])
 	if (err == -1)
 	{
 		/* Print error and exit */
-		display_error("Error: Could not locate cards.txt");
+		display_error("Error: Could not locate cards.txt!\n");
 		exit(1);
 	}
 	else if (err == -2)
 	{
 		/* Print error and exit */
-		display_error("Error: Could not parse cards.txt");
+		display_error("Error: Could not parse cards.txt!\n");
 		exit(1);
 	}
 
 	/* Load card images */
-	load_images();
+	if (load_images() == -1)
+	{
+		/* Error */
+		exit(1);
+	}
 
 	/* Read preference file */
 	read_prefs();
