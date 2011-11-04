@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,8 +48,8 @@ static int read_game(game *g, FILE* fff)
 	fscanf(fff, "%u\n", &g->start_seed);
 
 	/* Read game setup information */
-	fscanf(fff, "%d %d\n", &g->num_players, &g->expanded);
-	fscanf(fff, "%d %d %d\n", &g->advanced, &g->goal_disabled,
+	fscanf(fff, "%hd %hd\n", &g->num_players, &g->expanded);
+	fscanf(fff, "%hd %hd %hd\n", &g->advanced, &g->goal_disabled,
 	                          &g->takeover_disabled);
 
 	/* Clear simulation flag */
