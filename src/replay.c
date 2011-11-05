@@ -456,6 +456,9 @@ static void export_end(game *g)
 	/* Create file name */
 	sprintf(filename, "%s/Game_%06d.xml", export_folder, gid);
 
+	/* Delete any existing file */
+	unlink(filename);
+
 	/* Export game to file */
 	if (export_game(g, filename, export_style_sheet, server_name,
 	    -1, NULL, 0, NULL, export_end_log, export_end_callback, gid) < 0)
