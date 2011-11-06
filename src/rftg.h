@@ -507,6 +507,8 @@
 #define FORMAT_DISCARD "discard"
 #define FORMAT_DEBUG "debug"
 
+typedef int16_t card_t;
+
 /*
  * Forward declaration.
  */
@@ -520,16 +522,16 @@ struct game;
 typedef struct power
 {
 	/* Phase power is used in */
-	short phase;
+	int8_t phase;
 
 	/* Power's effect code */
 	uint64_t code;
 
 	/* Power's value */
-	short value;
+	int8_t value;
 
 	/* Number of times power may be used */
-	short times;
+	int8_t times;
 
 } power;
 
@@ -539,10 +541,10 @@ typedef struct power
 typedef struct power_where
 {
 	/* Card index */
-	short c_idx;
+	card_t c_idx;
 
 	/* Power index */
-	short o_idx;
+	int8_t o_idx;
 
 	/* Pointer to power */
 	power *o_ptr;
@@ -555,10 +557,10 @@ typedef struct power_where
 typedef struct vp_bonus
 {
 	/* Points */
-	short point;
+	int8_t point;
 
 	/* Type */
-	int type;
+	uint64_t type;
 
 	/* String for "name" type */
 	char *name;
@@ -574,37 +576,37 @@ typedef struct design
 	char *name;
 
 	/* Design index */
-	short index;
+	card_t index;
 
 	/* Type (development or world) */
-	short type;
+	int8_t type;
 
 	/* Cost to play */
-	short cost;
+	int8_t cost;
 
 	/* Victory points given */
-	short vp;
+	int8_t vp;
 
 	/* Number of cards in each expansion deck */
-	short expand[MAX_EXPANSION];
+	int8_t expand[MAX_EXPANSION];
 
 	/* Type of good produced (if any) */
-	short good_type;
+	int8_t good_type;
 
 	/* Flags (military, windfall, alien, rebel, start world, etc) */
-	int flags;
+	uint32_t flags;
 
 	/* Number of this design in the deck */
-	short dup;
+	int8_t dup;
 
 	/* Number of card powers */
-	short num_power;
+	int8_t num_power;
 
 	/* List of powers */
 	power powers[MAX_POWER];
 
 	/* Number of vp bonuses */
-	short num_vp_bonus;
+	int8_t num_vp_bonus;
 
 	/* List of VP bonuses */
 	vp_bonus bonuses[MAX_VP_BONUS];
@@ -617,43 +619,43 @@ typedef struct design
 typedef struct card
 {
 	/* Card's owner (if any) */
-	short owner;
+	int8_t owner;
 
 	/* Card's location */
-	short where;
+	int8_t where;
 
 	/* Card's owner at start of phase */
-	short start_owner;
+	int8_t start_owner;
 
 	/* Card's location at start of phase */
-	short start_where;
+	int8_t start_where;
 
 	/* Card is being placed and is not yet paid for */
-	short unpaid;
+	int8_t unpaid;
 
 	/* Bitmask of players who know card's location */
-	short known;
+	uint8_t known;
 
 	/* Card powers which have been used */
 	short used[MAX_POWER];
 
 	/* Card has produced this phase */
-	short produced;
+	int8_t produced;
 
 	/* Card design */
 	design *d_ptr;
 
 	/* Card covering us (as a good) */
-	short covered;
+	card_t covered;
 
 	/* Order played on the table */
-	short order;
+	int8_t order;
 
 	/* Next card index if belonging to player */
-	short next;
+	card_t next;
 
 	/* Next card index as of start of phase */
-	short start_next;
+	card_t start_next;
 
 } card;
 
@@ -703,7 +705,7 @@ typedef struct player
 	char *name;
 
 	/* Whether the player is played by the AI */
-	short ai;
+	int8_t ai;
 
 	/* Ask player to make decisions */
 	decisions *control;
@@ -712,75 +714,75 @@ typedef struct player
 	int action[2];
 
 	/* Previous turn action(s) */
-	int prev_action[2];
+	int8_t prev_action[2];
 
 	/* Player has used prestige/search action */
-	short prestige_action_used;
+	int8_t prestige_action_used;
 
 	/* Player has used phase bonus */
-	short phase_bonus_used;
+	int8_t phase_bonus_used;
 
 	/* Player's start world */
-	short start;
+	card_t start;
 
 	/* Player's first card of each location */
-	int head[MAX_WHERE];
+	card_t head[MAX_WHERE];
 
 	/* Player's first card of each location as of the start of the phase */
-	int start_head[MAX_WHERE];
+	card_t start_head[MAX_WHERE];
 
 	/* Card chosen in Develop or Settle phase */
-	int placing;
+	card_t placing;
 
 	/* Bonus military accrued so far this phase */
-	short bonus_military;
+	int8_t bonus_military;
 
 	/* Bonus settle discount accrued so far this phase */
-	short bonus_reduce;
+	int8_t bonus_reduce;
 
 	/* Number of cards discarded at end of turn */
-	short end_discard;
+	int8_t end_discard;
 
 	/* Goal cards claimed */
 	short goal_claimed[MAX_GOAL];
 
 	/* Progress toward each goal */
-	short goal_progress[MAX_GOAL];
+	int8_t goal_progress[MAX_GOAL];
 
 	/* Prestige */
-	short prestige;
+	int8_t prestige;
 
 	/* Prestige earned this turn */
-	short prestige_turn;
+	int8_t prestige_turn;
 
 	/* Victory point chips */
-	short vp;
+	int16_t vp;
 
 	/* Victory points from goals */
-	short goal_vp;
+	int16_t goal_vp;
 
 	/* Total victory points (if game ended now) */
-	short end_vp;
+	int16_t end_vp;
 
 	/* Player is the winner */
-	short winner;
+	int8_t winner;
 
 	/* Number of "fake" drawn cards in simulated games */
-	short fake_hand;
+	int16_t fake_hand;
 
 	/* Total number of "fake" cards seen this turn */
-	short total_fake;
+	int16_t total_fake;
 
 	/* Number of cards discarded this turn but not removed from hand */
-	short fake_discards;
+	int16_t fake_discards;
 
 	/* Counter for cards played */
-	short table_order;
+	int8_t table_order;
 
 	/* Cards, VP, and prestige earned during the current phase */
-	short phase_cards;
-	short phase_vp;
-	short phase_prestige;
+	int16_t phase_cards;
+	int16_t phase_vp;
+	int16_t phase_prestige;
 
 	/* Log of player's choices */
 	int *choice_log;
@@ -803,7 +805,7 @@ typedef struct player
 typedef struct game
 {
 	/* Session ID in online server */
-	short session_id;
+	int session_id;
 
 	/* Current random seed */
 	unsigned int random_seed;
@@ -812,10 +814,10 @@ typedef struct game
 	unsigned int start_seed;
 
 	/* Game is a simulation */
-	short simulation;
+	int8_t simulation;
 
 	/* Who initiated the simulation */
-	short sim_who;
+	int8_t sim_who;
 
 	/* Name of human player */
 	char *human_name;
@@ -824,28 +826,28 @@ typedef struct game
 	player p[MAX_PLAYER];
 
 	/* Number of players */
-	short num_players;
+	int8_t num_players;
 
 	/* This is an "advanced" 2 player game */
-	short advanced;
+	int8_t advanced;
 
 	/* Number of expansions in use */
-	short expanded;
+	int8_t expanded;
 
 	/* Disable goals in expanded games */
-	short goal_disabled;
+	int8_t goal_disabled;
 
 	/* Disable takeovers in second (or later) expansion */
-	short takeover_disabled;
+	int8_t takeover_disabled;
 
 	/* Size of deck in use */
-	short deck_size;
+	card_t deck_size;
 
 	/* Information about each card */
 	card deck[MAX_DECK];
 
 	/* Victory points remaining in the pool */
-	short vp_pool;
+	int8_t vp_pool;
 
 	/* Goals active in this game */
 	short goal_active[MAX_GOAL];
@@ -854,43 +856,43 @@ typedef struct game
 	short goal_avail[MAX_GOAL];
 
 	/* Maximum progress toward a "most" goal */
-	short goal_most[MAX_GOAL];
+	int8_t goal_most[MAX_GOAL];
 
 	/* Number of pending takeovers */
-	short num_takeover;
+	int8_t num_takeover;
 
 	/* Worlds targeted for takeover */
-	short takeover_target[MAX_TAKEOVER];
+	card_t takeover_target[MAX_TAKEOVER];
 
 	/* Player attempting each takeover */
-	short takeover_who[MAX_TAKEOVER];
+	int8_t takeover_who[MAX_TAKEOVER];
 
 	/* Card holding takeover power */
-	short takeover_power[MAX_TAKEOVER];
+	card_t takeover_power[MAX_TAKEOVER];
 
 	/* Takeover marked for failure */
-	short takeover_defeated[MAX_TAKEOVER];
+	int8_t takeover_defeated[MAX_TAKEOVER];
 
 	/* XXX Current kind of "any" good world */
-	short oort_kind;
+	int8_t oort_kind;
 
 	/* Current kind of "any" good giving owner the best score */
-	short best_oort_kind;
+	int8_t best_oort_kind;
 
 	/* Actions selected this round */
-	short action_selected[MAX_ACTION];
+	int8_t action_selected[MAX_ACTION];
 
 	/* Current action */
-	short cur_action;
+	int8_t cur_action;
 
 	/* Current player in phase */
-	short turn;
+	int8_t turn;
 
 	/* Current round number */
-	short round;
+	int8_t round;
 
 	/* Game is over */
-	short game_over;
+	int8_t game_over;
 
 } game;
 

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -3978,7 +3978,8 @@ static void pay_settle(game *g, int who, int world, int mil_only)
 	power_where w_list[100];
 	power *o_ptr;
 	int list[MAX_DECK], special[MAX_DECK], g_list[MAX_DECK];
-	int conquer, good, military, cost, takeover, flags;
+	int conquer, good, military, cost, takeover;
+	uint64_t flags;
 	int n = 0, num_special = 0;
 	int i;
 	char msg[1024];
@@ -3993,7 +3994,7 @@ static void pay_settle(game *g, int who, int world, int mil_only)
 	takeover = (c_ptr->owner != who);
 
 	/* Set flag if world is conquerable */
-	conquer = c_ptr->d_ptr->flags & FLAG_MILITARY;
+	conquer = (c_ptr->d_ptr->flags & FLAG_MILITARY) > 0;
 
 	/* Get good type of world to be settled (if any) */
 	good = c_ptr->d_ptr->good_type;
@@ -10858,7 +10859,8 @@ int total_military(game *g, int who)
 static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 {
 	power *o_ptr;
-	int i, type = v_ptr->type;
+	int i;
+	uint64_t type = v_ptr->type;
 
 	/* Switch on bonus type */
 	switch (type)

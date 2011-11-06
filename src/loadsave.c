@@ -30,7 +30,7 @@ static int read_game(game *g, FILE* fff)
 	player *p_ptr;
 	char buf[1024];
 	char version[1024];
-	int i, j;
+	int i, j, k;
 
 	/* Read version line */
 	fgets(version, 1024, fff);
@@ -48,9 +48,15 @@ static int read_game(game *g, FILE* fff)
 	fscanf(fff, "%u\n", &g->start_seed);
 
 	/* Read game setup information */
-	fscanf(fff, "%hd %hd\n", &g->num_players, &g->expanded);
-	fscanf(fff, "%hd %hd %hd\n", &g->advanced, &g->goal_disabled,
-	                          &g->takeover_disabled);
+	fscanf(fff, "%d %d\n", &i, &j);
+	g->num_players = i;
+	g->expanded = j;
+
+	/* Read game parameters */
+	fscanf(fff, "%d %d %d\n", &i, &j, &k);
+	g->advanced = i;
+	g->goal_disabled = j;
+	g->takeover_disabled = k;
 
 	/* Clear simulation flag */
 	g->simulation = 0;

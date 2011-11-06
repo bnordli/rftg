@@ -354,19 +354,19 @@ int read_cards(char *suggestion)
 				ptr = strtok(buf + 2, ":");
 
 				/* Read type */
-				d_ptr->type = (short) strtol(ptr, NULL, 0);
+				d_ptr->type = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get cost string */
 				ptr = strtok(NULL, ":");
 
 				/* Read cost */
-				d_ptr->cost = (short) strtol(ptr, NULL, 0);
+				d_ptr->cost = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get VP string */
 				ptr = strtok(NULL, ":");
 
 				/* Read VP */
-				d_ptr->vp = (short) strtol(ptr, NULL, 0);
+				d_ptr->vp = (int8_t) strtol(ptr, NULL, 0);
 				break;
 
 			/* Expansion counts */
@@ -379,7 +379,7 @@ int read_cards(char *suggestion)
 				for (i = 0; i < MAX_EXPANSION; i++)
 				{
 					/* Set count */
-					d_ptr->expand[i] = (short) strtol(ptr, NULL, 0);
+					d_ptr->expand[i] = (int8_t) strtol(ptr, NULL, 0);
 
 					/* Read next count */
 					ptr = strtok(NULL, ":");
@@ -487,13 +487,13 @@ int read_cards(char *suggestion)
 				o_ptr->code = code;
 
 				/* Read power's value */
-				o_ptr->value = (short) strtol(ptr, NULL, 0);
+				o_ptr->value = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get times string */
 				ptr = strtok(NULL, ":");
 
 				/* Read power's number of times */
-				o_ptr->times = (short) strtol(ptr, NULL, 0);
+				o_ptr->times = (int8_t) strtol(ptr, NULL, 0);
 				break;
 
 			/* VP flags */
@@ -506,7 +506,7 @@ int read_cards(char *suggestion)
 				ptr = strtok(buf + 2, ":");
 
 				/* Read point value */
-				v_ptr->point = (short) strtol(ptr, NULL, 0);
+				v_ptr->point = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get bonus type string */
 				ptr = strtok(NULL, ":");
