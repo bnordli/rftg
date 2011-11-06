@@ -2631,7 +2631,7 @@ static char *goal_tooltip(game *g, int goal)
 	if (goal <= GOAL_FIRST_4_MILITARY)
 	{
 		/* Check for claimed goal */
-		if (!g->goal_avail[goal])
+		if ((g->goal_avail & (1 << goal)) == 0)
 		{
 			/* Add text to tooltip */
 			strcat(msg, "\n\nClaimed by:");
@@ -2643,7 +2643,7 @@ static char *goal_tooltip(game *g, int goal)
 				p_ptr = &g->p[i];
 
 				/* Check for claim */
-				if (p_ptr->goal_claimed[goal])
+				if (p_ptr->goal_claimed & (1 << goal))
 				{
 					/* Add name to tooltip */
 					strcat(msg, "\n  ");
@@ -2690,7 +2690,7 @@ static char *goal_tooltip(game *g, int goal)
 
 			/* Create progress string */
 			sprintf(text, "\n%c %s: %d",
-			        p_ptr->goal_claimed[goal] ? '*' : ' ',
+			        (p_ptr->goal_claimed & (1 << goal)) ? '*' : ' ',
 			        p_ptr->name, p_ptr->goal_progress[goal]);
 
 			/* Add progress string to tooltip */
@@ -2726,7 +2726,7 @@ void redraw_goal(void)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Skip inactive goals */
-		if (!real_game.goal_active[i]) continue;
+		if ((real_game.goal_active & (1 << i)) == 0) continue;
 
 		/* Check for "first" goal */
 		if (i <= GOAL_FIRST_4_MILITARY)
@@ -2745,7 +2745,7 @@ void redraw_goal(void)
 		                              GDK_INTERP_BILINEAR);
 
 		/* Check for unavailable goal */
-		if (!real_game.goal_avail[i])
+		if ((real_game.goal_avail & (1 << i)) == 0)
 		{
 			/* Desaturate */
 			gdk_pixbuf_saturate_and_pixelate(buf, buf, 0, TRUE);
@@ -4950,7 +4950,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 			}
 
 			/* Skip used powers */
-			if (c_ptr->used[i]) continue;
+			if (c_ptr->used & (1 << i)) continue;
 
 			/* Check for military from hand */
 			if (o_ptr->code & P3_MILITARY_HAND)
@@ -5230,13 +5230,13 @@ void reset_status(game *g, int who)
 		status_player[who].goal_gray[i] = 0;
 
 		/* Skip inactive goals */
-		if (!g->goal_active[i]) continue;
+		if ((g->goal_active & (1 << i)) == 0) continue;
 
 		/* Check for "first" goal */
 		if (i <= GOAL_FIRST_4_MILITARY)
 		{
 			/* Check for unclaimed */
-			if (!g->p[who].goal_claimed[i]) continue;
+			if ((g->p[who].goal_claimed & (1 << i)) == 0) continue;
 		}
 		else
 		{
@@ -5249,7 +5249,7 @@ void reset_status(game *g, int who)
 				continue;
 
 			/* Unclaimed goals should be gray */
-			if (!g->p[who].goal_claimed[i])
+			if ((g->p[who].goal_claimed & (1 << i)) == 0);
 				status_player[who].goal_gray[i] = 1;
 		}
 

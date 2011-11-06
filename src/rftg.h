@@ -636,8 +636,8 @@ typedef struct card
 	/* Bitmask of players who know card's location */
 	uint8_t known;
 
-	/* Card powers which have been used */
-	short used[MAX_POWER];
+	/* Bitmask of card powers which have been used */
+	uint8_t used;
 
 	/* Card has produced this phase */
 	int8_t produced;
@@ -743,8 +743,8 @@ typedef struct player
 	/* Number of cards discarded at end of turn */
 	int8_t end_discard;
 
-	/* Goal cards claimed */
-	short goal_claimed[MAX_GOAL];
+	/* Bitmask of goal cards claimed */
+	uint32_t goal_claimed;
 
 	/* Progress toward each goal */
 	int8_t goal_progress[MAX_GOAL];
@@ -849,11 +849,11 @@ typedef struct game
 	/* Victory points remaining in the pool */
 	int8_t vp_pool;
 
-	/* Goals active in this game */
-	short goal_active[MAX_GOAL];
+	/* Bitmask of goals active in this game */
+	uint32_t goal_active;
 
-	/* Goals yet unclaimed */
-	short goal_avail[MAX_GOAL];
+	/* Bitmask of goals yet unclaimed */
+	uint32_t goal_avail;
 
 	/* Maximum progress toward a "most" goal */
 	int8_t goal_most[MAX_GOAL];

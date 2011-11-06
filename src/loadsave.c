@@ -518,11 +518,12 @@ int export_game(game *g, char *filename, char *style_sheet,
 		for (i = 0; i < MAX_GOAL; ++i)
 		{
 			/* Skip unused goals */
-			if (!g->goal_active[i]) continue;
+			if ((g->goal_active & (1 << i)) == 0) continue;
 
 			/* Write goal and availability */
 			fprintf(fff, "      <Goal id=\"%d\" claimed=\"%s\">%s</Goal>\n", i,
-			        g->goal_avail[i] ? "no" : "yes", xml_escape(goal_name[i]));
+			        (g->goal_avail & (1 << i)) ? "no" : "yes",
+			        xml_escape(goal_name[i]));
 		}
 
 		/* Write end tag */
@@ -610,7 +611,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 			for (i = 0; i < MAX_GOAL; ++i)
 			{
 				/* Check if player has goal */
-				if (p_ptr->goal_claimed[i])
+				if (p_ptr->goal_claimed & (1 << i))
 				{
 					/* Write goal */
 					fprintf(fff, "      <Goal id=\"%d\">%s</Goal>\n",

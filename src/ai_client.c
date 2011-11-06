@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -94,7 +94,16 @@ static void handle_status_meta(char *ptr)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Read goal presence */
-		real_game.goal_active[i] = get_integer(&ptr);
+		if (get_integer(&ptr))
+		{
+			/* Set goal presence */
+			real_game.goal_active |= 1 << i;
+		}
+		else
+		{
+			/* Clear goal presence */
+			real_game.goal_active &= ~(1 << i);
+		}
 	}
 
 	/* Loop over players */
@@ -133,7 +142,16 @@ static void handle_status_player(char *ptr)
 	for (x = 0; x < MAX_GOAL; x++)
 	{
 		/* Read goal claimed */
-		p_ptr->goal_claimed[x] = get_integer(&ptr);
+		if (get_integer(&ptr))
+		{
+			/* Set goal claimed */
+			p_ptr->goal_claimed |= 1 << x;
+		}
+		else
+		{
+			/* Clear goal claimed */
+			p_ptr->goal_claimed &= ~(1 << x);
+		}
 
 		/* Real goal progress */
 		p_ptr->goal_progress[x] = get_integer(&ptr);
@@ -215,8 +233,19 @@ static void handle_status_goal(char *ptr)
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
-		/* Read goal availability and progress */
-		real_game.goal_avail[i] = get_integer(&ptr);
+		/* Read goal availability */
+		if (get_integer(&ptr))
+		{
+			/* Set goal availability */
+			real_game.goal_avail |= 1 << i;
+		}
+		else
+		{
+			/* Clear goal availability */
+			real_game.goal_avail &= ~(1 << i);
+		}
+
+		/* Read goal progress */
 		real_game.goal_most[i] = get_integer(&ptr);
 	}
 }

@@ -591,15 +591,11 @@ void init_game(game *g)
 	/* No cards in deck yet */
 	g->deck_size = 0;
 
-	/* Clear goals */
-	for (i = 0; i < MAX_GOAL; i++)
-	{
-		/* Goal is not active */
-		g->goal_active[i] = 0;
+	/* All goals inactive */
+	g->goal_active = 0;
 
-		/* Goal is not available */
-		g->goal_avail[i] = 0;
-	}
+	/* All goal unavailable */
+	g->goal_avail = 0;
 
 	/* Clear number of pending takeovers */
 	g->num_takeover = 0;
@@ -635,7 +631,7 @@ void init_game(game *g)
 			c_ptr->known = 0;
 
 			/* Clear used power list */
-			for (k = 0; k < MAX_POWER; k++) c_ptr->used[k] = 0;
+			c_ptr->used = 0;
 
 			/* Card has not produced */
 			c_ptr->produced = 0;
@@ -691,10 +687,10 @@ void init_game(game *g)
 			j = game_rand(g) % n;
 
 			/* Goal is active */
-			g->goal_active[goal[j]] = 1;
+			g->goal_active |= 1 << goal[j];
 
 			/* Goal is available */
-			g->goal_avail[goal[j]] = 1;
+			g->goal_avail |= 1 << goal[j];
 
 			/* Remove chosen goal from list */
 			goal[j] = goal[--n];
@@ -737,10 +733,10 @@ void init_game(game *g)
 			j = game_rand(g) % n;
 
 			/* Goal is active */
-			g->goal_active[goal[j]] = 1;
+			g->goal_active |= 1 << goal[j];
 
 			/* Goal is available */
-			g->goal_avail[goal[j]] = 1;
+			g->goal_avail |= 1 << goal[j];
 
 			/* Remove chosen goal from list */
 			goal[j] = goal[--n];
@@ -753,12 +749,12 @@ void init_game(game *g)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
-		/* Clear all claimed goals */
+		/* All goals are unclaimed */
+		p_ptr->goal_claimed = 0;
+
+		/* Clear all goals */
 		for (j = 0; j < MAX_GOAL; j++)
 		{
-			/* Goal is unclaimed */
-			p_ptr->goal_claimed[j] = 0;
-
 			/* No progress toward goal */
 			p_ptr->goal_progress[j] = 0;
 		}
