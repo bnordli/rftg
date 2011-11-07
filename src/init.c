@@ -594,7 +594,7 @@ void init_game(game *g)
 	/* All goals inactive */
 	g->goal_active = 0;
 
-	/* All goal unavailable */
+	/* All goals unavailable */
 	g->goal_avail = 0;
 
 	/* Clear number of pending takeovers */

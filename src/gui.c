@@ -5249,7 +5249,7 @@ void reset_status(game *g, int who)
 				continue;
 
 			/* Unclaimed goals should be gray */
-			if ((g->p[who].goal_claimed & (1 << i)) == 0);
+			if ((g->p[who].goal_claimed & (1 << i)) == 0)
 				status_player[who].goal_gray[i] = 1;
 		}
 

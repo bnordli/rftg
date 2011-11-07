@@ -507,8 +507,6 @@
 #define FORMAT_DISCARD "discard"
 #define FORMAT_DEBUG "debug"
 
-typedef int16_t card_t;
-
 /*
  * Forward declaration.
  */
@@ -541,7 +539,7 @@ typedef struct power
 typedef struct power_where
 {
 	/* Card index */
-	card_t c_idx;
+	int16_t c_idx;
 
 	/* Power index */
 	int8_t o_idx;
@@ -576,7 +574,7 @@ typedef struct design
 	char *name;
 
 	/* Design index */
-	card_t index;
+	int16_t index;
 
 	/* Type (development or world) */
 	int8_t type;
@@ -646,16 +644,16 @@ typedef struct card
 	design *d_ptr;
 
 	/* Card covering us (as a good) */
-	card_t covered;
+	int16_t covered;
 
 	/* Order played on the table */
 	int8_t order;
 
 	/* Next card index if belonging to player */
-	card_t next;
+	int16_t next;
 
 	/* Next card index as of start of phase */
-	card_t start_next;
+	int16_t start_next;
 
 } card;
 
@@ -714,7 +712,7 @@ typedef struct player
 	int action[2];
 
 	/* Previous turn action(s) */
-	int8_t prev_action[2];
+	int prev_action[2];
 
 	/* Player has used prestige/search action */
 	int8_t prestige_action_used;
@@ -723,16 +721,16 @@ typedef struct player
 	int8_t phase_bonus_used;
 
 	/* Player's start world */
-	card_t start;
+	int16_t start;
 
 	/* Player's first card of each location */
-	card_t head[MAX_WHERE];
+	int16_t head[MAX_WHERE];
 
 	/* Player's first card of each location as of the start of the phase */
-	card_t start_head[MAX_WHERE];
+	int16_t start_head[MAX_WHERE];
 
 	/* Card chosen in Develop or Settle phase */
-	card_t placing;
+	int16_t placing;
 
 	/* Bonus military accrued so far this phase */
 	int8_t bonus_military;
@@ -841,7 +839,7 @@ typedef struct game
 	int8_t takeover_disabled;
 
 	/* Size of deck in use */
-	card_t deck_size;
+	int16_t deck_size;
 
 	/* Information about each card */
 	card deck[MAX_DECK];
@@ -862,13 +860,13 @@ typedef struct game
 	int8_t num_takeover;
 
 	/* Worlds targeted for takeover */
-	card_t takeover_target[MAX_TAKEOVER];
+	int16_t takeover_target[MAX_TAKEOVER];
 
 	/* Player attempting each takeover */
 	int8_t takeover_who[MAX_TAKEOVER];
 
 	/* Card holding takeover power */
-	card_t takeover_power[MAX_TAKEOVER];
+	int16_t takeover_power[MAX_TAKEOVER];
 
 	/* Takeover marked for failure */
 	int8_t takeover_defeated[MAX_TAKEOVER];

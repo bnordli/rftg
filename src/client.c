@@ -686,7 +686,7 @@ static void handle_status_player(char *ptr, int size)
 	/* Check for prestige on the tile information (since 0.8.1m) */
 	if (size > ptr - start)
 	{
-		/* Copy ai flag */
+		/* Copy prestige information */
 		p_ptr->prestige_turn = get_integer(&ptr);
 	}
 

@@ -893,8 +893,8 @@ static void db_save_waiting(int sid, int who)
 
 	/* Update waiting status */
 	sprintf(query, "UPDATE attendance SET waiting=%s \
-		            WHERE gid=%d AND uid=%d",
-		            state_str, s_ptr->gid, s_ptr->uids[who]);
+	                WHERE gid=%d AND uid=%d",
+	               state_str, s_ptr->gid, s_ptr->uids[who]);
 
 	/* Run query */
 	mysql_query(mysql, query);
@@ -1869,7 +1869,8 @@ static int player_changed(player *p_ptr, player *q_ptr)
 
 	/* Check for change in goal parameters */
 	if (p_ptr->goal_claimed != q_ptr->goal_claimed) return 1;
-	if (p_ptr->goal_progress != q_ptr->goal_progress) return 1;
+	if (memcmp(p_ptr->goal_progress, q_ptr->goal_progress,
+	           MAX_GOAL * sizeof(int8_t))) return 1;
 
 	/* No change */
 	return 0;
@@ -2014,7 +2015,7 @@ static void update_status_one(int sid, int who)
 	/* Check for change in goal status */
 	if (obfus.goal_avail != s_ptr->old[who].goal_avail ||
 	    memcmp(obfus.goal_most, s_ptr->old[who].goal_most,
-	           MAX_GOAL * sizeof(int)))
+	           MAX_GOAL * sizeof(int8_t)))
 	{
 		/* Start at beginning of message buffer */
 		ptr = msg;
@@ -2025,8 +2026,8 @@ static void update_status_one(int sid, int who)
 		/* Copy goal availability and most progress */
 		for (i = 0; i < MAX_GOAL; i++)
 		{
-			/* Put availabiltiy and progress counts */
-			put_integer((s_ptr->g.goal_avail & (i << i)) > 0, &ptr);
+			/* Put availability and progress counts */
+			put_integer((s_ptr->g.goal_avail & (1 << i)) > 0, &ptr);
 			put_integer(s_ptr->g.goal_most[i], &ptr);
 		}
 

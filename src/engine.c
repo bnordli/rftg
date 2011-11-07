@@ -9769,7 +9769,7 @@ void check_goals(game *g)
 			p_ptr = &g->p[j];
 
 			/* Check for goal claimed and lost */
-			if ((p_ptr->goal_claimed & 1 << i) && !count[j])
+			if ((p_ptr->goal_claimed & (1 << i)) && !count[j])
 			{
 				/* Lose goal */
 				g->goal_avail |= 1 << i;
