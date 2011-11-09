@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -256,6 +256,7 @@ static char *vp_name[] =
 static uint64_t lookup_power(char *ptr, int phase)
 {
 	int i = 0;
+	char message[1024];
 
 	/* Loop over power names */
 	while (power_name[phase][i])
@@ -268,14 +269,15 @@ static uint64_t lookup_power(char *ptr, int phase)
 	}
 
 	/* No match */
-	printf("No power named '%s'\n", ptr);
+	sprintf(message, "No power named '%s'\n", ptr);
+	display_error(message);
 	exit(1);
 }
 
 /*
  * Read card designs from 'cards.txt' file.
  */
-int read_cards(void)
+int read_cards(char *suggestion)
 {
 	FILE *fff;
 	char buf[1024], *ptr;
@@ -294,6 +296,16 @@ int read_cards(void)
 	{
 		/* Try reading from current directory instead */
 		fff = fopen("cards.txt", "r");
+	}
+
+	/* Check for error and alternative suggestion */
+	if (!fff && suggestion)
+	{
+		/* Combine the paths */
+		sprintf(buf, "%s/cards.txt", suggestion);
+
+		/* Try reading from suggested directory instead */
+		fff = fopen(buf, "r");
 	}
 
 	/* Check for failure */
@@ -342,19 +354,19 @@ int read_cards(void)
 				ptr = strtok(buf + 2, ":");
 
 				/* Read type */
-				d_ptr->type = strtol(ptr, NULL, 0);
+				d_ptr->type = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get cost string */
 				ptr = strtok(NULL, ":");
 
 				/* Read cost */
-				d_ptr->cost = strtol(ptr, NULL, 0);
+				d_ptr->cost = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get VP string */
 				ptr = strtok(NULL, ":");
 
 				/* Read VP */
-				d_ptr->vp = strtol(ptr, NULL, 0);
+				d_ptr->vp = (int8_t) strtol(ptr, NULL, 0);
 				break;
 
 			/* Expansion counts */
@@ -367,7 +379,7 @@ int read_cards(void)
 				for (i = 0; i < MAX_EXPANSION; i++)
 				{
 					/* Set count */
-					d_ptr->expand[i] = strtol(ptr, NULL, 0);
+					d_ptr->expand[i] = (int8_t) strtol(ptr, NULL, 0);
 
 					/* Read next count */
 					ptr = strtok(NULL, ":");
@@ -475,13 +487,13 @@ int read_cards(void)
 				o_ptr->code = code;
 
 				/* Read power's value */
-				o_ptr->value = strtol(ptr, NULL, 0);
+				o_ptr->value = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get times string */
 				ptr = strtok(NULL, ":");
 
 				/* Read power's number of times */
-				o_ptr->times = strtol(ptr, NULL, 0);
+				o_ptr->times = (int8_t) strtol(ptr, NULL, 0);
 				break;
 
 			/* VP flags */
@@ -494,7 +506,7 @@ int read_cards(void)
 				ptr = strtok(buf + 2, ":");
 
 				/* Read point value */
-				v_ptr->point = strtol(ptr, NULL, 0);
+				v_ptr->point = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get bonus type string */
 				ptr = strtok(NULL, ":");
@@ -586,15 +598,11 @@ void init_game(game *g)
 	/* No cards in deck yet */
 	g->deck_size = 0;
 
-	/* Clear goals */
-	for (i = 0; i < MAX_GOAL; i++)
-	{
-		/* Goal is not active */
-		g->goal_active[i] = 0;
+	/* All goals inactive */
+	g->goal_active = 0;
 
-		/* Goal is not available */
-		g->goal_avail[i] = 0;
-	}
+	/* All goals unavailable */
+	g->goal_avail = 0;
 
 	/* Clear number of pending takeovers */
 	g->num_takeover = 0;
@@ -630,7 +638,7 @@ void init_game(game *g)
 			c_ptr->known = 0;
 
 			/* Clear used power list */
-			for (k = 0; k < MAX_POWER; k++) c_ptr->used[k] = 0;
+			c_ptr->used = 0;
 
 			/* Card has not produced */
 			c_ptr->produced = 0;
@@ -686,10 +694,10 @@ void init_game(game *g)
 			j = game_rand(g, -1) % n;
 
 			/* Goal is active */
-			g->goal_active[goal[j]] = 1;
+			g->goal_active |= 1 << goal[j];
 
 			/* Goal is available */
-			g->goal_avail[goal[j]] = 1;
+			g->goal_avail |= 1 << goal[j];
 
 			/* Remove chosen goal from list */
 			goal[j] = goal[--n];
@@ -732,10 +740,10 @@ void init_game(game *g)
 			j = game_rand(g, -1) % n;
 
 			/* Goal is active */
-			g->goal_active[goal[j]] = 1;
+			g->goal_active |= 1 << goal[j];
 
 			/* Goal is available */
-			g->goal_avail[goal[j]] = 1;
+			g->goal_avail |= 1 << goal[j];
 
 			/* Remove chosen goal from list */
 			goal[j] = goal[--n];
@@ -748,12 +756,12 @@ void init_game(game *g)
 		/* Get player pointer */
 		p_ptr = &g->p[i];
 
-		/* Clear all claimed goals */
+		/* All goals are unclaimed */
+		p_ptr->goal_claimed = 0;
+
+		/* Clear all goals */
 		for (j = 0; j < MAX_GOAL; j++)
 		{
-			/* Goal is unclaimed */
-			p_ptr->goal_claimed[j] = 0;
-
 			/* No progress toward goal */
 			p_ptr->goal_progress[j] = 0;
 		}

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -233,7 +233,7 @@ static void complete_turn(game *g, int partial)
 	if (!g->simulation)
 	{
 		/* Error */
-		printf("complete_turn() called with real game!\n");
+		display_error("complete_turn() called with real game!\n");
 		exit(1);
 	}
 
@@ -578,7 +578,8 @@ static void setup_nets(game *g)
 
 	if (n != inputs)
 	{
-		printf("Bad role setup %d %d!\n", n, inputs);
+		sprintf(buf, "Bad role setup %d %d!\n", n, inputs);
+		display_error(buf);
 		exit(1);
 	}
 
@@ -725,7 +726,8 @@ static void setup_nets(game *g)
 
 	if (n != inputs)
 	{
-		printf("Bad role setup %d %d!\n", n, inputs);
+		sprintf(buf, "Bad role setup %d %d!\n", n, inputs);
+		display_error(buf);
 		exit(1);
 	}
 }
@@ -1149,7 +1151,7 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if goal claimed */
-		eval.input_value[n++] = p_ptr->goal_claimed[i];
+		eval.input_value[n++] = (p_ptr->goal_claimed & (1 << i)) > 0;
 	}
 
 	/* Set input if player has used prestige/search action */
@@ -1262,14 +1264,14 @@ static double eval_game(game *g, int who)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is active for this game */
-		eval.input_value[n++] = g->goal_active[i];
+		eval.input_value[n++] = (g->goal_active & (1 << i)) > 0;
 	}
 
 	/* Set inputs for available goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is still available */
-		eval.input_value[n++] = g->goal_avail[i];
+		eval.input_value[n++] = (g->goal_avail & (1 << i)) > 0;
 	}
 
 	/* Get player pointer */
@@ -1569,7 +1571,7 @@ static int predict_action_player(game *g, int who, int n)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if goal claimed */
-		role.input_value[n++] = p_ptr->goal_claimed[i];
+		role.input_value[n++] = (p_ptr->goal_claimed & (1 << i)) > 0;
 	}
 
 	/* Set input if player has used prestige/search action */
@@ -1675,14 +1677,14 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION])
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is active for this game */
-		role.input_value[n++] = g->goal_active[i];
+		role.input_value[n++] = (g->goal_active & (1 << i)) > 0;
 	}
 
 	/* Set inputs for available goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is still available */
-		role.input_value[n++] = g->goal_avail[i];
+		role.input_value[n++] = (g->goal_avail & (1 << i)) > 0;
 	}
 
 	/* Compute role choice probabilities */
@@ -2306,7 +2308,7 @@ static void ai_choose_action_advanced(game *g, int who, int action[2], int one)
 	if (b_s == 0)
 	{
 		/* Error */
-		printf("Did not find any action choices!\n");
+		display_error("Did not find any action choices!\n");
 		exit(1);
 	}
 
@@ -2634,7 +2636,7 @@ static void ai_choose_action(game *g, int who, int action[2], int one)
 	if (b_s < 0)
 	{
 		/* Error */
-		printf("No action selected!\n");
+		display_error("No action selected!\n");
 		exit(1);
 	}
 
@@ -2901,7 +2903,7 @@ static void ai_choose_discard(game *g, int who, int list[], int *num,
 	if (b_s == -1)
 	{
 		/* Error */
-		printf("Failed to find good discard set!\n");
+		display_error("Failed to find good discard set!\n");
 		exit(1);
 	}
 
@@ -3302,7 +3304,7 @@ static void ai_explore_sample(game *g, int who, int draw, int keep,
 	}
 
 	/* XXX */
-	printf("Ran out of explore sample result entries!\n");
+	display_error("Ran out of explore sample result entries!\n");
 	exit(1);
 }
 
@@ -3402,7 +3404,7 @@ static double ai_choose_place_opp_aux(game *g, int who, int which, int phase)
 	if (phase == PHASE_SETTLE)
 	{
 		/* Check for takeovers or placement */
-		if (which != -1 || settle_check_takeover(&sim, who))
+		if (which != -1 || settle_check_takeover(&sim, who, NULL, 1))
 		{
 			/* Take no-place action */
 			settle_action(&sim, who, which);
@@ -3563,7 +3565,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
 	if (phase == PHASE_SETTLE)
 	{
 		/* Check for takeovers */
-		if (settle_check_takeover(&sim, who))
+		if (settle_check_takeover(&sim, who, NULL, 1))
 		{
 			/* Take no-place action */
 			settle_action(&sim, who, -1);
@@ -3823,7 +3825,7 @@ static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
 
 	if (b_s == -1)
 	{
-		printf("Couldn't find valid payment!\n");
+		display_error("Couldn't find valid payment!\n");
 		exit(1);
 	}
 
@@ -4161,7 +4163,7 @@ static void ai_choose_defend(game *g, int who, int which, int opponent,
 
 	if (b_s == -1)
 	{
-		printf("Couldn't find valid payment!\n");
+		display_error("Couldn't find valid payment!\n");
 		exit(1);
 	}
 
@@ -4502,7 +4504,7 @@ static void ai_choose_trade(game *g, int who, int list[], int *num,
 	if (best == -1)
 	{
 		/* Error */
-		printf("Could not find trade\n");
+		display_error("Could not find trade\n");
 		exit(1);
 	}
 
@@ -4823,7 +4825,7 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 	{
 		if (!optional)
 		{
-			printf("Selected no power, but some are mandatory!\n");
+			display_error("Selected no power, but some are mandatory!\n");
 			exit(1);
 		}
 		/* Select nothing */
@@ -4987,7 +4989,7 @@ static void ai_choose_consume_hand(game *g, int who, int c_idx, int o_idx,
 	if (b_s == -1)
 	{
 		/* Error */
-		printf("Failed to find good discard set!\n");
+		display_error("Failed to find good discard set!\n");
 		exit(1);
 	}
 
@@ -5116,7 +5118,7 @@ static void ai_choose_good(game *g, int who, int c_idx, int o_idx,
 	if (b_s == -1)
 	{
 		/* Error */
-		printf("Failed to find consume set!\n");
+		display_error("Failed to find consume set!\n");
 		exit(1);
 	}
 
@@ -5389,7 +5391,7 @@ static void ai_choose_windfall(game *g, int who, int list[], int *num,
 	if (best == -1)
 	{
 		/* Error */
-		printf("Could not find windfall production\n");
+		display_error("Could not find windfall production\n");
 		exit(1);
 	}
 
@@ -6027,7 +6029,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 
 		/* Error */
 		default:
-			printf("Unknown choice type!\n");
+			display_error("Unknown choice type!\n");
 			exit(1);
 	}
 
@@ -6216,7 +6218,6 @@ decisions ai_func =
 	ai_make_choice,
 	NULL,
 	ai_explore_sample,
-	NULL,
 	ai_game_over,
 	ai_shutdown,
 	NULL,
@@ -6438,14 +6439,14 @@ static void initial_training(game *g)
 	g->vp_pool = 0;
 	g->deck_size = 0;
 	memset(g->deck, 0, sizeof(card) * MAX_DECK);
-	memset(g->goal_active, 0, sizeof(int) * MAX_GOAL);
-	memset(g->goal_avail, 0, sizeof(int) * MAX_GOAL);
+	g->goal_active = 0;
+	g->goal_avail = 0;
 
 	/* Clear some uninitialized player information */
 	for (i = 0; i < g->num_players; i++)
 	{
 		/* Clear player's card counts and winner flag */
-		memset(g->p[i].goal_claimed, 0, sizeof(int) * MAX_GOAL);
+		g->p[i].goal_claimed = 0;
 		g->p[i].fake_hand = 0;
 		g->p[i].total_fake = 0;
 		g->p[i].fake_discards = 0;

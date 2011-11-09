@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,27 +30,14 @@ static char *variant_str[MAX_VARIANT] =
 };
 
 /*
- * Load a game from the given filename.
+ * Read a game from a file.
  */
-int load_game(game *g, char *filename)
+static int read_game(game *g, FILE* fff)
 {
-	FILE *fff;
 	player *p_ptr;
 	char buf[1024];
 	char version[1024];
-	int i, j;
-
-	/* Open file for reading */
-	fff = fopen(filename, "r");
-
-	/* Check for failure */
-	if (!fff) return -1;
-
-	/* Read header */
-	fgets(buf, 1024, fff);
-
-	/* Check for correct header */
-	if (strcmp(buf, "RFTG Save\n")) return -1;
+	int i, j, k;
 
 	/* Read version line */
 	fgets(version, 1024, fff);
@@ -62,7 +49,7 @@ int load_game(game *g, char *filename)
 	if (strcmp(version, VERSION) > 0) return -1;
 
 	/* Check for too old version */
-	if (strcmp(version, "0.7.2") < 0) return -1;
+	if (strcmp(version, "0.8.0") < 0) return -1;
 
 	/* Assume no variant */
 	g->variant = 0;
@@ -93,9 +80,15 @@ int load_game(game *g, char *filename)
 	sscanf(buf, "%u\n", &g->start_seed);
 
 	/* Read game setup information */
-	fscanf(fff, "%d %d\n", &g->num_players, &g->expanded);
-	fscanf(fff, "%d %d %d\n", &g->advanced, &g->goal_disabled,
-	                          &g->takeover_disabled);
+	fscanf(fff, "%d %d\n", &i, &j);
+	g->num_players = i;
+	g->expanded = j;
+
+	/* Read game parameters */
+	fscanf(fff, "%d %d %d\n", &i, &j, &k);
+	g->advanced = i;
+	g->goal_disabled = j;
+	g->takeover_disabled = k;
 
 	/* Clear simulation flag */
 	g->simulation = 0;
@@ -137,34 +130,84 @@ int load_game(game *g, char *filename)
 			}
 
 			/* If still characters left, set human name */
-			if (strlen(buf)) g->human_name = strdup(buf);
+			if (strlen(buf) && strcmp(buf, "]]>"))
+				g->human_name = strdup(buf);
 		}
 	}
-
-	/* Close file */
-	fclose(fff);
 
 	/* Success */
 	return 0;
 }
 
 /*
- * Save a game to the given filename.
+ * Load a game from the given filename.
  */
-int save_game(game *g, char *filename, int player_us)
+int load_game(game *g, char *filename)
 {
 	FILE *fff;
-	player *p_ptr;
-	int i, j, n;
+	char buf[1024];
+	int ret_val = -1;
 
-	/* Open file for writing */
-	fff = fopen(filename, "w");
+	/* Open file for reading */
+	fff = fopen(filename, "r");
 
 	/* Check for failure */
 	if (!fff) return -1;
 
-	/* Write header information */
-	fputs("RFTG Save\n", fff);
+	/* Read header */
+	fgets(buf, 1024, fff);
+
+	/* Check for possible export file */
+	if (!strncmp(buf, "<?xml", 5))
+	{
+		/* Loop over lines */
+		while (fgets(buf, 1024, fff))
+		{
+			/* Check for Save start tag */
+			if (!strcmp(buf, "  <Save>\n"))
+			{
+				/* Skip CDATA line */
+				fgets(buf, 1024, fff);
+
+				/* Success */
+				ret_val = 0;
+
+				/* Stop searching */
+				break;
+			}
+		}
+	}
+
+	/* Check for correct header */
+	else if (!strcmp(buf, "RFTG Save\n"))
+	{
+		/* Success */
+		ret_val = 0;
+	}
+
+	/* Check for success */
+	if (ret_val == 0)
+	{
+		/* Read the game from the file */
+		ret_val = read_game(g, fff);
+	}
+
+	/* Close file */
+	fclose(fff);
+
+	/* Finished */
+	return ret_val;
+}
+
+/*
+ * Write a game to the given file.
+ */
+void write_game(game *g, FILE *fff, int player_us)
+{
+	player *p_ptr;
+	int i, j, n;
+
+	/* Write version information */
 	fprintf(fff, "%s\n", VERSION);
 
 	/* Write variant */
@@ -202,8 +245,29 @@ int save_game(game *g, char *filename, int player_us)
 	}
 
 	/* Save name of human player (if any) */
-	if (g->human_name && strlen(g->human_name))
+	if (g->human_name && strlen(g->human_name) &&
+	    !strstr(g->human_name, "]]>"))
 		fprintf(fff, "%s\n", g->human_name);
+}
+
+/*
+ * Save a game to the given filename.
+ */
+int save_game(game *g, char *filename, int player_us)
+{
+	FILE *fff;
+
+	/* Open file for writing */
+	fff = fopen(filename, "w");
+
+	/* Check for failure */
+	if (!fff) return -1;
+
+	/* Write header information */
+	fputs("RFTG Save\n", fff);
+
+	/* Write game to file */
+	write_game(g, fff, player_us);
 
 	/* Close file */
 	fclose(fff);
@@ -355,10 +419,11 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
 /*
  * Export the game state to the given filename.
  */
-int export_game(game *g, char *filename, int player_us,
-                const char *message,
+int export_game(game *g, char *filename, char *style_sheet,
+                char *server, int player_us, const char *message,
                 int num_special_cards, card **special_cards,
-                void (*export_log)(FILE *fff, int gid), int gid)
+                void (*export_log)(FILE *fff, int gid),
+                void (*export_callback)(FILE *fff, int gid), int gid)
 {
 	FILE *fff;
 	player *p_ptr;
@@ -374,12 +439,37 @@ int export_game(game *g, char *filename, int player_us,
 	/* Score game to get end totals */
 	score_game(g);
 
-	/* Write header and top level tag */
+	/* Write header */
 	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", fff);
+
+	/* Check for style sheet */
+	if (style_sheet && strlen(style_sheet))
+	{
+		/* Write style sheet link */
+		fprintf(fff, "<?xml-stylesheet href=\"%s\" type=\"text/xsl\"?>\n",
+		        xml_escape(style_sheet));
+	}
+
+	/* Write top level tag */
 	fputs("<RftgExport>\n", fff);
 
 	/* Write version */
 	fprintf(fff, "  <Version>%s</Version>\n", RELEASE);
+
+	/* Check for server */
+	if (server && strlen(server))
+	{
+		/* Write server */
+		fprintf(fff, "  <Server>%s</Server>\n", xml_escape(server));
+	}
+
+	/* Check for player */
+	if (player_us != -1)
+	{
+		/* Write player name */
+		fprintf(fff, "  <PlayerName>%s</PlayerName>\n",
+		        xml_escape(g->p[player_us].name));
+	}
 
 	/* Write setup start tag */
 	fputs("  <Setup>\n", fff);
@@ -415,8 +505,8 @@ int export_game(game *g, char *filename, int player_us,
 	fputs("  <Status>\n", fff);
 
 	/* Check for messsage */
-	if (message) fprintf(fff, "    <Message>%s</Message>\n",
-	                     xml_escape(message));
+	if (message)
+		fprintf(fff, "    <Message>%s</Message>\n", xml_escape(message));
 
 	/* Write current round phase */
 	fprintf(fff, "    <Round>%d</Round>\n", g->round);
@@ -486,11 +576,12 @@ int export_game(game *g, char *filename, int player_us,
 		for (i = 0; i < MAX_GOAL; ++i)
 		{
 			/* Skip unused goals */
-			if (!g->goal_active[i]) continue;
+			if ((g->goal_active & (1 << i)) == 0) continue;
 
 			/* Write goal and availability */
 			fprintf(fff, "      <Goal id=\"%d\" claimed=\"%s\">%s</Goal>\n", i,
-			        g->goal_avail[i] ? "no" : "yes", xml_escape(goal_name[i]));
+			        (g->goal_avail & (1 << i)) ? "no" : "yes",
+			        xml_escape(goal_name[i]));
 		}
 
 		/* Write end tag */
@@ -510,7 +601,8 @@ int export_game(game *g, char *filename, int player_us,
 		p_ptr = &g->p[n];
 
 		/* Write player start tag */
-		fprintf(fff, "  <Player id=\"%d\"%s>\n", n,
+		fprintf(fff, "  <Player id=\"%d\"%s%s>\n", n,
+		        p_ptr->ai ? " ai=\"yes\"" : "",
 		        p_ptr->winner ? " winner=\"yes\"" : "");
 
 		/* Write player name */
@@ -585,7 +677,7 @@ int export_game(game *g, char *filename, int player_us,
 			for (i = 0; i < MAX_GOAL; ++i)
 			{
 				/* Check if player has goal */
-				if (p_ptr->goal_claimed[i])
+				if (p_ptr->goal_claimed & (1 << i))
 				{
 					/* Write goal */
 					fprintf(fff, "      <Goal id=\"%d\">%s</Goal>\n",
@@ -719,6 +811,13 @@ int export_game(game *g, char *filename, int player_us,
 
 		/* Write log end tag */
 		fputs("  </Log>\n", fff);
+	}
+
+	/* Check for export callback */
+	if (export_callback)
+	{
+		/* Export extra information */
+		export_callback(fff, gid);
 	}
 
 	/* End top level tag */

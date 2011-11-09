@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,6 +85,9 @@ typedef struct conn
 	/* Username of connected player */
 	char user[80];
 
+	/* Client version */
+	char version[80];
+
 	/* User ID */
 	int uid;
 
@@ -111,6 +114,10 @@ typedef struct conn
 
 } conn;
 
+/*
+ * A special choice for prepare messages.
+ */
+#define CHOICE_PREPARE 999
 
 /*
  * An outstanding choice to be made.
@@ -149,6 +156,9 @@ typedef struct session
 
 	/* Password needed to join this game */
 	char pass[21];
+
+	/* Session number */
+	int sid;
 
 	/* Game number */
 	int gid;
@@ -211,7 +221,7 @@ typedef struct session
 	/* Player(s) being waited upon */
 	int waiting[MAX_PLAYER];
 
-	/* Ticks (roughly 10 seconds) we've been waiting on each player */
+	/* Ticks we've been waiting on each player */
 	int wait_ticks[MAX_PLAYER];
 
 	/* Mutex for access to session variables */
@@ -239,19 +249,86 @@ static session s_list[1024];
 static int num_session;
 
 /*
+ * Tick size (in seconds).
+ */
+static int tick_size = 10;
+
+/*
  * Timeout value (in seconds).
  */
 static int timeout = 60;
 
 /*
- * Kick timeout value (in ten seconds)
+ * Kick timeout value (in ticks).
  */
 static int kick_timeout = 30;
+
+/*
+ * Ping timeout (in seconds).
+ */
+static int ping_timeout = 20;
+
+/*
+ * Inactive game timeout (in seconds).
+ */
+static int game_timeout = 3600;
+
+/*
+ * Log exports folder.
+ */
+static char* export_folder = ".";
+
+/*
+ * Export file style sheet.
+ */
+static char* export_style_sheet = NULL;
+
+/*
+ * Server name.
+ */
+static char* server_name = NULL;
+
+/*
+ * Accept debug messages?
+ */
+static int debug_server = 0;
 
 /*
  * Connection to the database server.
  */
 MYSQL *mysql;
+
+/*
+ * Log message to stdout.
+ */
+static void server_log(char *format, ...)
+{
+	va_list args;
+	time_t raw_time;
+	struct tm* timeinfo;
+	char formatted_time[32];
+
+	/* Get the current time */
+	time(&raw_time);
+
+	/* Get the local time */
+	timeinfo = localtime(&raw_time);
+
+	/* Format the time */
+	strftime(formatted_time, 32, "%m%d %H:%M:%S", timeinfo);
+
+	/* Print the current time */
+	printf("(%s) ", formatted_time);
+
+	/* Forward the log string to printf */
+	va_start(args, format);
+	vprintf(format, args);
+	va_end(args);
+
+	/* End with a newline */
+	printf("\n");
+}
+
 
 /*
  * Check for a user in the database with the given password.
@@ -415,7 +492,7 @@ static int db_new_game(int sid)
 	if (*mysql_error(mysql))
 	{
 		/* Print error */
-		printf("%s\n", mysql_error(mysql));
+		server_log("%s", mysql_error(mysql));
 		exit(1);
 	}
 
@@ -466,6 +543,9 @@ static void db_load_sessions(void)
 	{
 		/* Get pointer to session */
 		s_ptr = &s_list[sid];
+
+		/* Store sid */
+		s_ptr->sid = sid;
 
 		/* Read fields */
 		s_ptr->gid = strtol(row[0], NULL, 0);
@@ -553,7 +633,7 @@ static void db_load_attendance(void)
 		if (i == num_session)
 		{
 			/* Error */
-			printf("Bad attendance: no gid %d\n", gid);
+			server_log("Bad attendance: no gid %d", gid);
 			continue;
 		}
 
@@ -568,6 +648,7 @@ static void db_load_attendance(void)
 
 		/* Set AI control */
 		s_ptr->ai_control[s_ptr->num_users] = ai;
+		s_ptr->g.p[s_ptr->num_users].ai = ai;
 
 		/* Count users */
 		s_ptr->num_users++;
@@ -806,6 +887,41 @@ static void db_save_choices(int sid, int who)
 }
 
 /*
+ * Save the waiting state of a player.
+ */
+static void db_save_waiting(int sid, int who)
+{
+	session *s_ptr = &s_list[sid];
+	char query[1024];
+	char *state_str;
+
+	/* Check waiting status */
+	switch (s_ptr->waiting[who])
+	{
+		case WAIT_READY:
+			state_str = "'READY'";
+			break;
+		case WAIT_BLOCKED:
+			state_str = "'BLOCKED'";
+			break;
+		case WAIT_OPTION:
+			state_str = "'OPTION'";
+			break;
+		default:
+			state_str = "NULL";
+			break;
+	}
+
+	/* Update waiting status */
+	sprintf(query, "UPDATE attendance SET waiting=%s \
+	                WHERE gid=%d AND uid=%d",
+	               state_str, s_ptr->gid, s_ptr->uids[who]);
+
+	/* Run query */
+	mysql_query(mysql, query);
+}
+
+/*
  * Export log of a specific game.
  */
 static void export_log(FILE *fff, int gid)
@@ -893,7 +1009,7 @@ static void db_save_results(int sid)
 	session *s_ptr = &s_list[sid];
 	player *p_ptr;
 	int i, tie;
-	char query[1024];
+	char query[1024], filename[1024];
 
 	/* Save finished choice logs */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -922,10 +1038,20 @@ static void db_save_results(int sid)
 	}
 
 	/* Create file name */
-	sprintf(query, "Game_%06d.xml", s_ptr->gid);
+	sprintf(filename, "%s/Game_%06d.xml", export_folder, s_ptr->gid);
 
 	/* Export game to file */
-	export_game(&s_ptr->g, query, -1, NULL, 0, NULL, export_log, s_ptr->gid);
+	if (export_game(&s_ptr->g, filename, export_style_sheet, server_name,
+	    -1, NULL, 0, NULL, export_log, NULL, s_ptr->gid) < 0)
+	{
+		/* Log error */
+		server_log("Could not export game to %s", filename);
+	}
+	else
+	{
+		/* Log export location */
+		server_log("Game exported to %s", filename);
+	}
 }
 
 /*
@@ -955,7 +1081,7 @@ static void db_save_message(int sid, int uid, char* txt, char* tag)
 	if (*mysql_error(mysql))
 	{
 		/* Print error */
-		printf("%s\n", mysql_error(mysql));
+		server_log("%s", mysql_error(mysql));
 		exit(1);
 	}
 }
@@ -1545,11 +1671,21 @@ static void server_wait(game *g, int who)
 	/* Get session pointer */
 	s_ptr = &s_list[g->session_id];
 
-	/* Wait until player is ready */
-	while (s_ptr->waiting[who])
+	/* Check if we are waiting on player */
+	if (s_ptr->waiting[who])
 	{
-		/* Wait for signal */
-		pthread_cond_wait(&s_ptr->wait_cond, &s_ptr->session_mutex);
+		/* Wait until player is ready */
+		while (s_ptr->waiting[who])
+		{
+			/* Log message */
+			server_log("S:%d waiting on player %d", g->session_id, who);
+
+			/* Wait for signal */
+			pthread_cond_wait(&s_ptr->wait_cond, &s_ptr->session_mutex);
+		}
+
+		/* Log message */
+		server_log("S:%d finished waiting on player %d", g->session_id, who);
 	}
 }
 
@@ -1678,9 +1814,9 @@ static void update_meta(int sid)
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
-		/* Add goal presence to messages */
-		put_integer(s_ptr->g.goal_active[i], &ptr0);
-		put_integer(s_ptr->g.goal_active[i], &ptr1);
+		/* Add goal presence to message */
+		put_integer((s_ptr->g.goal_active & (1 << i)) > 0, &ptr0);
+		put_integer((s_ptr->g.goal_active & (1 << i)) > 0, &ptr1);
 	}
 
 	/* Loop over players */
@@ -1689,6 +1825,14 @@ static void update_meta(int sid)
 		/* Add player's name to messages */
 		put_string(s_ptr->g.p[i].name, &ptr0);
 		put_string(s_ptr->g.p[i].name, &ptr1);
+	}
+
+	/* Loop over players again (since 0.8.1m) */
+	for (i = 0; i < s_ptr->num_users; i++)
+	{
+		/* Add ai flag to message */
+		put_integer(s_ptr->g.p[i].ai, &ptr0);
+		put_integer(s_ptr->g.p[i].ai, &ptr1);
 	}
 
 	/* Finish messages */
@@ -1860,7 +2004,7 @@ static void obfuscate_game(game *ob, game *g, int who)
 			if (j >= g->deck_size)
 			{
 				/* Log message */
-				printf("Failed to find substitute good\n");
+				server_log("Failed to find substitute good");
 				j = 0;
 				break;
 			}
@@ -1880,8 +2024,6 @@ static void obfuscate_game(game *ob, game *g, int who)
  */
 static int player_changed(player *p_ptr, player *q_ptr)
 {
-	int i;
-
 	/* Check for change in actions selected */
 	if (p_ptr->action[0] != q_ptr->action[0]) return 1;
 	if (p_ptr->action[1] != q_ptr->action[1]) return 1;
@@ -1896,13 +2038,10 @@ static int player_changed(player *p_ptr, player *q_ptr)
 	if (p_ptr->bonus_military != q_ptr->bonus_military) return 1;
 	if (p_ptr->bonus_reduce != q_ptr->bonus_reduce) return 1;
 
-	/* Loop over goals */
-	for (i = 0; i < MAX_GOAL; i++)
-	{
-		/* Check for change in goal parameters */
-		if (p_ptr->goal_claimed[i] != q_ptr->goal_claimed[i]) return 1;
-		if (p_ptr->goal_progress[i] != q_ptr->goal_progress[i])return 1;
-	}
+	/* Check for change in goal parameters */
+	if (p_ptr->goal_claimed != q_ptr->goal_claimed) return 1;
+	if (memcmp(p_ptr->goal_progress, q_ptr->goal_progress,
+	           MAX_GOAL * sizeof(int8_t))) return 1;
 
 	/* No change */
 	return 0;
@@ -1965,7 +2104,7 @@ static void update_status_one(int sid, int who)
 			for (j = 0; j < MAX_GOAL; j++)
 			{
 				/* Add whether player has claimed goal */
-				put_integer(p_ptr->goal_claimed[j], &ptr);
+				put_integer((p_ptr->goal_claimed & (1 << j)) > 0, &ptr);
 
 				/* Add player's progress toward goal */
 				put_integer(p_ptr->goal_progress[j], &ptr);
@@ -1981,6 +2120,9 @@ static void update_status_one(int sid, int who)
 			put_integer(p_ptr->phase_bonus_used, &ptr);
 			put_integer(p_ptr->bonus_military, &ptr);
 			put_integer(p_ptr->bonus_reduce, &ptr);
+
+			/* Add whether player has prestige on the tile (since 0.8.1m) */
+			put_integer(p_ptr->prestige_turn, &ptr);
 
 			/* Finish message */
 			finish_msg(msg, ptr);
@@ -2026,7 +2168,16 @@ static void update_status_one(int sid, int who)
 			/* Add covered flag */
 			put_integer(c_ptr->covered, &ptr);
 
-			/* Add known flag (since 0.8.1k) */
+			/* Loop over all powers */
+			for (j = 0; j < c_ptr->d_ptr->num_power; ++j)
+			{
+				/* Put used flag (since 0.8.1l) */
+				put_integer((c_ptr->used & (1 << j)) > 0, &ptr);
+			}
+
+			// TODO: Make AI read this correctly
+
+			/* Add known flag (since 0.8.1n) */
 			put_integer(c_ptr->known, &ptr);
 
 			/* Finish message */
@@ -2038,10 +2189,9 @@ static void update_status_one(int sid, int who)
 	}
 
 	/* Check for change in goal status */
-	if (memcmp(obfus.goal_avail, s_ptr->old[who].goal_avail,
-	           MAX_GOAL * sizeof(int)) ||
+	if (obfus.goal_avail != s_ptr->old[who].goal_avail ||
 	    memcmp(obfus.goal_most, s_ptr->old[who].goal_most,
-	           MAX_GOAL * sizeof(int)))
+	           MAX_GOAL * sizeof(int8_t)))
 	{
 		/* Start at beginning of message buffer */
 		ptr = msg;
@@ -2052,8 +2202,8 @@ static void update_status_one(int sid, int who)
 		/* Copy goal availability and most progress */
 		for (i = 0; i < MAX_GOAL; i++)
 		{
-			/* Put availabiltiy and progress counts */
-			put_integer(s_ptr->g.goal_avail[i], &ptr);
+			/* Put availability and progress counts */
+			put_integer((s_ptr->g.goal_avail & (1 << i)) > 0, &ptr);
 			put_integer(s_ptr->g.goal_most[i], &ptr);
 		}
 
@@ -2191,47 +2341,12 @@ static void server_notify_rotation(game *g, int who)
 }
 
 /*
- * Ask player to prepare choices for the given phase.
- */
-static void server_prepare(game *g, int who, int phase, int arg)
-{
-	session *s_ptr = &s_list[g->session_id];
-
-	/* Don't prepare in simulated games */
-	if (g->simulation) return;
-
-	/* Don't ask players who aren't connected */
-	if (s_ptr->cids[who] < 0) return;
-
-	/* Don't ask AI players to prepare */
-	if (s_ptr->ai_control[who]) return;
-
-	/* Don't ask players who already have choices in log */
-	if (g->p[who].choice_size > g->p[who].choice_pos) return;
-
-	/* Send game updates to session */
-	update_status(g->session_id);
-
-	/* Game is not replaying anymore */
-	s_ptr->replaying = 0;
-
-	/* Ask player to prepare */
-	send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
-	          g->p[who].choice_size, phase, arg);
-
-	/* Player has option to play */
-	s_ptr->waiting[who] = WAIT_OPTION;
-
-	/* Log message */
-	printf("S:%d Asking %d to prepare for phase %d at %d\n", g->session_id, s_ptr->cids[who], phase, g->p[who].choice_size);
-}
-
-/*
  * (Re-)Ask a client to make a game choice.
  */
 static void ask_client(int sid, int who)
 {
 	session *s_ptr = &s_list[sid];
+	game *g = &s_ptr->g;
 	conn *c_ptr;
 	choice *o_ptr;
 	int cid;
@@ -2248,8 +2363,7 @@ static void ask_client(int sid, int who)
 	cid = s_ptr->cids[who];
 
 	/* Check for no outstanding choice for this client */
-	if (s_ptr->waiting[who] == WAIT_READY ||
-	    s_ptr->waiting[who] == WAIT_OPTION)
+	if (s_ptr->waiting[who] == WAIT_READY)
 	{
 		/* Nothing to do */
 		return;
@@ -2262,20 +2376,34 @@ static void ask_client(int sid, int who)
 	c_ptr = &c_list[cid];
 
 	/* Check for choice already received */
-	if (s_ptr->g.p[who].choice_size > s_ptr->g.p[who].choice_pos)
+	if (g->p[who].choice_size > g->p[who].choice_pos)
 	{
 		/* Done */
 		return;
 	}
 
+	/* Check for prepare message */
+	if (o_ptr->type == CHOICE_PREPARE)
+	{
+		/* Log message */
+		server_log("S:%d P:%d Asking %d to prepare for phase %d at %d", g->session_id, who, s_ptr->cids[who], o_ptr->arg1, g->p[who].choice_size);
+
+		/* Ask player to prepare */
+		send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
+				  g->p[who].choice_size, o_ptr->arg1, o_ptr->arg2);
+
+		/* Finished */
+		return;
+	}
+
 	/* Log message */
-	printf("S:%d Asking %d (%s) for choice (type %d) at %d\n", sid, cid, s_ptr->g.p[who].name, o_ptr->type, s_ptr->g.p[who].choice_size);
+	server_log("S:%d P:%d Asking %d (%s) for choice (type %d) at %d", sid, who, cid, g->p[who].name, o_ptr->type, g->p[who].choice_size);
 
 	/* Start choice message */
 	start_msg(&ptr, MSG_CHOOSE);
 
 	/* Add current choice log position */
-	put_integer(s_ptr->g.p[who].choice_size, &ptr);
+	put_integer(g->p[who].choice_size, &ptr);
 
 	/* Add choice type */
 	put_integer(o_ptr->type, &ptr);
@@ -2313,6 +2441,49 @@ static void ask_client(int sid, int who)
 }
 
 /*
+ * Ask player to prepare choices for the given phase.
+ */
+static void server_prepare(game *g, int who, int phase, int arg)
+{
+	int sid = g->session_id;
+	session *s_ptr = &s_list[sid];
+	choice *o_ptr = &s_ptr->out[who];
+
+	/* Don't prepare in simulated games */
+	if (g->simulation) return;
+
+	/* Don't ask AI players to prepare */
+	if (s_ptr->ai_control[who]) return;
+
+	/* Don't ask players who already have choices in log */
+	if (g->p[who].choice_size > g->p[who].choice_pos) return;
+
+	/* Game is not replaying anymore */
+	s_ptr->replaying = 0;
+
+	/* Player has option to play */
+	s_ptr->waiting[who] = WAIT_OPTION;
+
+	/* Save waiting status */
+	db_save_waiting(sid, who);
+
+	/* Log message */
+	server_log("S:%d P:%d OPTION", g->session_id, who);
+
+	/* Save type */
+	o_ptr->type = CHOICE_PREPARE;
+
+	/* Save phase */
+	o_ptr->arg1 = phase;
+
+	/* Save arg */
+	o_ptr->arg2 = arg;
+
+	/* Ask client to respond */
+	ask_client(sid, who);
+}
+
+/*
  * Store the player's next choice.
  */
 static void server_make_choice(game *g, int who, int type, int list[], int *nl,
@@ -2332,6 +2503,12 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 
 	/* Mark player as being waited on */
 	s_ptr->waiting[who] = WAIT_BLOCKED;
+
+	/* Save waiting status */
+	db_save_waiting(sid, who);
+
+	/* Log message */
+	server_log("S:%d P:%d BLOCKED", sid, who);
 
 	/* Start counting ticks waiting */
 	s_ptr->wait_ticks[who] = 0;
@@ -2382,24 +2559,130 @@ static void server_make_choice(game *g, int who, int type, int list[], int *nl,
 }
 
 /*
- * Verify that a decision in the given player's choice log is legal.
+ * Send a "game chat" message to everyone in the given session.
  */
-static int server_verify_choice(game *g, int who, int type, int list[], int *nl,
-                                int special[], int *ns, int arg1, int arg2,
-                                int arg3)
+static void send_gamechat(int sid, int uid, char *user, char *text, int save)
 {
+	char msg[1024], *ptr = msg;
+
+	/* Save message to db */
+	if (save) db_save_message(sid, uid, text, FORMAT_CHAT);
+
+	/* Start at beginning of message */
+	ptr = msg;
+
+	/* Create log message */
+	start_msg(&ptr, MSG_GAMECHAT);
+
+	/* Copy user sending chat to message */
+	put_string(user, &ptr);
+
+	/* Copy chat text to message */
+	put_string(text, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send to session */
+	send_to_session(sid, msg);
+}
+
+/*
+ * Kick a player from the server.
+ */
+static void kick_player(int cid, char *reason)
+{
+	int sid, i;
+	char text[1024];
+
+	/* Print message */
+	server_log("Kicking connection %d for %s", cid, reason);
+
+	/* Send goodbye message */
+	send_msgf(cid, MSG_GOODBYE, "s", reason);
+
+	/* Set state to disconnected */
+	c_list[cid].state = CS_DISCONN;
+
+	/* Close connection */
+	close(c_list[cid].fd);
+
+	/* Clear file descriptor */
+	c_list[cid].fd = -1;
+
+	/* Send disconnect to everyone */
+	send_player(cid);
+
+	/* Check for no session joined */
+	if (c_list[cid].sid < 0) return;
+
+	/* Remember session player was in */
+	sid = c_list[cid].sid;
+
+	/* Remove from session */
+	c_list[cid].sid = -1;
+
+	/* Loop over connections in session */
+	for (i = 0; i < s_list[sid].num_users; i++)
+	{
+		/* Check for match */
+		if (s_list[sid].cids[i] == cid)
+		{
+			/* Clear connection ID */
+			s_list[sid].cids[i] = -1;
+			break;
+		}
+	}
+
+	/* Send session details */
+	send_session(sid);
+
+	/* Check for active session */
+	if (s_list[sid].state == SS_STARTED)
+	{
+		/* Format offline message */
+		sprintf(text, "%s disconnected.", c_list[cid].user);
+
+		/* Send to remaining players in session */
+		send_gamechat(sid, -1, "", text, 0);
+
+		/* Send new waiting status */
+		update_waiting(sid);
+
+		/* Check for kick timeout */
+		if (kick_timeout)
+		{
+			/* Format time to AI control message */
+			sprintf(text, "%s will be set to AI control in %d seconds.",
+			        c_list[cid].user,
+			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * tick_size);
+
+			/* Send to remaining players in session */
+			send_gamechat(sid, -1, "", text, 0);
+		}
+	}
+}
+
+/*
+ * Verify that a decision from a client is choice log is legal.
+ */
+static int verify_choice(session *s_ptr, int who, int type, int list[], int nl,
+                         int special[], int ns)
+{
+	/* XXX Disable this feature for now */
 	return 1;
 }
 
 /*
  * Handle a choice reply message from a client.
  */
-static void handle_choice(int cid, char *ptr)
+static void handle_choice(int cid, char *ptr, int size)
 {
 	session *s_ptr;
 	player *p_ptr;
-	int who, i, num, sid, pos;
-	int *l_ptr;
+	int who, i, sid, pos, type, nl, ns, got_choice = 0;
+	int *l_ptr, *list, *special;
+	char *start = ptr;
 
 	/* Get session ID from player */
 	sid = c_list[cid].sid;
@@ -2428,48 +2711,91 @@ static void handle_choice(int cid, char *ptr)
 	/* Get position in choice log that client is sending */
 	pos = get_integer(&ptr);
 
-	/* Get pointer to end of choice log */
-	l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
-
-	/* Copy choice type to log */
-	*l_ptr++ = get_integer(&ptr);
-
-	/* Log message */
-	printf("S:%d Received choice type %d position %d from %d, current size is %d.\n", sid, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
-
+	/* Check for invalid log position */
 	if (pos != p_ptr->choice_size)
 	{
+		/* Kick player */
+		kick_player(cid, "Invalid message received");
+
+		/* Release lock and discard the rest of the message */
 		pthread_mutex_unlock(&s_ptr->session_mutex);
 		return;
 	}
 
-	/* Copy return value */
-	*l_ptr++ = get_integer(&ptr);
+	/* Get pointer to end of choice log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
 
-	/* Get number of items in list */
-	num = get_integer(&ptr);
-
-	/* Copy number of items to log */
-	*l_ptr++ = num;
-
-	/* Loop over list entries */
-	for (i = 0; i < num; i++)
+	/* Loop over received choices */
+	while (ptr - start < size)
 	{
-		/* Copy item */
+		/* Get choice type */
+		type = get_integer(&ptr);
+
+		/* Check whether we got a real choice */
+		got_choice |= (type != CHOICE_DEBUG);
+
+		/* Copy choice type to log */
+		*l_ptr++ = type;
+
+		/* Log message */
+		server_log("S:%d P:%d Received choice type %d position %d from %d, current size is %d.", sid, who, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
+
+		/* Check for debug choice */
+		if (type == CHOICE_DEBUG && !debug_server)
+		{
+			/* Kick player */
+			kick_player(cid, "This server does not accept debug message");
+
+			/* Release lock and discard the rest of the message */
+			pthread_mutex_unlock(&s_ptr->session_mutex);
+			return;
+		}
+
+		/* Copy return value */
 		*l_ptr++ = get_integer(&ptr);
+
+		/* Get number of items in list */
+		nl = get_integer(&ptr);
+
+		/* Copy number of items to log */
+		*l_ptr++ = nl;
+
+		/* Remember list position */
+		list = l_ptr;
+
+		/* Loop over list entries */
+		for (i = 0; i < nl; i++)
+		{
+			/* Copy item */
+			*l_ptr++ = get_integer(&ptr);
+		}
+
+		/* Get number of special items in list */
+		ns = get_integer(&ptr);
+
+		/* Copy number of special items to log */
+		*l_ptr++ = ns;
+
+		/* Remember special position */
+		special = l_ptr;
+
+		/* Loop over special entries */
+		for (i = 0; i < ns; i++)
+		{
+			/* Copy item */
+			*l_ptr++ = get_integer(&ptr);
+		}
 	}
 
-	/* Get number of special items in list */
-	num = get_integer(&ptr);
-
-	/* Copy number of special items to log */
-	*l_ptr++ = num;
-
-	/* Loop over special entries */
-	for (i = 0; i < num; i++)
+	/* Check for illegal answer */
+	if (!verify_choice(s_ptr, who, type, list, nl, special, ns))
 	{
-		/* Copy item */
-		*l_ptr++ = get_integer(&ptr);
+		/* Kick player for illegal play */
+		kick_player(cid, "Illegal choice!");
+
+		/* Release lock and don't store the answer */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
+		return;
 	}
 
 	/* Mark new size of choice log */
@@ -2485,10 +2811,16 @@ static void handle_choice(int cid, char *ptr)
 	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Check for blocked player */
-	if (s_ptr->waiting[who] == WAIT_BLOCKED)
+	if (s_ptr->waiting[who] == WAIT_BLOCKED && got_choice)
 	{
 		/* Mark player as ready */
 		s_ptr->waiting[who] = WAIT_READY;
+
+		/* Save waiting status */
+		db_save_waiting(sid, who);
+
+		/* Log message */
+		server_log("S:%d P:%d READY", sid, who);
 	}
 
 	/* Mark time of activity */
@@ -2533,6 +2865,12 @@ static void handle_prepare(int cid, char *ptr)
 	{
 		/* Mark player as ready */
 		s_ptr->waiting[who] = WAIT_READY;
+
+		/* Save waiting status */
+		db_save_waiting(sid, who);
+
+		/* Log message */
+		server_log("S:%d P:%d READY", sid, who);
 	}
 
 	/* Signal game thread to continue */
@@ -2545,7 +2883,7 @@ static void handle_prepare(int cid, char *ptr)
 	pthread_mutex_unlock(&s_ptr->session_mutex);
 
 	/* Log message */
-	printf("S:%d Received preparation complete from %d\n", sid, cid);
+	server_log("S:%d P:%d Received preparation complete from %d", sid, who, cid);
 }
 
 /*
@@ -2595,7 +2933,6 @@ decisions server_func =
 	server_make_choice,
 	server_wait,
 	NULL,
-	server_verify_choice,
 	NULL,
 	NULL,
 	server_private_message,
@@ -2664,109 +3001,10 @@ static void accept_conn(int listen_fd)
 	strcpy(c_list[i].user, "");
 
 	/* Print message */
-	printf("New connection %d from %s\n", i, c_list[i].addr);
-}
+	server_log("New connection %d from %s", i, c_list[i].addr);
 
-/*
- * Send a "game chat" message to everyone in the given session.
- */
-static void send_gamechat(int sid, int uid, char *user, char *text, int save)
-{
-	char msg[1024], *ptr = msg;
-
-	/* Save message to db */
-	if (save) db_save_message(sid, uid, text, FORMAT_CHAT);
-
-	/* Start at beginning of message */
-	ptr = msg;
-
-	/* Create log message */
-	start_msg(&ptr, MSG_GAMECHAT);
-
-	/* Copy user sending chat to message */
-	put_string(user, &ptr);
-
-	/* Copy chat text to message */
-	put_string(text, &ptr);
-
-	/* Finish message */
-	finish_msg(msg, ptr);
-
-	/* Send to session */
-	send_to_session(sid, msg);
-}
-
-/*
- * Kick a player from the server.
- */
-static void kick_player(int cid, char *reason)
-{
-	int sid, i;
-	char text[1024];
-
-	/* Print message */
-	printf("Kicking player %d for %s\n", cid, reason);
-
-	/* Send goodbye message */
-	send_msgf(cid, MSG_GOODBYE, "s", reason);
-
-	/* Set state to disconnected */
-	c_list[cid].state = CS_DISCONN;
-
-	/* Close connection */
-	close(c_list[cid].fd);
-
-	/* Clear file descriptor */
-	c_list[cid].fd = -1;
-
-	/* Send disconnect to everyone */
-	send_player(cid);
-
-	/* Check for no session joined */
-	if (c_list[cid].sid < 0) return;
-
-	/* Remember session player was in */
-	sid = c_list[cid].sid;
-
-	/* Remove from session */
-	c_list[cid].sid = -1;
-
-	/* Loop over connections in session */
-	for (i = 0; i < s_list[sid].num_users; i++)
-	{
-		/* Check for match */
-		if (s_list[sid].cids[i] == cid)
-		{
-			/* Clear connection ID */
-			s_list[sid].cids[i] = -1;
-			break;
-		}
-	}
-
-	/* Send session details */
-	send_session(sid);
-
-	/* Check for active session */
-	if (s_list[sid].state == SS_STARTED)
-	{
-		/* Format offline message */
-		sprintf(text, "%s disconnected.", c_list[cid].user);
-
-		/* Send to remaining players in session */
-		send_gamechat(sid, -1, "", text, 0);
-
-		/* Check for kick timeout */
-		if (kick_timeout)
-		{
-			/* Format time to AI control message */
-			sprintf(text, "%s will be set to AI control in %d seconds.",
-			        c_list[cid].user,
-			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * 10);
-
-			/* Send to remaining players in session */
-			send_gamechat(sid, -1, "", text, 0);
-		}
-	}
+	/* Log new connection */
+	server_log("State for connection %d set to INIT", i);
 }
 
 /*
@@ -2865,6 +3103,31 @@ static void leave_game(int sid, int who)
 	db_leave_game(uid, s_ptr->gid);
 }
 
+static void log_waiting(int sid, int who, int state)
+{
+	char *state_str;
+
+	/* Check waiting status */
+	switch (state)
+	{
+		case WAIT_READY:
+			state_str = "READY";
+			break;
+		case WAIT_BLOCKED:
+			state_str = "BLOCKED";
+			break;
+		case WAIT_OPTION:
+			state_str = "OPTION";
+			break;
+		default:
+			state_str = "??";
+			break;
+	}
+
+	/* Log player state */
+	server_log("S:%d P:%d Waiting state is %s", sid, who, state_str);
+}
+
 /*
  * Switch a player to AI control.
  */
@@ -2886,6 +3149,15 @@ static void switch_ai(int sid, int who)
 	/* Client is playing */
 	c_list[cid].state = CS_PLAYING;
 
+	/* Log connection state */
+	server_log("State for connection %d set to PLAYING", cid);
+
+	/* Log game seat */
+	server_log("S:%d P:%d Connection %d joined", sid, who, cid);
+
+	/* Log player state */
+	log_waiting(sid, who, s_ptr->waiting[who]);
+
 	/* Tell client about game state */
 	update_meta(sid);
 
@@ -2894,6 +3166,7 @@ static void switch_ai(int sid, int who)
 
 	/* Mark player as AI */
 	s_ptr->ai_control[who] = 1;
+	s_ptr->g.p[who].ai = 1;
 
 	/* Save AI control in database */
 	db_save_ai_control(sid);
@@ -2912,6 +3185,19 @@ static void switch_ai(int sid, int who)
 		send_gamechat(sid, -1, "", "Note: AI is not trained for the "
 		              "drafting variant", 1);
 	}
+
+	/* Check for prepare message sent */
+	if (s_ptr->waiting[who] == WAIT_OPTION)
+	{
+		/* Remove prepare flag */
+		s_ptr->waiting[who] = WAIT_READY;
+
+		/* Save waiting status */
+		db_save_waiting(sid, who);
+	}
+
+	/* Send new waiting status */
+	update_waiting(sid);
 
 	/* Have AI answer most recent choice question */
 	ask_client(sid, who);
@@ -2949,7 +3235,7 @@ void *run_game(void *arg)
 		/* Check for choices in log */
 		if (s_ptr->g.p[i].choice_size > 0)
 		{
-			/* Set game is replaying */
+			/* Set replaying flag */
 			s_ptr->replaying = 1;
 			break;
 		}
@@ -3001,6 +3287,12 @@ void *run_game(void *arg)
 
 	/* Release mutex */
 	pthread_mutex_unlock(&s_ptr->session_mutex);
+
+	/* Save state */
+	db_save_game_state(s_ptr->sid);
+
+	/* Save results */
+	db_save_results(s_ptr->sid);
 
 	/* Done */
 	return NULL;
@@ -3061,6 +3353,12 @@ static void start_session(int sid)
 		{
 			/* Create AI client connection */
 			s_ptr->cids[i] = new_ai_client(sid);
+			s_ptr->g.p[i].ai = 1;
+		}
+		else
+		{
+			/* Player is not AI-controlled */
+			s_ptr->g.p[i].ai = 0;
 		}
 	}
 
@@ -3106,6 +3404,7 @@ static void start_all_sessions(void)
  */
 static void handle_login(int cid, char *ptr)
 {
+	FILE *fff;
 	session *s_ptr;
 	char user[1024], pass[1024], version[1024];
 	char text[1024];
@@ -3137,7 +3436,7 @@ static void handle_login(int cid, char *ptr)
 	}
 
 	/* Log message */
-	printf("Login attempt from %s (%s)\n", user, c_list[cid].version);
+	server_log("Login attempt from %s (%s)", user, c_list[cid].version);
 
 	/* Check for too old version */
 	if (strcmp(version, "0.8.1") < 0)
@@ -3146,7 +3445,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
 
 		/* Log message */
-		printf("Denied (too old)\n");
+		server_log("Denied (too old)");
 
 		/* Done */
 		return;
@@ -3159,7 +3458,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Client version too new");
 
 		/* Log message */
-		printf("Denied (too new)\n");
+		server_log("Denied (too new)");
 
 		/* Done */
 		return;
@@ -3172,7 +3471,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
 		/* Log message */
-		printf("Denied (illegal username)\n");
+		server_log("Denied (illegal username)");
 
 		/* Done */
 		return;
@@ -3188,7 +3487,7 @@ static void handle_login(int cid, char *ptr)
 			send_msgf(cid, MSG_DENIED, "s", "Illegal username");
 
 			/* Log message */
-			printf("Denied (illegal username)\n");
+			server_log("Denied (illegal username)");
 
 			/* Done */
 			return;
@@ -3207,15 +3506,11 @@ static void handle_login(int cid, char *ptr)
 		/* Check for matching username */
 		if (!strcmp(c_list[i].user, user))
 		{
-			/* Send denied message */
-			send_msgf(cid, MSG_DENIED, "s",
-			          "User already logged in");
+			/* Kick original player */
+			kick_player(i, "User logged in from elsewhere");
 
 			/* Log message */
-			printf("Denied (already logged in)\n");
-
-			/* Done */
-			return;
+			server_log("Kicked old connection");
 		}
 	}
 
@@ -3226,7 +3521,7 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Illegal password length");
 
 		/* Log message */
-		printf("Denied (illegal password length)\n");
+		server_log("Denied (illegal password length)");
 
 		/* Done */
 		return;
@@ -3242,14 +3537,14 @@ static void handle_login(int cid, char *ptr)
 		send_msgf(cid, MSG_DENIED, "s", "Incorrect password");
 
 		/* Log message */
-		printf("Denied (incorrect password)\n");
+		server_log("Denied (incorrect password)");
 
 		/* Done */
 		return;
 	}
 
 	/* Print message */
-	printf("Connection %d logged in with %s\n", cid, user);
+	server_log("Connection %d logged in with user name %s", cid, user);
 
 	/* Set username */
 	strcpy(c_list[cid].user, user);
@@ -3257,11 +3552,46 @@ static void handle_login(int cid, char *ptr)
 	/* Set state to lobby */
 	c_list[cid].state = CS_LOBBY;
 
+	/* Log connection state */
+	server_log("State for connection %d set to LOBBY", cid);
+
+	/* Copy RELEASE information */
+	strcpy(text, RELEASE);
+
+	/* If debug server, append debug information */
+	if (debug_server) strcat(text, "-debug");
+
 	/* Tell client that login was successful */
-	send_msgf(cid, MSG_HELLO, "s", RELEASE);
+	send_msgf(cid, MSG_HELLO, "s", text);
 
 	/* Send welcome chat to client */
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
+
+	/* Open welcome message */
+	fff = fopen(RFTGDIR "/welcome.txt", "r");
+
+	/* Check for success */
+	if (fff)
+	{
+		/* Loop over file */
+		while (1)
+		{
+			/* Read a line */
+			fgets(text, 1024, fff);
+
+			/* Check for end of file */
+			if (feof(fff)) break;
+
+			/* Strip newline */
+			text[strlen(text) - 1] = '\0';
+
+			/* Skip comments and blank lines */
+			if (!text[0] || text[0] == '#') continue;
+
+			/* Send line to player */
+			send_msgf(cid, MSG_CHAT, "ss", "", text);
+		}
+	}
 
 	/* Clear session ID */
 	c_list[cid].sid = -1;
@@ -3305,6 +3635,15 @@ static void handle_login(int cid, char *ptr)
 
 			/* Format message */
 			sprintf(text, "%s reconnected.", user);
+
+			/* Log connection state */
+			server_log("State for connection %d set to PLAYING", cid);
+
+			/* Log game seat */
+			server_log("S:%d P:%d Connection %d joined", i, j, cid);
+
+			/* Log player state */
+			log_waiting(i, j, s_ptr->waiting[j]);
 
 			/* Send to session */
 			send_gamechat(i, -1, "", text, 0);
@@ -3365,6 +3704,9 @@ static void handle_create(int cid, char *ptr)
 
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
+
+	/* Store sid */
+	s_ptr->sid = sid;
 
 	/* Clear password and description */
 	memset(pass, 0, 2048);
@@ -3474,7 +3816,7 @@ static void handle_create(int cid, char *ptr)
 		s_ptr->min_player = s_ptr->max_player;
 
 	/* Insert game into database */
-	s_list[sid].gid = db_new_game(sid);
+	s_ptr->gid = db_new_game(sid);
 
 	/* Have creating player join game */
 	join_game(cid, sid);
@@ -3778,6 +4120,9 @@ static void handle_gameover(int cid, char *ptr)
 	/* Move player back to lobby state */
 	c_list[cid].state = CS_LOBBY;
 
+	/* Log connection state */
+	server_log("State for connection %d set to LOBBY", cid);
+
 	/* Remove player from session */
 	c_list[cid].sid = -1;
 
@@ -3843,6 +4188,9 @@ static void handle_resign(int cid, char *ptr)
 	/* Move player back to lobby state */
 	c_list[cid].state = CS_LOBBY;
 
+	/* Log connection state */
+	server_log("State for connection %d set to LOBBY", cid);
+
 	/* Remove player from session */
 	c_list[cid].sid = -1;
 
@@ -3906,6 +4254,15 @@ static void handle_start(int cid, char *ptr)
 		/* Set client status */
 		c_list[cid].state = CS_PLAYING;
 
+		/* Log connection state */
+		server_log("State for connection %d set to PLAYING", cid);
+
+		/* Log game seat */
+		server_log("S:%d P:%d Connection %d joined", sid, i, cid);
+
+		/* Log player state */
+		log_waiting(sid, i, s_ptr->waiting[i]);
+
 		/* Send game started message */
 		send_msgf(cid, MSG_START, "");
 
@@ -3914,7 +4271,7 @@ static void handle_start(int cid, char *ptr)
 	}
 
 	/* Message */
-	printf("Starting game %s (session %d)\n", s_ptr->desc, sid);
+	server_log("Starting game %s (session %d)", s_ptr->desc, sid);
 
 	/* Format game number message */
 	sprintf(text, "Starting game #%d", s_ptr->gid);
@@ -4049,7 +4406,7 @@ static void handle_msg(int cid)
 		case MSG_CHOOSE:
 
 			/* Handle choice made */
-			handle_choice(cid, ptr);
+			handle_choice(cid, ptr, size - 8);
 			break;
 
 		/* Done preparing */
@@ -4078,7 +4435,7 @@ static void handle_msg(int cid)
 		default:
 
 			/* Log message */
-			printf("Unknown message type %d\n", type);
+			server_log("Unknown message type %d", type);
 			break;
 
 			/* Kick player */
@@ -4212,12 +4569,6 @@ static void do_housekeeping(void)
 			/* Do not clear sessions that still have players */
 			if (num) continue;
 
-			/* Save state */
-			db_save_game_state(i);
-
-			/* Save results */
-			db_save_results(i);
-
 			/* Mark session as empty once more */
 			s_ptr->state = SS_EMPTY;
 		}
@@ -4244,8 +4595,7 @@ static void do_housekeeping(void)
 		}
 
 		/* Check for no recent data from client */
-		if (timeout &&
-		    cur_time - c_list[i].last_seen > timeout - 40)
+		if (cur_time - c_list[i].last_seen > ping_timeout)
 		{
 			/* Send client a ping */
 			send_msgf(i, MSG_PING, "");
@@ -4278,7 +4628,7 @@ static void do_housekeeping(void)
 		if (num) continue;
 
 		/* Check for long time since join activity */
-		if (time(NULL) - s_ptr->last_join > 3600)
+		if (game_timeout > 0 && time(NULL) - s_ptr->last_join > game_timeout)
 		{
 			/* Abandon session */
 			abandon_session(i);
@@ -4370,8 +4720,9 @@ static void do_housekeeping(void)
 			{
 				/* Create warning message */
 				sprintf(msg, "WARNING: %s will be set to AI "
-				        "control in 10 seconds.",
-				        c_list[s_ptr->cids[j]].user);
+				        "control in %d second%s.",
+				        c_list[s_ptr->cids[j]].user,
+				        tick_size, PLURAL(tick_size));
 
 				/* Give warning */
 				send_gamechat(i, -1, "", msg, 0);
@@ -4405,6 +4756,28 @@ int main(int argc, char *argv[])
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
 	{
+		/* Check for help */
+		if (!strcmp(argv[i], "-h"))
+		{
+			/* Print usage */
+			printf("Race for the Galaxy server, version " RELEASE "\n\n");
+			printf("Arguments:\n");
+			printf("  -p     Port number to listen to. Default: 16309\n");
+			printf("  -d     MySQL database name. Default: \"rftg\"\n");
+			printf("  -t     Client timeout in seconds. 0 means do not kick players. Default: 60\n");
+			printf("  -k     Timeout to replace players with A.I. in ticks (%d seconds).\n", tick_size);
+			printf("            0 means do not replace players. Default: 30\n");
+			printf("  -gt    Timeout to drop games that haven't been started yet. Default: 3600\n");
+			printf("  -e     Folder to put exported games. Default: \".\"\n");
+			printf("  -s     Server name (to be used in exports). Default: [none]\n");
+			printf("  -ss    XSLT style sheets for exported games. Default: [none]\n");
+			printf("  -debug Accept debug card messages.\n");
+			printf("  -h     Print this usage text and exit.\n\n");
+			printf("For more information, see the following web sites:\n");
+			printf("  http://keldon.net/rftg\n  http://dl.dropbox.com/u/7379896/rftg/index.html\n");
+			exit(1);
+		}
+
 		/* Check for port number */
 		if (!strcmp(argv[i], "-p"))
 		{
@@ -4422,20 +4795,56 @@ int main(int argc, char *argv[])
 		/* Check for timeout settings */
 		if (!strcmp(argv[i], "-t"))
 		{
-			/* Set database name */
+			/* Set new timeouts */
 			timeout = atoi(argv[++i]);
+			ping_timeout = timeout < 50 ? 10 : timeout - 40;
 		}
 
 		/* Check for kick timeout settings */
 		if (!strcmp(argv[i], "-k"))
 		{
-			/* Set database name */
+			/* Set new kick timeout */
 			kick_timeout = atoi(argv[++i]);
+		}
+
+		/* Check for game timeout settings */
+		if (!strcmp(argv[i], "-gt"))
+		{
+			/* Set new game timeout */
+			game_timeout = atoi(argv[++i]);
+		}
+
+		/* Check for server name */
+		if (!strcmp(argv[i], "-s"))
+		{
+			/* Set server name */
+			server_name = argv[++i];
+		}
+
+		/* Check for exports folder */
+		if (!strcmp(argv[i], "-e"))
+		{
+			/* Set exports folder */
+			export_folder = argv[++i];
+		}
+
+		/* Check for export style sheet */
+		if (!strcmp(argv[i], "-ss"))
+		{
+			/* Set style sheet */
+			export_style_sheet = argv[++i];
+		}
+
+		/* Check for debug server */
+		if (!strcmp(argv[i], "-debug"))
+		{
+			/* Set the debug flag */
+			debug_server = 1;
 		}
 	}
 
 	/* Read card library */
-	if (read_cards() < 0)
+	if (read_cards(NULL) < 0)
 	{
 		/* Exit */
 		exit(1);
@@ -4448,7 +4857,7 @@ int main(int argc, char *argv[])
 	if (!mysql)
 	{
 		/* Print error and exit */
-		printf("Couldn't initialize database library!\n");
+		server_log("Couldn't initialize database library!");
 		exit(1);
 	}
 
@@ -4456,7 +4865,7 @@ int main(int argc, char *argv[])
 	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, db, 0, NULL, 0))
 	{
 		/* Print error and exit */
-		printf("Database connection: %s\n", mysql_error(mysql));
+		server_log("Database connection: %s", mysql_error(mysql));
 		exit(1);
 	}
 
@@ -4510,7 +4919,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Print ready message */
-	printf("Server ready. Waiting for connections...\n");
+	server_log("Server ready. Listening on port %d...", port);
 
 	/* Loop forever */
 	while (1)
@@ -4554,8 +4963,8 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		/* Wait no more than 10 seconds */
-		sel_timeout.tv_sec = 10;
+		/* Wait no more than one tick */
+		sel_timeout.tv_sec = tick_size;
 		sel_timeout.tv_usec = 0;
 
 		/* Wait for activity on any connection */
@@ -4591,7 +5000,7 @@ int main(int argc, char *argv[])
 		}
 
 		/* Check time since last housekeeping */
-		if (time(NULL) - last_housekeep >= 10)
+		if (time(NULL) - last_housekeep >= tick_size)
 		{
 			/* Perform housekeeping */
 			do_housekeeping();

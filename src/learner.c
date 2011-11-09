@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, October 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 	my_game.random_seed = time(NULL);
 
 	/* Read card database */
-	if (read_cards() < 0)
+	if (read_cards(NULL) < 0)
 	{
 		/* Exit */
 		exit(1);

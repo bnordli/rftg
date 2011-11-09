@@ -64,6 +64,9 @@ typedef struct options
 	/* Always display key cues */
 	int key_cues;
 
+	/* Auto select forced choices */
+	int auto_select;
+
 	/* Server name to connect to */
 	char *server_name;
 
@@ -75,6 +78,9 @@ typedef struct options
 
 	/* Password */
 	char *password;
+
+	/* Export style sheet */
+	char *export_style_sheet;
 
 	/* Game description when creating */
 	char *game_desc;
@@ -95,8 +101,8 @@ typedef struct options
 	/* Autosave */
 	int auto_save;
 
-	/* Save log at end of game */
-	int save_log;
+	/* Export game at end of game */
+	int auto_export;
 
 	/* Colored log */
 	int colored_log;
@@ -113,8 +119,11 @@ typedef struct options
 	/* Last save location */
 	char *last_save;
 
-	/* Data folder location */
+	/* Data folder (autosave) location */
 	char *data_folder;
+
+	/* Export folder location */
+	char *export_folder;
 
 } options;
 
@@ -134,18 +143,20 @@ extern int player_us;
 extern int restart_loop;
 
 extern int client_state;
-extern int new_server;
+extern char server_version[30];
+extern int debug_server;
 extern int waiting_player[MAX_PLAYER];
 
 extern void save_prefs(void);
 extern void reset_cards(game *g, int color_hand, int color_table);
+extern void reset_status(game *g, int who);
 extern void redraw_hand(void);
 extern void redraw_table(void);
 extern void redraw_status(void);
 extern void redraw_goal(void);
 extern void redraw_phase(void);
 extern void redraw_everything(void);
-extern void modify_gui(void);
+extern void modify_gui(int reset_card);
 extern void reset_gui(void);
 extern void switch_view(int lobby, int chat);
 extern void gui_client_state_changed(int playing_game, int making_choice);

@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, June 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,9 +41,14 @@ static GSource *server_src;
 int client_state = CS_DISCONN;
 
 /*
- * Whether we play against a new server or not.
+ * The version of the server we are connected to.
  */
-int new_server;
+char server_version[30];
+
+/*
+ * Whether the connected server accepts debug choices.
+ */
+int debug_server;
 
 /*
  * Our joined session ID.
@@ -580,10 +585,11 @@ static void handle_game_player(char *ptr)
 /*
  * Handle a message about game parameters.
  */
-static void handle_status_meta(char *ptr)
+static void handle_status_meta(char *ptr, int size)
 {
 	char name[1024];
 	int i;
+	char *start = ptr;
 
 	/* Read basic game parameters */
 	real_game.num_players = get_integer(&ptr);
@@ -609,7 +615,16 @@ static void handle_status_meta(char *ptr)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Read goal presence */
-		real_game.goal_active[i] = get_integer(&ptr);
+		if (get_integer(&ptr))
+		{
+			/* Set goal presence */
+			real_game.goal_active |= 1 << i;
+		}
+		else
+		{
+			/* Clear goal presence */
+			real_game.goal_active &= ~(1 << i);
+		}
 	}
 
 	/* Loop over players */
@@ -622,21 +637,33 @@ static void handle_status_meta(char *ptr)
 		real_game.p[i].name = strdup(name);
 	}
 
+	/* Check for ai information (since 0.8.1m) */
+	if (size > ptr - start)
+	{
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; i++)
+		{
+			/* Copy ai flag */
+			real_game.p[i].ai = get_integer(&ptr);
+		}
+	}
+
 	/* Redraw status areas */
 	redraw_status();
 	redraw_goal();
 
 	/* Modify GUI for expansion and number of players */
-	modify_gui();
+	modify_gui(TRUE);
 }
 
 /*
  * Handle a status update about a player.
  */
-static void handle_status_player(char *ptr)
+static void handle_status_player(char *ptr, int size)
 {
 	player *p_ptr;
 	int x;
+	char *start = ptr;
 
 	/* Get player index */
 	x = get_integer(&ptr);
@@ -655,7 +682,16 @@ static void handle_status_player(char *ptr)
 	for (x = 0; x < MAX_GOAL; x++)
 	{
 		/* Read goal claimed */
-		p_ptr->goal_claimed[x] = get_integer(&ptr);
+		if (get_integer(&ptr))
+		{
+			/* Set goal claimed */
+			p_ptr->goal_claimed |= 1 << x;
+		}
+		else
+		{
+			/* Clear goal claimed */
+			p_ptr->goal_claimed &= ~(1 << x);
+		}
 
 		/* Real goal progress */
 		p_ptr->goal_progress[x] = get_integer(&ptr);
@@ -672,6 +708,13 @@ static void handle_status_player(char *ptr)
 	p_ptr->bonus_military = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 
+	/* Check for prestige on the tile information (since 0.8.1m) */
+	if (size > ptr - start)
+	{
+		/* Copy prestige information */
+		p_ptr->prestige_turn = get_integer(&ptr);
+	}
+
 	/* Redraw status information later */
 	status_updated = 1;
 }
@@ -679,11 +722,12 @@ static void handle_status_player(char *ptr)
 /*
  * Handle a status update about a card.
  */
-static void handle_status_card(char *ptr)
+static void handle_status_card(char *ptr, int size)
 {
 	card *c_ptr;
-	int x;
+	int x, i;
 	int owner, where, start_owner, start_where;
+	char *start = ptr;
 
 	/* Read card index */
 	x = get_integer(&ptr);
@@ -718,6 +762,26 @@ static void handle_status_card(char *ptr)
 	cards_updated = 1;
 	status_updated = 1;
 
+	/* Check for 'used' flags (since 0.8.1l) */
+	if (size > ptr - start)
+	{
+		/* Loop over all powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
+		{
+			/* Read used flag */
+			if (get_integer(&ptr))
+			{
+				/* Set used flag */
+				c_ptr->used |= 1 << i;
+			}
+			else
+			{
+				/* Clear used flag */
+				c_ptr->used &= ~(1 << i);
+			}
+		}
+	}
+
 	/* Track latest played card */
 	if (c_ptr->owner >= 0 &&
 	    c_ptr->order > real_game.p[c_ptr->owner].table_order)
@@ -737,8 +801,19 @@ static void handle_status_goal(char *ptr)
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
-		/* Read goal availability and progress */
-		real_game.goal_avail[i] = get_integer(&ptr);
+		/* Read goal availability */
+		if (get_integer(&ptr))
+		{
+			/* Set goal availability */
+			real_game.goal_avail |= 1 << i;
+		}
+		else
+		{
+			/* Clear goal availability */
+			real_game.goal_avail &= ~(1 << i);
+		}
+
+		/* Read goal progress */
 		real_game.goal_most[i] = get_integer(&ptr);
 	}
 
@@ -796,6 +871,13 @@ static void handle_status_misc(char *ptr)
 	/* Check for update in status */
 	if (status_updated)
 	{
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; i++)
+		{
+			/* Reset status information for player */
+			reset_status(&real_game, i);
+		}
+
 		/* Redraw status areas */
 		redraw_status();
 
@@ -809,13 +891,33 @@ static void handle_status_misc(char *ptr)
  */
 static void handle_waiting(char *ptr)
 {
-	int i;
+	int i, waiting_for_server = TRUE;
+	char *msg;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Get wait status */
 		waiting_player[i] = get_integer(&ptr);
+
+		/* Check if we are waiting for the player */
+		if (i != player_us && waiting_player[i] == WAIT_BLOCKED)
+		{
+			/* Remember we are waiting for a player */
+			waiting_for_server = FALSE;
+		}
+	}
+
+	/* Don't update the prompt if the user is currently making a choice */
+	if (!making_choice)
+	{
+		/* Select appropriate message */
+		if (waiting_for_server) msg = "Waiting for server";
+		else if (real_game.num_players == 2) msg = "Waiting for opponent";
+		else msg = "Waiting for opponents";
+
+		/* Reset action prompt */
+		gtk_label_set_text(GTK_LABEL(action_prompt), msg);
 	}
 
 	/* Update status areas */
@@ -1013,7 +1115,6 @@ static decisions prepare_func =
 	NULL,
 	NULL,
 	NULL,
-	NULL,
 };
 
 /*
@@ -1157,8 +1258,19 @@ static gboolean message_read(gpointer data)
 		/* Login successful */
 		case MSG_HELLO:
 
+			/* Assume no server version */
+			strcpy(server_version, "");
+			debug_server = 0;
+
 			/* Only new servers send version information */
-			new_server = (size > 8);
+			if (size > 8)
+			{
+				/* Get server version */
+				get_string(server_version, &ptr);
+
+				/* Check for debug server */
+				debug_server = strstr(server_version, "-debug") != NULL;
+			}
 
 			/* Set state */
 			client_state = CS_LOBBY;
@@ -1340,6 +1452,9 @@ static gboolean message_read(gpointer data)
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			                   "Waiting for server");
 
+			/* Client can be updated */
+			prevent_update = 0;
+
 			/* Revert to game view */
 			switch_view(0, 1);
 
@@ -1425,7 +1540,7 @@ static gboolean message_read(gpointer data)
 				                                 chat_buffer,
 				                                 &end_iter,
 				                                 text, -1,
-				                                 FORMAT_EM,
+				                                 FORMAT_CHAT,
 				                                 NULL);
 			}
 			else
@@ -1488,7 +1603,7 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_META:
 
 			/* Handle message */
-			handle_status_meta(ptr);
+			handle_status_meta(ptr, size - 8);
 
 			/* XXX Do not free data */
 			return FALSE;
@@ -1497,14 +1612,14 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_PLAYER:
 
 			/* Handle message */
-			handle_status_player(ptr);
+			handle_status_player(ptr, size - 8);
 			break;
 
 		/* Card status update */
 		case MSG_STATUS_CARD:
 
 			/* Handle message */
-			handle_status_card(ptr);
+			handle_status_card(ptr, size - 8);
 			break;
 
 		/* Goal status update */
@@ -1586,8 +1701,8 @@ static gboolean message_read(gpointer data)
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			           "Game Over - Press Done to return to lobby");
 
-			/* Save log */
-			save_log();
+			/* Auto export game */
+			auto_export();
 
 			/* Enable action button */
 			gtk_widget_set_sensitive(action_button, TRUE);
@@ -1618,7 +1733,8 @@ static gboolean message_read(gpointer data)
 			break;
 
 		default:
-			printf("Unknown message type %d\n", type);
+			sprintf(text, "Unknown message type %d\n", type);
+			display_error(text);
 			break;
 	}
 
@@ -1664,7 +1780,7 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 	if (x > 1024)
 	{
 		/* Error */
-		printf("Received too long message!\n");
+		display_error("Received too long message!\n");
 		exit(1);
 	}
 
@@ -1718,7 +1834,7 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 		if (x < 8)
 		{
 			/* Print error */
-			printf("Got too small message!\n");
+			display_error("Got too small message!\n");
 			exit(1);
 		}
 
@@ -2122,7 +2238,7 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
-		/* Sending RELEASE since 0.8.1k */
+		/* RELEASE since 0.8.1k */
 		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
 		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
