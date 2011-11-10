@@ -1082,6 +1082,16 @@ static int load_images(void)
 
 		/* Load image */
 		image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+
+		/* Check for error */
+		if (!image_cache[i])
+		{
+			/* Try current folder */
+			sprintf(fn, "image/card%03d.jpg", i);
+
+			/* Load image */
+			image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+		}
 	}
 
 	/* Loop over goals */
@@ -1114,6 +1124,16 @@ static int load_images(void)
 
 			/* Load image */
 			icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+
+			/* Check for error */
+			if (!icon_cache[i])
+			{
+				/* Try current folder */
+				sprintf(fn, "icon%03d.png", i);
+
+				/* Load image */
+				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+			}
 		}
 	}
 
