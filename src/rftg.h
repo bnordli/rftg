@@ -855,7 +855,7 @@ typedef struct game
 	int8_t takeover_disabled;
 
 	/* Game variant */
-	int variant;
+	int8_t variant;
 
 	/* Size of deck in use */
 	int16_t deck_size;

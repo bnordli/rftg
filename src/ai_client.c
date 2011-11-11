@@ -208,7 +208,23 @@ static void handle_status_card(char *ptr)
 	/* Read covered by good flag */
 	c_ptr->covered = get_integer(&ptr);
 
-	/* Read known flags */
+	/* Loop over all powers */
+	for (j = 0; j < c_ptr->d_ptr->num_power; ++j)
+	{
+		/* Read used flag (since 0.8.1l) */
+		if (get_integer(&ptr))
+		{
+			/* Set used flag */
+			c_ptr->used |= 1 << j;
+		}
+		else
+		{
+			/* Clear used flag */
+			c_ptr->used &= ~(1 << j);
+		}
+	}
+
+	/* Read known flags (since 0.8.1n) */
 	c_ptr->known = get_integer(&ptr);
 
 	/* Set known flags for active and revealed cards */

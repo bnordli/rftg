@@ -4478,7 +4478,7 @@ void redraw_status(void)
 	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
 
 	/* Skip draw and discard icons in variant games */
-	if (real_game.variant)
+	if (!real_game.variant)
 	{
 		/* Build deck image */
 		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
@@ -11213,29 +11213,6 @@ static void update_sensitivity()
 }
 
 /*
- * Update button sensitivities.
- */
-static void update_sensitivity()
-{
-	int i;
-
-	/* Set advanced checkbox sensitivity */
-	gtk_widget_set_sensitive(advanced_check, next_player == 2);
-
-	/* Set goal disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0);
-
-	/* Set takeover disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1);
-
-	/* Set player radio sensitivities */
-	for (i = 0; player_labels[i]; ++i)
-	{
-		gtk_widget_set_sensitive(num_players_radio[i], i < next_exp + 3);
-	}
-}
-
-/*
  * React to an expansion level button being toggled.
  */
 static void exp_toggle(GtkToggleButton *button, gpointer data)
@@ -11573,9 +11550,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(advanced_check),
 	                             opt.advanced);
 
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  advanced_check);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
 
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
@@ -11584,9 +11560,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_goal_check),
 	                             opt.disable_goal);
 
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_goal_check);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), disable_goal_check);
 
 	/* Create check box for disabled takeovers */
 	disable_takeover_check =
@@ -11596,7 +11571,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_takeover_check),
 	                             opt.disable_takeover);
 
-	/* Add checkbox to dialog box */
+	/* Add checkbox to options box */
 	gtk_container_add(GTK_CONTAINER(options_box), disable_takeover_check);
 
 	/* Create frame around buttons */

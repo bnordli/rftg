@@ -876,7 +876,6 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 	}
 }
 
-
 /*
  * Look up a game state in the result cache.
  */

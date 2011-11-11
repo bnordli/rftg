@@ -381,11 +381,12 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 /*
  * Handle a new open game message.
  */
-static void handle_open_game(char *ptr)
+static void handle_open_game(char *ptr, int size)
 {
 	int x, y, new_game = FALSE;
 	char buf[1024];
 	GtkTreeIter list_iter;
+	char *start = ptr;
 
 	/* Read session ID */
 	x = get_integer(&ptr);
@@ -459,10 +460,11 @@ static void handle_open_game(char *ptr)
 	/* Set disable options */
 	gtk_tree_store_set(game_list, &list_iter, 7, x, 8, y, -1);
 
-	/* Check for new server */
-	if (new_server)
+	/* Check for server supporting variants */
+	if (strlen(server_version) > 5 &&
+	    strcmp("0.8.1n", server_version) <= 0)
 	{
-		/* Read variant option (since 0.8.1k) */
+		/* Read variant option (since 0.8.1n) */
 		x = get_integer(&ptr);
 	}
 	else
@@ -598,8 +600,9 @@ static void handle_status_meta(char *ptr, int size)
 	real_game.goal_disabled = get_integer(&ptr);
 	real_game.takeover_disabled = get_integer(&ptr);
 
-	/* Check for new server */
-	if (new_server)
+	/* Check for server supporting variants */
+	if (strlen(server_version) > 5 &&
+	    strcmp("0.8.1n", server_version) <= 0)
 	{
 		/* Read variant parameter */
 		real_game.variant = get_integer(&ptr);
@@ -780,6 +783,13 @@ static void handle_status_card(char *ptr, int size)
 				c_ptr->used &= ~(1 << i);
 			}
 		}
+	}
+
+	/* Check for 'used' flags (since 0.8.1n) */
+	if (size > ptr - start)
+	{
+		/* Read known flags */
+		c_ptr->known = get_integer(&ptr);
 	}
 
 	/* Track latest played card */
@@ -1379,7 +1389,7 @@ static gboolean message_read(gpointer data)
 		case MSG_OPENGAME:
 
 			/* Handle message */
-			handle_open_game(ptr);
+			handle_open_game(ptr, size - 8);
 			break;
 
 		/* A player in a game */

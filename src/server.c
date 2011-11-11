@@ -94,9 +94,6 @@ typedef struct conn
 	/* IP address of remote client */
 	char addr[80];
 
-	/* Client version */
-	char version[80];
-
 	/* Session this player has joined (if any) */
 	int sid;
 
@@ -1270,9 +1267,9 @@ static int client_supports(int cid, int feature)
 
 		/* Drafting */
 		case FEATURE_DRAFTING:
-			/* Supported in release 0.8.1k and above */
-			return !strncmp("0.8.1", c_list[cid].version, 5) &&
-			       c_list[cid].version[5] >= 'k';
+			/* Supported in release 0.8.1n and above */
+			return strlen(c_list[cid].version) > 5 &&
+			       strcmp("0.8.1n", c_list[cid].version) <= 0;
 		default:
 			return 1;
 	}
@@ -1464,7 +1461,7 @@ static void send_session_one(int sid, int cid)
 		if (s_ptr->variant && !client_supports(cid, FEATURE_DRAFTING)) return;
 
 		/* Send message to client */
-		/* Variant since 0.8.1k */
+		/* Variant since 0.8.1n */
 		send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
 		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
 		          s_ptr->min_player, s_ptr->max_player,
@@ -1808,7 +1805,7 @@ static void update_meta(int sid)
 	put_integer(s_ptr->disable_goal, &ptr1);
 	put_integer(s_ptr->disable_takeover, &ptr1);
 
-	/* Add variant information only to msg1 (since 0.8.1k) */
+	/* Add variant information only to msg1 (since 0.8.1n) */
 	put_integer(s_ptr->variant, &ptr1);
 
 	/* Loop over goals */
@@ -1859,11 +1856,7 @@ static void update_meta(int sid)
 			/* Send new format to client */
 			send_msg(cid, msg1);
 		}
-	}
 
-	/* Loop over players */
-	for (i = 0; i < s_ptr->num_users; i++)
-	{
 		/* Clear old game structure */
 		memset(&s_ptr->old[i], 0, sizeof(game));
 	}
@@ -2174,8 +2167,6 @@ static void update_status_one(int sid, int who)
 				/* Put used flag (since 0.8.1l) */
 				put_integer((c_ptr->used & (1 << j)) > 0, &ptr);
 			}
-
-			// TODO: Make AI read this correctly
 
 			/* Add known flag (since 0.8.1n) */
 			put_integer(c_ptr->known, &ptr);

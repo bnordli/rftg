@@ -10430,6 +10430,30 @@ void begin_game(game *g)
 			/* Collapse list */
 			start_blue[n] = start_blue[--num_start_blue];
 
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+						g->p[i].name,
+						g->deck[start_picks[i][0]].d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
+
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+						g->p[i].name,
+						g->deck[start_picks[i][1]].d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
+
 			/* XXX Move cards to discard */
 			discard_card(g, i, start_picks[i][0]);
 			discard_card(g, i, start_picks[i][1]);
@@ -10450,36 +10474,6 @@ void begin_game(game *g)
 		{
 			/* Separate the deck */
 			separate_decks(g, 2);
-		}
-
-		/* Message */
-		if (g->p[i].control->private_message)
-		{
-			/* Format message */
-			sprintf(msg, "%s draws the start world %s.\n",
-				    g->p[i].name,
-				    c_ptr->d_ptr->name);
-
-			/* Send message */
-			g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
-		}
-
-		/* Get card pointer to second start choice */
-		c_ptr = &g->deck[start_picks[i][1]];
-
-		/* XXX Move card to discard */
-		c_ptr->where = WHERE_DISCARD;
-
-		/* Message */
-		if (g->p[i].control->private_message)
-		{
-			/* Format message */
-			sprintf(msg, "%s draws the start world %s.\n",
-				    g->p[i].name,
-				    c_ptr->d_ptr->name);
-
-			/* Send message */
-			g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
 		}
 
 		/* Loop over players again */
