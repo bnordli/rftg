@@ -1600,7 +1600,6 @@ static int predict_action_player(game *g, int who, int n)
  */
 static void predict_action(game *g, int who, double prob[MAX_ACTION])
 {
-	player *p_ptr;
 	int i, n = 0, count, clock, max;
 
 	/* Clear inputs of role network */
@@ -1638,9 +1637,6 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION])
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
-		/* Get player pointer */
-		p_ptr = &g->p[i];
-
 		/* Count number of active cards */
 		count = count_player_area(g, i, WHERE_ACTIVE);
 
@@ -3807,13 +3803,9 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
 static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
                           int special[], int *num_special, int mil_only)
 {
-	player *p_ptr;
 	double b_s = -1;
 	int n = 0, n_used = 0;
 	int best = 0, best_special = 0, i;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
 
 	/* XXX Don't look at more than 15 cards to pay with */
 	if (*num > 15) *num = 15;
@@ -3864,7 +3856,6 @@ static int ai_choose_takeover(game *g, int who, int list[], int *num,
                               int special[], int *num_special)
 {
 	game sim;
-	player *p_ptr;
 	double score, b_s = -1;
 	int best = -1, best_special = 0;
 	int match;
@@ -3895,9 +3886,6 @@ static int ai_choose_takeover(game *g, int who, int list[], int *num,
 			/* Ensure this power can be used against this world */
 			if (!takeover_callback(&sim, special[i], list[j]))
 				continue;
-
-			/* Get player pointer */
-			p_ptr = &sim.p[who];
 
 			/* Mark takeover */
 			sim.takeover_target[sim.num_takeover] = list[j];
@@ -4144,13 +4132,9 @@ static void ai_choose_defend(game *g, int who, int which, int opponent,
                              int deficit, int list[], int *num,
                              int special[], int *num_special)
 {
-	player *p_ptr;
 	double b_s = -1;
 	int n = 0, n_used = 0;
 	int best = 0, best_special = 0, i;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
 
 	/* XXX Don't look at more than 30 cards to pay with */
 	if (*num > 30) *num = 30;
@@ -5307,7 +5291,6 @@ static int ai_choose_ante(game *g, int who, int list[], int num)
 static int ai_choose_keep(game *g, int who, int list[], int num)
 {
 	game sim;
-	card *c_ptr;
 	double score, b_s = -1;
 	int i, b_i = -1;
 
@@ -5316,9 +5299,6 @@ static int ai_choose_keep(game *g, int who, int list[], int num)
 	{
 		/* Simulate game */
 		simulate_game(&sim, g, who);
-
-		/* Get card pointer */
-		c_ptr = &sim.deck[list[i]];
 
 		/* Take card and put it in hand */
 		move_card(&sim, list[i], who, WHERE_HAND);

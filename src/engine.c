@@ -2578,15 +2578,11 @@ static void pay_devel(game *g, int who, int cost)
  */
 void develop_action(game *g, int who, int placing)
 {
-	player *p_ptr;
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
 	char* name;
 	int i, n, cost;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
 
 	/* Get card placed */
 	c_ptr = &g->deck[placing];
@@ -6165,11 +6161,7 @@ void phase_settle(game *g)
 int payment_callback(game *g, int who, int which, int list[], int num,
                      int special[], int num_special, int mil_only)
 {
-	player *p_ptr;
 	card *c_ptr;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
 
 	/* Get pointer of card being played */
 	c_ptr = &g->deck[which];
@@ -6994,11 +6986,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
  */
 static void consume_discard(game *g, int who, int c_idx, int o_idx)
 {
-	player *p_ptr;
 	int list[MAX_DECK], n = 0;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
 
 	/* Get cards in hand */
 	n = get_player_area(g, who, list, WHERE_HAND);
@@ -7910,12 +7898,8 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
  */
 static void discard_produce(game *g, int who, int world, int c_idx, int o_idx)
 {
-	player *p_ptr;
 	int list[MAX_DECK], n = 0;
 	int special[MAX_DECK], num_special = 0;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
 
 	/* Get cards in hand */
 	n = get_player_area(g, who, list, WHERE_HAND);
@@ -10031,16 +10015,12 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 {
 	char msg[1024];
 	player *p_ptr = &g->p[who];
-	card *c_ptr;
 
 	/* Ensure exactly one start world chosen */
 	if (ns != 1) return 0;
 
 	/* Remember start card */
 	p_ptr->start = special[0];
-
-	/* Get card pointer of start world */
-	c_ptr = &g->deck[special[0]];
 
 	/* Check for 2 cards discarded */
 	if (n != 2) return 0;

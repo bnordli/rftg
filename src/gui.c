@@ -2721,14 +2721,11 @@ void redraw_goal(void)
 {
 	GtkWidget *image;
 	GdkPixbuf *buf;
-	int i, n;
+	int i;
 	int width, height, goal_h, y = 0;
 
 	/* First destroy all pre-existing goal widgets */
 	gtk_container_foreach(GTK_CONTAINER(goal_area), destroy_widget, NULL);
-
-	/* Assume six goals */
-	n = 6;
 
 	/* Get goal area width and height */
 	width = goal_area->allocation.width;
@@ -3622,15 +3619,11 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 {
 	card *c_ptr;
 	discounts *d_ptr;
-	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
 	int which, mil_only, mil_needed, ict_mil, iif_mil, cost;
 
 	/* Get discounts */
 	d_ptr = &status_player[who].discount;
-
-	/* Get military */
-	m_ptr = &status_player[who].military;
 
 	/* Set text pointer */
 	p = text;

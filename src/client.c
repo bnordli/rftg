@@ -398,12 +398,11 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 /*
  * Handle a new open game message.
  */
-static void handle_open_game(char *ptr, int size)
+static void handle_open_game(char *ptr)
 {
 	int x, y, new_game = FALSE;
 	char buf[1024];
 	GtkTreeIter list_iter;
-	char *start = ptr;
 
 	/* Read session ID */
 	x = get_integer(&ptr);
@@ -1404,7 +1403,7 @@ static gboolean message_read(gpointer data)
 		case MSG_OPENGAME:
 
 			/* Handle message */
-			handle_open_game(ptr, size - 8);
+			handle_open_game(ptr);
 			break;
 
 		/* A player in a game */
