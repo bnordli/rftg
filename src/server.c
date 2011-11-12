@@ -920,7 +920,7 @@ static void export_log(FILE *fff, int gid)
 	MYSQL_RES *res;
 	MYSQL_ROW row;
 	char query[1024];
-	char msg[1024], name[1024], *ptr;
+	char name[1024];
 
 	/* Create lookup query */
 	sprintf(query, "SELECT message, format, user "
@@ -936,9 +936,6 @@ static void export_log(FILE *fff, int gid)
 	/* Loop over rows returned */
 	while ((row = mysql_fetch_row(res)))
 	{
-		/* Reset message */
-		ptr = msg;
-
 		/* Check for chat message */
 		if (!strcmp(row[1], FORMAT_CHAT))
 		{
@@ -2309,7 +2306,6 @@ static void ask_client(int sid, int who)
 {
 	session *s_ptr = &s_list[sid];
 	game *g = &s_ptr->g;
-	conn *c_ptr;
 	choice *o_ptr;
 	int cid;
 	char msg[1024], *ptr = msg;
@@ -2333,9 +2329,6 @@ static void ask_client(int sid, int who)
 
 	/* Check for no player */
 	if (cid < 0) return;
-
-	/* Get connection pointer */
-	c_ptr = &c_list[cid];
 
 	/* Check for choice already received */
 	if (g->p[who].choice_size > g->p[who].choice_pos)

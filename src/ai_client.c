@@ -176,7 +176,7 @@ static void handle_status_player(char *ptr)
 static void handle_status_card(char *ptr)
 {
 	card *c_ptr;
-	int x;
+	int x, i;
 	int owner, where, start_owner, start_where;
 
 	/* Read card index */
@@ -209,18 +209,18 @@ static void handle_status_card(char *ptr)
 	c_ptr->covered = get_integer(&ptr);
 
 	/* Loop over all powers */
-	for (j = 0; j < c_ptr->d_ptr->num_power; ++j)
+	for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
 	{
 		/* Read used flag (since 0.8.1l) */
 		if (get_integer(&ptr))
 		{
 			/* Set used flag */
-			c_ptr->used |= 1 << j;
+			c_ptr->used |= 1 << i;
 		}
 		else
 		{
 			/* Clear used flag */
-			c_ptr->used &= ~(1 << j);
+			c_ptr->used &= ~(1 << i);
 		}
 	}
 

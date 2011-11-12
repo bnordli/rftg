@@ -96,23 +96,6 @@ int waiting_player[MAX_PLAYER];
 static void disconnect(void);
 
 /*
- * Check whether a client/server supports the given feature.
- */
-int version_supports(char* version, int feature)
-{
-	switch (feature)
-	{
-		/* Variants */
-		case FEATURE_VARIANT:
-			/* Supported in release 0.8.1n and above */
-			return strlen(version) > 5 &&
-			       strcmp("0.8.1n", version) <= 0;
-		default:
-			return 1;
-	}
-}
-
-/*
  * Send message to server.
  */
 void send_msg(int fd, char *msg)

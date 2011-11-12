@@ -74,8 +74,13 @@
 #define WAIT_BLOCKED          1
 #define WAIT_OPTION           2
 
+/*
+ * Client features.
+ */
+#define FEATURE_VARIANT 1
 
 /* External functions */
+extern int version_supports(char* version, int feature);
 extern void get_string(char *dest, char **msg);
 extern int get_integer(char **msg);
 extern void put_string(char *ptr, char **msg);

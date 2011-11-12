@@ -15,11 +15,6 @@
 #define RESTART_CURRENT    12
 
 /*
- * Client features.
- */
-#define FEATURE_VARIANT 1
-
-/*
  * User options.
  */
 typedef struct options
@@ -152,7 +147,6 @@ extern char server_version[30];
 extern int debug_server;
 extern int waiting_player[MAX_PLAYER];
 
-extern int version_supports(char* version, int feature);
 extern void save_prefs(void);
 extern void reset_cards(game *g, int color_hand, int color_table);
 extern void reset_status(game *g, int who);

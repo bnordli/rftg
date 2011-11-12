@@ -22,6 +22,23 @@
 #include "comm.h"
 
 /*
+ * Check whether a client/server supports the given feature.
+ */
+int version_supports(char* version, int feature)
+{
+	switch (feature)
+	{
+		/* Variants */
+		case FEATURE_VARIANT:
+			/* Supported in release 0.8.1n and above */
+			return strlen(version) > 5 &&
+			       strcmp("0.8.1n", version) <= 0;
+		default:
+			return 1;
+	}
+}
+
+/*
  * Copy a string from a message.
  *
  * We advance the message pointer past the end of the string.
