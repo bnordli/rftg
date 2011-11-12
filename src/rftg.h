@@ -32,7 +32,7 @@
 #endif
 
 #ifndef RELEASE
-#define RELEASE VERSION "m"
+#define RELEASE VERSION "n"
 #endif
 
 #include <stdio.h>

@@ -13,16 +13,16 @@ Direct link to the Race for the Galaxy AI source:
 Link to the main page of this patch:
   http://dl.dropbox.com/u/7379896/rftg/index.html
 Direct link to the source code of this patch:
-  http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1m-source.zip.
+  http://dl.dropbox.com/u/7379896/rftg/rftg-0.8.1n-source.zip.
 
 INSTRUCTIONS
 
 Copy these files into your rftg installation directory:
 
- rftg8m.exe:  The program itself
+ rftg8n.exe:  The program itself
  icon0xx.png: The new icons
 
-Start the patch by running rftg8m.exe.
+Start the patch by running rftg8n.exe.
 
 NEW COMMAND LINE OPTIONS
 
@@ -32,6 +32,10 @@ This patch introduces the following additional command line options:
 	-s <savegame>  -- A save game to load when starting the program
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
+	-v <variant>   -- Variant game:
+	                     1 = Takeover scenario
+	                     2 = Drafting
+	                     3 = Private decks
 
 RIGHT-CLICK
 
