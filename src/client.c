@@ -2612,7 +2612,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	                                     GTK_RESPONSE_REJECT, NULL);
 
 	/* Create a table for laying out widgets */
-	table = gtk_table_new(9, 2, FALSE);
+	table = gtk_table_new(2, 2, FALSE);
 
 	/* Create label and text entry for game description */
 	label = gtk_label_new("Description:");
@@ -2677,6 +2677,9 @@ void create_dialog(GtkButton *button, gpointer data)
 			/* Set button active */
 			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(exp_radio[i]),
 			                             TRUE);
+
+			/* Remember current expansion */
+			next_exp = i;
 		}
 
 		/* Add handler */
@@ -2697,7 +2700,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), exp_frame);
 
 	/* Create a table for laying out player number widgets */
-	table = gtk_table_new(9, 2, FALSE);
+	table = gtk_table_new(2, 2, FALSE);
 
 	/* Create label and scale for minimum number of players */
 	label = gtk_label_new("Minimum players:");
@@ -2824,9 +2827,16 @@ void create_dialog(GtkButton *button, gpointer data)
 			gtk_box_pack_start(GTK_BOX(variant_box), variant_radio[i],
 			                   FALSE, TRUE, 0);
 
-			/* Set default */
-			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(variant_radio[i]),
-			                             opt.variant == i);
+			/* Check for current variant */
+			if (opt.variant == i)
+			{
+				/* Set button active */
+				gtk_toggle_button_set_active(
+					GTK_TOGGLE_BUTTON(variant_radio[i]), opt.variant == i);
+
+				/* Remember current variant */
+				next_variant = i;
+			}
 		}
 
 		/* Create frame around buttons */
