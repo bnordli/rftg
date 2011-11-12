@@ -25,6 +25,7 @@
 static char *variant_str[MAX_VARIANT] =
 {
 	"",
+	"V: Takeover",
 	"V: Draft",
 	"V: Private",
 };
@@ -530,8 +531,8 @@ int export_game(game *g, char *filename, char *style_sheet,
 	/* Write end tag */
 	fputs("    </Phases>\n", fff);
 
-	/* Check for normal game */
-	if (!g->variant)
+	/* Check for common decks */
+	if (!separate_piles_enabled(g))
 	{
 		/* Loop over cards */
 		for (i = 0; i < g->deck_size; i++)
@@ -653,8 +654,8 @@ int export_game(game *g, char *filename, char *style_sheet,
 			        p_ptr->prestige);
 		}
 
-		/* Check for variant game */
-		if (g->variant)
+		/* Check for separate piles */
+		if (!separate_piles_enabled(g))
 		{
 			/* Write deck and discard size */
 			fprintf(fff, "    <Deck>%d</Deck>\n", deck[n]);

@@ -42,12 +42,6 @@
 #define SS_ABANDONED 4
 
 /*
- * Client features.
- */
-#define FEATURE_VARIANT 1
-#define FEATURE_DRAFTING 2
-
-/*
  * Number of random bytes to store per session (2 needed per number generated).
  */
 #define MAX_RAND     1024
@@ -1256,26 +1250,6 @@ void send_msg(int cid, char *msg)
 }
 
 /*
- * Check whether the client supports the given feature.
- */
-static int client_supports(int cid, int feature)
-{
-	switch (feature)
-	{
-		/* Variants */
-		case FEATURE_VARIANT:
-
-		/* Drafting */
-		case FEATURE_DRAFTING:
-			/* Supported in release 0.8.1n and above */
-			return strlen(c_list[cid].version) > 5 &&
-			       strcmp("0.8.1n", c_list[cid].version) <= 0;
-		default:
-			return 1;
-	}
-}
-
-/*
  * Create a new AI client connection.
  */
 static int new_ai_client(int sid)
@@ -1455,11 +1429,8 @@ static void send_session_one(int sid, int cid)
 	db_user_name(s_ptr->created, name);
 
 	/* Check for variant support */
-	if (client_supports(cid, FEATURE_VARIANT))
+	if (version_supports(c_list[cid].version, FEATURE_VARIANT))
 	{
-		/* Do not send drafting games if not supported */
-		if (s_ptr->variant && !client_supports(cid, FEATURE_DRAFTING)) return;
-
 		/* Send message to client */
 		/* Variant since 0.8.1n */
 		send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
@@ -1846,7 +1817,7 @@ static void update_meta(int sid)
 		if (cid < 0) continue;
 
 		/* Check for no variant support */
-		if (!client_supports(cid, FEATURE_VARIANT))
+		if (!version_supports(c_list[cid].version, FEATURE_VARIANT))
 		{
 			/* Send old format to client */
 			send_msg(cid, msg0);
@@ -1904,7 +1875,7 @@ static int obfuscate_group(game *g, int i, int who)
 	if (c_ptr->known & (1 << who)) return -1;
 
 	/* Check for variant game */
-	if (g->variant)
+	if (g->variant == VARIANT_DRAFTING || g->variant == VARIANT_PRIVATE)
 	{
 		/* Card drafted by us are interchangeable */
 		if (c_ptr->owner == who) return 1;
@@ -3760,7 +3731,7 @@ static void handle_create(int cid, char *ptr)
 	s_ptr->disable_takeover = get_integer(&ptr);
 
 	/* Check for variant support */
-	if (client_supports(cid, FEATURE_VARIANT))
+	if (version_supports(c_list[cid].version, FEATURE_VARIANT))
 	{
 		/* Read variant parameter */
 		s_ptr->variant = get_integer(&ptr);

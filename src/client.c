@@ -96,6 +96,23 @@ int waiting_player[MAX_PLAYER];
 static void disconnect(void);
 
 /*
+ * Check whether a client/server supports the given feature.
+ */
+int version_supports(char* version, int feature)
+{
+	switch (feature)
+	{
+		/* Variants */
+		case FEATURE_VARIANT:
+			/* Supported in release 0.8.1n and above */
+			return strlen(version) > 5 &&
+			       strcmp("0.8.1n", version) <= 0;
+		default:
+			return 1;
+	}
+}
+
+/*
  * Send message to server.
  */
 void send_msg(int fd, char *msg)
@@ -461,8 +478,7 @@ static void handle_open_game(char *ptr, int size)
 	gtk_tree_store_set(game_list, &list_iter, 7, x, 8, y, -1);
 
 	/* Check for server supporting variants */
-	if (strlen(server_version) > 5 &&
-	    strcmp("0.8.1n", server_version) <= 0)
+	if (version_supports(server_version, FEATURE_VARIANT))
 	{
 		/* Read variant option (since 0.8.1n) */
 		x = get_integer(&ptr);
@@ -601,8 +617,7 @@ static void handle_status_meta(char *ptr, int size)
 	real_game.takeover_disabled = get_integer(&ptr);
 
 	/* Check for server supporting variants */
-	if (strlen(server_version) > 5 &&
-	    strcmp("0.8.1n", server_version) <= 0)
+	if (version_supports(server_version, FEATURE_VARIANT))
 	{
 		/* Read variant parameter */
 		real_game.variant = get_integer(&ptr);

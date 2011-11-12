@@ -67,6 +67,7 @@ char *location_names[7] =
 char *variant_labels[MAX_VARIANT + 1] =
 {
 	"Normal",
+	"Takeover Scenario",
 	"Drafting",
 	"Private decks",
 	NULL,
@@ -167,6 +168,14 @@ int goals_enabled(game *g)
 int takeovers_enabled(game *g)
 {
 	return g->expanded > 1 && !g->takeover_disabled;
+}
+
+/*
+ * Return whether separate piles are enabled in this game.
+ */
+int separate_piles_enabled(game *g)
+{
+	return g->variant == VARIANT_DRAFTING || g->variant == VARIANT_PRIVATE;
 }
 
 /*
@@ -321,14 +330,18 @@ static void refresh_draw(game *g, int who)
 	card *c_ptr;
 	int i;
 
-	/* Draw deck is global in non-variant games */
-	if (!g->variant) who = -1;
+	/* Check for common decks */
+	if (!separate_piles_enabled(g))
+	{
+		/* Draw deck is global */
+		who = -1;
+	}
 
 	/* Message */
 	if (!g->simulation)
 	{
-		/* Check for normal game */
-		if (!g->variant)
+		/* Check for common decks */
+		if (!separate_piles_enabled(g))
 		{
 			/* Send message */
 			message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
@@ -373,8 +386,12 @@ int random_draw(game *g, int who)
 	card *c_ptr = NULL;
 	int i, n;
 
-	/* Draw deck is global in normal game */
-	if (!g->variant) who = -1;
+	/* Check for common decks */
+	if (!separate_piles_enabled(g))
+	{
+		/* Draw deck is global */
+		who = -1;
+	}
 
 	/* Count draw deck size */
 	n = count_draw(g, who);
@@ -722,16 +739,16 @@ void draw_cards(game *g, int who, int num, char *reason)
  */
 void discard_card(game *g, int who, int which)
 {
-	/* Check for variant game */
-	if (g->variant)
-	{
-		/* Move card to discard and keep owner */
-		move_card(g, which, who, WHERE_DISCARD);
-	}
-	else
+	/* Check for common decks */
+	if (!separate_piles_enabled(g))
 	{
 		/* Move card to discard and clear owner */
 		move_card(g, which, -1, WHERE_DISCARD);
+	}
+	else
+	{
+		/* Move card to discard and keep owner */
+		move_card(g, which, who, WHERE_DISCARD);
 	}
 }
 
@@ -9029,8 +9046,8 @@ void phase_discard(game *g)
 		/* Check for "take discards" flag */
 		if (count_active_flags(g, i, FLAG_TAKE_DISCARDS))
 		{
-			/* Check for normal game */
-			if (!g->variant)
+			/* Check for common decks */
+			if (!separate_piles_enabled(g))
 			{
 				/* Look for cards discarded by opponents */
 				for (j = 0; j < g->deck_size; j++)
@@ -9086,7 +9103,7 @@ void phase_discard(game *g)
 				}
 			}
 
-			/* variant game */
+			/* Separate discard piles */
 			else
 			{
 				/* Loop over other players */
@@ -10404,8 +10421,64 @@ void begin_game(game *g)
 		}
 	}
 
+	/* Check for takeover scenario */
+	if (g->variant == VARIANT_TAKEOVER)
+	{
+		/* Check for wanting to rotate players */
+		if (game_rand(g, -1) % 2)
+		{
+			/* Rotate players one step */
+			rotate_players(g);
+		}
+
+		/* Loop over cards in deck */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Get card pointer */
+			c_ptr = &g->deck[i];
+
+			/* Check for start cards */
+			if (!strcmp(c_ptr->d_ptr->name, "Rebel Alliance") ||
+				!strcmp(c_ptr->d_ptr->name, "Imperium Seat"))
+			{
+				/* Set aside card */
+				move_card(g, i, -1, WHERE_REMOVED);
+			}
+
+			/* Check for Rebel Cantina start card */
+			if (!strcmp(c_ptr->d_ptr->name, "Rebel Cantina"))
+			{
+				/* Remember start world */
+				g->p[0].start = i;
+
+				/* Give chosen world to player */
+				place_card(g, 0, g->p[0].start);
+			}
+
+			/* Check for Imperium Warlord start card */
+			if (!strcmp(c_ptr->d_ptr->name, "Imperium Warlord"))
+			{
+				/* Remember start world */
+				g->p[1].start = i;
+
+				/* Give chosen world to player */
+				place_card(g, 1, g->p[1].start);
+			}
+		}
+
+		/* Send start of game message */
+		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
+
+		/* Loop over players again */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Give player six cards */
+			draw_cards(g, i, 6, NULL);
+		}
+	}
+
 	/* Check for two start world choices */
-	if (g->expanded >= 2 || g->variant == VARIANT_DRAFTING)
+	else if (g->expanded >= 2 || g->variant == VARIANT_DRAFTING)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
@@ -10728,6 +10801,54 @@ void begin_game(game *g)
 		}
 	}
 
+	/* Check for takeover scenario */
+	if (g->variant == VARIANT_TAKEOVER)
+	{
+		/* Loop over cards in deck */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Get card pointer */
+			c_ptr = &g->deck[i];
+
+			/* Clear player */
+			j = -1;
+
+			/* Check for Rebel Alliance card */
+			if (!strcmp(c_ptr->d_ptr->name, "Rebel Alliance"))
+			{
+				/* Give card to first player */
+				j = 0;
+			}
+
+			/* Check for Imperium Seat card */
+			else if (!strcmp(c_ptr->d_ptr->name, "Imperium Seat"))
+			{
+				/* Give card to second player */
+				j = 1;
+			}
+
+			/* If none of the cards -- go further */
+			if (j < 0) continue;
+
+			/* Give card to player */
+			move_card(g, i, j, WHERE_HAND);
+
+			/* Card's location is known to the player */
+			c_ptr->known |= 1 << j;
+
+			/* Check for real game and reason */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s receives %s.\n",
+				        g->p[j].name, c_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+			}
+		}
+	}
+
 	/* Clear temporary flags on drawn cards */
 	clear_temp(g);
 
@@ -10807,9 +10928,6 @@ int game_round(game *g)
 	player *p_ptr;
 	int i, j, target, act[2];
 	char msg[1024], last;
-
-	/* Increment round counter */
-	g->round++;
 
 	/* Increment round counter */
 	g->round++;

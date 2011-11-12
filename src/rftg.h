@@ -66,7 +66,7 @@
 /*
  * Maximum number of variants.
  */
-#define MAX_VARIANT 3
+#define MAX_VARIANT 4
 
 /*
  * Number of card designs.
@@ -224,8 +224,9 @@
 /*
  * Variants.
  */
-#define VARIANT_DRAFTING 1
-#define VARIANT_PRIVATE  2
+#define VARIANT_TAKEOVER 1
+#define VARIANT_DRAFTING 2
+#define VARIANT_PRIVATE  3
 
 /*
  * Card power effects by phase.
@@ -943,6 +944,7 @@ extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
+extern int separate_piles_enabled(game *g);
 extern int count_draw(game *g, int who);
 extern int game_rand(game *g, int who);
 extern void auto_export(void);
