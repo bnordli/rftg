@@ -945,6 +945,8 @@ extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
 extern int separate_piles_enabled(game *g);
+extern int min_expansion(int variant);
+extern int max_players(int expansion, int variant);
 extern int count_draw(game *g, int who);
 extern int game_rand(game *g, int who);
 extern void auto_export(void);

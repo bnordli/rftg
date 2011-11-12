@@ -3638,7 +3638,7 @@ static void handle_create(int cid, char *ptr)
 	session *s_ptr;
 	char pass[2048], desc[2048];
 	int sid, i;
-	int maxp;
+	int min_exp, max_p;
 
 	/* Check for player already in game */
 	if (c_list[cid].sid != -1) return;
@@ -3747,26 +3747,27 @@ static void handle_create(int cid, char *ptr)
 
 	/* Validate expansion level */
 	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
-	if (s_ptr->expanded > 3) s_ptr->expanded = 3;
 
 	/* Validate disabled flags */
 	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
+	if (s_ptr->expanded < 2 || s_ptr->variant == VARIANT_TAKEOVER)
+		s_ptr->disable_takeover = 0;
 
-	/* Validate drafting variant */
-	if (s_ptr->expanded < 1 && s_ptr->variant == VARIANT_DRAFTING)
-		s_ptr->variant = 0;
+	/* Compute minimum expansion */
+	min_exp = min_expansion(s_ptr->variant);
 
-	/* Compute maximum number of players allowed */
-	maxp = s_ptr->expanded + 4;
-	if (s_ptr->variant == VARIANT_DRAFTING) maxp = 1 + 2*s_ptr->expanded;
-	if (maxp > 6) maxp = 6;
+	/* Validate expansion */
+	if (s_ptr->expanded < min_exp) s_ptr->expanded = min_exp;
+	if (s_ptr->expanded >= MAX_EXPANSION) s_ptr->expanded = MAX_EXPANSION - 1;
+
+	/* Compute maximum number of players */
+	max_p = max_players(s_ptr->expanded, s_ptr->variant);
 
 	/* Validate number of players */
 	if (s_ptr->min_player < 2) s_ptr->min_player = 2;
-	if (s_ptr->min_player > maxp) s_ptr->min_player = maxp;
+	if (s_ptr->min_player > max_p) s_ptr->min_player = max_p;
 	if (s_ptr->max_player < 2) s_ptr->max_player = 2;
-	if (s_ptr->max_player > maxp) s_ptr->max_player = maxp;
+	if (s_ptr->max_player > max_p) s_ptr->max_player = max_p;
 	if (s_ptr->min_player > s_ptr->max_player)
 		s_ptr->min_player = s_ptr->max_player;
 

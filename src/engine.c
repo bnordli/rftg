@@ -179,6 +179,59 @@ int separate_piles_enabled(game *g)
 }
 
 /*
+ * Return the minimum expansion, given the variant.
+ */
+int min_expansion(int variant)
+{
+	/* Check variant */
+	switch (variant)
+	{
+		/* Takeover variant introduced in Rebel vs Imperium */
+		case VARIANT_TAKEOVER:
+			return 2;
+
+		/* Drafting variant introduced in The Gathering Storm */
+		case VARIANT_DRAFTING:
+			return 1;
+
+		/* No limits in other variants */
+		default:
+			return 0;
+	}
+}
+
+/*
+ * Return the maximum number of players, given the expansion and the variant.
+ */
+int max_players(int expansion, int variant)
+{
+	int max;
+
+	/* Check variant */
+	switch (variant)
+	{
+		/* Takeover variant always with two players */
+		case VARIANT_TAKEOVER:
+			return 2;
+
+		/* Drafting variant */
+		case VARIANT_DRAFTING:
+			max = expansion * 2 + 1;
+			break;
+
+		/* Other variants */
+		default:
+			max = expansion + 4;
+			break;
+	}
+
+	/* Cap at maximum six players */
+	if (max > 6) max = 6;
+	return max;
+}
+
+
+/*
  * Return the number of cards in the draw deck.
  */
 int count_draw(game *g, int who)

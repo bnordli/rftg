@@ -2437,11 +2437,83 @@ void disconnect_server(GtkMenuItem *menu_item, gpointer data)
 /*
  * Widgets for the create game dialog box.
  */
+static GtkWidget *exp_radio[MAX_EXPANSION];
 static GtkWidget *min_player, *max_player;
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
-static GtkWidget *draft_check;
+static GtkWidget *variant_radio[MAX_VARIANT];
+
+/*
+ * Current selections for create game options.
+ */
+static int next_exp, next_variant;
+
+/*
+ * Update button sensitivities.
+ */
+static void update_sensitivity()
+{
+	int i, min_exp, max_p;
+
+	/* Set goal disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0);
+
+	/* Set takeover disabled checkbox sensitivity */
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1 &&
+	                         next_variant != VARIANT_TAKEOVER);
+
+	/* Calculate the minimum expansion */
+	min_exp = min_expansion(next_variant);
+
+	/* Check for too early expansion */
+	if (next_exp < min_exp)
+	{
+		/* Set to lowest possible expansion */
+		next_exp = min_exp;
+		gtk_toggle_button_set_active(
+			GTK_TOGGLE_BUTTON(exp_radio[min_exp]), TRUE);
+	}
+
+	/* Set expansion radio sensitivities */
+	for (i = 0; exp_names[i]; ++i)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(exp_radio[i], i >= min_exp);
+	}
+
+	/* Calculate the maximum number of players */
+	max_p = max_players(next_exp, next_variant);
+
+	/* Reduce value to the maximum */
+	if (gtk_range_get_value(GTK_RANGE(min_player)) > max_p)
+		gtk_range_set_value(GTK_RANGE(min_player), max_p);
+	if (gtk_range_get_value(GTK_RANGE(max_player)) > max_p)
+		gtk_range_set_value(GTK_RANGE(max_player), max_p);
+
+	/* Check for choice in number of players */
+	if (max_p > 2)
+	{
+		/* Set sensitivities */
+		gtk_widget_set_sensitive(min_player, TRUE);
+		gtk_widget_set_sensitive(max_player, TRUE);
+
+		/* Adjust scale widgets to new maximum */
+		gtk_range_set_range(GTK_RANGE(min_player), 2, max_p);
+		gtk_range_set_range(GTK_RANGE(max_player), 2, max_p);
+	}
+
+	else
+	{
+		/* Set sensitivities */
+		gtk_widget_set_sensitive(min_player, FALSE);
+		gtk_widget_set_sensitive(max_player, FALSE);
+
+		/* Adjust scale widgets to new maximum */
+		gtk_range_set_range(GTK_RANGE(min_player), 2, 2.001);
+		gtk_range_set_range(GTK_RANGE(max_player), 2, 2.001);
+	}
+}
 
 /*
  * React to an expansion level being toggled.
@@ -2449,27 +2521,15 @@ static GtkWidget *draft_check;
 static void exp_toggle(GtkToggleButton *button, gpointer data)
 {
 	int i = GPOINTER_TO_INT(data);
-	int max;
 
 	/* Check for button set */
 	if (gtk_toggle_button_get_active(button))
 	{
-		/* Set maximum number of players */
-		max = i + 4;
-		if (max > 6) max = 6;
+		/* Remember next expansion level */
+		next_exp = i;
 
-		/* Adjust scale widgets to new maximum */
-		gtk_range_set_range(GTK_RANGE(min_player), 2, max);
-		gtk_range_set_range(GTK_RANGE(max_player), 2, max);
-
-		/* Set goal disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_goal_check, i > 0);
-
-		/* Set takeover disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
-
-		/* Set drafting variant checkbox sensitivity */
-		gtk_widget_set_sensitive(draft_check, i > 0);
+		/* Update sensitivities */
+		update_sensitivity();
 	}
 }
 
@@ -2512,16 +2572,36 @@ static void player_changed(GtkRange *range, gpointer data)
 }
 
 /*
+ * React to a variant button being toggled.
+ */
+static void variant_toggle(GtkToggleButton *button, gpointer data)
+{
+	int i = GPOINTER_TO_INT(data);
+
+	/* Check for button set */
+	if (gtk_toggle_button_get_active(button))
+	{
+		/* Remember next game player number */
+		next_variant = i;
+
+		/* Update sensitivities */
+		update_sensitivity();
+	}
+}
+
+/*
  * Display the "create game" dialog box.
  */
 void create_dialog(GtkButton *button, gpointer data)
 {
 	GtkWidget *dialog;
-	GtkWidget *radio[MAX_EXPANSION];
-	GtkWidget *table, *label;
+	GtkWidget *table;
+	GtkWidget *desc_entry, *pass_entry, *label;
 	GtkWidget *exp_box, *exp_frame;
-	GtkWidget *desc, *pass;
-	int i, exp;
+	GtkWidget *player_box, *player_frame;
+	GtkWidget *options_box, *options_frame;
+	GtkWidget *variant_box, *variant_frame;
+	int i, min_exp, max_p;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Create Game", NULL,
@@ -2536,98 +2616,142 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Create label and text entry for game description */
 	label = gtk_label_new("Description:");
-	desc = gtk_entry_new();
+	desc_entry = gtk_entry_new();
 
 	/* Cap the description length */
-	gtk_entry_set_max_length(GTK_ENTRY(desc), 40);
+	gtk_entry_set_max_length(GTK_ENTRY(desc_entry), 40);
 
 	/* Check for no game description in preferences */
 	if (!opt.game_desc) opt.game_desc = "";
 
 	/* Set default description */
-	gtk_entry_set_text(GTK_ENTRY(desc), opt.game_desc);
+	gtk_entry_set_text(GTK_ENTRY(desc_entry), opt.game_desc);
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 0, 1);
-	gtk_table_attach_defaults(GTK_TABLE(table), desc, 1, 2, 0, 1);
+	gtk_table_attach_defaults(GTK_TABLE(table), desc_entry, 1, 2, 0, 1);
 
 	/* Create label and text entry for password */
 	label = gtk_label_new("Game password:");
-	pass = gtk_entry_new();
+	pass_entry = gtk_entry_new();
 
 	/* Cap the password length */
-	gtk_entry_set_max_length(GTK_ENTRY(pass), 20);
+	gtk_entry_set_max_length(GTK_ENTRY(pass_entry), 20);
 
 	/* Check for no game password in preferences */
 	if (!opt.game_pass) opt.game_pass = "";
 
 	/* Set default password */
-	gtk_entry_set_text(GTK_ENTRY(pass), opt.game_pass);
+	gtk_entry_set_text(GTK_ENTRY(pass_entry), opt.game_pass);
 
-	/* Connect the entries' activate signal to the accept response on the dialog */
-	g_signal_connect(G_OBJECT(desc), "activate", G_CALLBACK(enter_callback),
-	                 (gpointer) dialog);
-	g_signal_connect(G_OBJECT(pass), "activate", G_CALLBACK(enter_callback),
-	                 (gpointer) dialog);
+	/* Connect the entries' activate signal to the dialog's accept response */
+	g_signal_connect(G_OBJECT(desc_entry), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+	g_signal_connect(G_OBJECT(pass_entry), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
-	gtk_table_attach_defaults(GTK_TABLE(table), pass, 1, 2, 1, 2);
+	gtk_table_attach_defaults(GTK_TABLE(table), pass_entry, 1, 2, 1, 2);
+
+	/* Add table to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
 
 	/* Create vbox to hold expansion selection radio buttons */
 	exp_box = gtk_vbox_new(FALSE, 0);
 
 	/* Clear first radio button */
-	radio[0] = NULL;
+	exp_radio[0] = NULL;
 
 	/* Loop over expansion levels */
 	for (i = 0; exp_names[i]; i++)
 	{
 		/* Create radio button */
-		radio[i] = gtk_radio_button_new_with_label_from_widget(
-		                                     GTK_RADIO_BUTTON(radio[0]),
+		exp_radio[i] = gtk_radio_button_new_with_label_from_widget(
+		                                     GTK_RADIO_BUTTON(exp_radio[0]),
 		                                     exp_names[i]);
 
+		/* Check for current expansion level */
+		if (opt.expanded == i)
+		{
+			/* Set button active */
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(exp_radio[i]),
+			                             TRUE);
+		}
+
 		/* Add handler */
-		g_signal_connect(G_OBJECT(radio[i]), "toggled",
+		g_signal_connect(G_OBJECT(exp_radio[i]), "toggled",
 		                 G_CALLBACK(exp_toggle), GINT_TO_POINTER(i));
 
 		/* Pack radio button into box */
-		gtk_box_pack_start(GTK_BOX(exp_box), radio[i], FALSE, TRUE, 0);
+		gtk_box_pack_start(GTK_BOX(exp_box), exp_radio[i], FALSE, TRUE, 0);
 	}
 
 	/* Create frame around buttons */
-	exp_frame = gtk_frame_new("Choose expansion level");
+	exp_frame = gtk_frame_new("Expansion level");
 
-	/* Pack vbox into frame */
+	/* Pack radio button box into frame */
 	gtk_container_add(GTK_CONTAINER(exp_frame), exp_box);
 
-	/* Add expansion frame to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), exp_frame, 0, 2, 2, 3);
+	/* Add expansion frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), exp_frame);
+
+	/* Create a table for laying out player number widgets */
+	table = gtk_table_new(9, 2, FALSE);
 
 	/* Create label and scale for minimum number of players */
 	label = gtk_label_new("Minimum players:");
-	min_player = gtk_hscale_new_with_range(2, 4, 1);
+	min_player = gtk_hscale_new_with_range(2, 6, 1);
+
+	/* Set request size */
+	gtk_widget_set_size_request(min_player, 120, -1);
 
 	/* Add handler */
 	g_signal_connect(G_OBJECT(min_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(0));
 
+	/* Set default value */
+	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
+
 	/* Add widgets to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 3, 4);
-	gtk_table_attach_defaults(GTK_TABLE(table), min_player, 1, 2, 3, 4);
+	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 0, 1);
+	gtk_table_attach_defaults(GTK_TABLE(table), min_player, 1, 2, 0, 1);
 
 	/* Create label and scale for maximum number of players */
 	label = gtk_label_new("Maximum players:");
-	max_player = gtk_hscale_new_with_range(2, 4, 1);
+	max_player = gtk_hscale_new_with_range(2, 6, 1);
+
+	/* Set request size */
+	gtk_widget_set_size_request(max_player, 120, -1);
 
 	/* Add handler */
 	g_signal_connect(G_OBJECT(max_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(1));
 
+	/* Set default value */
+	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
+
 	/* Add widgets to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 4, 5);
-	gtk_table_attach_defaults(GTK_TABLE(table), max_player, 1, 2, 4, 5);
+	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
+	gtk_table_attach_defaults(GTK_TABLE(table), max_player, 1, 2, 1, 2);
+
+	/* Create vbox to hold player selection table */
+	player_box = gtk_vbox_new(FALSE, 0);
+
+	/* Pack table into box */
+	gtk_box_pack_start(GTK_BOX(player_box), table, FALSE, TRUE, 0);
+
+	/* Create frame around buttons */
+	player_frame = gtk_frame_new("Number of players");
+
+	/* Pack player box into frame */
+	gtk_container_add(GTK_CONTAINER(player_frame), player_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), player_frame);
+
+	/* Create vbox to hold options widgets */
+	options_box = gtk_vbox_new(FALSE, 0);
 
 	/* Create check box for two-player advanced game */
 	advanced_check = gtk_check_button_new_with_label("Two-player advanced");
@@ -2636,8 +2760,8 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(advanced_check),
 	                             opt.advanced);
 
-	/* Add checkbox to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), advanced_check, 0, 2, 5, 6);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
 
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
@@ -2649,9 +2773,8 @@ void create_dialog(GtkButton *button, gpointer data)
 	/* Make checkbox insensitive */
 	gtk_widget_set_sensitive(disable_goal_check, FALSE);
 
-	/* Add checkbox to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), disable_goal_check,
-	                          0, 2, 6, 7);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), disable_goal_check);
 
 	/* Create check box for disabled takeovers */
 	disable_takeover_check =
@@ -2661,41 +2784,64 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_takeover_check),
 	                             opt.disable_takeover);
 
-	/* Make checkbox insensitive */
-	gtk_widget_set_sensitive(disable_takeover_check, FALSE);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), disable_takeover_check);
 
-	/* Add checkbox to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), disable_takeover_check,
-	                          0, 2, 7, 8);
+	/* Create frame around buttons */
+	options_frame = gtk_frame_new("Game options");
 
-	/* Create check box for drafting variant */
-	draft_check = gtk_check_button_new_with_label("Drafting variant");
+	/* Add options box to options frame */
+	gtk_container_add(GTK_CONTAINER(options_frame), options_box);
 
-	/* Set default */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(draft_check),
-	                             opt.variant == VARIANT_DRAFTING);
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), options_frame);
 
-	/* Make checkbox insensitive */
-	gtk_widget_set_sensitive(draft_check, FALSE);
-
-	/* Add checkbox to table */
-	gtk_table_attach_defaults(GTK_TABLE(table), draft_check,
-	                          0, 2, 8, 9);
-
-	/* Add table to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
-
-	/* Loop over expansion levels */
-	for (i = 0; exp_names[i]; i++)
+	/* Check for server supporting variants */
+	if (version_supports(server_version, FEATURE_VARIANT))
 	{
-		/* Select radio button if needed */
-		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio[i]),
-		                             i == opt.expanded);
+		/* Create vbox to hold variant widgets */
+		variant_box = gtk_vbox_new(FALSE, 0);
+
+		/* Clear current radio button widget */
+		variant_radio[0] = NULL;
+
+		/* Loop over variants */
+		for (i = 0; variant_labels[i]; i++)
+		{
+			/* Private decks variant disabled on server */
+			if (i == VARIANT_PRIVATE) continue;
+
+			/* Create radio button */
+			variant_radio[i] = gtk_radio_button_new_with_label_from_widget(
+				GTK_RADIO_BUTTON(variant_radio[0]),
+				variant_labels[i]);
+
+			/* Add handler */
+			g_signal_connect(G_OBJECT(variant_radio[i]), "toggled",
+			                 G_CALLBACK(variant_toggle), GINT_TO_POINTER(i));
+
+			/* Pack radio button into box */
+			gtk_box_pack_start(GTK_BOX(variant_box), variant_radio[i],
+			                   FALSE, TRUE, 0);
+
+			/* Set default */
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(variant_radio[i]),
+			                             opt.variant == i);
+		}
+
+		/* Create frame around buttons */
+		variant_frame = gtk_frame_new("Game variant");
+
+		/* Add variant box to variant frame */
+		gtk_container_add(GTK_CONTAINER(variant_frame), variant_box);
+
+		/* Add frame to dialog box */
+		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+		                  variant_frame);
 	}
 
-	/* Set default values */
-	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
-	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
+	/* Update sensitivites */
+	update_sensitivity();
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
@@ -2710,20 +2856,17 @@ void create_dialog(GtkButton *button, gpointer data)
 		return;
 	}
 
-	/* Loop over expansion radio buttons */
-	for (i = 0; i < MAX_EXPANSION; i++)
-	{
-		/* Check for selected button */
-		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(radio[i])))
-		{
-			/* Set expansion level */
-			opt.expanded = exp = i;
-		}
-	}
+	/* Find minimum expansion */
+	min_exp = min_expansion(next_variant);
+
+	/* Sanity check expansion */
+	if (next_exp < min_exp) next_exp = min_exp;
 
 	/* Save options for later */
-	opt.game_desc = strdup(gtk_entry_get_text(GTK_ENTRY(desc)));
-	opt.game_pass = strdup(gtk_entry_get_text(GTK_ENTRY(pass)));
+	opt.expanded = next_exp;
+	opt.variant = next_variant;
+	opt.game_desc = strdup(gtk_entry_get_text(GTK_ENTRY(desc_entry)));
+	opt.game_pass = strdup(gtk_entry_get_text(GTK_ENTRY(pass_entry)));
 	opt.multi_min = (int)gtk_range_get_value(GTK_RANGE(min_player));
 	opt.multi_max = (int)gtk_range_get_value(GTK_RANGE(max_player));
 	opt.advanced = gtk_toggle_button_get_active(
@@ -2732,23 +2875,21 @@ void create_dialog(GtkButton *button, gpointer data)
 	                             GTK_TOGGLE_BUTTON(disable_goal_check));
 	opt.disable_takeover = gtk_toggle_button_get_active(
 	                             GTK_TOGGLE_BUTTON(disable_takeover_check));
-	if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draft_check)))
-		opt.variant = VARIANT_DRAFTING;
 
 	/* Save change to file */
 	save_prefs();
 
 	/* Send create message to server */
 	send_msgf(server_fd, MSG_CREATE, "ssdddddddd",
-	          gtk_entry_get_text(GTK_ENTRY(pass)),
-	          gtk_entry_get_text(GTK_ENTRY(desc)),
+	          gtk_entry_get_text(GTK_ENTRY(pass_entry)),
+	          gtk_entry_get_text(GTK_ENTRY(desc_entry)),
 	          (int)gtk_range_get_value(GTK_RANGE(min_player)),
 	          (int)gtk_range_get_value(GTK_RANGE(max_player)),
-	          exp,
+	          next_exp,
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(draft_check)),
+              next_variant,
 	          0);
 
 	/* Destroy dialog */

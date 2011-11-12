@@ -9751,36 +9751,23 @@ decisions gui_func =
  */
 static void apply_options(void)
 {
-	/* Sanity check drafting variant */
-	if (!opt.expanded && opt.variant == VARIANT_DRAFTING)
-		opt.variant = 0;
+	int min_exp, max_p;
 
-	/* Sanity check number of players in base game */
-	if (opt.expanded == 0 && opt.num_players > 4)
-	{
-		/* Reset to four players */
-		opt.num_players = 4;
-	}
+	/* Find the minimum expansion */
+	min_exp = min_expansion(real_game.variant);
 
-	/* Sanity check number of players in first expansion */
-	else if (opt.expanded == 1)
-	{
-		/* Maximum three players when drafting */
-		if (opt.variant == VARIANT_DRAFTING && opt.num_players > 3)
-			opt.num_players = 3;
+	/* Sanity check too early expansion */
+	if (real_game.expanded < min_exp) real_game.expanded = min_exp;
 
-		/* Maximum five players for normal game */
-		else if (opt.num_players > 5)
-			opt.num_players = 5;
-	}
+	/* Find the maximum number of players */
+	max_p = max_players(real_game.expanded, real_game.variant);
 
-	/* Sanity check number of players in second expansion */
-	else if (opt.expanded == 2)
-	{
-		/* Maximum five players when drafting */
-		if (opt.variant == VARIANT_DRAFTING && opt.num_players > 5)
-			opt.num_players = 5;
-	}
+	/* Sanity check too many players */
+	if (real_game.num_players > max_p) real_game.num_players = max_p;
+
+	/* Takeovers always enabled in takeover variant */
+	if (real_game.variant == VARIANT_TAKEOVER)
+		real_game.takeover_disabled = FALSE;
 
 	/* Set name of human player */
 	real_game.human_name = opt.player_name;
@@ -11155,6 +11142,7 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
 /*
  * Widgets for select dialog.
  */
+static GtkWidget *exp_radio[MAX_EXPANSION];
 static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
 static GtkWidget *disable_goal_check;
@@ -11174,7 +11162,7 @@ static int next_exp, next_player, next_variant;
  */
 static void update_sensitivity()
 {
-	int i;
+	int i, min_exp, max_p;
 
 	/* Set advanced checkbox sensitivity */
 	gtk_widget_set_sensitive(advanced_check, next_player == 2);
@@ -11183,25 +11171,45 @@ static void update_sensitivity()
 	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0);
 
 	/* Set takeover disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1);
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1 &&
+	                         next_variant != VARIANT_TAKEOVER);
 
-	/* Set drafting checkbox sensitivity */
-	gtk_widget_set_sensitive(variant_radio[VARIANT_DRAFTING], next_exp > 0);
+	/* Calculate the minimum expansion */
+	min_exp = min_expansion(next_variant);
+
+	/* Check for too early expansion */
+	if (next_exp < min_exp)
+	{
+		/* Set to lowest possible expansion */
+		next_exp = min_exp;
+		gtk_toggle_button_set_active(
+			GTK_TOGGLE_BUTTON(exp_radio[min_exp]), TRUE);
+	}
+
+	/* Set expansion radio sensitivities */
+	for (i = 0; exp_names[i]; ++i)
+	{
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(exp_radio[i], i >= min_exp);
+	}
+
+	/* Calculate the maximum number of players */
+	max_p = max_players(next_exp, next_variant);
+
+	/* Check for too many players */
+	if (next_player > max_p)
+	{
+		/* Set to highest number of players */
+		next_player = max_p;
+		gtk_toggle_button_set_active(
+			GTK_TOGGLE_BUTTON(num_players_radio[max_p - 2]), TRUE);
+	}
 
 	/* Set player radio sensitivities */
 	for (i = 0; player_labels[i]; ++i)
 	{
-		/* Normal game or drafting variant */
-		if (!next_exp || next_variant != VARIANT_DRAFTING)
-		{
-			gtk_widget_set_sensitive(num_players_radio[i], i < next_exp + 3);
-		}
-
-		/* Drafting variant */
-		else
-		{
-			gtk_widget_set_sensitive(num_players_radio[i], i < 2 * next_exp);
-		}
+		/* Set sensitivity */
+		gtk_widget_set_sensitive(num_players_radio[i], i <= max_p - 2);
 	}
 }
 
@@ -11395,12 +11403,13 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *exp_box, *player_box, *name_box, *options_box;
-	GtkWidget *variant_box, *seed_box, *seed_value_box;
-	GtkWidget *exp_frame, *player_frame, *options_frame;
-	GtkWidget *variant_frame, *seed_frame;
-	GtkWidget *name_label, *seed_label;
-	int i;
+	GtkWidget *name_box, *name_label;
+	GtkWidget *exp_box, *exp_frame;
+	GtkWidget *player_box, *player_frame;
+	GtkWidget *options_box, *options_frame;
+	GtkWidget *variant_box, *variant_frame;
+	GtkWidget *seed_box, *seed_label, *seed_value_box, *seed_frame;
+	int i, min_exp, max_p;
 
 	/* Check for connected to server */
 	if (client_state != CS_DISCONN) return;
@@ -11460,6 +11469,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		                                        GTK_RADIO_BUTTON(radio),
 		                                        exp_names[i]);
 
+		/* Remember radio button */
+		exp_radio[i] = radio;
+
 		/* Check for current expansion level */
 		if (real_game.expanded == i)
 		{
@@ -11480,7 +11492,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Create frame around buttons */
-	exp_frame = gtk_frame_new("Choose expansion level");
+	exp_frame = gtk_frame_new("Expansion level");
 
 	/* Pack radio button box into frame */
 	gtk_container_add(GTK_CONTAINER(exp_frame), exp_box);
@@ -11525,7 +11537,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Create frame around buttons */
-	player_frame = gtk_frame_new("Choose number of players");
+	player_frame = gtk_frame_new("Number of players");
 
 	/* Pack radio button box into frame */
 	gtk_container_add(GTK_CONTAINER(player_frame), player_box);
@@ -11692,20 +11704,23 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Run dialog */
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
-		/* No drafting in base game */
-		if (next_exp == 0 && next_variant == VARIANT_DRAFTING)
-			next_variant = 0;
+		/* Find minimum expansion */
+		min_exp = min_expansion(next_variant);
 
-		/* Check for too many players */
-		if (next_exp == 0 && next_player > 4) next_player = 4;
-		if (next_exp == 1 && next_variant == VARIANT_DRAFTING &&
-		    next_player > 3) next_player = 3;
-		if (next_exp == 1 && next_player > 5) next_player = 5;
-		if (next_exp == 2 && next_variant == VARIANT_DRAFTING &&
-		    next_player > 5) next_player = 5;
+		/* Sanity check expansion */
+		if (next_exp < min_exp) next_exp = min_exp;
+
+		/* Find maximum number of player */
+		max_p = max_players(next_exp, next_variant);
+
+		/* Sanity check number of players */
+		if (next_player > max_p) next_player = max_p;
 
 		/* Set player name */
 		opt.player_name = strdup(gtk_entry_get_text(GTK_ENTRY(name_entry)));
+
+		/* Set variant */
+		opt.variant = next_variant;
 
 		/* Set expansion level */
 		opt.expanded = next_exp;
@@ -11725,11 +11740,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 
 		/* Set takeover disabled flag */
 		opt.disable_takeover = (opt.expanded >= 2) &&
+		                       (opt.variant != VARIANT_TAKEOVER) &&
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
-
-		/* Set variant */
-		opt.variant = next_variant;
 
 		/* Set custom seed flag */
 		opt.customize_seed = gtk_toggle_button_get_active(
