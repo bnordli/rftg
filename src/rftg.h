@@ -69,14 +69,19 @@
 #define MAX_VARIANT 4
 
 /*
- * Number of card designs.
+ * Number of available card designs slots.
+ */
+#define AVAILABLE_DESIGN 256
+
+/*
+ * Number of original card designs.
  */
 #define MAX_DESIGN 191
 
 /*
  * Number of cards in the deck.
  */
-#define MAX_DECK 228
+#define MAX_DECK 328
 
 /*
  * Number of powers per card.
@@ -918,7 +923,8 @@ typedef struct game
 /*
  * External variables.
  */
-extern design library[MAX_DESIGN];
+extern int num_design;
+extern design library[AVAILABLE_DESIGN];
 extern char *actname[MAX_ACTION * 2 - 1];
 extern char *plain_actname[MAX_ACTION + 1];
 extern char *good_printable[MAX_GOOD];

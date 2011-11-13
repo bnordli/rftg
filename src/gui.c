@@ -459,7 +459,7 @@ static int action_cidx, action_oidx;
 /*
  * Card images.
  */
-static GdkPixbuf *image_cache[MAX_DESIGN];
+static GdkPixbuf *image_cache[AVAILABLE_DESIGN];
 
 /*
  * Goal card images.
@@ -1053,7 +1053,7 @@ static void load_image_bundle(void)
 		else
 		{
 			/* Destroy the unneeded pixbuf */
-			g_object_unref(G_OBJECT(buf));
+			g_object_unref(G_OBJECT(tmp_pixbuf));
 		}
 
 		/* Close memory stream */
@@ -1087,13 +1087,23 @@ static int load_images(void)
 	card_back = gdk_pixbuf_new_from_file(RFTGDIR "/image/cardback.jpg", NULL);
 
 	/* Loop over designs */
-	for (i = 0; i < MAX_DESIGN; i++)
+	for (i = 0; i < num_design; i++)
 	{
 		/* Construct image filename */
 		sprintf(fn, RFTGDIR "/image/card%03d.jpg", i);
 
 		/* Load image */
 		image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+
+		/* Check for error */
+		if (!image_cache[i])
+		{
+			/* Try current folder */
+			sprintf(fn, "image/card%03d.jpg", i);
+
+			/* Load image */
+			image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+		}
 	}
 
 	/* Loop over goals */
@@ -1126,6 +1136,16 @@ static int load_images(void)
 
 			/* Load image */
 			icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+
+			/* Check for error */
+			if (!icon_cache[i])
+			{
+				/* Try current folder */
+				sprintf(fn, "icon%03d.png", i);
+
+				/* Load image */
+				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+			}
 		}
 	}
 
@@ -1154,7 +1174,7 @@ static int load_images(void)
 	}
 
 	/* Loop over designs */
-	for (i = 0; i < MAX_DESIGN; i++)
+	for (i = 0; i < num_design; i++)
 	{
 		/* Check for card image */
 		if (!image_cache[i])

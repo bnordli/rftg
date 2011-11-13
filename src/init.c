@@ -23,9 +23,14 @@
 #include "rftg.h"
 
 /*
+ * Number of loaded designs.
+ */
+int num_design;
+
+/*
  * Card designs.
  */
-design library[MAX_DESIGN];
+design library[AVAILABLE_DESIGN];
 
 /*
  * Names of card flags.
@@ -281,7 +286,6 @@ int read_cards(char *suggestion)
 {
 	FILE *fff;
 	char buf[1024], *ptr;
-	int num_design = 0;
 	design *d_ptr = NULL;
 	power *o_ptr;
 	vp_bonus *v_ptr;
@@ -317,7 +321,7 @@ int read_cards(char *suggestion)
 	}
 
 	/* Loop over file */
-	while (1)
+	while (num_design < AVAILABLE_DESIGN)
 	{
 		/* Read a line */
 		fgets(buf, 1024, fff);
@@ -611,7 +615,7 @@ void init_game(game *g)
 	g->oort_kind = GOOD_ANY;
 
 	/* Loop over card designs */
-	for (i = 0; i < MAX_DESIGN; i++)
+	for (i = 0; i < num_design; i++)
 	{
 		/* Get design pointer */
 		d_ptr = &library[i];
@@ -622,6 +626,14 @@ void init_game(game *g)
 		/* Add cards */
 		for (j = 0; j < n; j++)
 		{
+			/* Check for too large deck */
+			if (g->deck_size >= MAX_DECK)
+			{
+				/* Error */
+				display_error("Deck is too large!");
+				exit(1);
+			}
+
 			/* Get card pointer */
 			c_ptr = &g->deck[g->deck_size++];
 
