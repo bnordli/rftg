@@ -4950,7 +4950,7 @@ int main(int argc, char *argv[])
 				}
 
 				/* Check for unsent data ready to send */
-				if (FD_ISSET(c_list[i].fd, &writefds))
+				if (c_list[i].fd > 0 && FD_ISSET(c_list[i].fd, &writefds))
 				{
 					/* Send ping to flush buffer */
 					send_msgf(i, MSG_PING, "");
