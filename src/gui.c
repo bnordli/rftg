@@ -922,6 +922,17 @@ static void load_image_bundle(void)
 
 		/* Open file for reading */
 		fs = G_INPUT_STREAM(g_file_read(bundle, NULL, NULL));
+
+		/* Check for error */
+		if (!fs)
+		{
+			/* Try reading from program directory instead */
+			sprintf(buf, "%s/images.data", program_path);
+			bundle = g_file_new_for_path(buf);
+
+			/* Open file for reading */
+			fs = G_INPUT_STREAM(g_file_read(bundle, NULL, NULL));
+		}
 	}
 
 	/* Check for error */
@@ -1076,6 +1087,37 @@ static void load_image_bundle(void)
 }
 
 /*
+ * Load an image from any of the default locations.
+ */
+static GdkPixbuf *load_image(char *name)
+{
+	GdkPixbuf* image;
+	char fn[1024];
+
+	/* Look in installed location */
+	sprintf(fn, RFTGDIR "/%s", name);
+
+	/* Try to load image */
+	image = gdk_pixbuf_new_from_file(fn, NULL);
+
+	/* Return if successful */
+	if (image) return image;
+
+	/* Try to load image */
+	image = gdk_pixbuf_new_from_file(name, NULL);
+
+	/* Return if successful */
+	if (image) return image;
+
+	/* Look in program location */
+	sprintf(fn, "%s/%s", program_path, name);
+
+	/* Try to load image */
+	image = gdk_pixbuf_new_from_file(fn, NULL);
+	return image;
+}
+
+/*
  * Load pixbufs with card images.
  */
 static int load_images(void)
@@ -1084,36 +1126,26 @@ static int load_images(void)
 	char fn[1024], msg[1024];
 
 	/* Load card back image */
-	card_back = gdk_pixbuf_new_from_file(RFTGDIR "/image/cardback.jpg", NULL);
+	card_back = load_image("image/cardback.jpg");
 
 	/* Loop over designs */
 	for (i = 0; i < num_design; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/card%03d.jpg", i);
+		sprintf(fn, "image/card%03d.jpg", i);
 
 		/* Load image */
-		image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-		/* Check for error */
-		if (!image_cache[i])
-		{
-			/* Try current folder */
-			sprintf(fn, "image/card%03d.jpg", i);
-
-			/* Load image */
-			image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-		}
+		image_cache[i] = load_image(fn);
 	}
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/goal%02d.jpg", i);
+		sprintf(fn, "image/goal%02d.jpg", i);
 
 		/* Load image */
-		goal_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+		goal_cache[i] = load_image(fn);
 	}
 
 	/* Loop over icons */
@@ -1123,29 +1155,19 @@ static int load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/icon%02d.png", i);
+		sprintf(fn, "image/icon%02d.png", i);
 
 		/* Load image */
-		icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+		icon_cache[i] = load_image(fn);
 
 		/* Check for error */
 		if (!icon_cache[i])
 		{
 			/* Try base folder */
-			sprintf(fn, RFTGDIR "/icon%03d.png", i);
+			sprintf(fn, "icon%03d.png", i);
 
 			/* Load image */
-			icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-			/* Check for error */
-			if (!icon_cache[i])
-			{
-				/* Try current folder */
-				sprintf(fn, "icon%03d.png", i);
-
-				/* Load image */
-				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-			}
+			icon_cache[i] = load_image(fn);
 		}
 	}
 
@@ -1156,10 +1178,10 @@ static int load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/action%02d.jpg", i);
+		sprintf(fn, "image/action%02d.jpg", i);
 
 		/* Load image */
-		action_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+		action_cache[i] = load_image(fn);
 	}
 
 	/* Try to load rest of image data from bundle */
@@ -13393,6 +13415,9 @@ int main(int argc, char *argv[])
 	chdir(path);
 #endif
 
+	/* Set the program path */
+	set_program_path(argc, argv);
+
 	/* Prevent locale usage -- use C locale for everything */
 	gtk_disable_setlocale();
 
@@ -13412,7 +13437,7 @@ int main(int argc, char *argv[])
 #endif
 
 	/* Load card designs */
-	err = read_cards(NULL);
+	err = read_cards();
 
 	/* Check for errors */
 	if (err == -1)

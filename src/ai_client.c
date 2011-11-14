@@ -597,8 +597,11 @@ int main(int argc, char *argv[])
 {
 	int i;
 
+	/* Set the program path */
+	set_program_path(argc, argv);
+
 	/* Read card database */
-	if (read_cards(NULL) < 0)
+	if (read_cards() < 0)
 	{
 		/* Exit */
 		exit(1);

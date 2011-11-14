@@ -551,18 +551,11 @@ void free_net(net *learn)
 /*
  * Load network weights from disk.
  */
-int load_net(net *learn, char *fname)
+int load_net(net *learn, FILE *fff)
 {
-	FILE *fff;
 	int i, j;
 	int input, hidden, output;
 	char name[80];
-
-	/* Open weights file */
-	fff = fopen(fname, "r");
-
-	/* Check for failure */
-	if (!fff) return -1;
 
 	/* Read network size from file */
 	if (fscanf(fff, "%d %d %d\n", &input, &hidden, &output) != 3) return -1;
@@ -641,13 +634,9 @@ int load_net(net *learn, char *fname)
 /*
  * Save network weights to disk.
  */
-void save_net(net *learn, char *fname)
+void save_net(net *learn, FILE *fff)
 {
-	FILE *fff;
 	int i, j;
-
-	/* Open output file */
-	fff = fopen(fname, "w");
 
 	/* Save network size */
 	fprintf(fff, "%d %d %d\n", learn->num_inputs, learn->num_hidden,

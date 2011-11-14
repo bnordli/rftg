@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2011.
+ * Source file modified by B. Nordli, November 2011.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1261,33 +1261,14 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* Make a copy of the program path */
-	strcpy(buf, argv[0]);
+	/* Set the program path */
+	set_program_path(argc, argv);
 
-	/* Search for path in program path */
-	if (strrchr(buf, '/'))
+	/* Read card library */
+	if (read_cards() < 0)
 	{
-		/* Make a copy */
-		strcpy(buf, argv[0]);
-
-		/* Chop string */
-		*strrchr(buf, '/') = '\0';
-
-		/* Read card library */
-		if (read_cards(buf) < 0)
-		{
-			/* Exit */
-			exit(1);
-		}
-	}
-	else
-	{
-		/* Read card library */
-		if (read_cards(NULL) < 0)
-		{
-			/* Exit */
-			exit(1);
-		}
+		/* Exit */
+		exit(1);
 	}
 
 	/* Initialize database library */

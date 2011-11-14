@@ -923,6 +923,7 @@ typedef struct game
 /*
  * External variables.
  */
+extern char program_path[1024];
 extern int num_design;
 extern design library[AVAILABLE_DESIGN];
 extern char *actname[MAX_ACTION * 2 - 1];
@@ -946,6 +947,8 @@ extern decisions gui_func;
  * External functions.
  */
 extern void display_error(char *msg);
+extern void set_program_path(int argc, char **argv);
+extern FILE *open_file(char *file);
 extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
@@ -956,7 +959,7 @@ extern int max_players(int expansion, int variant);
 extern int count_draw(game *g, int who);
 extern void auto_export(void);
 extern int game_rand(game *g, int who);
-extern int read_cards(char *suggestion);
+extern int read_cards(void);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);

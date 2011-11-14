@@ -3523,7 +3523,7 @@ static void handle_login(int cid, char *ptr)
 	send_msgf(cid, MSG_CHAT, "ss", "", WELCOME);
 
 	/* Open welcome message */
-	fff = fopen(RFTGDIR "/welcome.txt", "r");
+	fff = open_file("welcome.txt");
 
 	/* Check for success */
 	if (fff)
@@ -4799,8 +4799,11 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	/* Set the program path */
+	set_program_path(argc, argv);
+
 	/* Read card library */
-	if (read_cards(NULL) < 0)
+	if (read_cards() < 0)
 	{
 		/* Exit */
 		exit(1);

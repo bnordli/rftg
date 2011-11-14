@@ -89,6 +89,7 @@ static void fill_adv_combo(void);
  */
 static void ai_initialize(game *g, int who, double factor)
 {
+	FILE *fff;
 	char fname[1024], msg[1024];
 	static int loaded_p, loaded_e, loaded_a;
 
@@ -117,26 +118,28 @@ static void ai_initialize(game *g, int who, double factor)
 #endif
 
 	/* Create evaluator filename */
-	sprintf(fname, RFTGDIR "/network/rftg.eval.%d.%d%s.net", g->expanded,
+	sprintf(fname, "network/rftg.eval.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
-	/* Attempt to load network weights from disk */
-	if (load_net(&eval, fname))
+	/* Attempt to open network weights file */
+	fff = open_file(fname);
+
+	/* File is found */
+	if (fff)
 	{
-		/* Try looking under current directory */
-		sprintf(fname, "network/rftg.eval.%d.%d%s.net", g->expanded,
-		        g->num_players, g->advanced ? "a" : "");
+		/* Load net */
+		load_net(&eval, fff);
+	}
 
-		/* Attempt to load again */
-		if (load_net(&eval, fname))
-		{
-			/* Print warning */
-			sprintf(msg, "Warning: Couldn't open %s\n", fname);
-			display_error(msg);
+	/* Error */
+	else
+	{
+		/* Print warning */
+		sprintf(msg, "Warning: Couldn't open %s\n", fname);
+		display_error(msg);
 
-			/* Perform initial training on new network */
-			initial_training(g);
-		}
+		/* Perform initial training on new network */
+		initial_training(g);
 	}
 
 	/* Set learning rate */
@@ -146,23 +149,25 @@ static void ai_initialize(game *g, int who, double factor)
 #endif
 
 	/* Create predictor filename */
-	sprintf(fname, RFTGDIR "/network/rftg.role.%d.%d%s.net", g->expanded,
+	sprintf(fname, "network/rftg.role.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
-	/* Attempt to load network weights from disk */
-	if (load_net(&role, fname))
-	{
-		/* Try looking under current directory */
-		sprintf(fname, "network/rftg.role.%d.%d%s.net", g->expanded,
-		        g->num_players, g->advanced ? "a" : "");
+	/* Attempt to open network weights file */
+	fff = open_file(fname);
 
-		/* Attempt to load again */
-		if (load_net(&role, fname))
-		{
-			/* Print warning */
-			sprintf(msg, "Warning: Couldn't open %s\n", fname);
-			display_error(msg);
-		}
+	/* File is found */
+	if (fff)
+	{
+		/* Load net */
+		load_net(&role, fff);
+	}
+
+	/* Error */
+	else
+	{
+		/* Print warning */
+		sprintf(msg, "Warning: Couldn't open %s\n", fname);
+		display_error(msg);
 	}
 
 	/* Mark network as loaded */
@@ -6157,6 +6162,7 @@ static void ai_game_over(game *g, int who)
  */
 static void ai_shutdown(game *g, int who)
 {
+	FILE *fff;
 	char fname[1024];
 	static int saved;
 
@@ -6167,15 +6173,21 @@ static void ai_shutdown(game *g, int who)
 	sprintf(fname, RFTGDIR "/network/rftg.eval.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
+	/* Open output file */
+	fff = fopen(fname, "w");
+
 	/* Save weights to disk */
-	save_net(&eval, fname);
+	save_net(&eval, fff);
 
 	/* Create predictor filename */
 	sprintf(fname, RFTGDIR "/network/rftg.role.%d.%d%s.net", g->expanded,
 	        g->num_players, g->advanced ? "a" : "");
 
+	/* Open output file */
+	fff = fopen(fname, "w");
+
 	/* Save weights to disk */
-	save_net(&role, fname);
+	save_net(&eval, fff);
 
 	printf("Role hit: %d, Role miss: %d\n", role_hit, role_miss);
 	printf("Role avg: %f\n", role_avg / (role_hit + role_miss));

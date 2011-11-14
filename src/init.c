@@ -282,7 +282,7 @@ static uint64_t lookup_power(char *ptr, int phase)
 /*
  * Read card designs from 'cards.txt' file.
  */
-int read_cards(char *suggestion)
+int read_cards()
 {
 	FILE *fff;
 	char buf[1024], *ptr;
@@ -293,24 +293,7 @@ int read_cards(char *suggestion)
 	uint64_t code;
 
 	/* Open card database */
-	fff = fopen(RFTGDIR "/cards.txt", "r");
-
-	/* Check for error */
-	if (!fff)
-	{
-		/* Try reading from current directory instead */
-		fff = fopen("cards.txt", "r");
-	}
-
-	/* Check for error and alternative suggestion */
-	if (!fff && suggestion)
-	{
-		/* Combine the paths */
-		sprintf(buf, "%s/cards.txt", suggestion);
-
-		/* Try reading from suggested directory instead */
-		fff = fopen(buf, "r");
-	}
+	fff = open_file("cards.txt");
 
 	/* Check for failure */
 	if (!fff)

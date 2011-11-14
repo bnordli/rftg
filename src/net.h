@@ -107,5 +107,5 @@ extern void clear_store(net *learn);
 extern void train_net(net *learn, double lambda, double *desired);
 extern void apply_training(net *learn);
 extern void free_net(net *learn);
-extern int load_net(net *learn, char *fname);
-extern void save_net(net *learn, char *fname);
+extern int load_net(net *learn, FILE *fff);
+extern void save_net(net *learn, FILE *fff);

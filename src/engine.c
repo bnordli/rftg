@@ -163,6 +163,71 @@ int goals_enabled(game *g)
 }
 
 /*
+ * The path to the executing program.
+ */
+char program_path[1024];
+
+/*
+ * Store the program path based on the command line arguments.
+ */
+void set_program_path(int argc, char **argv)
+{
+	/* Make a copy of the program path */
+	strcpy(program_path, argv[0]);
+
+	/* Search for forward slash in program path */
+	if (strrchr(program_path, '/'))
+	{
+		/* Chop string */
+		*strrchr(program_path, '/') = '\0';
+	}
+
+	/* Search for backward slash in program path */
+	else if (strrchr(program_path, '\\'))
+	{
+		/* Chop string */
+		*strrchr(program_path, '\\') = '\0';
+	}
+	else
+	{
+		/* Use current folder */
+		strcpy(program_path, ".");
+	}
+}
+
+/*
+ * Look for a file in any of the default locations and open it for reading.
+ */
+FILE *open_file(char *name)
+{
+	FILE *fff;
+	char fn[1024];
+
+	/* Look in installed location */
+	sprintf(fn, RFTGDIR "/%s", name);
+
+	/* Open card database */
+	fff = fopen(fn, "r");
+
+	/* Return if successful */
+	if (fff) return fff;
+
+	/* Try reading from current directory instead */
+	fff = fopen(name, "r");
+
+	/* Return if successful */
+	if (fff) return fff;
+
+	/* Look in program location */
+	sprintf(fn, "%s/%s", program_path, name);
+
+	/* Try reading the file */
+	fff = fopen(fn, "r");
+
+	return fff;
+}
+
+/*
  * Return whether takeovers are enabled in this game.
  */
 int takeovers_enabled(game *g)
