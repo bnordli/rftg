@@ -2601,7 +2601,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	GtkWidget *player_box, *player_frame;
 	GtkWidget *options_box, *options_frame;
 	GtkWidget *variant_box, *variant_frame;
-	int i, min_exp, max_p;
+	int i, min_exp;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Create Game", NULL,

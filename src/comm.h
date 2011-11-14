@@ -77,10 +77,10 @@
 /*
  * Client features.
  */
-#define FEATURE_VARIANT 1
+#define FEATURE_VARIANT "0.8.1n"
 
 /* External functions */
-extern int version_supports(char* version, int feature);
+extern int version_supports(char* version, char* feature);
 extern void get_string(char *dest, char **msg);
 extern int get_integer(char **msg);
 extern void put_string(char *ptr, char **msg);

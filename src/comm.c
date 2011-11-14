@@ -24,18 +24,11 @@
 /*
  * Check whether a client/server supports the given feature.
  */
-int version_supports(char* version, int feature)
+int version_supports(char* version, char* feature)
 {
-	switch (feature)
-	{
-		/* Variants */
-		case FEATURE_VARIANT:
-			/* Supported in release 0.8.1n and above */
-			return strlen(version) > 5 &&
-			       strcmp("0.8.1n", version) <= 0;
-		default:
-			return 1;
-	}
+	/* Check for patched version and newer version */
+	return strlen(version) > 5 &&
+	       strcmp(feature, version) <= 0;
 }
 
 /*
