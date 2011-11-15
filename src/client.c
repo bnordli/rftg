@@ -375,7 +375,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 
 	/* Check for ability to add AI player */
 	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned &&
-	                         nump < maxp && !variant);
+	                         nump < maxp && variant != VARIANT_DRAFTING);
 }
 
 /*
@@ -603,6 +603,11 @@ static void handle_status_meta(char *ptr, int size)
 	{
 		/* Read variant parameter */
 		real_game.variant = get_integer(&ptr);
+	}
+	else
+	{
+		/* No variants */
+		real_game.variant = 0;
 	}
 
 	/* Initialize card designs for this expansion level */
@@ -2848,6 +2853,11 @@ void create_dialog(GtkButton *button, gpointer data)
 		/* Add frame to dialog box */
 		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 		                  variant_frame);
+	}
+	else
+	{
+		/* No variant */
+		next_variant = 0;
 	}
 
 	/* Update sensitivites */

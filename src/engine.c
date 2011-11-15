@@ -10221,13 +10221,14 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 		message_add_formatted(g, msg, FORMAT_EM);
 
 		/* Format message */
-		sprintf(msg, "Each player draws %d card%s.\n", draw, PLURAL(draw));
+		sprintf(msg, "All players draw %d card%s.\n", draw, PLURAL(draw));
 
 		/* Send message */
 		message_add(g, msg);
 
-		/* Format message */
-		sprintf(msg, "Cards are passed %s.\n", i % 2 ? "right" : "left");
+		/* Format message  when more than two players */
+		if (g->num_players > 2)
+			sprintf(msg, "Cards are passed %s.\n", i % 2 ? "right" : "left");
 
 		/* Send message */
 		message_add(g, msg);

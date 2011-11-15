@@ -1872,7 +1872,7 @@ static int obfuscate_group(game *g, int i, int who)
 	if (c_ptr->known & (1 << who)) return -1;
 
 	/* Check for variant game */
-	if (g->variant == VARIANT_DRAFTING || g->variant == VARIANT_PRIVATE)
+	if (separate_piles_enabled(g))
 	{
 		/* Card drafted by us are interchangeable */
 		if (c_ptr->owner == who) return 1;
