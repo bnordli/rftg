@@ -10220,6 +10220,31 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 		/* Send message */
 		message_add_formatted(g, msg, FORMAT_EM);
 
+		/* Loop over players */
+		for (j = 0; j < g->num_players; ++j)
+		{
+			/* For each card */
+			for (k = 0; k < draw; ++k)
+			{
+				/* Draw card */
+				draws[j][k] = random_draw(g, -1);
+
+				/* Put card in hand */
+				move_card(g, draws[j][k], -1, WHERE_HAND);
+
+				/* Check for private message */
+				if (g->p[j].control->private_message)
+				{
+					/* Format message */
+					sprintf(msg, "%s draws %s.\n", g->p[j].name,
+							g->deck[draws[j][k]].d_ptr->name);
+
+					/* Send message */
+					g->p[j].control->private_message(g, j, msg, FORMAT_DRAW);
+				}
+			}
+		}
+
 		/* Format message */
 		sprintf(msg, "All players draw %d card%s.\n", draw, PLURAL(draw));
 
@@ -10232,20 +10257,6 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 
 		/* Send message */
 		message_add(g, msg);
-
-		/* Loop over players */
-		for (j = 0; j < g->num_players; ++j)
-		{
-			/* For each card */
-			for (k = 0; k < draw; ++k)
-			{
-				/* Draw card */
-				draws[j][k] = random_draw(g, -1);
-
-				/* Set aside card */
-				move_card(g, draws[j][k], -1, WHERE_HAND);
-			}
-		}
 
 		/* Loop over all passes */
 		for (j = 0; j < draw; ++j)
