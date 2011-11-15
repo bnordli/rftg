@@ -859,7 +859,7 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
 
 		/* Remember unknown card */
-		unknown[(*count)++] = i;
+		unknown[(*count)++] = c_ptr->d_ptr->index;
 	}
 
 	/* XXX In case of too few unknown cards, add cards from wherever */
@@ -876,7 +876,7 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 			if (c_ptr->owner == who && !(c_ptr->known & (1 << who))) continue;
 
 			/* Remember card */
-			unknown[(*count)++] = i;
+			unknown[(*count)++] = c_ptr->d_ptr->index;
 		}
 	}
 }
