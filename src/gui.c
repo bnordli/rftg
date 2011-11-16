@@ -6280,6 +6280,7 @@ int gui_choose_draft(game *g, int who, int list[], int num, int special[],
 	displayed *i_ptr;
 	card *c_ptr;
 	int i, j, save_opt;
+	int forced = opt.auto_select && num == 1;
 
 	/* Save special cards */
 	num_special_cards = num_special;
@@ -6305,8 +6306,8 @@ int gui_choose_draft(game *g, int who, int list[], int num, int special[],
 	action_restrict = RESTRICT_NUM;
 	action_min = action_max = 1;
 
-	/* Deactivate action button */
-	gtk_widget_set_sensitive(action_button, FALSE);
+	/* (De)activate action button */
+	gtk_widget_set_sensitive(action_button, forced);
 
 	/* Add start worlds to table */
 	for (i = 0; i < num_special; i++)
@@ -6341,6 +6342,7 @@ int gui_choose_draft(game *g, int who, int list[], int num, int special[],
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 				i_ptr->greedy = 1;
+				i_ptr->selected = forced;
 
 				/* Highlight card when selected */
 				i_ptr->highlight = HIGH_YELLOW;
