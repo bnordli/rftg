@@ -5827,12 +5827,12 @@ int resolve_takeover(game *g, int who, int world, int special,
 		/* Check for previously awarded prestige */
 		if (prestige)
 		{
-			/* Append card name */
+			/* XXX Append card name */
 			strcat(prestige_reason, " and Imperium Invasion Fleet");
 		}
 		else
 		{
-			/* Remember card name */
+			/* XXX Remember card name */
 			strcpy(prestige_reason, "Imperium Invasion Fleet");
 		}
 

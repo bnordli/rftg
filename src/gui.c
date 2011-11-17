@@ -3539,7 +3539,7 @@ static void military_world_payment(game *g, int who, int which,
 		/* Set reduction to 2 */
 		pay_for_mil = 2;
 
-		/* Save card name */
+		/* XXX Save card name */
 		*cost_card = "Rebel Alliance";
 	}
 
@@ -3550,7 +3550,7 @@ static void military_world_payment(game *g, int who, int which,
 		/* Set reduction to 1 */
 		pay_for_mil = 1;
 
-		/* Save card name */
+		/* XXX Save card name */
 		*cost_card = "Contact Specialist";
 	}
 
@@ -3561,7 +3561,7 @@ static void military_world_payment(game *g, int who, int which,
 		/* Set reduction to 0 */
 		pay_for_mil = 0;
 
-		/* Save card name */
+		/* XXX Save card name */
 		*cost_card = "Rebel Cantina";
 	}
 
@@ -3572,7 +3572,7 @@ static void military_world_payment(game *g, int who, int which,
 		/* Set reduction to 0 */
 		pay_for_mil = 0;
 
-		/* Save card name */
+		/* XXX Save card name */
 		*cost_card = "Alien Research Team";
 	}
 
@@ -3582,7 +3582,7 @@ static void military_world_payment(game *g, int who, int which,
 		/* Set reduction to 0 */
 		pay_for_mil = 0;
 
-		/* Save card name */
+		/* XXX Save card name */
 		*cost_card = "Ravaged Uplift World";
 	}
 
@@ -3735,7 +3735,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 			p += sprintf(p, "Cost to place: %d\n", cost);
 		}
 
-		/* Check for Imperium Cloaking Technology */
+		/* XXX Check for Imperium Cloaking Technology */
 		if (ict_mil >= 0)
 		{
 			/* Check for no extra military */
@@ -3753,7 +3753,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 			}
 		}
 
-		/* Check for Imperium Invasion Fleet */
+		/* XXX Check for Imperium Invasion Fleet */
 		if (iif_mil >= 0)
 		{
 			/* Check for no extra military */
