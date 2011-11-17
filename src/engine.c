@@ -10649,6 +10649,9 @@ void begin_game(game *g)
 	/* Check for two start world choices */
 	else if (g->expanded >= 2 || g->variant == VARIANT_DRAFTING)
 	{
+		/* Send start of game message */
+		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
+
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
 		{
