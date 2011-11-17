@@ -143,6 +143,8 @@
 /*
  * Player action choices.
  */
+#define ACT_DRAFTING       -3
+#define ACT_GAME_START     -2
 #define ACT_ROUND_START    -1
 #define ACT_SEARCH         0
 #define ACT_EXPLORE_5_0    1
@@ -509,7 +511,11 @@
 #define CHOICE_DRAFT_FIRST      25
 #define CHOICE_DRAFT            26
 
-#define CHOICE_DEBUG            -10
+/*
+ * Debug choices are negative
+ */
+#define CHOICE_D_MOVE           -10
+#define CHOICE_D_SHUFFLE        -11
 
 
 /*
@@ -953,7 +959,7 @@ extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
-extern int separate_piles_enabled(game *g);
+extern int separate_decks(game *g);
 extern int min_expansion(int variant);
 extern int max_players(int expansion, int variant);
 extern int count_draw(game *g, int who);

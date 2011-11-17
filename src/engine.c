@@ -236,9 +236,9 @@ int takeovers_enabled(game *g)
 }
 
 /*
- * Return whether separate piles are enabled in this game.
+ * Return whether separate decks are enabled in this game.
  */
-int separate_piles_enabled(game *g)
+int separate_decks(game *g)
 {
 	return g->variant == VARIANT_DRAFTING || g->variant == VARIANT_PRIVATE;
 }
@@ -449,7 +449,7 @@ static void refresh_draw(game *g, int who)
 	int i;
 
 	/* Check for common decks */
-	if (!separate_piles_enabled(g))
+	if (!separate_decks(g))
 	{
 		/* Draw deck is global */
 		who = -1;
@@ -459,13 +459,13 @@ static void refresh_draw(game *g, int who)
 	if (!g->simulation)
 	{
 		/* Check for common decks */
-		if (!separate_piles_enabled(g))
+		if (!separate_decks(g))
 		{
 			/* Send message */
 			message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
 		}
 
-		/* Variant game and not global draw pile */
+		/* Variant game with separate decks */
 		else if (who != -1)
 		{
 			/* Format message */
@@ -505,7 +505,7 @@ int random_draw(game *g, int who)
 	int i, n;
 
 	/* Check for common decks */
-	if (!separate_piles_enabled(g))
+	if (!separate_decks(g))
 	{
 		/* Draw deck is global */
 		who = -1;
@@ -858,7 +858,7 @@ void draw_cards(game *g, int who, int num, char *reason)
 void discard_card(game *g, int who, int which)
 {
 	/* Check for common decks */
-	if (!separate_piles_enabled(g))
+	if (!separate_decks(g))
 	{
 		/* Move card to discard and clear owner */
 		move_card(g, which, -1, WHERE_DISCARD);
@@ -1129,7 +1129,7 @@ int next_choice(int* log, int pos)
 }
 
 /*
- * Look for CHOICE_DEBUG in the log and execute the choices.
+ * Look for debug choices in the log and execute the choices.
  */
 void perform_debug_moves(game *g, int who)
 {
@@ -1145,40 +1145,87 @@ void perform_debug_moves(game *g, int who)
 	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
 
 	/* Loop for debug choices */
-	while (*l_ptr == CHOICE_DEBUG && p_ptr->choice_pos < p_ptr->choice_size)
+	while (p_ptr->choice_pos < p_ptr->choice_size)
 	{
-		/* Advance pointer */
-		l_ptr++;
+		/* Read next choice type */
+		switch (*l_ptr)
+		{
+			/* Move a card in debug mode */
+			case CHOICE_D_MOVE:
 
-		/* Get card index value */
-		c = *l_ptr++;
+				/* Advance pointer */
+				l_ptr++;
 
-		/* Advance pointer to start of list */
-		l_ptr++;
+				/* Get card index value */
+				c = *l_ptr++;
 
-		/* Get new owner */
-		owner = *l_ptr++;
+				/* Advance pointer to start of list */
+				l_ptr++;
 
-		/* Get new location */
-		where = *l_ptr++;
+				/* Get new owner */
+				owner = *l_ptr++;
 
-		/* Format message */
-		sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
-		        g->deck[c].d_ptr->name,
-		        owner == -1 ? "None" : g->p[owner].name,
-		        location_names[where]);
+				/* Get new location */
+				where = *l_ptr++;
 
-		/* Add message */
-		message_add_formatted(g, msg, FORMAT_DEBUG);
+				/* Advance pointer to next choice */
+				l_ptr++;
 
-		/* Move card */
-		move_card(g, c, owner, where);
+				/* Format message */
+				sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
+						g->deck[c].d_ptr->name,
+						owner == -1 ? "None" : g->p[owner].name,
+						location_names[where]);
 
-		/* Always place debug cards first in order */
-		g->deck[c].order = -1;
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
 
-		/* Advance pointer to next choice */
-		l_ptr++;
+				/* Move card */
+				move_card(g, c, owner, where);
+
+				/* Always place debug cards first in order */
+				g->deck[c].order = -1;
+				break;
+
+			/* Shuffle the deck */
+			case CHOICE_D_SHUFFLE:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Check for needing to shuffle the global deck */
+				if (!separate_decks(g) || g->cur_action == ACT_DRAFTING)
+				{
+					/* Format message */
+					sprintf(msg, "%s shuffles the draw deck.\n",
+					        g->p[who].name);
+
+					/* Add message */
+					message_add_formatted(g, msg, FORMAT_DEBUG);
+
+					/* Move to next random number */
+					game_rand(g, -1);
+				}
+
+				/* Check for needing to shuffle the private deck */
+				if (separate_decks(g))
+				{
+					/* Format message */
+					sprintf(msg, "%s shuffles his draw deck.\n",
+					        g->p[who].name);
+
+					/* Add message */
+					message_add_formatted(g, msg, FORMAT_DEBUG);
+
+					/* Move to next random number */
+					game_rand(g, who);
+				}
+				break;
+
+			/* No more debug choices */
+			default:
+				return;
+		}
 
 		/* Set log position to current */
 		p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
@@ -9149,7 +9196,7 @@ void phase_discard(game *g)
 		if (count_active_flags(g, i, FLAG_TAKE_DISCARDS))
 		{
 			/* Check for common decks */
-			if (!separate_piles_enabled(g))
+			if (!separate_decks(g))
 			{
 				/* Look for cards discarded by opponents */
 				for (j = 0; j < g->deck_size; j++)
@@ -10175,6 +10222,9 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 	int i, j, k, m, choice;
 	int draw, rounds, cards, rotation, card;
 
+	/* Start drafting phase */
+	g->cur_action = ACT_DRAFTING;
+
 	/* Compute number of drafting rounds */
 	if (g->expanded == 1 && g->num_players == 2) rounds = 13;
 	else if (g->expanded == 1 && g->num_players == 3) rounds = 8;
@@ -10251,12 +10301,15 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 		/* Send message */
 		message_add(g, msg);
 
-		/* Format message  when more than two players */
+		/* Check for needing to write direction */
 		if (g->num_players > 2)
+		{
+			/* Format message */
 			sprintf(msg, "Cards are passed %s.\n", i % 2 ? "right" : "left");
 
-		/* Send message */
-		message_add(g, msg);
+			/* Send message */
+			message_add(g, msg);
+		}
 
 		/* Loop over all passes */
 		for (j = 0; j < draw; ++j)
@@ -10378,6 +10431,9 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 		/* Send message */
 		message_add(g, msg);
 	}
+
+	/* End drafting phase */
+	g->cur_action = ACT_GAME_START;
 }
 
 /*
@@ -10502,6 +10558,9 @@ void begin_game(game *g)
 			message_add_formatted(g, "Takeovers enabled.\n", FORMAT_TAKEOVER);
 		}
 	}
+
+	/* Start game */
+	g->cur_action = ACT_GAME_START;
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)

@@ -532,7 +532,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 	fputs("    </Phases>\n", fff);
 
 	/* Check for common decks */
-	if (!separate_piles_enabled(g))
+	if (!separate_decks(g))
 	{
 		/* Loop over cards */
 		for (i = 0; i < g->deck_size; i++)
@@ -654,8 +654,8 @@ int export_game(game *g, char *filename, char *style_sheet,
 			        p_ptr->prestige);
 		}
 
-		/* Check for separate piles */
-		if (!separate_piles_enabled(g))
+		/* Check for separate decks */
+		if (!separate_decks(g))
 		{
 			/* Write deck and discard size */
 			fprintf(fff, "    <Deck>%d</Deck>\n", deck[n]);

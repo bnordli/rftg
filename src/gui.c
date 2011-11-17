@@ -498,7 +498,7 @@ static GtkWidget *load_item, *replay_item, *save_item, *export_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
 static GtkWidget *option_item, *advanced_item, *quit_item;
-static GtkWidget *debug_card_item, *debug_ai_item, *about_item;
+static GtkWidget *debug_card_item, *debug_shuffle_item, *debug_ai_item, *about_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *entry_hbox;
 
@@ -4513,7 +4513,7 @@ void redraw_status(void)
 	gtk_container_foreach(GTK_CONTAINER(game_status), destroy_widget, NULL);
 
 	/* Skip draw and discard icons in variant games */
-	if (!separate_piles_enabled(&real_game))
+	if (!separate_decks(&real_game))
 	{
 		/* Build deck image */
 		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
@@ -5298,9 +5298,9 @@ void reset_status(game *g, int who)
 	status_player[who].cards_hand = count_player_area(g, who, WHERE_HAND);
 
 	/* Check for common decks */
-	if (!separate_piles_enabled(g))
+	if (!separate_decks(g))
 	{
-		/* Draw pile is shared */
+		/* Deck is shared */
 		status_player[who].cards_deck = -1;
 	}
 	else
@@ -10675,6 +10675,7 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(redo_round_item, TRUE);
 		gtk_widget_set_sensitive(redo_game_item, TRUE);
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
+		gtk_widget_set_sensitive(debug_shuffle_item, TRUE);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
 		gtk_widget_set_sensitive(about_item, TRUE);
@@ -10720,6 +10721,7 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(option_item, TRUE);
 				gtk_widget_set_sensitive(advanced_item, TRUE);
 				gtk_widget_set_sensitive(debug_card_item, debug_server);
+				gtk_widget_set_sensitive(debug_shuffle_item, debug_server);
 				gtk_widget_set_sensitive(about_item, TRUE);
 			}
 			else
@@ -10729,6 +10731,7 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(option_item, FALSE);
 				gtk_widget_set_sensitive(advanced_item, FALSE);
 				gtk_widget_set_sensitive(debug_card_item, FALSE);
+				gtk_widget_set_sensitive(debug_shuffle_item, FALSE);
 				gtk_widget_set_sensitive(about_item, FALSE);
 			}
 		}
@@ -10742,6 +10745,7 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			/* Deactivate the resign and debug menu items */
 			gtk_widget_set_sensitive(resign_item, FALSE);
 			gtk_widget_set_sensitive(debug_card_item, FALSE);
+			gtk_widget_set_sensitive(debug_shuffle_item, FALSE);
 
 			/* Set the export item depending on whether game is over or not */
 			gtk_widget_set_sensitive(export_item, making_choice);
@@ -12700,7 +12704,7 @@ static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
 		l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
 
 		/* Add debug choice type to log */
-		*l_ptr++ = CHOICE_DEBUG;
+		*l_ptr++ = CHOICE_D_MOVE;
 
 		/* Add card index to log */
 		*l_ptr++ = c;
@@ -12971,6 +12975,40 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);
+}
+
+/*
+ * Shuffle the deck(s).
+ */
+static void debug_shuffle()
+{
+	player *p_ptr = &real_game.p[player_us];
+	int *l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
+
+	/* Add debug choice type to log */
+	*l_ptr++ = CHOICE_D_SHUFFLE;
+
+	/* Add 0 to log */
+	*l_ptr++ = 0;
+
+	/* Add empty list */
+	*l_ptr++ = 0;
+
+	/* Add empty special list */
+	*l_ptr++ = 0;
+
+	/* Mark new size of choice log */
+	p_ptr->choice_size = l_ptr - p_ptr->choice_log;
+
+	/* Mark one choice done */
+	choice_done(&real_game);
+
+	/* Check for local game */
+	if (client_state == CS_DISCONN)
+	{
+		/* Execute the debug moves immediately */
+		perform_debug_moves(&real_game, player_us);
+	}
 }
 
 /*
@@ -13810,14 +13848,18 @@ int main(int argc, char *argv[])
 
 	/* Create debug menu items */
 	debug_card_item = gtk_menu_item_new_with_mnemonic("Debug _cards...");
+	debug_shuffle_item = gtk_menu_item_new_with_mnemonic("_Shuffle deck");
 	debug_ai_item = gtk_menu_item_new_with_mnemonic("Debug _AI...");
 
 	/* Add accelerators for debug menu items */
 	gtk_widget_add_accelerator(debug_card_item, "activate", window_accel,
 	                           'D', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(debug_shuffle_item, "activate", window_accel,
+	                           'F', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 
 	/* Add items to debug menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_card_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_shuffle_item);
 	/* gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_ai_item); */
 
 	/* Create help menu */
@@ -13880,6 +13922,8 @@ int main(int argc, char *argv[])
 
 	g_signal_connect(G_OBJECT(debug_card_item), "activate",
 	                 G_CALLBACK(debug_card_dialog), NULL);
+	g_signal_connect(G_OBJECT(debug_shuffle_item), "activate",
+	                 G_CALLBACK(debug_shuffle), NULL);
 	g_signal_connect(G_OBJECT(debug_ai_item), "activate",
 	                 G_CALLBACK(debug_ai_dialog), NULL);
 
