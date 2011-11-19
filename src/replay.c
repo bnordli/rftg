@@ -769,6 +769,14 @@ static void determine_message(game *g, int who, int type, int list[], int *nl,
 			sprintf(msg, "Choose Alien Oort Cloud Refinery kind");
 			break;
 
+		/* Choose card to draft */
+		case CHOICE_DRAFT_FIRST:
+		case CHOICE_DRAFT:
+
+			/* Create prompt */
+			sprintf(buf, "Choose card to draft");
+			break;
+
 		/* Error */
 		default:
 			display_error("Unknown choice type!\n");
