@@ -2817,7 +2817,7 @@ void create_dialog(GtkButton *button, gpointer data)
 		for (i = 0; variant_labels[i]; i++)
 		{
 			/* Private decks variant disabled on server */
-			if (i == VARIANT_PRIVATE) continue;
+			if (i == VARIANT_SEPARATE) continue;
 
 			/* Create radio button */
 			variant_radio[i] = gtk_radio_button_new_with_label_from_widget(

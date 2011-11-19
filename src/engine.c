@@ -69,7 +69,7 @@ char *variant_labels[MAX_VARIANT + 1] =
 	"Normal",
 	"Takeover Scenario",
 	"Drafting",
-	"Private decks",
+	"Separate decks",
 	NULL,
 };
 
@@ -240,7 +240,7 @@ int takeovers_enabled(game *g)
  */
 int separate_decks(game *g)
 {
-	return g->variant == VARIANT_DRAFTING || g->variant == VARIANT_PRIVATE;
+	return g->variant == VARIANT_DRAFTING || g->variant == VARIANT_SEPARATE;
 }
 
 /*
@@ -10714,8 +10714,8 @@ void begin_game(game *g)
 			if (g->game_over) return;
 		}
 
-		/* Check for private decks */
-		else if (g->variant == VARIANT_PRIVATE)
+		/* Check for separate decks */
+		else if (g->variant == VARIANT_SEPARATE)
 		{
 			/* Separate the deck */
 			separate_decks(g, 2);
@@ -10813,8 +10813,8 @@ void begin_game(game *g)
 			move_card(g, start[i], -1, WHERE_DECK);
 		}
 
-		/* Check for private decks */
-		if (g->variant == VARIANT_PRIVATE)
+		/* Check for separate decks */
+		if (g->variant == VARIANT_SEPARATE)
 		{
 			/* Separate the deck */
 			separate_decks(g, 1);

@@ -27,7 +27,7 @@ static char *variant_str[MAX_VARIANT] =
 	"",
 	"V: Takeover",
 	"V: Draft",
-	"V: Private",
+	"V: Separate",
 };
 
 /*

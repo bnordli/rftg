@@ -233,7 +233,7 @@
  */
 #define VARIANT_TAKEOVER 1
 #define VARIANT_DRAFTING 2
-#define VARIANT_PRIVATE  3
+#define VARIANT_SEPARATE 3
 
 /*
  * Card power effects by phase.

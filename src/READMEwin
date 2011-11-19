@@ -35,7 +35,7 @@ This patch introduces the following additional command line options:
 	-v <variant>   -- Variant game:
 	                     1 = Takeover scenario
 	                     2 = Drafting
-	                     3 = Private decks
+	                     3 = Separate decks
 
 RIGHT-CLICK
 
