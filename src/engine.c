@@ -10437,9 +10437,9 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 }
 
 /*
- * Start the game by separating the deck.
+ * Start the game by splitting the deck.
  */
-static void separate_decks(game *g, int num_start)
+static void split_deck(game *g, int num_start)
 {
 	char msg[1024];
 	int i, j, count;
@@ -10718,7 +10718,7 @@ void begin_game(game *g)
 		else if (g->variant == VARIANT_SEPARATE)
 		{
 			/* Separate the deck */
-			separate_decks(g, 2);
+			split_deck(g, 2);
 		}
 
 		/* Loop over players again */
@@ -10817,7 +10817,7 @@ void begin_game(game *g)
 		if (g->variant == VARIANT_SEPARATE)
 		{
 			/* Separate the deck */
-			separate_decks(g, 1);
+			split_deck(g, 1);
 		}
 
 		/* Loop over players */
