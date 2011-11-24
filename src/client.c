@@ -2601,7 +2601,7 @@ void create_dialog(GtkButton *button, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *table;
-	GtkWidget *desc_entry, *pass_entry, *label;
+	GtkWidget *desc_entry, *pass_entry, *no_timeout_check, *label;
 	GtkWidget *exp_box, *exp_frame;
 	GtkWidget *player_box, *player_frame;
 	GtkWidget *options_box, *options_frame;
@@ -2661,6 +2661,22 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Add table to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+
+	/* Check for server supporting games without timeout */
+	if (version_supports(server_version, FEATURE_NO_TIMEOUT))
+	{
+		/* Create check box for games with no timeout */
+		no_timeout_check =
+			gtk_check_button_new_with_label("No timeout");
+
+		/* Set default */
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(no_timeout_check),
+		                             opt.no_timeout);
+
+		/* Add checkbox to dialog box */
+		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+		                  no_timeout_check);
+	}
 
 	/* Create vbox to hold expansion selection radio buttons */
 	exp_box = gtk_vbox_new(FALSE, 0);
@@ -2887,6 +2903,10 @@ void create_dialog(GtkButton *button, gpointer data)
 	opt.variant = next_variant;
 	opt.game_desc = strdup(gtk_entry_get_text(GTK_ENTRY(desc_entry)));
 	opt.game_pass = strdup(gtk_entry_get_text(GTK_ENTRY(pass_entry)));
+	opt.no_timeout = gtk_toggle_button_get_active(
+	                              GTK_TOGGLE_BUTTON(no_timeout_check));
+	opt.advanced = gtk_toggle_button_get_active(
+	                              GTK_TOGGLE_BUTTON(advanced_check));
 	opt.multi_min = (int)gtk_range_get_value(GTK_RANGE(min_player));
 	opt.multi_max = (int)gtk_range_get_value(GTK_RANGE(max_player));
 	opt.advanced = gtk_toggle_button_get_active(
@@ -2910,7 +2930,8 @@ void create_dialog(GtkButton *button, gpointer data)
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
               next_variant,
-	          0);
+			  no_timeout_check != NULL &&
+        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(no_timeout_check)));
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);

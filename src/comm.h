@@ -75,9 +75,10 @@
 #define WAIT_OPTION           2
 
 /*
- * Client features.
+ * Client/server features.
  */
-#define FEATURE_VARIANT "0.8.1n"
+#define FEATURE_VARIANT    "0.8.1n"
+#define FEATURE_NO_TIMEOUT "0.8.1n"
 
 /* External functions */
 extern int version_supports(char* version, char* feature);

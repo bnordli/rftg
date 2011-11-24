@@ -42,6 +42,12 @@
 #define SS_ABANDONED 4
 
 /*
+ * Speed types.
+ */
+#define SPEED_NORMAL     0
+#define SPEED_NO_TIMEOUT 1
+
+/*
  * Number of random bytes to store per session (2 needed per number generated).
  */
 #define MAX_RAND     1024
@@ -2548,6 +2554,7 @@ static void send_gamechat(int sid, int uid, char *user, char *text, int save)
 static void kick_player(int cid, char *reason)
 {
 	int sid, i;
+	session *s_ptr;
 	char text[1024];
 
 	/* Print message */
@@ -2573,18 +2580,19 @@ static void kick_player(int cid, char *reason)
 
 	/* Remember session player was in */
 	sid = c_list[cid].sid;
+	s_ptr = &s_list[sid];
 
 	/* Remove from session */
 	c_list[cid].sid = -1;
 
 	/* Loop over connections in session */
-	for (i = 0; i < s_list[sid].num_users; i++)
+	for (i = 0; i < s_ptr->num_users; i++)
 	{
 		/* Check for match */
-		if (s_list[sid].cids[i] == cid)
+		if (s_ptr->cids[i] == cid)
 		{
 			/* Clear connection ID */
-			s_list[sid].cids[i] = -1;
+			s_ptr->cids[i] = -1;
 			break;
 		}
 	}
@@ -2593,7 +2601,7 @@ static void kick_player(int cid, char *reason)
 	send_session(sid);
 
 	/* Check for active session */
-	if (s_list[sid].state == SS_STARTED)
+	if (s_ptr->state == SS_STARTED)
 	{
 		/* Format offline message */
 		sprintf(text, "%s disconnected.", c_list[cid].user);
@@ -2605,12 +2613,12 @@ static void kick_player(int cid, char *reason)
 		update_waiting(sid);
 
 		/* Check for kick timeout */
-		if (kick_timeout)
+		if (kick_timeout && s_ptr->speed != SPEED_NO_TIMEOUT)
 		{
 			/* Format time to AI control message */
 			sprintf(text, "%s will be set to AI control in %d seconds.",
 			        c_list[cid].user,
-			        (kick_timeout - s_list[sid].wait_ticks[i]) / 5 * tick_size);
+			        (kick_timeout - s_ptr->wait_ticks[i]) / 5 * tick_size);
 
 			/* Send to remaining players in session */
 			send_gamechat(sid, -1, "", text, 0);
@@ -4230,7 +4238,8 @@ static void handle_start(int cid, char *ptr)
 	server_log("Starting game %s (session %d)", s_ptr->desc, sid);
 
 	/* Format game number message */
-	sprintf(text, "Starting game #%d", s_ptr->gid);
+	sprintf(text, "Starting game #%d%s", s_ptr->gid,
+	        s_ptr->speed == SPEED_NO_TIMEOUT ? "(No timeout)" : "");
 
 	/* Send message to session */
 	send_gamechat(sid, -1, "", text, 1);
@@ -4490,6 +4499,7 @@ static void handle_data(int cid)
 static void do_housekeeping(void)
 {
 	session *s_ptr;
+	conn *c_ptr;
 	time_t cur_time = time(NULL);
 	int i, j, num;
 	char msg[1024];
@@ -4533,17 +4543,22 @@ static void do_housekeeping(void)
 	/* Loop over clients */
 	for (i = 0; i < num_conn; i++)
 	{
+		/* Get connection pointer */
+		c_ptr = &c_list[i];
+
 		/* Skip empty/disconnected clients */
-		if (c_list[i].state == CS_EMPTY ||
-		    c_list[i].state == CS_DISCONN) continue;
+		if (c_ptr->state == CS_EMPTY ||
+		    c_ptr->state == CS_DISCONN) continue;
 
 		/* Skip AI clients */
-		if (c_list[i].ai) continue;
+		if (c_ptr->ai) continue;
 
 		/* Check for no data from client in quite some time */
 		if (timeout &&
-		    c_list[i].ping_sent &&
-		    cur_time - c_list[i].last_seen > timeout)
+		    !(c_ptr->sid >= 0 &&
+		      s_list[c_ptr->sid].speed == SPEED_NO_TIMEOUT) &&
+		    c_ptr->ping_sent &&
+		    cur_time - c_ptr->last_seen > timeout)
 		{
 			/* Remove client */
 			kick_player(i, "Timeout");
@@ -4551,13 +4566,13 @@ static void do_housekeeping(void)
 		}
 
 		/* Check for no recent data from client */
-		if (cur_time - c_list[i].last_seen > ping_timeout)
+		if (cur_time - c_ptr->last_seen > ping_timeout)
 		{
 			/* Send client a ping */
 			send_msgf(i, MSG_PING, "");
 
 			/* Track ping */
-			c_list[i].ping_sent = 1;
+			c_ptr->ping_sent = 1;
 		}
 	}
 
@@ -4648,7 +4663,9 @@ static void do_housekeeping(void)
 			}
 
 			/* Check for warning given */
-			if (kick_timeout && s_ptr->wait_ticks[j] >= kick_timeout)
+			if (kick_timeout &&
+			    s_ptr->speed != SPEED_NO_TIMEOUT &&
+			    s_ptr->wait_ticks[j] >= kick_timeout)
 			{
 				/* Check for player connected */
 				if (s_ptr->cids[j] >= 0)
@@ -4670,6 +4687,7 @@ static void do_housekeeping(void)
 
 			/* Check for too much time elasped */
 			if (kick_timeout &&
+				s_ptr->speed != SPEED_NO_TIMEOUT &&
 			    s_ptr->cids[j] >= 0 &&
 			    s_ptr->wait_ticks[j] > kick_timeout - 5 &&
 			    s_ptr->wait_ticks[j] < kick_timeout)
@@ -4721,8 +4739,10 @@ int main(int argc, char *argv[])
 			printf("  -p     Port number to listen to. Default: 16309\n");
 			printf("  -d     MySQL database name. Default: \"rftg\"\n");
 			printf("  -t     Client timeout in seconds. 0 means do not kick players. Default: 60\n");
+			printf("            Always 0 where game creator specified \"No timeout\"\n");
 			printf("  -k     Timeout to replace players with A.I. in ticks (%d seconds).\n", tick_size);
 			printf("            0 means do not replace players. Default: 30\n");
+			printf("            Always 0 where game creator specified \"No timeout\"\n");
 			printf("  -gt    Timeout to drop games that haven't been started yet. Default: 3600\n");
 			printf("  -e     Folder to put exported games. Default: \".\"\n");
 			printf("  -s     Server name (to be used in exports). Default: [none]\n");

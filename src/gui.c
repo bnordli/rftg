@@ -10526,6 +10526,8 @@ static void read_prefs(void)
 	                                      "game_desc", NULL);
 	opt.game_pass = g_key_file_get_string(pref_file, "multiplayer",
 	                                      "game_pass", NULL);
+	opt.no_timeout = g_key_file_get_integer(pref_file, "multiplayer",
+	                                       "no_timeout", NULL);
 	opt.multi_min = g_key_file_get_integer(pref_file, "multiplayer",
 	                                       "min_player", NULL);
 	opt.multi_max = g_key_file_get_integer(pref_file, "multiplayer",
@@ -10625,6 +10627,8 @@ void save_prefs(void)
 	                      opt.game_desc);
 	g_key_file_set_string(pref_file, "multiplayer", "game_pass",
 	                      opt.game_pass);
+	g_key_file_set_integer(pref_file, "multiplayer", "no_timeout",
+	                       opt.no_timeout);
 	g_key_file_set_integer(pref_file, "multiplayer", "min_player",
 	                       opt.multi_min);
 	g_key_file_set_integer(pref_file, "multiplayer", "max_player",
@@ -14330,6 +14334,10 @@ int main(int argc, char *argv[])
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
 	                                            -1, "Variant", render,
 	                                            "text", 10, NULL);
+	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(games_view),
+	                                            -1, "No timeout",
+	                                            toggle_render, "active",
+	                                            11, "visible", 13, NULL);
 
 	/* Get first column of game view */
 	desc_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);
