@@ -381,10 +381,11 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 /*
  * Handle a new open game message.
  */
-static void handle_open_game(char *ptr)
+static void handle_open_game(char *ptr, int size)
 {
 	int x, y, new_game = FALSE;
 	char buf[1024];
+	char *start = ptr;
 	GtkTreeIter list_iter;
 
 	/* Read session ID */
@@ -459,24 +460,6 @@ static void handle_open_game(char *ptr)
 	/* Set disable options */
 	gtk_tree_store_set(game_list, &list_iter, 7, x, 8, y, -1);
 
-	/* Check for server supporting variants */
-	if (version_supports(server_version, FEATURE_VARIANT))
-	{
-		/* Read variant option (since 0.8.1n) */
-		x = get_integer(&ptr);
-	}
-	else
-	{
-		/* No variant */
-		x = 0;
-	}
-
-	/* Set variant id */
-	gtk_tree_store_set(game_list, &list_iter, 9, x, -1);
-
-	/* Set variant text */
-	gtk_tree_store_set(game_list, &list_iter, 10, variant_labels[x], -1);
-
 	/* Read game speed option */
 	x = get_integer(&ptr);
 
@@ -498,6 +481,24 @@ static void handle_open_game(char *ptr)
 			gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
 			NULL, FALSE);
 	}
+
+	/* Check for server supporting variants (since 0.8.1n) */
+	if (size > ptr - start)
+	{
+		/* Read variant option (since 0.8.1n) */
+		x = get_integer(&ptr);
+	}
+	else
+	{
+		/* No variant */
+		x = 0;
+	}
+
+	/* Set variant id */
+	gtk_tree_store_set(game_list, &list_iter, 9, x, -1);
+
+	/* Set variant text */
+	gtk_tree_store_set(game_list, &list_iter, 10, variant_labels[x], -1);
 
 	/* Make checkboxes visible */
 	gtk_tree_store_set(game_list, &list_iter, 13, 1, -1);
@@ -598,18 +599,6 @@ static void handle_status_meta(char *ptr, int size)
 	real_game.goal_disabled = get_integer(&ptr);
 	real_game.takeover_disabled = get_integer(&ptr);
 
-	/* Check for server supporting variants */
-	if (version_supports(server_version, FEATURE_VARIANT))
-	{
-		/* Read variant parameter */
-		real_game.variant = get_integer(&ptr);
-	}
-	else
-	{
-		/* No variants */
-		real_game.variant = 0;
-	}
-
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
 
@@ -651,6 +640,18 @@ static void handle_status_meta(char *ptr, int size)
 			/* Copy ai flag */
 			real_game.p[i].ai = get_integer(&ptr);
 		}
+	}
+
+	/* Check for variant information (since 0.8.1n) */
+	if (size > ptr - start)
+	{
+		/* Read variant parameter */
+		real_game.variant = get_integer(&ptr);
+	}
+	else
+	{
+		/* No variants */
+		real_game.variant = 0;
 	}
 
 	/* Redraw status areas */
@@ -1391,7 +1392,7 @@ static gboolean message_read(gpointer data)
 		case MSG_OPENGAME:
 
 			/* Handle message */
-			handle_open_game(ptr);
+			handle_open_game(ptr, size - 8);
 			break;
 
 		/* A player in a game */
@@ -2929,9 +2930,9 @@ void create_dialog(GtkButton *button, gpointer data)
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
-              next_variant,
 			  no_timeout_check != NULL &&
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(no_timeout_check)));
+        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(no_timeout_check)),
+	          next_variant);   // Since 0.8.1n
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);

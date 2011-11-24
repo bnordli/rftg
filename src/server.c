@@ -1431,31 +1431,21 @@ static void send_session_one(int sid, int cid)
 	/* Get username of game creator */
 	db_user_name(s_ptr->created, name);
 
-	/* Check for variant support */
-	if (version_supports(c_list[cid].version, FEATURE_VARIANT))
+	/* Do not send variant games to clients without variant support */
+	if (s_ptr->variant &&
+	    !version_supports(c_list[cid].version, FEATURE_VARIANT))
 	{
-		/* Send message to client */
-		/* Variant since 0.8.1n */
-		send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
-		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
-		          s_ptr->min_player, s_ptr->max_player,
-		          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-		          s_ptr->disable_takeover, s_ptr->variant, s_ptr->speed,
-		          c_list[cid].uid == s_ptr->created);
+		return;
 	}
-	else
-	{
-		/* Do not send variant games */
-		if (s_ptr->variant) return;
 
-		/* Send message to client */
-		send_msgf(cid, MSG_OPENGAME, "dssddddddddd",
-		          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
-		          s_ptr->min_player, s_ptr->max_player,
-		          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
-		          s_ptr->disable_takeover, s_ptr->speed,
-		          c_list[cid].uid == s_ptr->created);
-	}
+	/* Send message to client */
+	send_msgf(cid, MSG_OPENGAME, "dssdddddddddd",
+	          sid, s_ptr->desc, name, strlen(s_ptr->pass) > 0,
+	          s_ptr->min_player, s_ptr->max_player,
+	          s_ptr->expanded, s_ptr->advanced, s_ptr->disable_goal,
+	          s_ptr->disable_takeover, s_ptr->speed,
+	          c_list[cid].uid == s_ptr->created,
+	          s_ptr->variant);  // since 0.8.1n
 
 	/* Loop over player spots */
 	for (i = 0; i < MAX_PLAYER; i++)
@@ -1759,78 +1749,52 @@ int game_rand(game *g, int who)
 static void update_meta(int sid)
 {
 	session *s_ptr = &s_list[sid];
-	char msg0[1024], msg1[1024], *ptr0 = msg0, *ptr1 = msg1;
+	char msg[1024], *ptr = msg;
 	int i, cid;
 
-	/* Start messages */
-	start_msg(&ptr0, MSG_STATUS_META);
-	start_msg(&ptr1, MSG_STATUS_META);
+	/* Start message */
+	start_msg(&ptr, MSG_STATUS_META);
 
-	/* Add common game parameters to messages */
-	put_integer(s_ptr->num_users, &ptr0);
-	put_integer(s_ptr->expanded, &ptr0);
-	put_integer(s_ptr->advanced, &ptr0);
-	put_integer(s_ptr->disable_goal, &ptr0);
-	put_integer(s_ptr->disable_takeover, &ptr0);
-
-	put_integer(s_ptr->num_users, &ptr1);
-	put_integer(s_ptr->expanded, &ptr1);
-	put_integer(s_ptr->advanced, &ptr1);
-	put_integer(s_ptr->disable_goal, &ptr1);
-	put_integer(s_ptr->disable_takeover, &ptr1);
-
-	/* Add variant information only to msg1 (since 0.8.1n) */
-	put_integer(s_ptr->variant, &ptr1);
+	/* Add game parameters to message */
+	put_integer(s_ptr->num_users, &ptr);
+	put_integer(s_ptr->expanded, &ptr);
+	put_integer(s_ptr->advanced, &ptr);
+	put_integer(s_ptr->disable_goal, &ptr);
+	put_integer(s_ptr->disable_takeover, &ptr);
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Add goal presence to message */
-		put_integer((s_ptr->g.goal_active & (1 << i)) > 0, &ptr0);
-		put_integer((s_ptr->g.goal_active & (1 << i)) > 0, &ptr1);
+		put_integer((s_ptr->g.goal_active & (1 << i)) > 0, &ptr);
 	}
 
 	/* Loop over players */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
-		/* Add player's name to messages */
-		put_string(s_ptr->g.p[i].name, &ptr0);
-		put_string(s_ptr->g.p[i].name, &ptr1);
+		/* Add player's name to message */
+		put_string(s_ptr->g.p[i].name, &ptr);
 	}
 
 	/* Loop over players again (since 0.8.1m) */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
 		/* Add ai flag to message */
-		put_integer(s_ptr->g.p[i].ai, &ptr0);
-		put_integer(s_ptr->g.p[i].ai, &ptr1);
+		put_integer(s_ptr->g.p[i].ai, &ptr);
 	}
 
-	/* Finish messages */
-	finish_msg(msg0, ptr0);
-	finish_msg(msg1, ptr1);
+	/* Add variant information (since 0.8.1n) */
+	put_integer(s_ptr->variant, &ptr);
+
+	/* Finish message */
+	finish_msg(msg, ptr);
+
+	/* Send to everyone */
+	send_to_session(sid, msg);
 
 	/* Loop over users in the session */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
-		/* Get connection ID of this user */
-		cid = s_ptr->cids[i];
-
-		/* Check for no connection */
-		if (cid < 0) continue;
-
-		/* Check for no variant support */
-		if (!version_supports(c_list[cid].version, FEATURE_VARIANT))
-		{
-			/* Send old format to client */
-			send_msg(cid, msg0);
-		}
-		else
-		{
-			/* Send new format to client */
-			send_msg(cid, msg1);
-		}
-
 		/* Clear old game structure */
 		memset(&s_ptr->old[i], 0, sizeof(game));
 	}
@@ -3641,10 +3605,11 @@ static void handle_login(int cid, char *ptr)
 /*
  * Handle a login message.
  */
-static void handle_create(int cid, char *ptr)
+static void handle_create(int cid, char *ptr, int size)
 {
 	session *s_ptr;
 	char pass[2048], desc[2048];
+	char *start = ptr;
 	int sid, i;
 	int min_exp, max_p;
 
@@ -3731,8 +3696,11 @@ static void handle_create(int cid, char *ptr)
 	s_ptr->disable_goal = get_integer(&ptr);
 	s_ptr->disable_takeover = get_integer(&ptr);
 
-	/* Check for variant support */
-	if (version_supports(c_list[cid].version, FEATURE_VARIANT))
+	/* Read preferred game speed */
+	s_ptr->speed = get_integer(&ptr);
+
+	/* Check for variant information (since 0.8.1n) */
+	if (size > ptr - start)
 	{
 		/* Read variant parameter */
 		s_ptr->variant = get_integer(&ptr);
@@ -3742,9 +3710,6 @@ static void handle_create(int cid, char *ptr)
 		/* No variants */
 		s_ptr->variant = 0;
 	}
-
-	/* Read preferred game speed */
-	s_ptr->speed = get_integer(&ptr);
 
 	/* Validate advanced game */
 	if (s_ptr->min_player > 2)
@@ -4322,7 +4287,7 @@ static void handle_msg(int cid)
 		case MSG_CREATE:
 
 			/* Handle create message */
-			handle_create(cid, ptr);
+			handle_create(cid, ptr, size - 8);
 			break;
 
 		/* Join session */
