@@ -4204,7 +4204,7 @@ static void handle_start(int cid, char *ptr)
 
 	/* Format game number message */
 	sprintf(text, "Starting game #%d%s", s_ptr->gid,
-	        s_ptr->speed == SPEED_NO_TIMEOUT ? "(No timeout)" : "");
+	        s_ptr->speed == SPEED_NO_TIMEOUT ? " (No timeout)" : "");
 
 	/* Send message to session */
 	send_gamechat(sid, -1, "", text, 1);
@@ -4652,7 +4652,7 @@ static void do_housekeeping(void)
 
 			/* Check for too much time elasped */
 			if (kick_timeout &&
-				s_ptr->speed != SPEED_NO_TIMEOUT &&
+			    s_ptr->speed != SPEED_NO_TIMEOUT &&
 			    s_ptr->cids[j] >= 0 &&
 			    s_ptr->wait_ticks[j] > kick_timeout - 5 &&
 			    s_ptr->wait_ticks[j] < kick_timeout)

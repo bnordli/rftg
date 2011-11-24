@@ -788,7 +788,7 @@ static void handle_status_card(char *ptr, int size)
 		}
 	}
 
-	/* Check for 'used' flags (since 0.8.1n) */
+	/* Check for 'known' flags (since 0.8.1n) */
 	if (size > ptr - start)
 	{
 		/* Read known flags */
