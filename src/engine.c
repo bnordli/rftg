@@ -969,7 +969,7 @@ void start_prestige(game *g)
 {
 	player *p_ptr;
 	char msg[1024];
-	int i, max = 0, num = 0;
+	int i, max = 0, num = 0, card_bonus = -1;
 
 	/* Do nothing unless third expansion is present */
 	if (g->expanded < 3) return;
@@ -1022,8 +1022,8 @@ void start_prestige(game *g)
 			/* Check for sole most, and earned this turn */
 			if (num == 1 && p_ptr->prestige_turn)
 			{
-				/* Draw a card as well */
-				draw_card(g, i, NULL);
+				/* Remember card bonus */
+				card_bonus = i;
 
 				/* Message */
 				if (!g->simulation)
@@ -1042,6 +1042,13 @@ void start_prestige(game *g)
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
+		}
+
+		/* Check if a player got a card */
+		if (card_bonus == i)
+		{
+			/* Draw a card as well */
+			draw_card(g, card_bonus, NULL);
 		}
 
 		/* Clear prestige earned this turn mark */
@@ -7206,7 +7213,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P4_GET_CARD)
 	{
 		/* Award cards */
-		draw_cards(g, who, o_ptr->value, NULL);
+		draw_cards(g, who, o_ptr->value, c_ptr->d_ptr->name);
 
 		/* Remember reward */
 		p_ptr->phase_cards += o_ptr->value;
@@ -9269,7 +9276,7 @@ void phase_discard(game *g)
 				/* Check for discarded cards */
 				if (taken > 0)
 				{
-					/* Draw the same number of cards */
+					/* XXX Draw the same number of cards */
 					draw_cards(g, i, taken, "Retrofit & Salvage, Inc");
 				}
 			}
