@@ -50,7 +50,7 @@ char *player_labels[MAX_PLAYER] =
 /*
  * Textual representation for card locations.
  */
-char *location_names[7] =
+char *location_names[MAX_WHERE] =
 {
 	"Deck",
 	"Discard",
@@ -59,6 +59,7 @@ char *location_names[7] =
 	"Good",
 	"Saved",
 	"Revealed",
+	"Removed",
 };
 
 /*
@@ -10326,9 +10327,13 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 				/* Find cards */
 				cards = (k + rotation) % g->num_players;
 
-				/* Give all cards to player */
+				/* Loop over cards */
 				for (m = 0; m < n; ++m)
+				{
+					/* Give cards to player and set known location */
 					move_card(g, draws[cards][m], k, WHERE_HAND);
+					g->deck[draws[cards][m]].known = 1 << k;
+				}
 
 				/* Ask player */
 				send_choice(g, k, choice, draws[cards], &n,

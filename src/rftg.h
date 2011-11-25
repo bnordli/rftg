@@ -939,7 +939,7 @@ extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
 extern char *player_labels[MAX_PLAYER];
-extern char *location_names[7];
+extern char *location_names[MAX_WHERE];
 extern char *variant_labels[MAX_VARIANT + 1];
 extern decisions ai_func;
 extern decisions gui_func;
@@ -1056,5 +1056,6 @@ extern char *xml_escape(const char *s);
 extern int export_game(game *g, char *filename, char *style_sheet,
                        char *server, int player_us, const char *message,
                        int num_special, card** special_cards,
+                       int export_card_locations,
                        void (*export_log)(FILE *fff, int gid),
                        void (*export_callback)(FILE *fff, int gid), int gid);

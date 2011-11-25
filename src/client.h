@@ -104,6 +104,9 @@ typedef struct options
 	/* Autosave */
 	int auto_save;
 
+	/* Export card locations */
+	int export_cards;
+
 	/* Export game at end of game */
 	int auto_export;
 

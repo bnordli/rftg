@@ -6282,7 +6282,7 @@ void gui_choose_start(game *g, int who, int list[], int *num, int special[],
  * Choose a card to draft.
  */
 int gui_choose_draft(game *g, int who, int list[], int num, int special[],
-                      int num_special)
+                     int num_special)
 {
 	char buf[1024];
 	displayed *i_ptr;
@@ -10480,6 +10480,8 @@ static void read_prefs(void)
 	                                         "auto_select", NULL);
 	opt.auto_save = g_key_file_get_boolean(pref_file, "gui",
 	                                       "auto_save", NULL);
+	opt.export_cards = g_key_file_get_boolean(pref_file, "gui",
+	                                          "export_cards", NULL);
 
 	/* Check for auto_export key present (since 0.8.1l) */
 	if (g_key_file_has_key(pref_file, "gui", "auto_export", NULL))
@@ -10527,7 +10529,7 @@ static void read_prefs(void)
 	opt.game_pass = g_key_file_get_string(pref_file, "multiplayer",
 	                                      "game_pass", NULL);
 	opt.no_timeout = g_key_file_get_integer(pref_file, "multiplayer",
-	                                       "no_timeout", NULL);
+	                                        "no_timeout", NULL);
 	opt.multi_min = g_key_file_get_integer(pref_file, "multiplayer",
 	                                       "min_player", NULL);
 	opt.multi_max = g_key_file_get_integer(pref_file, "multiplayer",
@@ -10592,17 +10594,19 @@ void save_prefs(void)
 	g_key_file_set_boolean(pref_file, "gui", "auto_select",
 	                       opt.auto_select);
 	g_key_file_set_boolean(pref_file, "gui", "auto_save",
-		                   opt.auto_save);
+	                       opt.auto_save);
+	g_key_file_set_boolean(pref_file, "gui", "export_cards",
+	                       opt.export_cards);
 	g_key_file_set_boolean(pref_file, "gui", "auto_export",
-		                   opt.auto_export);
+	                       opt.auto_export);
 	g_key_file_set_boolean(pref_file, "gui", "colored_log",
-		                   opt.colored_log);
+	                       opt.colored_log);
 	g_key_file_set_boolean(pref_file, "gui", "verbose_log",
-		                   opt.verbose_log);
+	                       opt.verbose_log);
 	g_key_file_set_boolean(pref_file, "gui", "draw_log",
-		                   opt.draw_log);
+	                       opt.draw_log);
 	g_key_file_set_boolean(pref_file, "gui", "discard_log",
-		                   opt.discard_log);
+	                       opt.discard_log);
 
 	/* Set folder location options */
 	g_key_file_set_string(pref_file, "folders", "last_save",
@@ -10880,7 +10884,7 @@ static void do_export(char* filename, const char* message)
 	/* Save to file */
 	if (export_game(&real_game, filename, opt.export_style_sheet, server,
 	                player_us, message, num_special_cards, special_cards,
-	                export_log, export_callback, 0) < 0)
+	                opt.export_cards, export_log, export_callback, 0) < 0)
 	{
 		/* Format error */
 		sprintf(msg, "Error: Could not export game to %s!\n", filename);
@@ -12253,7 +12257,7 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *autosave_button, *autosave_location_button;
 	GtkWidget *export_box, *export_frame;
 	GtkWidget *style_sheet_box, *style_sheet_label, *style_sheet_entry;
-	GtkWidget *autoexport_button;
+	GtkWidget *export_cards_button, *autoexport_button;
 	GtkWidget *autoexport_location_button;
 
 	options old_options = opt;
@@ -12347,6 +12351,17 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 	/* Pack style sheet box into export box */
 	gtk_container_add(GTK_CONTAINER(export_box), style_sheet_box);
 
+	/* Create toggle button for card locations */
+	export_cards_button = gtk_check_button_new_with_label(
+	    "Export card locations");
+
+	/* Set toggled status */
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(export_cards_button),
+	                             opt.export_cards);
+
+	/* Pack button into box */
+	gtk_box_pack_start(GTK_BOX(export_box), export_cards_button, FALSE, TRUE, 0);
+
 	/* Create toggle button for auto-export */
 	autoexport_button = gtk_check_button_new_with_label(
 	    "Export game when finished");
@@ -12391,6 +12406,10 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 		/* Set autosave option */
 		opt.auto_save =
 		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(autosave_button));
+
+		/* Set export location option */
+		opt.export_cards =
+		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(export_cards_button));
 
 		/* Set auto export option */
 		opt.auto_export =
@@ -12449,28 +12468,13 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
                          GtkTreeModel *model, GtkTreeIter *iter,
                          gpointer data)
 {
-	char *name;
 	int i;
 
 	/* Get location from model */
 	gtk_tree_model_get(model, iter, 3, &i, -1);
 
-	/* Set name string */
-	switch (i)
-	{
-		case WHERE_DECK: name = "Deck"; break;
-		case WHERE_DISCARD: name = "Discard"; break;
-		case WHERE_HAND: name = "Hand"; break;
-		case WHERE_ACTIVE: name = "Active"; break;
-		case WHERE_GOOD: name = "Good"; break;
-		case WHERE_SAVED: name = "Saved"; break;
-		case WHERE_ASIDE: name = "Revealed"; break;
-		case WHERE_REMOVED: name = "Removed"; break;
-		default: name = "Unknown"; break;
-	}
-
 	/* Set "text" property of renderer */
-	g_object_set(cell, "text", name, NULL);
+	g_object_set(cell, "text", location_names[i], NULL);
 }
 
 /*

@@ -429,7 +429,7 @@ static void export(game *g, int who)
 
 	/* Export game to file */
 	if (export_game(g, filename, export_style_sheet_replay, server_name,
-	    who, msg, num_special_cards, special_cards,
+	    who, msg, num_special_cards, special_cards, 0,
 	    export_log, export_callback, orig_who) < 0)
 	{
 		/* Log error */
@@ -461,7 +461,7 @@ static void export_end(game *g)
 
 	/* Export game to file */
 	if (export_game(g, filename, export_style_sheet, server_name,
-	    -1, NULL, 0, NULL, export_end_log, export_end_callback, gid) < 0)
+	    -1, NULL, 0, NULL, 1, export_end_log, export_end_callback, gid) < 0)
 	{
 		/* Log error */
 		printf("Could not export game to %s\n", filename);
