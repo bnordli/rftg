@@ -13025,6 +13025,9 @@ static void debug_shuffle()
 		/* Execute the debug moves immediately */
 		perform_debug_moves(&real_game, player_us);
 	}
+
+	/* Update menu items */
+	update_menu_items();
 }
 
 /*
@@ -13871,7 +13874,8 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(debug_card_item, "activate", window_accel,
 	                           'D', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 	gtk_widget_add_accelerator(debug_shuffle_item, "activate", window_accel,
-	                           'F', GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+	                           'S', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
 
 	/* Add items to debug menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_card_item);
