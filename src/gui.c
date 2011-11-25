@@ -6782,7 +6782,8 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
  */
 static void compute_forced_choice(int list[], int num,
                                   int special[], int num_special,
-                                  long *special_mask, int *forced_hand)
+                                  long *special_forced, long *special_legal,
+                                  int *forced_hand)
 {
 	game sim;
 	int i, j, num_choice;
@@ -6790,7 +6791,8 @@ static void compute_forced_choice(int list[], int num,
 	long special_set;
 
 	/* Clear forced variables */
-	*special_mask = ~0;
+	*special_forced = ~0;
+	*special_legal = 0;
 	*forced_hand = TRUE;
 
 	/* Loop over all reasonable hand payments */
@@ -6834,12 +6836,10 @@ static void compute_forced_choice(int list[], int num,
 				/* Check for legal without all hand cards */
 				if (i != num) *forced_hand = FALSE;
 
-				/* Update mask */
-				*special_mask &= special_set;
+				/* Update masks */
+				*special_forced &= special_set;
+				*special_legal |= special_set;
 			}
-
-			/* Optimization */
-			if (!special_mask && !forced_hand) return;
 		}
 	}
 }
@@ -6862,7 +6862,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	int i, j, n = 0, ns = 0, high_color;
 	int military, cost, ict_mil, iif_mil;
 	int forced_hand;
-	long forced_special;
+	long special_forced, special_legal;
 
 	/* Get card we are paying for */
 	c_ptr = &real_game.deck[which];
@@ -6999,17 +6999,15 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	action_payment_which = which;
 	action_payment_mil = mil_only;
 
-	/* Check for auto-selecting forced choices */
-	if (opt.auto_select)
-	{
-		/* Find any forced choices */
-		compute_forced_choice(list, *num, special, *num_special,
-		                      &forced_special, &forced_hand);
-	}
-	else
+	/* Find any forced and illegal choices */
+	compute_forced_choice(list, *num, special, *num_special,
+	                      &special_forced, &special_legal, &forced_hand);
+
+	/* Check for no automatic selection */
+	if (!opt.auto_select)
 	{
 		/* No forced payment */
-		forced_hand = forced_special = 0;
+		forced_hand = special_forced = 0;
 	}
 
 	/* Loop over cards in list */
@@ -7073,7 +7071,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			i_ptr = &table[player_us][j];
 
 			/* Check for matching index */
-			if (i_ptr->index == special[i])
+			if (i_ptr->index == special[i] && (special_legal & (1 << i)))
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
@@ -7082,7 +7080,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 				i_ptr->highlight = high_color;
 
 				/* Check for forced choice */
-				if (forced_special & (1 << i)) i_ptr->selected = TRUE;
+				if (special_forced & (1 << i)) i_ptr->selected = TRUE;
 			}
 		}
 	}
