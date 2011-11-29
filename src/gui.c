@@ -619,7 +619,7 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	GtkTextBuffer *message_buffer;
 
 	/* Check for empty tag */
-	if (!strlen(tag))
+	if (!tag || !strlen(tag))
 	{
 		/* Add unformatted message */
 		message_add(g, msg);

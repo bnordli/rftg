@@ -1764,7 +1764,7 @@ static int cmp_sample_score(const void *p1, const void *p2)
 static void claim_card(game *g, int who, int which)
 {
 	card *c_ptr;
-	int i, replace;
+	int i, replace, emptied;
 
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
@@ -1773,10 +1773,13 @@ static void claim_card(game *g, int who, int which)
 	if (c_ptr->owner != -1)
 	{
 		/* Get replacement card */
-		replace = random_draw(g, c_ptr->owner);
+		replace = random_draw(g, c_ptr->owner, &emptied);
 
 		/* Check for failure to draw */
 		if (replace == -1) return;
+
+		/* Refresh the deck if it became empty */
+		if (emptied) refresh_draw(g, c_ptr->owner);
 
 		/* Check for card used as good */
 		if (c_ptr->where == WHERE_GOOD)
