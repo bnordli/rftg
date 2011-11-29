@@ -516,6 +516,9 @@
  */
 #define CHOICE_D_MOVE           -10
 #define CHOICE_D_SHUFFLE        -11
+#define CHOICE_D_TAKE_CARD      -12
+#define CHOICE_D_TAKE_VP        -13
+#define CHOICE_D_TAKE_PRESTIGE  -14
 
 
 /*

@@ -1262,6 +1262,58 @@ void perform_debug_moves(game *g, int who)
 				}
 				break;
 
+			/* Take a card */
+			case CHOICE_D_TAKE_CARD:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Format message */
+				sprintf(msg, "%s takes a card.\n", g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Give player a card */
+				draw_card(g, who, NULL);
+				break;
+
+			/* Take a card */
+			case CHOICE_D_TAKE_VP:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Format message */
+				sprintf(msg, "%s takes a VP.\n", g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Give player a VP */
+				gain_vps(g, who, 1, NULL);
+				break;
+
+			/* Take a card */
+			case CHOICE_D_TAKE_PRESTIGE:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Ignore choice if expansion without prestige */
+				if (g->expanded > 2)
+				{
+					/* Format message */
+					sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
+
+					/* Add message */
+					message_add_formatted(g, msg, FORMAT_DEBUG);
+
+					/* Give player a prestige */
+					gain_prestige(g, who, 1, NULL);
+				}
+				break;
+
 			/* No more debug choices */
 			default:
 				return;

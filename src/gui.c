@@ -60,12 +60,12 @@ game real_game;
 /*
  * Flags for game tampered state.
  */
-#define TAMPERED_SAVE 0x1
-#define TAMPERED_LOAD 0x2
-#define TAMPERED_SEED 0x4
-#define TAMPERED_UNDO 0x8
-#define TAMPERED_LOOK 0x10
-#define TAMPERED_MOVE 0x20
+#define TAMPERED_SAVE  1 << 1
+#define TAMPERED_LOAD  1 << 2
+#define TAMPERED_SEED  1 << 3
+#define TAMPERED_UNDO  1 << 4
+#define TAMPERED_LOOK  1 << 5
+#define TAMPERED_DEBUG 1 << 6
 
 /*
  * Whether the current game has been "tampered" with in some way.
@@ -495,11 +495,13 @@ static GtkWidget *main_hbox, *lobby_vbox;
 static GtkWidget *phase_box, *action_box;
 static GtkWidget *new_item, *new_parameters_item;
 static GtkWidget *load_item, *replay_item, *save_item, *export_item;
+static GtkWidget *option_item, *advanced_item, *quit_item;
 static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
-static GtkWidget *option_item, *advanced_item, *quit_item;
-static GtkWidget *debug_card_item, *debug_shuffle_item, *debug_ai_item, *about_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
+static GtkWidget *debug_card_item, *debug_shuffle_item, *debug_draw_item;
+static GtkWidget *debug_vp_item, *debug_prestige_item, *debug_ai_item;
+static GtkWidget *about_item;
 static GtkWidget *entry_hbox;
 
 /*
@@ -3225,6 +3227,9 @@ static char *card_hand_tooltip(game *g, int who, int which)
 	int n, i, old_vp, vp_diff, goal_diff = 0, goal_action;
 	game sim;
 
+	/* Check for vp in hand disabled */
+	if (!opt.vp_in_hand) return NULL;
+
 	/* Copy game */
 	sim = *g;
 
@@ -4532,7 +4537,7 @@ void redraw_status(void)
 		if (game_tampered)
 		{
 			/* Check for card moved in debug */
-			if (game_tampered & TAMPERED_MOVE) color = 0x00ff0000;
+			if (game_tampered & TAMPERED_DEBUG) color = 0x00ff0000;
 
 			/* Check for looked at debug dialog */
 			else if (game_tampered & TAMPERED_LOOK) color = 0x00ffcc00;
@@ -5197,12 +5202,8 @@ static void reset_hand(game *g, int color)
 		/* Set color flag */
 		i_ptr->color = color;
 
-		/* Check for vp in hand enabled */
-		if (opt.vp_in_hand)
-		{
-			/* Get tool tip */
-			i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
-		}
+		/* Get tool tip */
+		i_ptr->tooltip = card_hand_tooltip(g, player_us, i);
 	}
 }
 
@@ -5386,28 +5387,15 @@ void reset_status(game *g, int who)
 }
 
 /*
- * Reset our hand list, and all players' table lists.
+ * Reset game status (deck, discard pile and vp).
  */
-void reset_cards(game *g, int color_hand, int color_table)
+static void reset_game_status(game *g)
 {
 	card *c_ptr;
 	int i;
 
 	/* Score game */
 	score_game(g);
-
-	/* Reset hand */
-	reset_hand(g, color_hand);
-
-	/* Loop over players */
-	for (i = 0; i < real_game.num_players; i++)
-	{
-		/* Reset table of player */
-		reset_table(g, i, color_table);
-
-		/* Reset status information for player */
-		reset_status(g, i);
-	}
 
 	/* Clear displayed status info */
 	display_deck = 0;
@@ -5428,6 +5416,33 @@ void reset_cards(game *g, int color_hand, int color_table)
 
 	/* Get chips in VP pool */
 	display_pool = g->vp_pool;
+}
+
+/*
+ * Reset our hand list, and all players' table lists.
+ */
+void reset_cards(game *g, int color_hand, int color_table)
+{
+	int i;
+
+	/* Score game */
+	score_game(g);
+
+	/* Reset hand */
+	reset_hand(g, color_hand);
+
+	/* Loop over players */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Reset table of player */
+		reset_table(g, i, color_table);
+
+		/* Reset status information for player */
+		reset_status(g, i);
+	}
+
+	/* Reset game status */
+	reset_game_status(g);
 }
 
 /*
@@ -10314,6 +10329,10 @@ static void run_game(void)
 		/* Count to num_undo choices */
 		while (choice < num_undo && pos < real_game.p[0].choice_size)
 		{
+			/* Set tampered flag if debug choice found */
+			if (real_game.p[0].choice_log[pos] < 0)
+				game_tampered |= TAMPERED_DEBUG;
+
 			/* Update log position */
 			pos = next_choice(real_game.p[0].choice_log, pos);
 
@@ -10339,6 +10358,9 @@ static void run_game(void)
 
 		/* Set the max number of undo positions in the log */
 		max_undo = choice;
+
+		/* Simulate client state changed */
+		gui_client_state_changed(FALSE, FALSE);
 
 		/* Clear restart loop flag */
 		restart_loop = 0;
@@ -10372,7 +10394,7 @@ static void run_game(void)
 		message_add(&real_game, buf);
 
 		/* Check for tampered game */
-		if (game_tampered & TAMPERED_MOVE)
+		if (game_tampered & TAMPERED_DEBUG)
 		{
 			/* Add tampered note */
 			message_add(&real_game, "(Debug game.)\n");
@@ -10690,6 +10712,9 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(redo_game_item, TRUE);
 		gtk_widget_set_sensitive(debug_card_item, TRUE);
 		gtk_widget_set_sensitive(debug_shuffle_item, TRUE);
+		gtk_widget_set_sensitive(debug_draw_item, TRUE);
+		gtk_widget_set_sensitive(debug_vp_item, TRUE);
+		gtk_widget_set_sensitive(debug_prestige_item, real_game.expanded > 2);
 		gtk_widget_set_sensitive(debug_ai_item, TRUE);
 		gtk_widget_set_sensitive(connect_item, TRUE);
 		gtk_widget_set_sensitive(about_item, TRUE);
@@ -10736,6 +10761,10 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(advanced_item, TRUE);
 				gtk_widget_set_sensitive(debug_card_item, debug_server);
 				gtk_widget_set_sensitive(debug_shuffle_item, debug_server);
+				gtk_widget_set_sensitive(debug_draw_item, debug_server);
+				gtk_widget_set_sensitive(debug_vp_item, debug_server);
+				gtk_widget_set_sensitive(debug_prestige_item, debug_server &&
+				                         real_game.expanded > 2);
 				gtk_widget_set_sensitive(about_item, TRUE);
 			}
 			else
@@ -10746,6 +10775,9 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(advanced_item, FALSE);
 				gtk_widget_set_sensitive(debug_card_item, FALSE);
 				gtk_widget_set_sensitive(debug_shuffle_item, FALSE);
+				gtk_widget_set_sensitive(debug_draw_item, FALSE);
+				gtk_widget_set_sensitive(debug_vp_item, FALSE);
+				gtk_widget_set_sensitive(debug_prestige_item, FALSE);
 				gtk_widget_set_sensitive(about_item, FALSE);
 			}
 		}
@@ -10760,6 +10792,9 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			gtk_widget_set_sensitive(resign_item, FALSE);
 			gtk_widget_set_sensitive(debug_card_item, FALSE);
 			gtk_widget_set_sensitive(debug_shuffle_item, FALSE);
+			gtk_widget_set_sensitive(debug_draw_item, FALSE);
+			gtk_widget_set_sensitive(debug_vp_item, FALSE);
+			gtk_widget_set_sensitive(debug_prestige_item, FALSE);
 
 			/* Set the export item depending on whether game is over or not */
 			gtk_widget_set_sensitive(export_item, making_choice);
@@ -12691,7 +12726,7 @@ static void debug_canceled(GtkCellRendererCombo *cell, gpointer data)
 
 /*
  * Called on each row of the debug_card_dialog after it has been
- * successfully closed. Will add DEBUG_CHOICE values to the log if
+ * successfully closed. Will add CHOICE_D_MOVE values to the log if
  * card locations has been changed.
  */
 static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
@@ -12711,6 +12746,9 @@ static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
 	/* Check for changed location */
 	if (c_ptr->owner != owner || c_ptr->where != where)
 	{
+		/* Set the tampered debug flag */
+		game_tampered |= TAMPERED_DEBUG;
+
 		/* Get player pointer */
 		p_ptr = &real_game.p[player_us];
 
@@ -12746,6 +12784,9 @@ static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
 		{
 			/* Move card to its proper location immediately */
 			debug_card_moved(c, owner, where);
+
+			/* Auto save */
+			auto_save_choice(&real_game, player_us);
 		}
 	}
 
@@ -12979,7 +13020,20 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 			/* Execute the debug moves immediately */
 			perform_debug_moves(&real_game, player_us);
 
-			/* Redraw table and hand */
+			/* Score game */
+			score_game(&real_game);
+
+			/* Loop over players */
+			for (i = 0; i < real_game.num_players; i++)
+			{
+				/* Reset status information for player */
+				reset_status(&real_game, i);
+			}
+
+			/* Reset game status */
+			reset_game_status(&real_game);
+
+			/* Redraw everything */
 			redraw_everything();
 		}
 
@@ -12992,15 +13046,24 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 }
 
 /*
- * Shuffle the deck(s).
+ * Save a debug choice to the log.
  */
-static void debug_shuffle()
+static void debug_choice(GtkMenuItem *menu_item, gpointer data)
 {
 	player *p_ptr = &real_game.p[player_us];
 	int *l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
+	card *c_ptr;
+	displayed *i_ptr;
+	int x, i, found;
+
+	/* Check for connected to non-debug server */
+	if (client_state != CS_DISCONN && !debug_server) return;
+
+	/* Set the tampered debug flag */
+	game_tampered |= TAMPERED_DEBUG;
 
 	/* Add debug choice type to log */
-	*l_ptr++ = CHOICE_D_SHUFFLE;
+	*l_ptr++ = GPOINTER_TO_INT(data);
 
 	/* Add 0 to log */
 	*l_ptr++ = 0;
@@ -13022,6 +13085,75 @@ static void debug_shuffle()
 	{
 		/* Execute the debug moves immediately */
 		perform_debug_moves(&real_game, player_us);
+
+		/* Auto save */
+		auto_save_choice(&real_game, player_us);
+
+		/* Update status of game */
+		reset_game_status(&real_game);
+
+		/* Update status of player */
+		reset_status(&real_game, player_us);
+
+		/* Check for card added to hand */
+		if (GPOINTER_TO_INT(data) == CHOICE_D_TAKE_CARD)
+		{
+			/* Get first card in hand */
+			x = real_game.p[player_us].head[WHERE_HAND];
+
+			/* Loop over cards */
+			for ( ; x != -1; x = real_game.deck[x].next)
+			{
+				/* Get card pointer */
+				c_ptr = &real_game.deck[x];
+
+				/* Reset flag */
+				found = FALSE;
+
+				/* Loop over our hand */
+				for (i = 0; i < hand_size; i++)
+				{
+					/* Get displayed card pointer */
+					i_ptr = &hand[i];
+
+					/* Check for match */
+					if (i_ptr->index == x)
+					{
+						/* Card was already in hand */
+						found = TRUE;
+						break;
+					}
+				}
+
+				/* Move to next card */
+				if (found) continue;
+
+				/* Add card to hand */
+				i_ptr = &hand[hand_size++];
+
+				/* Set design and index */
+				i_ptr->d_ptr = c_ptr->d_ptr;
+				i_ptr->index = x;
+
+				/* Clear all other fields */
+				i_ptr->eligible = i_ptr->gapped = 0;
+				i_ptr->selected = i_ptr->color = 0;
+				i_ptr->covered = 0;
+				i_ptr->order = -1;
+
+				/* Generate tool tip */
+				i_ptr->tooltip = card_hand_tooltip(&real_game, player_us, x);
+
+				/* Sort hand */
+				qsort(hand, hand_size, sizeof(displayed), cmp_hand);
+			}
+
+			/* Redraw hand */
+			redraw_hand();
+		}
+
+		/* Redraw status areas */
+		redraw_status();
 	}
 
 	/* Update menu items */
@@ -13866,6 +13998,9 @@ int main(int argc, char *argv[])
 	/* Create debug menu items */
 	debug_card_item = gtk_menu_item_new_with_mnemonic("Debug _cards...");
 	debug_shuffle_item = gtk_menu_item_new_with_mnemonic("_Shuffle deck");
+	debug_draw_item = gtk_menu_item_new_with_mnemonic("Take a _card");
+	debug_vp_item = gtk_menu_item_new_with_mnemonic("Take a _VP");
+	debug_prestige_item = gtk_menu_item_new_with_mnemonic("Take _prestige");
 	debug_ai_item = gtk_menu_item_new_with_mnemonic("Debug _AI...");
 
 	/* Add accelerators for debug menu items */
@@ -13874,10 +14009,22 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(debug_shuffle_item, "activate", window_accel,
 	                           'S', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
 	                           GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(debug_draw_item, "activate", window_accel,
+	                           'C', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(debug_vp_item, "activate", window_accel,
+	                           'V', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(debug_prestige_item, "activate", window_accel,
+	                           'P', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
 
 	/* Add items to debug menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_card_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_shuffle_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_draw_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_vp_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_prestige_item);
 	/* gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_ai_item); */
 
 	/* Create help menu */
@@ -13941,7 +14088,17 @@ int main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(debug_card_item), "activate",
 	                 G_CALLBACK(debug_card_dialog), NULL);
 	g_signal_connect(G_OBJECT(debug_shuffle_item), "activate",
-	                 G_CALLBACK(debug_shuffle), NULL);
+	                 G_CALLBACK(debug_choice),
+	                 GINT_TO_POINTER(CHOICE_D_SHUFFLE));
+	g_signal_connect(G_OBJECT(debug_draw_item), "activate",
+	                 G_CALLBACK(debug_choice),
+	                 GINT_TO_POINTER(CHOICE_D_TAKE_CARD));
+	g_signal_connect(G_OBJECT(debug_vp_item), "activate",
+	                 G_CALLBACK(debug_choice),
+	                 GINT_TO_POINTER(CHOICE_D_TAKE_VP));
+	g_signal_connect(G_OBJECT(debug_prestige_item), "activate",
+	                 G_CALLBACK(debug_choice),
+	                 GINT_TO_POINTER(CHOICE_D_TAKE_PRESTIGE));
 	g_signal_connect(G_OBJECT(debug_ai_item), "activate",
 	                 G_CALLBACK(debug_ai_dialog), NULL);
 
@@ -14598,9 +14755,6 @@ int main(int argc, char *argv[])
 
 	/* Add main hbox to main window */
 	gtk_container_add(GTK_CONTAINER(window), main_vbox);
-
-	/* Simulate client state changed */
-	gui_client_state_changed(FALSE, FALSE);
 
 	/* Show all widgets */
 	gtk_widget_show_all(window);
