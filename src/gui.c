@@ -10422,6 +10422,9 @@ static void run_game(void)
 		/* Set prompt */
 		gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 
+		/* Simulate client state changed */
+		gui_client_state_changed(FALSE, FALSE);
+
 		/* Update menu items */
 		update_menu_items();
 
@@ -10710,12 +10713,13 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(redo_item, TRUE);
 		gtk_widget_set_sensitive(redo_round_item, TRUE);
 		gtk_widget_set_sensitive(redo_game_item, TRUE);
-		gtk_widget_set_sensitive(debug_card_item, TRUE);
-		gtk_widget_set_sensitive(debug_shuffle_item, TRUE);
-		gtk_widget_set_sensitive(debug_draw_item, TRUE);
-		gtk_widget_set_sensitive(debug_vp_item, TRUE);
-		gtk_widget_set_sensitive(debug_prestige_item, real_game.expanded > 2);
-		gtk_widget_set_sensitive(debug_ai_item, TRUE);
+		gtk_widget_set_sensitive(debug_card_item, !real_game.game_over);
+		gtk_widget_set_sensitive(debug_shuffle_item, !real_game.game_over);
+		gtk_widget_set_sensitive(debug_draw_item, !real_game.game_over);
+		gtk_widget_set_sensitive(debug_vp_item, !real_game.game_over);
+		gtk_widget_set_sensitive(debug_prestige_item, !real_game.game_over &&
+		                         real_game.expanded > 2);
+		gtk_widget_set_sensitive(debug_ai_item, !real_game.game_over);
 		gtk_widget_set_sensitive(connect_item, TRUE);
 		gtk_widget_set_sensitive(about_item, TRUE);
 
@@ -10759,11 +10763,16 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(export_item, TRUE);
 				gtk_widget_set_sensitive(option_item, TRUE);
 				gtk_widget_set_sensitive(advanced_item, TRUE);
-				gtk_widget_set_sensitive(debug_card_item, debug_server);
-				gtk_widget_set_sensitive(debug_shuffle_item, debug_server);
-				gtk_widget_set_sensitive(debug_draw_item, debug_server);
-				gtk_widget_set_sensitive(debug_vp_item, debug_server);
+				gtk_widget_set_sensitive(debug_card_item, debug_server &&
+				                         !real_game.game_over);
+				gtk_widget_set_sensitive(debug_shuffle_item, debug_server &&
+				                         !real_game.game_over);
+				gtk_widget_set_sensitive(debug_draw_item, debug_server &&
+				                         !real_game.game_over);
+				gtk_widget_set_sensitive(debug_vp_item, debug_server &&
+				                         !real_game.game_over);
 				gtk_widget_set_sensitive(debug_prestige_item, debug_server &&
+				                         !real_game.game_over &&
 				                         real_game.expanded > 2);
 				gtk_widget_set_sensitive(about_item, TRUE);
 			}
@@ -12811,6 +12820,9 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Check for connected to non-debug server */
 	if (client_state != CS_DISCONN && !debug_server) return;
 
+	/* Check if game is over */
+	if (real_game.game_over) return;
+
 	/* Set the tampered look flag */
 	game_tampered |= TAMPERED_LOOK;
 
@@ -13054,16 +13066,22 @@ static void debug_choice(GtkMenuItem *menu_item, gpointer data)
 	int *l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
 	card *c_ptr;
 	displayed *i_ptr;
-	int x, i, found;
+	int x, i, found, choice = GPOINTER_TO_INT(data);
 
 	/* Check for connected to non-debug server */
 	if (client_state != CS_DISCONN && !debug_server) return;
+
+	/* Check if game is over */
+	if (real_game.game_over) return;
+
+	/* Check for expansion without prestige */
+	if (choice == CHOICE_D_TAKE_PRESTIGE && real_game.expanded < 3) return;
 
 	/* Set the tampered debug flag */
 	game_tampered |= TAMPERED_DEBUG;
 
 	/* Add debug choice type to log */
-	*l_ptr++ = GPOINTER_TO_INT(data);
+	*l_ptr++ = choice;
 
 	/* Add 0 to log */
 	*l_ptr++ = 0;
@@ -13096,7 +13114,7 @@ static void debug_choice(GtkMenuItem *menu_item, gpointer data)
 		reset_status(&real_game, player_us);
 
 		/* Check for card added to hand */
-		if (GPOINTER_TO_INT(data) == CHOICE_D_TAKE_CARD)
+		if (choice == CHOICE_D_TAKE_CARD)
 		{
 			/* Get first card in hand */
 			x = real_game.p[player_us].head[WHERE_HAND];
