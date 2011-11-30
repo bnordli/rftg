@@ -1171,7 +1171,7 @@ int next_choice(int* log, int pos)
 /*
  * Look for debug choices in the log and execute the choices.
  */
-void perform_debug_moves(game *g, int who)
+static void perform_debug_moves(game *g, int who)
 {
 	player *p_ptr;
 	int *l_ptr;
