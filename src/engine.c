@@ -572,25 +572,19 @@ int random_draw(game *g, int who, int *emptied)
  * and other non-essential tasks.  We don't want to use the random number
  * generator in these cases.
  */
-static int first_draw(game *g, int who)
+static int first_draw(game *g, int who, int *emptied)
 {
 	card *c_ptr = NULL;
-	int i, n;
-
-	/* Count draw deck size */
-	n = count_draw(g, who);
+	int i;
 
 	/* Check for no cards */
-	if (!n)
+	if (!count_draw(g, who))
 	{
 		/* Refresh draw deck */
 		refresh_draw(g, who);
 
-		/* Recount */
-		n = count_draw(g, who);
-
 		/* Check for still no cards */
-		if (!n)
+		if (!count_draw(g, who))
 		{
 			/* No card to return */
 			return -1;
@@ -614,7 +608,7 @@ static int first_draw(game *g, int who)
 	move_card(g, i, c_ptr->owner, -1);
 
 	/* Check for just-emptied draw pile */
-	if (!count_draw(g, who)) refresh_draw(g, who);
+	if (emptied) *emptied = !count_draw(g, who);
 
 	/* Return chosen card */
 	return i;
@@ -1720,7 +1714,7 @@ void add_good(game *g, card *c_ptr)
 	if (g->simulation)
 	{
 		/* Use first available card */
-		which = first_draw(g, c_ptr->owner);
+		which = first_draw(g, c_ptr->owner, &emptied);
 	}
 	else
 	{
