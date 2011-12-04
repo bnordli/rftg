@@ -488,6 +488,9 @@ static void handle_open_game(char *ptr, int size)
 	/* Set owner information */
 	gtk_tree_store_set(game_list, &list_iter, COL_SELF, x, -1);
 
+	/* Set weight of text */
+	gtk_tree_store_set(game_list, &list_iter, COL_WEIGHT, 400 + 400 * x, -1);
+
 	/* Check for owner */
 	if (x && new_game)
 	{
@@ -589,6 +592,9 @@ static void handle_game_player(char *ptr)
 
 	/* Store note of self */
 	gtk_tree_store_set(game_list, &child_iter, COL_SELF, x, -1);
+
+	/* Set weight */
+	gtk_tree_store_set(game_list, &child_iter, COL_WEIGHT, 400 + 400 * x, -1);
 
 	/* Make checkboxes invisible on this row */
 	gtk_tree_store_set(game_list, &child_iter, COL_CHECK_VISIBLE, 0, -1);

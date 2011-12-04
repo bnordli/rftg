@@ -35,6 +35,8 @@
 #define COL_NO_TIMEOUT      15
 #define COL_SELF            16
 #define COL_CHECK_VISIBLE   17
+#define COL_WEIGHT          18
+#define MAX_COLUMN          19
 
 /*
  * User options.

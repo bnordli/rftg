@@ -13400,7 +13400,7 @@ int main(int argc, char *argv[])
 	GtkSizeGroup *top_size_group;
 	GtkTextIter end_iter;
 	GtkTextBuffer *message_buffer, *chat_buffer;
-	GtkCellRenderer *render, *toggle_render;
+	GtkCellRenderer *description_render, *render, *toggle_render;
 	GtkTreeViewColumn *tree_view_column;
 	GdkColor color;
 
@@ -14255,7 +14255,7 @@ int main(int argc, char *argv[])
 	lobby_vbox = gtk_vbox_new(FALSE, 5);
 
 	/* Create list of open games */
-	game_list = gtk_tree_store_new(18,
+	game_list = gtk_tree_store_new(MAX_COLUMN,
 		G_TYPE_INT,    //  0: Game id/Player number
 		G_TYPE_STRING, //  1: Description/Player name
 		G_TYPE_STRING, //  2: Creator name/Offline note
@@ -14273,12 +14273,16 @@ int main(int argc, char *argv[])
 		G_TYPE_STRING, // 14: Variant string
 		G_TYPE_INT,    // 15: Game speed
 		G_TYPE_INT,    // 16: My game/player id?
-		G_TYPE_INT);   // 17: Checkboxes visible?
+		G_TYPE_INT,    // 17: Checkboxes visible?
+		G_TYPE_INT);   // 18: Weight of text
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));
 
-	/* Create text renderer */
+	/* Create description text renderer */
+	description_render = gtk_cell_renderer_text_new();
+
+	/* Create generic text renderer */
 	render = gtk_cell_renderer_text_new();
 
 	/* Create toggle button renderer */
@@ -14288,8 +14292,8 @@ int main(int argc, char *argv[])
 
 	/*** First column (game description/player name) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "Game Description", render,
-		"text", COL_DESC_NAME, NULL);
+		GTK_TREE_VIEW(games_view), -1, "Game Description", description_render,
+		"text", COL_DESC_NAME, "weight", COL_WEIGHT, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);
 	gtk_tree_view_column_set_sort_column_id(tree_view_column, COL_DESC_NAME);
 
