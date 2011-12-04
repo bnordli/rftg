@@ -41,6 +41,17 @@ static GSource *server_src;
 int client_state = CS_DISCONN;
 
 /*
+ * Textual description of game state.
+ */
+char *game_states[4] =
+{
+	"Public game",
+	"Private game",
+	"Game in progress",
+	"Game in progress",
+};
+
+/*
  * The version of the server we are connected to.
  */
 char server_version[30];
@@ -353,14 +364,15 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 
 	/* Get game information */
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
-	                   9, &variant, 12, &owned, 14, &minp, 15, &maxp, -1);
+	                   COL_VARIANT, &variant, COL_SELF, &owned,
+	                   COL_MIN_PLAYERS, &minp, COL_MAX_PLAYERS, &maxp, -1);
 
 	/* Check for user */
 	if (user)
 	{
 		/* Check whether cursor is on ourself */
 		gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter,
-		                   12, &self, -1);
+		                   COL_SELF, &self, -1);
 	}
 
 	/* Get current number of players */
@@ -419,8 +431,9 @@ static void handle_open_game(char *ptr, int size)
 	/* Read password required */
 	x = get_integer(&ptr);
 
-	/* Set password required */
-	gtk_tree_store_set(game_list, &list_iter, 3, x, -1);
+	/* Set game state */
+	gtk_tree_store_set(game_list, &list_iter, COL_GAME_STATE, x,
+	                   COL_GAME_STATE_STR, game_states[x], -1);
 
 	/* Read min/max number of players */
 	x = get_integer(&ptr);
@@ -439,38 +452,41 @@ static void handle_open_game(char *ptr, int size)
 	}
 
 	/* Set number of players */
-	gtk_tree_store_set(game_list, &list_iter, 4, buf, 14, x, 15, y, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_PLAYERS_STR, buf,
+	                   COL_MIN_PLAYERS, x, COL_MAX_PLAYERS, y, -1);
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
 
-	/* Set expansion string */
-	gtk_tree_store_set(game_list, &list_iter, 5, exp_abbr[x], -1);
+	/* Set expansion */
+	gtk_tree_store_set(game_list, &list_iter, COL_EXPANSION, x,
+	                   COL_EXPANSION_STR, exp_abbr[x], -1);
 
 	/* Read two-player advanced option */
 	x = get_integer(&ptr);
 
 	/* Set advanced option */
-	gtk_tree_store_set(game_list, &list_iter, 6, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_ADVANCED, x, -1);
 
 	/* Read disable options */
 	x = get_integer(&ptr);
 	y = get_integer(&ptr);
 
 	/* Set disable options */
-	gtk_tree_store_set(game_list, &list_iter, 7, x, 8, y, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_DISABLE_GOAL, x,
+	                   COL_DISABLE_TO, y, -1);
 
 	/* Read game speed option */
 	x = get_integer(&ptr);
 
 	/* Set speed option */
-	gtk_tree_store_set(game_list, &list_iter, 11, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_NO_TIMEOUT, x, -1);
 
 	/* Read owner flag */
 	x = get_integer(&ptr);
 
 	/* Set owner information */
-	gtk_tree_store_set(game_list, &list_iter, 12, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_SELF, x, -1);
 
 	/* Check for owner */
 	if (x && new_game)
@@ -494,14 +510,12 @@ static void handle_open_game(char *ptr, int size)
 		x = 0;
 	}
 
-	/* Set variant id */
-	gtk_tree_store_set(game_list, &list_iter, 9, x, -1);
-
-	/* Set variant text */
-	gtk_tree_store_set(game_list, &list_iter, 10, variant_labels[x], -1);
+	/* Set variant */
+	gtk_tree_store_set(game_list, &list_iter, COL_VARIANT, x,
+	                   COL_VARIANT_STR, variant_labels[x], -1);
 
 	/* Make checkboxes visible */
-	gtk_tree_store_set(game_list, &list_iter, 13, 1, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_CHECK_VISIBLE, 1, -1);
 
 	/* Sort game list by session ID */
 	gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(game_list), 0,
@@ -556,10 +570,10 @@ static void handle_game_player(char *ptr)
 	}
 
 	/* Set player number */
-	gtk_tree_store_set(game_list, &child_iter, 0, y, -1);
+	gtk_tree_store_set(game_list, &child_iter, COL_ID, y, -1);
 
 	/* Set username */
-	gtk_tree_store_set(game_list, &child_iter, 1, buf, -1);
+	gtk_tree_store_set(game_list, &child_iter, COL_DESC_NAME, buf, -1);
 
 	/* Get online status */
 	x = get_integer(&ptr);
@@ -568,16 +582,16 @@ static void handle_game_player(char *ptr)
 	strcpy(buf, x ? "" : "(offline)");
 
 	/* Set online status */
-	gtk_tree_store_set(game_list, &child_iter, 2, buf, -1);
+	gtk_tree_store_set(game_list, &child_iter, COL_CREATOR_OFFLINE, buf, -1);
 
 	/* Get self flag */
 	x = get_integer(&ptr);
 
 	/* Store note of self */
-	gtk_tree_store_set(game_list, &child_iter, 12, x, -1);
+	gtk_tree_store_set(game_list, &child_iter, COL_SELF, x, -1);
 
 	/* Make checkboxes invisible on this row */
-	gtk_tree_store_set(game_list, &child_iter, 13, 0, -1);
+	gtk_tree_store_set(game_list, &child_iter, COL_CHECK_VISIBLE, 0, -1);
 
 	/* Reset button state */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
