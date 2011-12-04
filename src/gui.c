@@ -10037,7 +10037,7 @@ static void run_game(void)
 		game_replaying = TRUE;
 
 		/* Check for new game starting */
-		if (restart_loop == RESTART_NEW)
+		if (restart_loop == RESTART_NEW || restart_loop == 0)
 		{
 			/* Read parameters from options */
 			apply_options();
@@ -10364,6 +10364,9 @@ static void run_game(void)
 
 		/* Clear restart loop flag */
 		restart_loop = 0;
+
+		/* Clear game over flag */
+		real_game.game_over = 0;
 
 		/* Begin game */
 		begin_game(&real_game);
