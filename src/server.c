@@ -1600,6 +1600,14 @@ void message_add_formatted(game *g, char *txt, char *tag)
 	/* TODO: This should become a separate message in a new version */
 	char msg[1024], *ptr = msg;
 
+	/* Check for no tag */
+	if (!tag || !strlen(tag))
+	{
+		/* Add unformatted message */
+		message_add(g, txt);
+		return;
+	}
+
 	/* Save message to db */
 	db_save_message(g->session_id, -1, txt, tag);
 
