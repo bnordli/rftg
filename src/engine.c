@@ -1072,6 +1072,31 @@ static void perform_debug_moves(game *g, int who)
 
 				/* Always place debug cards first in order */
 				g->deck[c].order = -1;
+
+				/* Check for new location */
+				switch (where)
+				{
+					case WHERE_DISCARD:
+					case WHERE_ACTIVE:
+
+						/* Make card known to everyone */
+						g->deck[c].known = ~0;
+						break;
+
+					case WHERE_HAND:
+					case WHERE_SAVED:
+
+						/* Make card known to player */
+						g->deck[c].known = 1 << owner;
+						break;
+
+					default:
+
+						/* Card's location unknown to everybody */
+						g->deck[c].known = 0;
+						break;
+				}
+
 				break;
 
 			/* Shuffle the deck */
