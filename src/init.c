@@ -560,6 +560,9 @@ void init_game(game *g)
 	message_add(msg);
 #endif
 
+	/* Assuming game is offline */
+	g->session_id = -1;
+
 	/* Game is not simulated */
 	g->simulation = 0;
 

@@ -12381,6 +12381,16 @@ void declare_winner(game *g)
 			}
 		}
 
+		/* Check for offline game */
+		if (g->session_id < 0)
+		{
+			/* Format seed message */
+			sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
+
+			/* Send message */
+			message_add(g, msg);
+		}
+
 		/* Check for debug game */
 		if (g->debug_game)
 		{
