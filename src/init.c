@@ -563,6 +563,12 @@ void init_game(game *g)
 	/* Game is not simulated */
 	g->simulation = 0;
 
+	/* Game is not a debug game */
+	g->debug_game = 0;
+
+	/* No rotation */
+	g->debug_rotate = 0;
+
 	/* Set size of VP pool */
 	g->vp_pool = g->num_players * 12;
 

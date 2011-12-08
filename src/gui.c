@@ -500,6 +500,7 @@ static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *debug_card_item, *debug_shuffle_item, *debug_draw_item;
+static GtkWidget *debug_rotate_item;
 static GtkWidget *debug_vp_item, *debug_prestige_item, *debug_ai_item;
 static GtkWidget *about_item;
 static GtkWidget *entry_hbox;
@@ -10393,13 +10394,6 @@ static void run_game(void)
 		/* Send message */
 		message_add(&real_game, buf);
 
-		/* Check for tampered game */
-		if (game_tampered & TAMPERED_DEBUG)
-		{
-			/* Add tampered note */
-			message_add(&real_game, "(Debug game.)\n");
-		}
-
 		/* Auto save */
 		auto_save_end(&real_game, player_us);
 
@@ -10715,10 +10709,13 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(redo_game_item, TRUE);
 		gtk_widget_set_sensitive(debug_card_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_shuffle_item, !real_game.game_over);
-		gtk_widget_set_sensitive(debug_draw_item, !real_game.game_over);
+		gtk_widget_set_sensitive(debug_draw_item, !real_game.game_over &&
+		                         real_game.cur_action != ACT_DRAFTING);
 		gtk_widget_set_sensitive(debug_vp_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_prestige_item, !real_game.game_over &&
 		                         real_game.expanded > 2);
+		gtk_widget_set_sensitive(debug_rotate_item, !real_game.game_over &&
+		                         real_game.cur_action > ACT_GAME_START);
 		gtk_widget_set_sensitive(debug_ai_item, !real_game.game_over);
 		gtk_widget_set_sensitive(connect_item, TRUE);
 		gtk_widget_set_sensitive(about_item, TRUE);
@@ -10768,12 +10765,16 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(debug_shuffle_item, debug_server &&
 				                         !real_game.game_over);
 				gtk_widget_set_sensitive(debug_draw_item, debug_server &&
-				                         !real_game.game_over);
+				                         !real_game.game_over &&
+				                         real_game.cur_action != ACT_DRAFTING);
 				gtk_widget_set_sensitive(debug_vp_item, debug_server &&
 				                         !real_game.game_over);
 				gtk_widget_set_sensitive(debug_prestige_item, debug_server &&
 				                         !real_game.game_over &&
 				                         real_game.expanded > 2);
+				gtk_widget_set_sensitive(debug_rotate_item, debug_server &&
+				                         !real_game.game_over &&
+				                         real_game.cur_action > ACT_GAME_START);
 				gtk_widget_set_sensitive(about_item, TRUE);
 			}
 			else
@@ -10787,6 +10788,7 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(debug_draw_item, FALSE);
 				gtk_widget_set_sensitive(debug_vp_item, FALSE);
 				gtk_widget_set_sensitive(debug_prestige_item, FALSE);
+				gtk_widget_set_sensitive(debug_rotate_item, FALSE);
 				gtk_widget_set_sensitive(about_item, FALSE);
 			}
 		}
@@ -10804,6 +10806,7 @@ void gui_client_state_changed(int playing_game, int making_choice)
 			gtk_widget_set_sensitive(debug_draw_item, FALSE);
 			gtk_widget_set_sensitive(debug_vp_item, FALSE);
 			gtk_widget_set_sensitive(debug_prestige_item, FALSE);
+			gtk_widget_set_sensitive(debug_rotate_item, FALSE);
 
 			/* Set the export item depending on whether game is over or not */
 			gtk_widget_set_sensitive(export_item, making_choice);
@@ -12936,8 +12939,16 @@ static void gui_debug_choice(GtkMenuItem *menu_item, gpointer data)
 	/* Check if game is over */
 	if (real_game.game_over) return;
 
-	/* Check for expansion without prestige */
+	/* Check for taking card while drafting */
+	if (choice == CHOICE_D_TAKE_CARD &&
+	    real_game.cur_action == ACT_DRAFTING) return;
+
+	/* Check for taking prestige in expansion without prestige */
 	if (choice == CHOICE_D_TAKE_PRESTIGE && real_game.expanded < 3) return;
+
+	/* Check for rotating players before game has started */
+	if (choice == CHOICE_D_ROTATE &&
+	    real_game.cur_action <= ACT_GAME_START) return;
 
 	/* Set the tampered debug flag */
 	game_tampered |= TAMPERED_DEBUG;
@@ -13815,6 +13826,7 @@ int main(int argc, char *argv[])
 	debug_draw_item = gtk_menu_item_new_with_mnemonic("Take a _card");
 	debug_vp_item = gtk_menu_item_new_with_mnemonic("Take a _VP");
 	debug_prestige_item = gtk_menu_item_new_with_mnemonic("Take _prestige");
+	debug_rotate_item = gtk_menu_item_new_with_mnemonic("R_otate players");
 	debug_ai_item = gtk_menu_item_new_with_mnemonic("Debug _AI...");
 
 	/* Add accelerators for debug menu items */
@@ -13832,6 +13844,9 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(debug_prestige_item, "activate", window_accel,
 	                           'P', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
 	                           GTK_ACCEL_VISIBLE);
+	gtk_widget_add_accelerator(debug_rotate_item, "activate", window_accel,
+	                           'O', GDK_SHIFT_MASK | GDK_CONTROL_MASK,
+	                           GTK_ACCEL_VISIBLE);
 
 	/* Add items to debug menu */
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_card_item);
@@ -13839,6 +13854,7 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_draw_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_vp_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_prestige_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_rotate_item);
 	/* gtk_menu_shell_append(GTK_MENU_SHELL(debug_menu), debug_ai_item); */
 
 	/* Create help menu */
@@ -13913,6 +13929,9 @@ int main(int argc, char *argv[])
 	g_signal_connect(G_OBJECT(debug_prestige_item), "activate",
 	                 G_CALLBACK(gui_debug_choice),
 	                 GINT_TO_POINTER(CHOICE_D_TAKE_PRESTIGE));
+	g_signal_connect(G_OBJECT(debug_rotate_item), "activate",
+	                 G_CALLBACK(gui_debug_choice),
+	                 GINT_TO_POINTER(CHOICE_D_ROTATE));
 	g_signal_connect(G_OBJECT(debug_ai_item), "activate",
 	                 G_CALLBACK(debug_ai_dialog), NULL);
 

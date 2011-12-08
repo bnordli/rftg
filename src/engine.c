@@ -1287,11 +1287,17 @@ static void perform_debug_moves(game *g, int who)
 				/* Ignore all data in choice */
 				l_ptr += 4;
 
+				/* Don't do anything if currently drafting */
+				if (g->cur_action == ACT_DRAFTING) break;
+
 				/* Format message */
 				sprintf(msg, "%s takes a card.\n", g->p[who].name);
 
 				/* Add message */
 				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Shuffle the deck to avoid peeking */
+				game_rand(g, who);
 
 				/* Give player a card */
 				draw_card(g, who, NULL);
@@ -1319,18 +1325,36 @@ static void perform_debug_moves(game *g, int who)
 				/* Ignore all data in choice */
 				l_ptr += 4;
 
-				/* Ignore choice if expansion without prestige */
-				if (g->expanded > 2)
-				{
-					/* Format message */
-					sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
+				/* Don't do anything if expansion does not have prestige */
+				if (g->expanded < 3) break;
 
-					/* Add message */
-					message_add_formatted(g, msg, FORMAT_DEBUG);
+				/* Format message */
+				sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
 
-					/* Give player a prestige */
-					gain_prestige(g, who, 1, NULL);
-				}
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Give player a prestige */
+				gain_prestige(g, who, 1, NULL);
+				break;
+
+			/* Rotate players */
+			case CHOICE_D_ROTATE:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Don't do anything if game has not started */
+				if (g->cur_action <= ACT_GAME_START) break;
+
+				/* Format message */
+				sprintf(msg, "%s changes the first player.\n", g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Remember to rotate players on step */
+				++g->debug_rotate;
 				break;
 
 			/* No more debug choices */
@@ -1343,6 +1367,9 @@ static void perform_debug_moves(game *g, int who)
 
 		/* Update unread position */
 		p_ptr->choice_unread_pos = p_ptr->choice_pos;
+
+		/* Set game debugged flag */
+		g->debug_game = 1;
 	}
 }
 
@@ -10332,6 +10359,31 @@ static void rotate_players(game *g)
 }
 
 /*
+ * Checks for and performs any debug rotations.
+ */
+static void check_debug_rotate(game *g)
+{
+	int i;
+	char msg[1024];
+
+	/* Check for debug rotation */
+	if (g->debug_rotate)
+	{
+		/* Rotate players */
+		for (i = 0; i < g->debug_rotate; ++i) rotate_players(g);
+
+		/* Format message */
+		sprintf(msg, "%s is now the first player.\n", g->p[0].name);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_DEBUG);
+
+		/* Clear rotation */
+		g->debug_rotate = 0;
+	}
+}
+
+/*
  * Called when a player has chosen a start world and initial discards.
  */
 int start_callback(game *g, int who, int list[], int n, int special[], int ns)
@@ -11500,6 +11552,9 @@ int game_round(game *g)
 		/* Skip unchosen phases */
 		if (!g->action_selected[i]) continue;
 
+		/* Check for rotation */
+		check_debug_rotate(g);
+
 		/* Check for real game */
 		if (!g->simulation)
 		{
@@ -11564,6 +11619,9 @@ int game_round(game *g)
 
 	/* Set current phase to end of round */
 	g->cur_action = ACT_ROUND_END;
+
+	/* Check for rotation */
+	check_debug_rotate(g);
 
 	/* Handle discard phase */
 	phase_discard(g);
@@ -12321,6 +12379,13 @@ void declare_winner(game *g)
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_EM);
 			}
+		}
+
+		/* Check for debug game */
+		if (g->debug_game)
+		{
+			/* Add debug note */
+			message_add_formatted(g, "(Debug game.)\n", FORMAT_DEBUG);
 		}
 	}
 }

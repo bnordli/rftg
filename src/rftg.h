@@ -519,7 +519,7 @@
 #define CHOICE_D_TAKE_CARD      -12
 #define CHOICE_D_TAKE_VP        -13
 #define CHOICE_D_TAKE_PRESTIGE  -14
-
+#define CHOICE_D_ROTATE         -15
 
 /*
  * GUI: Text formatting
@@ -841,6 +841,12 @@ typedef struct game
 
 	/* Random seed at start of game */
 	unsigned int start_seed;
+
+	/* Whether game is a debug game or not */
+	int8_t debug_game;
+
+	/* Number of debug rotations since last check */
+	int8_t debug_rotate;
 
 	/* Game is a simulation */
 	int8_t simulation;
