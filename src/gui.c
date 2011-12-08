@@ -9320,50 +9320,6 @@ static void gui_notify_rotation(game *g, int who)
 }
 
 /*
- * Updates the sensitivity on menu items.
- */
-void update_menu_items(void)
-{
-	/* Only control sensitivity when disconnected */
-	if (client_state != CS_DISCONN) return;
-
-	/* Check for no undo possibility */
-	if (num_undo == 0)
-	{
-		/* Disable undo items */
-		gtk_widget_set_sensitive(undo_item, FALSE);
-		gtk_widget_set_sensitive(undo_round_item, FALSE);
-		gtk_widget_set_sensitive(undo_game_item, FALSE);
-	}
-	else
-	{
-		/* Enable undo items */
-		gtk_widget_set_sensitive(undo_item, TRUE);
-		gtk_widget_set_sensitive(undo_round_item, TRUE);
-		gtk_widget_set_sensitive(undo_game_item, TRUE);
-	}
-
-	/* Check for no redo possibility */
-	if (num_undo == max_undo)
-	{
-		/* Disable redo items */
-		gtk_widget_set_sensitive(redo_item, FALSE);
-		gtk_widget_set_sensitive(redo_round_item, FALSE);
-		gtk_widget_set_sensitive(redo_game_item, FALSE);
-	}
-	else
-	{
-		/* Enable redo items */
-		gtk_widget_set_sensitive(redo_item, TRUE);
-		gtk_widget_set_sensitive(redo_round_item, TRUE);
-		gtk_widget_set_sensitive(redo_game_item, TRUE);
-	}
-
-	/* Enable save item */
-	gtk_widget_set_sensitive(save_item, TRUE);
-}
-
-/*
  * Auto save during the game.
  */
 static void auto_save_choice(game *g, int who)
@@ -10359,8 +10315,8 @@ static void run_game(void)
 		/* Set the max number of undo positions in the log */
 		max_undo = choice;
 
-		/* Simulate client state changed */
-		gui_client_state_changed(FALSE, FALSE);
+		/* Simulate client state changed to update menu items */
+		update_menu_items();
 
 		/* Clear restart loop flag */
 		restart_loop = 0;
@@ -10406,10 +10362,7 @@ static void run_game(void)
 		/* Set prompt */
 		gtk_label_set_text(GTK_LABEL(action_prompt), "Game over");
 
-		/* Simulate client state changed */
-		gui_client_state_changed(FALSE, FALSE);
-
-		/* Update menu items */
+		/* Simulate client state changed to update menu items */
 		update_menu_items();
 
 		/* Process events */
@@ -10675,9 +10628,9 @@ void save_prefs(void)
 }
 
 /*
- * Set sensitivity of menu items based on client state.
+ * Update the sensitivity of menu items.
  */
-void gui_client_state_changed(int playing_game, int making_choice)
+void update_menu_items(void)
 {
 	/* Check if client is disconnected */
 	if (client_state == CS_DISCONN)
@@ -10691,12 +10644,16 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(export_item, TRUE);
 		gtk_widget_set_sensitive(option_item, TRUE);
 		gtk_widget_set_sensitive(advanced_item, TRUE);
-		gtk_widget_set_sensitive(undo_item, TRUE);
-		gtk_widget_set_sensitive(undo_round_item, TRUE);
-		gtk_widget_set_sensitive(undo_game_item, TRUE);
-		gtk_widget_set_sensitive(redo_item, TRUE);
-		gtk_widget_set_sensitive(redo_round_item, TRUE);
-		gtk_widget_set_sensitive(redo_game_item, TRUE);
+
+		/* Activate undo and redo items based on undo information */
+		gtk_widget_set_sensitive(undo_item, num_undo > 0);
+		gtk_widget_set_sensitive(undo_round_item, num_undo > 0);
+		gtk_widget_set_sensitive(undo_game_item, num_undo > 0);
+		gtk_widget_set_sensitive(redo_item, num_undo != max_undo);
+		gtk_widget_set_sensitive(redo_round_item, num_undo != max_undo);
+		gtk_widget_set_sensitive(redo_game_item, num_undo != max_undo);
+
+		/* Activate debug items based on game information */
 		gtk_widget_set_sensitive(debug_card_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_shuffle_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_draw_item, !real_game.game_over &&
@@ -10707,10 +10664,12 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(debug_rotate_item, !real_game.game_over &&
 		                         real_game.cur_action > ACT_GAME_START);
 		gtk_widget_set_sensitive(debug_ai_item, !real_game.game_over);
+
+		/* Activate connect and about items */
 		gtk_widget_set_sensitive(connect_item, TRUE);
 		gtk_widget_set_sensitive(about_item, TRUE);
 
-		/* Deactivate disconnect and resign menu item */
+		/* Deactivate disconnect and resign menu items */
 		gtk_widget_set_sensitive(disconnect_item, FALSE);
 		gtk_widget_set_sensitive(resign_item, FALSE);
 	}
@@ -14644,6 +14603,9 @@ int main(int argc, char *argv[])
 	gtk_widget_hide(menu_bar);
 	ige_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));
 #endif
+
+	/* Not playing game and not making choice */
+	playing_game = making_choice = 0;
 
 	/* Reset GUI */
 	reset_gui();
