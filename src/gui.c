@@ -3198,8 +3198,8 @@ static char *get_prestige_tooltip(game *g, int who)
 {
 	static char msg[1024];
 
-	/* Do nothing unless third expansion is present */
-	if (g->expanded < 3) return "";
+	/* Do nothing if prestige is disabled */
+	if (!prestige_enabled(g)) return "";
 
 	/* Create text */
 	sprintf(msg, "Prestige/Search action used: <b>%s</b> ",
@@ -4344,8 +4344,8 @@ static void redraw_status_area(int who, GtkWidget *box)
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 
-	/* Check for third expansion */
-	if (real_game.expanded >= 3)
+	/* Check for prestige enabled */
+	if (prestige_enabled(&real_game)) return;
 	{
 		/* Create prestige icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_PRESTIGE],
@@ -4625,7 +4625,7 @@ void redraw_status(void)
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
 	              size, display_pool, real_game.num_players * 12 +
-	                (real_game.expanded == 3 ? 5 : 0));
+	                (prestige_enabled(&real_game) ? 5 : 0));
 
 	/* Make VP widget */
 	pool_image = gtk_image_new_from_pixbuf(buf);
@@ -5705,7 +5705,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	for (i = 0; i < MAX_ACTION; i++)
 	{
 		/* Check for unusable search action */
-		if (i == ACT_SEARCH && (g->expanded < 3 ||
+		if (i == ACT_SEARCH && (!prestige_enabled(g) ||
 		                        g->p[who].prestige_action_used ||
 					(one == 2 &&
 					 g->p[who].action[0] & ACT_PRESTIGE)))
@@ -5812,7 +5812,8 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	}
 
 	/* Check for usable prestige action */
-	if (real_game.expanded >= 3 && !real_game.p[who].prestige_action_used &&
+	if (prestige_enabled(&real_game) &&
+	    !real_game.p[who].prestige_action_used &&
 	    real_game.p[who].prestige > 0 && prestige_action == -1)
 	{
 		/* Create button to toggle prestige */
@@ -5980,7 +5981,7 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 		action_toggle[i] = NULL;
 
 		/* Check for unusable search action */
-		if (i == ACT_SEARCH && (real_game.expanded < 3 ||
+		if (i == ACT_SEARCH && (!prestige_enabled(&real_game) ||
 		                        real_game.p[who].prestige_action_used))
 		{
 			/* Skip search action */
@@ -6052,7 +6053,8 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 	}
 
 	/* Check for usable prestige action */
-	if (real_game.expanded >= 3 && !real_game.p[who].prestige_action_used &&
+	if (prestige_enabled(&real_game) &&
+	    !real_game.p[who].prestige_action_used &&
 	    real_game.p[who].prestige > 0)
 	{
 		/* Create toggle button for prestige */
@@ -10646,7 +10648,7 @@ void update_menu_items(void)
 		                         real_game.cur_action != ACT_DRAFTING);
 		gtk_widget_set_sensitive(debug_vp_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_prestige_item, !real_game.game_over &&
-		                         real_game.expanded > 2);
+		                         prestige_enabled(&real_game));
 		gtk_widget_set_sensitive(debug_rotate_item, !real_game.game_over &&
 		                         real_game.cur_action > ACT_GAME_START);
 		gtk_widget_set_sensitive(debug_ai_item, !real_game.game_over);
@@ -10706,7 +10708,7 @@ void update_menu_items(void)
 				                         !real_game.game_over);
 				gtk_widget_set_sensitive(debug_prestige_item, debug_server &&
 				                         !real_game.game_over &&
-				                         real_game.expanded > 2);
+				                         prestige_enabled(&real_game));
 				gtk_widget_set_sensitive(debug_rotate_item, debug_server &&
 				                         !real_game.game_over &&
 				                         real_game.cur_action > ACT_GAME_START);
@@ -12879,7 +12881,8 @@ static void gui_debug_choice(GtkMenuItem *menu_item, gpointer data)
 	    real_game.cur_action == ACT_DRAFTING) return;
 
 	/* Check for taking prestige in expansion without prestige */
-	if (choice == CHOICE_D_TAKE_PRESTIGE && real_game.expanded < 3) return;
+	if (choice == CHOICE_D_TAKE_PRESTIGE && !prestige_enabled(&real_game))
+		return;
 
 	/* Check for rotating players before game has started */
 	if (choice == CHOICE_D_ROTATE &&

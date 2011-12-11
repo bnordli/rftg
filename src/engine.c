@@ -164,6 +164,22 @@ int goals_enabled(game *g)
 }
 
 /*
+ * Return whether takeovers are enabled in this game.
+ */
+int takeovers_enabled(game *g)
+{
+	return g->expanded > 1 && !g->takeover_disabled;
+}
+
+/*
+ * Return whether the prestige mechanic is enabled in this game.
+ */
+int prestige_enabled(game *g)
+{
+	return g->expanded == 3;
+}
+
+/*
  * The path to the executing program.
  */
 char program_path[1024];
@@ -226,14 +242,6 @@ FILE *open_file(char *name)
 
 	/* Return the file, or give up */
 	return fopen(fn, "r");
-}
-
-/*
- * Return whether takeovers are enabled in this game.
- */
-int takeovers_enabled(game *g)
-{
-	return g->expanded > 1 && !g->takeover_disabled;
 }
 
 /*
@@ -951,8 +959,8 @@ static void check_prestige(game *g)
 	player *p_ptr;
 	int i, max = 0, num = 0;
 
-	/* Do nothing unless third expansion is present */
-	if (g->expanded < 3) return;
+	/* Do nothing if prestige is disabled */
+	if (!prestige_enabled(g)) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -997,8 +1005,8 @@ void start_prestige(game *g)
 	char msg[1024];
 	int i, max = 0, num = 0, card_bonus = -1;
 
-	/* Do nothing unless third expansion is present */
-	if (g->expanded < 3) return;
+	/* Do nothing if prestige is disabled */
+	if (!prestige_enabled(g)) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -1325,8 +1333,8 @@ static void perform_debug_moves(game *g, int who)
 				/* Ignore all data in choice */
 				l_ptr += 4;
 
-				/* Don't do anything if expansion does not have prestige */
-				if (g->expanded < 3) break;
+				/* Do nothing if prestige is disabled */
+				if (!prestige_enabled(g)) return;
 
 				/* Format message */
 				sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
@@ -2512,8 +2520,8 @@ void place_card(game *g, int who, int which)
 	/* Add a good to windfall worlds */
 	if (c_ptr->d_ptr->flags & FLAG_WINDFALL) add_good(g, c_ptr);
 
-	/* Check for third expansion */
-	if (g->expanded >= 3)
+	/* Check for prestige enabled */
+	if (prestige_enabled(g)) return;
 	{
 		/* Check for prestige from card */
 		if (c_ptr->d_ptr->flags & FLAG_PRESTIGE)

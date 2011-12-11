@@ -575,8 +575,8 @@ void init_game(game *g)
 	/* Set size of VP pool */
 	g->vp_pool = g->num_players * 12;
 
-	/* Increase size of pool in third expansion */
-	if (g->expanded >= 3) g->vp_pool += 5;
+	/* Increase size of pool if prestige is enabled */
+	if (prestige_enabled(g)) g->vp_pool += 5;
 
 	/* No game round */
 	g->round = 0;
@@ -659,7 +659,7 @@ void init_game(game *g)
 	}
 
 	/* Add goals when expanded */
-	if (g->expanded && !g->goal_disabled)
+	if (goals_enabled(g))
 	{
 		/* No goals available yet */
 		n = 0;

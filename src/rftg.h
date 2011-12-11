@@ -968,6 +968,7 @@ extern void message_add(game *g, char *msg);
 extern void message_add_formatted(game *g, char *msg, char *tag);
 extern int goals_enabled(game *g);
 extern int takeovers_enabled(game *g);
+extern int prestige_enabled(game *g);
 extern int separate_decks(game *g);
 extern int min_expansion(int variant);
 extern int max_players(int expansion, int variant);
