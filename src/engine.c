@@ -189,6 +189,8 @@ void set_program_path(int argc, char **argv)
 		/* Chop string */
 		*strrchr(program_path, '\\') = '\0';
 	}
+
+	/* No slashes found */
 	else
 	{
 		/* Use current folder */
@@ -222,10 +224,8 @@ FILE *open_file(char *name)
 	/* Look in program location */
 	sprintf(fn, "%s/%s", program_path, name);
 
-	/* Try reading the file */
-	fff = fopen(fn, "r");
-
-	return fff;
+	/* Return the file, or give up */
+	return fopen(fn, "r");
 }
 
 /*
@@ -1207,9 +1207,9 @@ static void perform_debug_moves(game *g, int who)
 
 				/* Format message */
 				sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
-						g->deck[c].d_ptr->name,
-						owner == -1 ? "None" : g->p[owner].name,
-						location_names[where]);
+				        g->deck[c].d_ptr->name,
+				        owner == -1 ? "None" : g->p[owner].name,
+				        location_names[where]);
 
 				/* Add message */
 				message_add_formatted(g, msg, FORMAT_DEBUG);
@@ -1353,7 +1353,7 @@ static void perform_debug_moves(game *g, int who)
 				/* Add message */
 				message_add_formatted(g, msg, FORMAT_DEBUG);
 
-				/* Remember to rotate players on step */
+				/* Remember to rotate players one step */
 				++g->debug_rotate;
 				break;
 
@@ -9429,7 +9429,7 @@ void phase_discard(game *g)
 					{
 						/* Format message */
 						sprintf(msg, "%s takes %d discard%s.\n",
-								g->p[i].name, taken, PLURAL(taken));
+						        g->p[i].name, taken, PLURAL(taken));
 
 						/* Send message */
 						message_add(g, msg);
@@ -10463,7 +10463,7 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 		/* Reset rotation */
 		rotation = 0;
 
-		/* Check for needing to adjust drawn cards */
+		/* Check for needing to adjust cards drawn */
 		if (g->expanded == 3 && i == rounds - 1)
 		{
 			/* Adjust number of cards drawn for last round */
@@ -10503,7 +10503,7 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 				{
 					/* Format message */
 					sprintf(msg, "%s draws %s.\n", g->p[j].name,
-							g->deck[draws[j][k]].d_ptr->name);
+					        g->deck[draws[j][k]].d_ptr->name);
 
 					/* Send message */
 					g->p[j].control->private_message(g, j, msg, FORMAT_DRAW);
@@ -10815,7 +10815,7 @@ void begin_game(game *g)
 
 			/* Check for start cards */
 			if (!strcmp(c_ptr->d_ptr->name, "Rebel Alliance") ||
-				!strcmp(c_ptr->d_ptr->name, "Imperium Seat"))
+			    !strcmp(c_ptr->d_ptr->name, "Imperium Seat"))
 			{
 				/* Set aside card */
 				move_card(g, i, -1, WHERE_REMOVED);
@@ -10887,8 +10887,8 @@ void begin_game(game *g)
 			{
 				/* Format message */
 				sprintf(msg, "%s draws the start world %s.\n",
-						g->p[i].name,
-						g->deck[start_picks[i][0]].d_ptr->name);
+				        g->p[i].name,
+				        g->deck[start_picks[i][0]].d_ptr->name);
 
 				/* Send message */
 				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
@@ -10899,8 +10899,8 @@ void begin_game(game *g)
 			{
 				/* Format message */
 				sprintf(msg, "%s draws the start world %s.\n",
-						g->p[i].name,
-						g->deck[start_picks[i][1]].d_ptr->name);
+				        g->p[i].name,
+				        g->deck[start_picks[i][1]].d_ptr->name);
 
 				/* Send message */
 				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
@@ -11206,7 +11206,7 @@ void begin_game(game *g)
 				j = 1;
 			}
 
-			/* If none of the cards -- go further */
+			/* Check for no players receiving card */
 			if (j < 0) continue;
 
 			/* Give card to player */
@@ -11215,7 +11215,7 @@ void begin_game(game *g)
 			/* Card's location is known to the player */
 			c_ptr->known |= 1 << j;
 
-			/* Check for real game and reason */
+			/* Message */
 			if (!g->simulation)
 			{
 				/* Format message */

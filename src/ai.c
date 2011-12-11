@@ -1314,7 +1314,7 @@ static double eval_game(game *g, int who)
 		{
 			/* Add probability we would have this card */
 			eval.input_value[n + card_input[unknown[i]]] +=
-			                    1.0 * p_ptr->total_fake / count;
+				1.0 * p_ptr->total_fake / count;
 		}
 	}
 
@@ -5803,7 +5803,6 @@ static int ai_choose_draft(game *g, int who, int* list, int nl)
 	/* Return a random card */
 	return list[sum % nl];
 }
-
 
 /*
  * Make a choice of the given type.

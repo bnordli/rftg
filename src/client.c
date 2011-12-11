@@ -167,7 +167,7 @@ static gboolean delete_user(GtkTreeModel *model, GtkTreePath *path,
 	char *ptr;
 
 	/* Get first column */
-	gtk_tree_model_get(model, iter, 0, &ptr, -1);
+	gtk_tree_model_get(model, iter, COL_ID, &ptr, -1);
 
 	/* Check for match */
 	if (!strcmp(ptr, (char *)data))
@@ -199,7 +199,7 @@ static gboolean delete_game(GtkTreeModel *model, GtkTreePath *path,
 	int y;
 
 	/* Get first column */
-	gtk_tree_model_get(model, iter, 0, &y, -1);
+	gtk_tree_model_get(model, iter, COL_ID, &y, -1);
 
 	/* Check for match */
 	if (x == y)
@@ -268,7 +268,7 @@ static int find_game_iter(int id, GtkTreeIter *iter)
 	while (1)
 	{
 		/* Get first column */
-		gtk_tree_model_get(GTK_TREE_MODEL(game_list), iter, 0, &x, -1);
+		gtk_tree_model_get(GTK_TREE_MODEL(game_list), iter, COL_ID, &x, -1);
 
 		/* Check for match */
 		if (x == id) return 1;
@@ -301,7 +301,7 @@ static int find_game_player(GtkTreeIter *parent, GtkTreeIter *child, int who)
 	while (1)
 	{
 		/* Get player index column */
-		gtk_tree_model_get(GTK_TREE_MODEL(game_list), child, 0, &x, -1);
+		gtk_tree_model_get(GTK_TREE_MODEL(game_list), child, COL_ID, &x, -1);
 
 		/* Check for match */
 		if (x == who) return 1;
@@ -2529,6 +2529,7 @@ static void update_sensitivity()
 		gtk_range_set_range(GTK_RANGE(max_player), 2, max_p);
 	}
 
+	/* Only two player games allowed */
 	else
 	{
 		/* Set sensitivities */
@@ -2950,7 +2951,7 @@ void create_dialog(GtkButton *button, gpointer data)
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
-			  no_timeout_check != NULL &&
+		      no_timeout_check != NULL &&
         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(no_timeout_check)),
 	          next_variant);   // Since 0.8.1n
 
@@ -3058,8 +3059,8 @@ void join_game(GtkButton *button, gpointer data)
 	}
 
 	/* Get session ID of game to join */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 0, &x,
-	                   3, &pass_needed, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, COL_ID, &x,
+	                   COL_GAME_STATE, &pass_needed, -1);
 
 	/* Check for password required */
 	if (pass_needed)
@@ -3157,11 +3158,12 @@ void kick_player(GtkButton *button, gpointer data)
 	}
 
 	/* Get session ID of game */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 0, &x, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
+	                   COL_ID, &x, -1);
 
 	/* Get name of user to kick */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf,
-	                   11, &self, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter,
+	                   COL_DESC_NAME, &buf, COL_SELF, &self, -1);
 
 	/* Check for self selected */
 	if (self) return;

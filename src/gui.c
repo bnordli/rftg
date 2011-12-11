@@ -3957,13 +3957,13 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 		{
 			/* Add defender vp diff */
 			p += sprintf(p, "\n%s: %d VP%s",
-						 g->p[defender].name,
-						 t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
+			             g->p[defender].name,
+			             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
 
 			/* Add attacker vp diff */
 			p += sprintf(p, "\n%s: %d VP%s",
-						 g->p[attacker].name,
-						 t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+			             g->p[attacker].name,
+			             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
 		}
 	}
 	else
@@ -3985,13 +3985,13 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 			{
 				/* Add defender vp diff */
 				p += sprintf(p, "\n  %s: %d VP%s",
-							 g->p[defender].name,
-							 t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
+				             g->p[defender].name,
+				             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
 
 				/* Add attacker vp diff */
 				p += sprintf(p, "\n  %s: %d VP%s",
-							 g->p[attacker].name,
-							 t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+				             g->p[attacker].name,
+				             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
 			}
 		}
 	}
@@ -4100,7 +4100,7 @@ static GtkWidget *action_icon(int act, int size)
 }
 
 /* The original number of cards in variants */
-static int drafting_count[][4][MAX_PLAYER] =
+static int drafting_count[][MAX_EXPANSION][MAX_PLAYER] =
 {
 	{
 		{ 0 },
@@ -4531,7 +4531,7 @@ void redraw_status(void)
 	{
 		/* Build deck image */
 		buf = overlay(icon_cache[ICON_DRAW], icon_cache[ICON_DRAW_EMPTY], size,
-					  display_deck, real_game.deck_size);
+		              display_deck, real_game.deck_size);
 
 #if 0
 		/* Add note if game is tampered */
@@ -4557,11 +4557,11 @@ void redraw_status(void)
 
 			/* Add a tiny square at the bottom left */
 			gdk_pixbuf_composite_color(buf, buf,
-									   0, size - 3, 3, 3,
-									   0, 0, 1, 1,
-									   GDK_INTERP_BILINEAR, 255,
-									   0, 0, 16,
-									   color, 0);
+			                           0, size - 3, 3, 3,
+			                           0, 0, 1, 1,
+			                           GDK_INTERP_BILINEAR, 255,
+			                           0, 0, 16,
+			                           color, 0);
 		}
 #endif
 
@@ -4573,7 +4573,7 @@ void redraw_status(void)
 
 		/* Create text for deck */
 		sprintf(ei->text, "<b>%d\n<span font=\"10\">Deck</span></b>",
-				display_deck);
+		        display_deck);
 
 		/* Set font */
 		ei->fontstr = "Sans 12";
@@ -4583,7 +4583,7 @@ void redraw_status(void)
 
 		/* Connect expose-event to draw extra text */
 		g_signal_connect_after(G_OBJECT(draw_image), "expose-event",
-							   G_CALLBACK(draw_extra_text), ei);
+		                       G_CALLBACK(draw_extra_text), ei);
 
 		/* Destroy our copy of the icon */
 		g_object_unref(G_OBJECT(buf));
@@ -4593,7 +4593,7 @@ void redraw_status(void)
 
 		/* Build discard image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_HANDSIZE], size, (int) size,
-									  GDK_INTERP_BILINEAR);
+		                              GDK_INTERP_BILINEAR);
 
 		/* Make image widget */
 		discard_image = gtk_image_new_from_pixbuf(buf);
@@ -4603,7 +4603,7 @@ void redraw_status(void)
 
 		/* Create text for discard */
 		sprintf(ei->text, "<b>%d\n<span font=\"10\">Discard</span></b>",
-				display_discard);
+		        display_discard);
 
 		/* Set font */
 		ei->fontstr = "Sans 12";
@@ -4613,7 +4613,7 @@ void redraw_status(void)
 
 		/* Connect expose-event to draw extra text */
 		g_signal_connect_after(G_OBJECT(discard_image), "expose-event",
-							   G_CALLBACK(draw_extra_text), ei);
+		                       G_CALLBACK(draw_extra_text), ei);
 
 		/* Destroy our copy of the icon */
 		g_object_unref(G_OBJECT(buf));
@@ -5388,15 +5388,28 @@ void reset_status(game *g, int who)
 }
 
 /*
- * Reset game status (deck, discard pile and vp).
+ * Reset our hand list, and all players' table lists.
  */
-static void reset_game_status(game *g)
+void reset_cards(game *g, int color_hand, int color_table)
 {
 	card *c_ptr;
 	int i;
 
 	/* Score game */
 	score_game(g);
+
+	/* Reset hand */
+	reset_hand(g, color_hand);
+
+	/* Loop over players */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Reset table of player */
+		reset_table(g, i, color_table);
+
+		/* Reset status information for player */
+		reset_status(g, i);
+	}
 
 	/* Clear displayed status info */
 	display_deck = 0;
@@ -5417,33 +5430,6 @@ static void reset_game_status(game *g)
 
 	/* Get chips in VP pool */
 	display_pool = g->vp_pool;
-}
-
-/*
- * Reset our hand list, and all players' table lists.
- */
-void reset_cards(game *g, int color_hand, int color_table)
-{
-	int i;
-
-	/* Score game */
-	score_game(g);
-
-	/* Reset hand */
-	reset_hand(g, color_hand);
-
-	/* Loop over players */
-	for (i = 0; i < real_game.num_players; i++)
-	{
-		/* Reset table of player */
-		reset_table(g, i, color_table);
-
-		/* Reset status information for player */
-		reset_status(g, i);
-	}
-
-	/* Reset game status */
-	reset_game_status(g);
 }
 
 /*
@@ -10315,7 +10301,7 @@ static void run_game(void)
 		/* Set the max number of undo positions in the log */
 		max_undo = choice;
 
-		/* Simulate client state changed to update menu items */
+		/* Update menu items */
 		update_menu_items();
 
 		/* Clear restart loop flag */
@@ -10362,7 +10348,7 @@ static void run_game(void)
 		/* Set prompt */
 		gtk_label_set_text(GTK_LABEL(action_prompt), "Game over");
 
-		/* Simulate client state changed to update menu items */
+		/* Update menu items */
 		update_menu_items();
 
 		/* Process events */
