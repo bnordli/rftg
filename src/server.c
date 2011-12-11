@@ -1360,8 +1360,10 @@ static void send_player_one(int dest, int who)
 	else
 	{
 		/* Send "new player" message */
-		send_msgf(dest, MSG_PLAYER_NEW, "sd", c_list[who].user,
-		          c_list[who].state == CS_PLAYING);
+		send_msgf(dest, MSG_PLAYER_NEW, "sdd",
+		          c_list[who].user,
+		          c_list[who].state == CS_PLAYING,
+		          dest == who);  // Since 0.8.1n
 	}
 }
 
