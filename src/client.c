@@ -51,17 +51,6 @@ int playing_game;
 int making_choice;
 
 /*
- * Textual description of game state.
- */
-char *game_states[4] =
-{
-	"Public game",
-	"Private game",
-	"Game in progress",
-	"Game in progress",
-};
-
-/*
  * The version of the server we are connected to.
  */
 char server_version[30];
@@ -432,8 +421,7 @@ static void handle_open_game(char *ptr, int size)
 	x = get_integer(&ptr);
 
 	/* Set game state */
-	gtk_tree_store_set(game_list, &list_iter, COL_GAME_STATE, x,
-	                   COL_GAME_STATE_STR, game_states[x], -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_PASSWORD, x, -1);
 
 	/* Read min/max number of players */
 	x = get_integer(&ptr);
@@ -3060,7 +3048,7 @@ void join_game(GtkButton *button, gpointer data)
 
 	/* Get session ID of game to join */
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, COL_ID, &x,
-	                   COL_GAME_STATE, &pass_needed, -1);
+	                   COL_PASSWORD, &pass_needed, -1);
 
 	/* Check for password required */
 	if (pass_needed)

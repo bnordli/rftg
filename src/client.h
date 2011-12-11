@@ -20,23 +20,22 @@
 #define COL_ID               0
 #define COL_DESC_NAME        1
 #define COL_CREATOR_OFFLINE  2
-#define COL_GAME_STATE       3
-#define COL_GAME_STATE_STR   4
-#define COL_MIN_PLAYERS      5
-#define COL_MAX_PLAYERS      6
-#define COL_PLAYERS_STR      7
-#define COL_EXPANSION        8
-#define COL_EXPANSION_STR    9
-#define COL_ADVANCED        10
-#define COL_DISABLE_GOAL    11
-#define COL_DISABLE_TO      12
-#define COL_VARIANT         13
-#define COL_VARIANT_STR     14
-#define COL_NO_TIMEOUT      15
-#define COL_SELF            16
-#define COL_CHECK_VISIBLE   17
-#define COL_WEIGHT          18
-#define MAX_COLUMN          19
+#define COL_PASSWORD         3
+#define COL_MIN_PLAYERS      4
+#define COL_MAX_PLAYERS      5
+#define COL_PLAYERS_STR      6
+#define COL_EXPANSION        7
+#define COL_EXPANSION_STR    8
+#define COL_ADVANCED         9
+#define COL_DISABLE_GOAL    10
+#define COL_DISABLE_TO      11
+#define COL_VARIANT         12
+#define COL_VARIANT_STR     13
+#define COL_NO_TIMEOUT      14
+#define COL_SELF            15
+#define COL_CHECK_VISIBLE   16
+#define COL_WEIGHT          17
+#define MAX_COLUMN          18
 
 /*
  * User options.
@@ -167,7 +166,6 @@ extern GtkWidget *kick_button, *addai_button, *start_button;
 extern GtkWidget *action_prompt, *action_button;
 extern GtkWidget *message_view;
 extern GtkTextMark *message_end;
-extern char *game_states[];
 extern char *exp_names[];
 extern game real_game;
 extern int player_us;

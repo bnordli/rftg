@@ -14213,22 +14213,21 @@ int main(int argc, char *argv[])
 		G_TYPE_INT,    //  0: Game id/Player number
 		G_TYPE_STRING, //  1: Description/Player name
 		G_TYPE_STRING, //  2: Creator name/Offline note
-		G_TYPE_INT,    //  3: Password/in progress?
-		G_TYPE_STRING, //  4: Password/in progress string
-		G_TYPE_INT,    //  5: Min players
-		G_TYPE_INT,    //  6: Max players
-		G_TYPE_STRING, //  7: Number of players
-		G_TYPE_INT,    //  8: Expansion id
-		G_TYPE_STRING, //  9: Expansion name
-		G_TYPE_INT,    // 10: Advanced game?
-		G_TYPE_INT,    // 11: Disable goals?
-		G_TYPE_INT,    // 12: Disable takeovers?
-		G_TYPE_INT,    // 13: Variant id
-		G_TYPE_STRING, // 14: Variant string
-		G_TYPE_INT,    // 15: Game speed
-		G_TYPE_INT,    // 16: My game/player id?
-		G_TYPE_INT,    // 17: Checkboxes visible?
-		G_TYPE_INT);   // 18: Weight of text
+		G_TYPE_INT,    //  3: Password?
+		G_TYPE_INT,    //  4: Min players
+		G_TYPE_INT,    //  5: Max players
+		G_TYPE_STRING, //  6: Number of players
+		G_TYPE_INT,    //  7: Expansion id
+		G_TYPE_STRING, //  8: Expansion name
+		G_TYPE_INT,    //  9: Advanced game?
+		G_TYPE_INT,    // 10: Disable goals?
+		G_TYPE_INT,    // 11: Disable takeovers?
+		G_TYPE_INT,    // 12: Variant id
+		G_TYPE_STRING, // 13: Variant string
+		G_TYPE_INT,    // 14: Game speed
+		G_TYPE_INT,    // 15: My game/player id?
+		G_TYPE_INT,    // 16: Checkboxes visible?
+		G_TYPE_INT);   // 17: Weight of text
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));
@@ -14261,12 +14260,12 @@ int main(int argc, char *argv[])
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 1);
 	gtk_tree_view_column_set_sort_column_id(tree_view_column, COL_CREATOR_OFFLINE);
 
-	/*** Third column (game state) ***/
+	/*** Third column (password needed checkbox) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "State", render,
-		"text", COL_GAME_STATE_STR, NULL);
+		GTK_TREE_VIEW(games_view), -1, "Password needed", toggle_render,
+		"active", COL_PASSWORD, "visible", COL_CHECK_VISIBLE, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 2);
-	gtk_tree_view_column_set_sort_column_id(tree_view_column, COL_GAME_STATE);
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, COL_PASSWORD);
 
 	/*** Fourth column (number of players) ***/
 	gtk_tree_view_insert_column_with_attributes(
