@@ -3613,7 +3613,7 @@ static void handle_login(int cid, char *ptr)
 }
 
 /*
- * Handle a login message.
+ * Handle a game creation message.
  */
 static void handle_create(int cid, char *ptr, int size)
 {
