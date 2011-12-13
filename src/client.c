@@ -2393,7 +2393,6 @@ with the password you enter.");
 		          gtk_entry_get_text(GTK_ENTRY(user)),
 		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
 
-
 		/* Enter main loop to wait for response */
 		gtk_main();
 

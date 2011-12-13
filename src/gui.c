@@ -500,8 +500,8 @@ static GtkWidget *undo_item, *undo_round_item, *undo_game_item;
 static GtkWidget *redo_item, *redo_round_item, *redo_game_item;
 static GtkWidget *connect_item, *disconnect_item, *resign_item;
 static GtkWidget *debug_card_item, *debug_shuffle_item, *debug_draw_item;
-static GtkWidget *debug_rotate_item;
-static GtkWidget *debug_vp_item, *debug_prestige_item, *debug_ai_item;
+static GtkWidget *debug_vp_item, *debug_prestige_item, *debug_rotate_item;
+static GtkWidget *debug_ai_item;
 static GtkWidget *about_item;
 static GtkWidget *entry_hbox;
 
@@ -9821,6 +9821,40 @@ static void apply_options(void)
 }
 
 /*
+ * Disable all menu items, in order to avoid opening dialogs
+ * while loading games, etc.
+ */
+static void disable_menu_items(void)
+{
+	/* Deactivate menu items */
+	gtk_widget_set_sensitive(new_item, FALSE);
+	gtk_widget_set_sensitive(new_parameters_item, FALSE);
+	gtk_widget_set_sensitive(load_item, FALSE);
+	gtk_widget_set_sensitive(replay_item, FALSE);
+	gtk_widget_set_sensitive(save_item, FALSE);
+	gtk_widget_set_sensitive(export_item, FALSE);
+	gtk_widget_set_sensitive(option_item, FALSE);
+	gtk_widget_set_sensitive(advanced_item, FALSE);
+	gtk_widget_set_sensitive(undo_item, FALSE);
+	gtk_widget_set_sensitive(undo_round_item, FALSE);
+	gtk_widget_set_sensitive(undo_game_item, FALSE);
+	gtk_widget_set_sensitive(redo_item, FALSE);
+	gtk_widget_set_sensitive(redo_round_item, FALSE);
+	gtk_widget_set_sensitive(redo_game_item, FALSE);
+	gtk_widget_set_sensitive(connect_item, FALSE);
+	gtk_widget_set_sensitive(disconnect_item, FALSE);
+	gtk_widget_set_sensitive(resign_item, FALSE);
+	gtk_widget_set_sensitive(debug_card_item, FALSE);
+	gtk_widget_set_sensitive(debug_shuffle_item, FALSE);
+	gtk_widget_set_sensitive(debug_draw_item, FALSE);
+	gtk_widget_set_sensitive(debug_vp_item, FALSE);
+	gtk_widget_set_sensitive(debug_prestige_item, FALSE);
+	gtk_widget_set_sensitive(debug_rotate_item, FALSE);
+	gtk_widget_set_sensitive(debug_ai_item, FALSE);
+	gtk_widget_set_sensitive(about_item, FALSE);
+}
+
+/*
  * Reset player structures.
  */
 void reset_gui(void)
@@ -9977,6 +10011,9 @@ static void run_game(void)
 	/* Loop forever */
 	while (1)
 	{
+		/* Disable menu items */
+		disable_menu_items();
+
 		/* Replay by default */
 		game_replaying = TRUE;
 
@@ -10302,9 +10339,6 @@ static void run_game(void)
 
 		/* Set the max number of undo positions in the log */
 		max_undo = choice;
-
-		/* Update menu items */
-		update_menu_items();
 
 		/* Clear restart loop flag */
 		restart_loop = 0;
@@ -14726,6 +14760,9 @@ int main(int argc, char *argv[])
 
 	/* Not playing game and not making choice */
 	playing_game = making_choice = 0;
+
+	/* Disable menu items */
+	disable_menu_items();
 
 	/* Reset GUI */
 	reset_gui();
