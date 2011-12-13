@@ -4345,7 +4345,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 
 	/* Check for prestige enabled */
-	if (prestige_enabled(&real_game)) return;
+	if (prestige_enabled(&real_game))
 	{
 		/* Create prestige icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_PRESTIGE],

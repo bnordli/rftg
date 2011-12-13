@@ -1334,7 +1334,7 @@ static void perform_debug_moves(game *g, int who)
 				l_ptr += 4;
 
 				/* Do nothing if prestige is disabled */
-				if (!prestige_enabled(g)) return;
+				if (!prestige_enabled(g)) break;
 
 				/* Format message */
 				sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
@@ -2521,7 +2521,7 @@ void place_card(game *g, int who, int which)
 	if (c_ptr->d_ptr->flags & FLAG_WINDFALL) add_good(g, c_ptr);
 
 	/* Check for prestige enabled */
-	if (prestige_enabled(g)) return;
+	if (prestige_enabled(g))
 	{
 		/* Check for prestige from card */
 		if (c_ptr->d_ptr->flags & FLAG_PRESTIGE)
