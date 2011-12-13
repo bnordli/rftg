@@ -10364,6 +10364,10 @@ static void run_game(void)
 static void read_prefs(void)
 {
 	char *path;
+	char **servers;
+	size_t num_servers;
+	int i;
+	GtkTreeIter list_iter;
 
     /* Build user preference filename */
 #ifdef __APPLE__
@@ -10466,6 +10470,38 @@ static void read_prefs(void)
 	                                        "server_name", NULL);
 	opt.server_port = g_key_file_get_integer(pref_file, "multiplayer",
 	                                         "server_port", NULL);
+	opt.servers = gtk_list_store_new(1, G_TYPE_STRING);
+
+	/* Check for servers key present (since 0.8.1n) */
+	if (g_key_file_has_key(pref_file, "multiplayer", "servers", NULL))
+	{
+		/* Read list of servers */
+		servers = g_key_file_get_string_list(pref_file, "multiplayer",
+		                                     "servers", &num_servers, NULL);
+
+		/* Loop over servers */
+		for (i = 0; i < num_servers; ++i)
+		{
+			/* Add server name to list store */
+			gtk_list_store_append(opt.servers, &list_iter);
+			gtk_list_store_set(opt.servers, &list_iter,
+			                   0, servers[i], -1);
+		}
+
+		/* Clean up */
+		g_strfreev(servers);
+	}
+	else
+	{
+		/* Populate the server list store with known servers */
+		gtk_list_store_append(opt.servers, &list_iter);
+		gtk_list_store_set(opt.servers, &list_iter,
+		                   0, "keldon.net", -1);
+		gtk_list_store_append(opt.servers, &list_iter);
+		gtk_list_store_set(opt.servers, &list_iter,
+		                   0, "rftgstats.com", -1);
+	}
+
 	opt.username = g_key_file_get_string(pref_file, "multiplayer",
 	                                     "username", NULL);
 	opt.password = g_key_file_get_string(pref_file, "multiplayer",
@@ -10515,6 +10551,30 @@ char *create_cmp_key(char *str)
 }
 
 /*
+ * The current number of servers, used in retrieve_servers.
+ */
+static int num_servers;
+
+/*
+ * Read the first column from the model and store in the data array.
+ */
+static gboolean retrieve_servers(GtkTreeModel *model, GtkTreePath *path,
+                                 GtkTreeIter *iter, gpointer data)
+{
+	char **next_server = (char **)data;
+	char *server;
+
+	/* Get server from model */
+	gtk_tree_model_get(model, iter, 0, &server, -1);
+
+	/* Store server */
+	next_server[num_servers++] = server;
+
+	/* Continue iteration */
+	return FALSE;
+}
+
+/*
  * Save preferences to file.
  */
 void save_prefs(void)
@@ -10522,6 +10582,8 @@ void save_prefs(void)
 	FILE *fff;
 	char *path, *data;
 	char msg[1024];
+	char **servers;
+	int i;
 
 	/* Build user preference filename */
 #ifdef __APPLE__
@@ -10530,6 +10592,14 @@ void save_prefs(void)
 #else
 	path = g_build_filename(g_get_user_config_dir(), "rftg", NULL);
 #endif
+
+	/* Allocate memory to store server names */
+	servers = (char **)malloc(sizeof(char**) *
+		gtk_tree_model_iter_n_children(GTK_TREE_MODEL(opt.servers), NULL));
+
+	/* Read list of servers from the list store */
+	num_servers = 0;
+	gtk_tree_model_foreach(GTK_TREE_MODEL(opt.servers), retrieve_servers, servers);
 
 	/* Set game options */
 	g_key_file_set_integer(pref_file, "game", "num_players",
@@ -10589,10 +10659,16 @@ void save_prefs(void)
 	                      opt.server_name);
 	g_key_file_set_integer(pref_file, "multiplayer", "server_port",
 	                       opt.server_port);
+	g_key_file_set_string_list(pref_file, "multiplayer", "servers",
+	                           servers, num_servers);
 	g_key_file_set_string(pref_file, "multiplayer", "username",
 	                      opt.username);
 	g_key_file_set_string(pref_file, "multiplayer", "password",
 	                      opt.password);
+
+	/* Clean up servers memory */
+	for (i = 0; i < num_servers; ++i) g_free(servers[i]);
+	free(servers);
 
 	/* Set multiplayer game creation options */
 	g_key_file_set_string(pref_file, "multiplayer", "game_desc",

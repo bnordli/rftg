@@ -205,6 +205,31 @@ static gboolean delete_game(GtkTreeModel *model, GtkTreePath *path,
 }
 
 /*
+ * Delete row from server list if it matches passed-in data.
+ */
+static gboolean delete_server(GtkTreeModel *model, GtkTreePath *path,
+                              GtkTreeIter *iter, gpointer data)
+{
+	char *ptr;
+
+	/* Get server */
+	gtk_tree_model_get(model, iter, 0, &ptr, -1);
+
+	/* Check for match */
+	if (!strcmp(ptr, (char *)data))
+	{
+		/* Delete row */
+		gtk_list_store_remove(GTK_LIST_STORE(model), iter);
+	}
+
+	/* Free copy of string */
+	g_free(ptr);
+
+	/* Keep looking */
+	return FALSE;
+}
+
+/*
  * Destroy all entries in game and user lists.
  */
 static void clear_games_users(void)
@@ -1425,7 +1450,7 @@ static gboolean message_read(gpointer data)
 			else
 			{
 				/* Set self if same as most recent username */
-				y = (strcmp(username, opt.username) == 0);
+				y = !strcmp(username, opt.username);
 			}
 
 			/* Remove any matching users from list */
@@ -1991,6 +2016,8 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	GtkWidget *label, *hsep;
 	GtkWidget *server, *port, *user, *pass;
 	GtkWidget *table;
+	GtkEntryCompletion *completion;
+	GtkTreeIter list_iter;
 	GtkTextBuffer *chat_buffer;
 	GIOChannel *io;
 	unsigned int id;
@@ -2036,6 +2063,25 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Create label and text entry */
 	label = gtk_label_new("Server name:");
 	server = gtk_entry_new();
+
+	/* Create completion entry */
+	completion = gtk_entry_completion_new();
+
+	/* Set completion attributes */
+	g_object_set(G_OBJECT(completion),
+	             "inline-completion", TRUE,
+	             "minimum-key-length", 0,
+	             "popup-single-match", FALSE, NULL);
+
+	/* Use the only column in the server list as completion list */
+	gtk_entry_completion_set_model(completion, GTK_TREE_MODEL(opt.servers));
+	gtk_entry_completion_set_text_column(completion, 0);
+
+	/* Assign completion to server entry */
+	gtk_entry_set_completion(GTK_ENTRY(server), completion);
+
+	/* Remove our reference to the completion entry */
+	g_object_unref(G_OBJECT(completion));
 
 	/* Check for no server name in preferences */
 	if (!opt.server_name) opt.server_name = "keldon.net";
@@ -2315,6 +2361,25 @@ with the password you enter.");
 
 		/* Set status */
 		gtk_label_set_text(GTK_LABEL(login_status), "Sending login");
+
+		/* Remove any matching servers from the server list */
+		gtk_tree_model_foreach(GTK_TREE_MODEL(opt.servers),
+		                       delete_server, opt.server_name);
+
+		/* Save server name */
+		gtk_list_store_prepend(opt.servers, &list_iter);
+		gtk_list_store_set(opt.servers, &list_iter, 0, opt.server_name, -1);
+
+		/* Check for too many rows */
+		while (gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(opt.servers),
+		                                     &list_iter, NULL, 10))
+		{
+			/* Delete row */
+			gtk_list_store_remove(opt.servers, &list_iter);
+		}
+
+		/* Save change to file */
+		save_prefs();
 
 		/* Handle pending events */
 		while (gtk_events_pending()) gtk_main_iteration();
