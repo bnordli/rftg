@@ -20,7 +20,7 @@ INSTRUCTIONS
 These source files replace the corresponding files from the 0.8.1 version.
 
 After you have built the patch, you must also copy the new icon files
-(icon0xx.png) to your installation folder.
+(icon0xx.png) and the card definitions (cards.txt) to your installation folder.
 
 NEW COMMAND LINE OPTIONS
 

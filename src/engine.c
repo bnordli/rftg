@@ -69,7 +69,7 @@ char *variant_labels[MAX_VARIANT + 1] =
 {
 	"Normal",
 	"Preset start hands",
-	"Takeover Scenario",
+	"Takeover scenario",
 	"Drafting",
 	"Separate decks",
 	NULL,
