@@ -1760,7 +1760,7 @@ static void update_meta(int sid)
 {
 	session *s_ptr = &s_list[sid];
 	char msg[1024], *ptr = msg;
-	int i, cid;
+	int i;
 
 	/* Start message */
 	start_msg(&ptr, MSG_STATUS_META);
