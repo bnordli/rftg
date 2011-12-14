@@ -3721,21 +3721,6 @@ static void handle_create(int cid, char *ptr, int size)
 		s_ptr->variant = 0;
 	}
 
-	/* Validate advanced game */
-	if (s_ptr->min_player > 2)
-	{
-		/* Cannot be advanced */
-		s_ptr->advanced = 0;
-	}
-
-	/* Validate expansion level */
-	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
-
-	/* Validate disabled flags */
-	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2 || s_ptr->variant == VARIANT_TAKEOVER)
-		s_ptr->disable_takeover = 0;
-
 	/* Compute minimum and maximum expansion */
 	min_exp = min_expansion(s_ptr->variant);
 	max_exp = max_expansion(s_ptr->variant);
@@ -3743,6 +3728,11 @@ static void handle_create(int cid, char *ptr, int size)
 	/* Validate expansion */
 	if (s_ptr->expanded < min_exp) s_ptr->expanded = min_exp;
 	if (s_ptr->expanded > max_exp) s_ptr->expanded = max_exp;
+
+	/* Validate disabled flags */
+	if (s_ptr->expanded < EXPANSION_TGS) s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < EXPANSION_RVI || s_ptr->variant == VARIANT_TAKEOVER)
+		s_ptr->disable_takeover = 0;
 
 	/* Compute maximum number of players */
 	max_p = max_players(s_ptr->expanded, s_ptr->variant);
@@ -3754,6 +3744,13 @@ static void handle_create(int cid, char *ptr, int size)
 	if (s_ptr->max_player > max_p) s_ptr->max_player = max_p;
 	if (s_ptr->min_player > s_ptr->max_player)
 		s_ptr->min_player = s_ptr->max_player;
+
+	/* Validate advanced game */
+	if (s_ptr->min_player > 2)
+	{
+		/* Cannot be advanced */
+		s_ptr->advanced = 0;
+	}
 
 	/* Insert game into database */
 	s_ptr->gid = db_new_game(sid);

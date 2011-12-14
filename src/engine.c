@@ -169,7 +169,7 @@ int goals_enabled(game *g)
  */
 int takeovers_enabled(game *g)
 {
-	return g->expanded > 1 && !g->takeover_disabled;
+	return g->expanded >= EXPANSION_RVI && !g->takeover_disabled;
 }
 
 /*
@@ -177,7 +177,7 @@ int takeovers_enabled(game *g)
  */
 int prestige_enabled(game *g)
 {
-	return g->expanded == 3;
+	return g->expanded == EXPANSION_BOW;
 }
 
 /*
@@ -263,15 +263,15 @@ int min_expansion(int variant)
 	{
 		/* Takeover variant introduced in Rebel vs Imperium */
 		case VARIANT_TAKEOVER:
-			return 2;
+			return EXPANSION_RVI;
 
 		/* Drafting variant introduced in The Gathering Storm */
 		case VARIANT_DRAFTING:
-			return 1;
+			return EXPANSION_TGS;
 
 		/* No limits in other variants */
 		default:
-			return 0;
+			return EXPANSION_BASE;
 	}
 }
 
@@ -10454,26 +10454,26 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 	g->cur_action = ACT_DRAFTING;
 
 	/* Compute number of drafting rounds */
-	if (g->expanded == 1 && g->num_players == 2) rounds = 13;
-	else if (g->expanded == 1 && g->num_players == 3) rounds = 8;
+	if (g->expanded == EXPANSION_TGS && g->num_players == 2) rounds = 13;
+	else if (g->expanded == EXPANSION_TGS && g->num_players == 3) rounds = 8;
 
-	else if (g->expanded == 2 && g->num_players == 2) rounds = 17;
-	else if (g->expanded == 2 && g->num_players == 3) rounds = 11;
-	else if (g->expanded == 2 && g->num_players == 4) rounds = 8;
-	else if (g->expanded == 2 && g->num_players == 5) rounds = 6;
+	else if (g->expanded == EXPANSION_RVI && g->num_players == 2) rounds = 17;
+	else if (g->expanded == EXPANSION_RVI && g->num_players == 3) rounds = 11;
+	else if (g->expanded == EXPANSION_RVI && g->num_players == 4) rounds = 8;
+	else if (g->expanded == EXPANSION_RVI && g->num_players == 5) rounds = 6;
 
-	else if (g->expanded == 3 && g->num_players == 2) rounds = 23;
-	else if (g->expanded == 3 && g->num_players == 3) rounds = 15;
-	else if (g->expanded == 3 && g->num_players == 4) rounds = 8;
-	else if (g->expanded == 3 && g->num_players == 5) rounds = 5;
+	else if (g->expanded == EXPANSION_BOW && g->num_players == 2) rounds = 23;
+	else if (g->expanded == EXPANSION_BOW && g->num_players == 3) rounds = 15;
+	else if (g->expanded == EXPANSION_BOW && g->num_players == 4) rounds = 8;
+	else if (g->expanded == EXPANSION_BOW && g->num_players == 5) rounds = 5;
 	else rounds = 4;
 
 	/* Default draw count is 5 */
 	draw = 5;
 
 	/* Adjust number of cards drawn in each round */
-	if (g->expanded == 3 && g->num_players == 4) draw = 7;
-	else if (g->expanded == 3 && g->num_players > 4) draw = 9;
+	if (g->expanded == EXPANSION_BOW && g->num_players == 4) draw = 7;
+	else if (g->expanded == EXPANSION_BOW && g->num_players > 4) draw = 9;
 
 	/* Loop over all rounds */
 	for (i = 0; i < rounds; ++i)
@@ -10482,7 +10482,7 @@ static void perform_draft(game *g, int start_picks[MAX_PLAYER][2])
 		rotation = 0;
 
 		/* Check for needing to adjust cards drawn */
-		if (g->expanded == 3 && i == rounds - 1)
+		if (g->expanded == EXPANSION_BOW && i == rounds - 1)
 		{
 			/* Adjust number of cards drawn for last round */
 			if (g->num_players == 2) draw = 2;
@@ -10753,7 +10753,7 @@ void begin_game(game *g)
 	}
 
 	/* Check for expansion with goals */
-	if (g->expanded)
+	if (g->expanded >= EXPANSION_TGS)
 	{
 		/* Check for disabled goals */
 		if (g->goal_disabled)
@@ -10769,7 +10769,7 @@ void begin_game(game *g)
 	}
 
 	/* Check for expansion with takeovers */
-	if (g->expanded > 1)
+	if (g->expanded >= EXPANSION_RVI)
 	{
 		/* Check for disabled takeovers */
 		if (g->takeover_disabled)
@@ -10881,7 +10881,7 @@ void begin_game(game *g)
 	}
 
 	/* Check for two start world choices */
-	else if (g->expanded >= 2 || g->variant == VARIANT_DRAFTING)
+	else if (g->expanded >= EXPANSION_RVI || g->variant == VARIANT_DRAFTING)
 	{
 		/* Send start of game message */
 		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);

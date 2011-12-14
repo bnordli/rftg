@@ -677,19 +677,19 @@ void init_game(game *g)
 		n = 0;
 
 		/* Use correct "first" goals */
-		if (g->expanded == 1)
+		if (g->expanded == EXPANSION_TGS)
 		{
 			/* First expansion only */
 			j = GOAL_FIRST_5_VP;
 			k = GOAL_FIRST_SIX_DEVEL;
 		}
-		else if (g->expanded == 2)
+		else if (g->expanded == EXPANSION_RVI)
 		{
 			/* First and second expansion */
 			j = GOAL_FIRST_5_VP;
 			k = GOAL_FIRST_8_ACTIVE;
 		}
-		else
+		else if (g->expanded == EXPANSION_BOW)
 		{
 			/* All expansions */
 			j = GOAL_FIRST_5_VP;
@@ -723,19 +723,19 @@ void init_game(game *g)
 		n = 0;
 
 		/* Use correct "most" goals */
-		if (g->expanded == 1)
+		if (g->expanded == EXPANSION_TGS)
 		{
 			/* First expansion only */
 			j = GOAL_MOST_MILITARY;
 			k = GOAL_MOST_PRODUCTION;
 		}
-		else if (g->expanded == 2)
+		else if (g->expanded == EXPANSION_RVI)
 		{
 			/* First and second expansion */
 			j = GOAL_MOST_MILITARY;
 			k = GOAL_MOST_REBEL;
 		}
-		else
+		else if (g->expanded == EXPANSION_BOW)
 		{
 			/* All expansions */
 			j = GOAL_MOST_MILITARY;

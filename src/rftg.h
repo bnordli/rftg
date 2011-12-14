@@ -229,12 +229,20 @@
 #define SEARCH_TAKEOVER           8
 
 /*
+ * Expansions.
+ */
+#define EXPANSION_BASE  0
+#define EXPANSION_TGS   1
+#define EXPANSION_RVI   2
+#define EXPANSION_BOW   3
+
+/*
  * Variants.
  */
-#define VARIANT_PRESET   1
-#define VARIANT_TAKEOVER 2
-#define VARIANT_DRAFTING 3
-#define VARIANT_SEPARATE 4
+#define VARIANT_PRESET    1
+#define VARIANT_TAKEOVER  2
+#define VARIANT_DRAFTING  3
+#define VARIANT_SEPARATE  4
 
 /*
  * Card power effects by phase.

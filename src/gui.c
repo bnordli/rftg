@@ -10562,7 +10562,7 @@ static void read_prefs(void)
 	/* Check range of values */
 	if (opt.num_players < 2) opt.num_players = 2;
 	if (opt.num_players > MAX_PLAYER) opt.num_players = MAX_PLAYER;
-	if (opt.expanded < 0) opt.expanded = 0;
+	if (opt.expanded < EXPANSION_BASE) opt.expanded = EXPANSION_BASE;
 	if (opt.expanded > MAX_EXPANSION - 1) opt.expanded = MAX_EXPANSION - 1;
 }
 
@@ -11924,12 +11924,12 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		                             GTK_TOGGLE_BUTTON(advanced_check));
 
 		/* Set goals disabled flag */
-		opt.disable_goal = (opt.expanded >= 1) &&
+		opt.disable_goal = (opt.expanded >= EXPANSION_TGS) &&
 		                gtk_toggle_button_get_active(
 		                         GTK_TOGGLE_BUTTON(disable_goal_check));
 
 		/* Set takeover disabled flag */
-		opt.disable_takeover = (opt.expanded >= 2) &&
+		opt.disable_takeover = (opt.expanded >= EXPANSION_RVI) &&
 		                       (opt.variant != VARIANT_TAKEOVER) &&
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));

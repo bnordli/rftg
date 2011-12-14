@@ -564,7 +564,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 		        g->goal_disabled ? "off" : "on");
 
 	/* Check for expansion with takeovers */
-	if (g->expanded > 1)
+	if (g->expanded >= EXPANSION_RVI)
 		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
 		        g->takeover_disabled ? "off" : "on");
 
@@ -718,7 +718,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 		fputs("    </Actions>\n", fff);
 
 		/* Check for last expansion */
-		if (g->expanded == 3)
+		if (prestige_enabled(g))
 		{
 			/* Write prestige, whether prestige action is used and */
 			/* whether prestige is on the tile */
