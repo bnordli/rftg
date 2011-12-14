@@ -10709,22 +10709,18 @@ static void split_deck(game *g, int num_start)
 }
 
 /*
- * Deal out start worlds and ask for initial discards.
+ * Send game information to players.
  */
-void begin_game(game *g)
+static void game_information(game *g)
 {
-	player *p_ptr;
-	card *c_ptr;
-	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
-	int start_picks[MAX_PLAYER][2], original_start_picks[MAX_PLAYER][2];
-	int hand[MAX_DECK], discarding[MAX_PLAYER];
-	int i, j, n, ns;
-	int lowest = MAX_DECK, low_i = -1;
-	int num_start = 0, num_start_red = 0, num_start_blue = 0;
 	char msg[1024];
 
+	/* Send game information header */
+	message_add_formatted(g, "=== Game information ===\n", FORMAT_EM);
+
 	/* Format message */
-	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n", exp_names[g->expanded]);
+	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n",
+	        exp_names[g->expanded]);
 
 	/* Send message */
 	message_add(g, msg);
@@ -10736,7 +10732,8 @@ void begin_game(game *g)
 	}
 	else
 	{
-		sprintf(msg, "%s, advanced game.\n", player_labels[g->num_players - 2]);
+		sprintf(msg, "%s, advanced game.\n",
+	            player_labels[g->num_players - 2]);
 	}
 
 	/* Send message */
@@ -10783,9 +10780,31 @@ void begin_game(game *g)
 			message_add_formatted(g, "Takeovers enabled.\n", FORMAT_TAKEOVER);
 		}
 	}
+}
+
+/*
+ * Deal out start worlds and ask for initial discards.
+ */
+void begin_game(game *g)
+{
+	player *p_ptr;
+	card *c_ptr, *start_ptr;
+	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
+	int start_picks[MAX_PLAYER][2], original_start_picks[MAX_PLAYER][2];
+	int hand[MAX_DECK], discarding[MAX_PLAYER];
+	int i, j, n, ns;
+	int lowest = MAX_DECK, low_i = -1;
+	int num_start = 0, num_start_red = 0, num_start_blue = 0;
+	char msg[1024];
+
+	/* Send game information */
+	game_information(g);
 
 	/* Start game */
 	g->cur_action = ACT_GAME_START;
+
+	/* Send start of game message */
+	message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -10797,9 +10816,7 @@ void begin_game(game *g)
 		if (g->variant == VARIANT_PRESET)
 		{
 			/* Skip start world if not part of a preset hand */
-			if (c_ptr->d_ptr->preset == 0 ||
-			    c_ptr->d_ptr->preset > g->num_players)
-				continue;
+			if (c_ptr->d_ptr->preset == 0) continue;
 		}
 
 		/* Check for start world */
@@ -10869,9 +10886,6 @@ void begin_game(game *g)
 			}
 		}
 
-		/* Send start of game message */
-		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
-
 		/* Loop over players again */
 		for (i = 0; i < g->num_players; i++)
 		{
@@ -10883,9 +10897,6 @@ void begin_game(game *g)
 	/* Check for two start world choices */
 	else if (g->expanded >= EXPANSION_RVI || g->variant == VARIANT_DRAFTING)
 	{
-		/* Send start of game message */
-		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
-
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
 		{
@@ -11054,15 +11065,22 @@ void begin_game(game *g)
 			split_deck(g, 1);
 		}
 
-		/* Send start of game message */
-		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
-
 		/* Check for preset hand variant */
 		if (g->variant == VARIANT_PRESET)
 		{
 			/* Loop over players */
 			for (i = 0; i < g->num_players; i++)
 			{
+				/* Get start world pointer */
+				start_ptr = &g->deck[g->p[i].start];
+
+				/* Format message */
+				sprintf(msg, "%s receives the start world %s.\n",
+				        g->p[i].name, start_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+
 				/* Loop over cards */
 				for (j = 0; j < g->deck_size; j++)
 				{
@@ -11072,12 +11090,12 @@ void begin_game(game *g)
 					/* Skip used worlds */
 					if (c_ptr->where != WHERE_DECK) continue;
 
-					/* Skip development copies */
-					if (j > 0 && c_ptr->d_ptr == g->deck[j-1].d_ptr) continue;
+					/* Skip copies of developments */
+					if (j > 0 && g->deck[j-1].d_ptr->index ==
+					             c_ptr->d_ptr->index) continue;
 
-					/* Check for matching start hand */
-					if (c_ptr->d_ptr->preset ==
-					    g->deck[g->p[i].start].d_ptr->preset)
+					/* Check for card matching start world */
+					if (c_ptr->d_ptr->preset == start_ptr->d_ptr->preset)
 					{
 						/* Give card to player */
 						move_card(g, j, i, WHERE_HAND);
@@ -11085,16 +11103,12 @@ void begin_game(game *g)
 						/* Card's location is known to the player */
 						c_ptr->known |= 1 << i;
 
-						/* Message */
-						if (!g->simulation)
-						{
-							/* Format message */
-							sprintf(msg, "%s receives %s.\n",
-							        g->p[i].name, c_ptr->d_ptr->name);
+						/* Format message */
+						sprintf(msg, "%s receives %s.\n",
+						        g->p[i].name, c_ptr->d_ptr->name);
 
-							/* Add message */
-							message_add_formatted(g, msg, FORMAT_VERBOSE);
-						}
+						/* Add message */
+						message_add_formatted(g, msg, FORMAT_VERBOSE);
 					}
 				}
 			}
@@ -11263,14 +11277,51 @@ void begin_game(game *g)
 			/* Get card pointer */
 			c_ptr = &g->deck[i];
 
-			/* Clear player */
-			j = -1;
-
 			/* Check for Rebel Alliance card */
 			if (!strcmp(c_ptr->d_ptr->name, "Rebel Alliance"))
 			{
 				/* Give card to first player */
-				j = 0;
+				move_card(g, i, 0, WHERE_HAND);
+
+				/* Card's location is known to the player */
+				c_ptr->known |= 1 << 0;
+
+				/* Format message */
+				sprintf(msg, "%s receives %s.\n",
+				        g->p[0].name, c_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+
+				/* Card is found */
+				break;
+			}
+		}
+
+		/* Loop over cards in deck */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Get card pointer */
+			c_ptr = &g->deck[i];
+
+			/* Check for Rebel Alliance card */
+			if (!strcmp(c_ptr->d_ptr->name, "Imperium Seat"))
+			{
+				/* Give card to second player */
+				move_card(g, i, 1, WHERE_HAND);
+
+				/* Card's location is known to the player */
+				c_ptr->known |= 1 << 1;
+
+				/* Format message */
+				sprintf(msg, "%s receives %s.\n",
+				        g->p[1].name, c_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+
+				/* Card is found */
+				break;
 			}
 
 			/* Check for Imperium Seat card */
@@ -11278,26 +11329,6 @@ void begin_game(game *g)
 			{
 				/* Give card to second player */
 				j = 1;
-			}
-
-			/* Check for no players receiving card */
-			if (j < 0) continue;
-
-			/* Give card to player */
-			move_card(g, i, j, WHERE_HAND);
-
-			/* Card's location is known to the player */
-			c_ptr->known |= 1 << j;
-
-			/* Message */
-			if (!g->simulation)
-			{
-				/* Format message */
-				sprintf(msg, "%s receives %s.\n",
-				        g->p[j].name, c_ptr->d_ptr->name);
-
-				/* Add message */
-				message_add(g, msg);
 			}
 		}
 	}
@@ -12455,11 +12486,14 @@ void declare_winner(game *g)
 			}
 		}
 
+		/* Send game information */
+		game_information(g);
+
 		/* Check for offline game */
 		if (g->session_id < 0)
 		{
 			/* Format seed message */
-			sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
+			sprintf(msg, "The seed for this game was %u.\n", g->start_seed);
 
 			/* Send message */
 			message_add(g, msg);
@@ -12469,7 +12503,7 @@ void declare_winner(game *g)
 		if (g->debug_game)
 		{
 			/* Add debug note */
-			message_add_formatted(g, "(Debug game.)\n", FORMAT_DEBUG);
+			message_add_formatted(g, "Debug game.\n", FORMAT_DEBUG);
 		}
 	}
 }
