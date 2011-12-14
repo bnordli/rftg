@@ -31,9 +31,10 @@ This patch introduces the following additional command line options:
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
 	-v <variant>   -- Variant game:
-	                     1 = Takeover scenario
-	                     2 = Drafting
-	                     3 = Separate decks
+	                     1 = Preset start hands
+	                     2 = Takeover scenario
+	                     3 = Drafting
+	                     4 = Separate decks
 
 RIGHT-CLICK
 

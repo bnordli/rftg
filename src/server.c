@@ -3621,7 +3621,7 @@ static void handle_create(int cid, char *ptr, int size)
 	char pass[2048], desc[2048];
 	char *start = ptr;
 	int sid, i;
-	int min_exp, max_p;
+	int min_exp, max_exp, max_p;
 
 	/* Check for player already in game */
 	if (c_list[cid].sid != -1) return;
@@ -3736,12 +3736,13 @@ static void handle_create(int cid, char *ptr, int size)
 	if (s_ptr->expanded < 2 || s_ptr->variant == VARIANT_TAKEOVER)
 		s_ptr->disable_takeover = 0;
 
-	/* Compute minimum expansion */
+	/* Compute minimum and maximum expansion */
 	min_exp = min_expansion(s_ptr->variant);
+	max_exp = max_expansion(s_ptr->variant);
 
 	/* Validate expansion */
 	if (s_ptr->expanded < min_exp) s_ptr->expanded = min_exp;
-	if (s_ptr->expanded >= MAX_EXPANSION) s_ptr->expanded = MAX_EXPANSION - 1;
+	if (s_ptr->expanded > max_exp) s_ptr->expanded = max_exp;
 
 	/* Compute maximum number of players */
 	max_p = max_players(s_ptr->expanded, s_ptr->variant);

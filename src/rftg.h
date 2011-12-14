@@ -66,7 +66,7 @@
 /*
  * Maximum number of variants.
  */
-#define MAX_VARIANT 4
+#define MAX_VARIANT 5
 
 /*
  * Number of available card designs slots.
@@ -231,9 +231,10 @@
 /*
  * Variants.
  */
-#define VARIANT_TAKEOVER 1
-#define VARIANT_DRAFTING 2
-#define VARIANT_SEPARATE 3
+#define VARIANT_PRESET   1
+#define VARIANT_TAKEOVER 2
+#define VARIANT_DRAFTING 3
+#define VARIANT_SEPARATE 4
 
 /*
  * Card power effects by phase.
@@ -616,6 +617,9 @@ typedef struct design
 	/* Number of cards in each expansion deck */
 	int8_t expand[MAX_EXPANSION];
 
+	/* Preset start hands */
+	int8_t preset;
+
 	/* Type of good produced (if any) */
 	int8_t good_type;
 
@@ -971,6 +975,7 @@ extern int takeovers_enabled(game *g);
 extern int prestige_enabled(game *g);
 extern int separate_decks(game *g);
 extern int min_expansion(int variant);
+extern int max_expansion(int variant);
 extern int max_players(int expansion, int variant);
 extern int count_draw(game *g, int who);
 extern void auto_export(void);

@@ -68,6 +68,7 @@ char *location_names[MAX_WHERE] =
 char *variant_labels[MAX_VARIANT + 1] =
 {
 	"Normal",
+	"Preset start hands",
 	"Takeover Scenario",
 	"Drafting",
 	"Separate decks",
@@ -272,6 +273,15 @@ int min_expansion(int variant)
 		default:
 			return 0;
 	}
+}
+
+/*
+ * Return the maximum expansion, given the variant.
+ */
+int max_expansion(int variant)
+{
+	/* Preset hands not supported above The Gathering Storm */
+	return variant == VARIANT_PRESET ? EXPANSION_TGS : MAX_EXPANSION - 1;
 }
 
 /*
@@ -10782,6 +10792,15 @@ void begin_game(game *g)
 	{
 		/* Get card pointer */
 		c_ptr = &g->deck[i];
+		
+		/* Check for preset variant */
+		if (g->variant == VARIANT_PRESET)
+		{
+			/* Skip start world if not part of a preset hand */
+			if (c_ptr->d_ptr->preset == 0 ||
+			    c_ptr->d_ptr->preset > g->num_players)
+				continue;
+		}
 
 		/* Check for start world */
 		if (c_ptr->d_ptr->flags & FLAG_START)
@@ -11035,6 +11054,52 @@ void begin_game(game *g)
 			split_deck(g, 1);
 		}
 
+		/* Send start of game message */
+		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
+
+		/* Check for preset hand variant */
+		if (g->variant == VARIANT_PRESET)
+		{
+			/* Loop over players */
+			for (i = 0; i < g->num_players; i++)
+			{
+				/* Loop over cards */
+				for (j = 0; j < g->deck_size; j++)
+				{
+					/* Get card pointer */
+					c_ptr = &g->deck[j];
+
+					/* Skip used worlds */
+					if (c_ptr->where != WHERE_DECK) continue;
+
+					/* Skip development copies */
+					if (j > 0 && c_ptr->d_ptr == g->deck[j-1].d_ptr) continue;
+
+					/* Check for matching start hand */
+					if (c_ptr->d_ptr->preset ==
+					    g->deck[g->p[i].start].d_ptr->preset)
+					{
+						/* Give card to player */
+						move_card(g, j, i, WHERE_HAND);
+
+						/* Card's location is known to the player */
+						c_ptr->known |= 1 << i;
+
+						/* Message */
+						if (!g->simulation)
+						{
+							/* Format message */
+							sprintf(msg, "%s receives %s.\n",
+							        g->p[i].name, c_ptr->d_ptr->name);
+
+							/* Add message */
+							message_add_formatted(g, msg, FORMAT_VERBOSE);
+						}
+					}
+				}
+			}
+		}
+
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
 		{
@@ -11042,14 +11107,15 @@ void begin_game(game *g)
 			place_card(g, i, g->p[i].start);
 		}
 
-		/* Send start of game message */
-		message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
-
-		/* Loop over players again */
-		for (i = 0; i < g->num_players; i++)
+		/* Check for preset variant */
+		if (g->variant != VARIANT_PRESET)
 		{
-			/* Give player six cards */
-			draw_cards(g, i, 6, NULL);
+			/* Loop over players again */
+			for (i = 0; i < g->num_players; i++)
+			{
+				/* Give player six cards */
+				draw_cards(g, i, 6, NULL);
+			}
 		}
 	}
 

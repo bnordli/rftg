@@ -2596,7 +2596,7 @@ static int next_exp, next_variant;
  */
 static void update_sensitivity()
 {
-	int i, min_exp, max_p;
+	int i, min_exp, max_exp, max_p;
 
 	/* Set goal disabled checkbox sensitivity */
 	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0);
@@ -2605,8 +2605,9 @@ static void update_sensitivity()
 	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1 &&
 	                         next_variant != VARIANT_TAKEOVER);
 
-	/* Calculate the minimum expansion */
+	/* Calculate the minimum and maximum expansion */
 	min_exp = min_expansion(next_variant);
+	max_exp = max_expansion(next_variant);
 
 	/* Check for too early expansion */
 	if (next_exp < min_exp)
@@ -2617,11 +2618,20 @@ static void update_sensitivity()
 			GTK_TOGGLE_BUTTON(exp_radio[min_exp]), TRUE);
 	}
 
+	/* Check for too late expansion */
+	if (next_exp > max_exp)
+	{
+		/* Set to highest possible expansion */
+		next_exp = max_exp;
+		gtk_toggle_button_set_active(
+			GTK_TOGGLE_BUTTON(exp_radio[max_exp]), TRUE);
+	}
+
 	/* Set expansion radio sensitivities */
 	for (i = 0; exp_names[i]; ++i)
 	{
 		/* Set sensitivity */
-		gtk_widget_set_sensitive(exp_radio[i], i >= min_exp);
+		gtk_widget_set_sensitive(exp_radio[i], i >= min_exp && i <= max_exp);
 	}
 
 	/* Calculate the maximum number of players */
@@ -2744,7 +2754,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	GtkWidget *player_box, *player_frame;
 	GtkWidget *options_box, *options_frame;
 	GtkWidget *variant_box, *variant_frame;
-	int i, min_exp;
+	int i, min_exp, max_exp;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Create Game", NULL,
@@ -3030,11 +3040,13 @@ void create_dialog(GtkButton *button, gpointer data)
 		return;
 	}
 
-	/* Find minimum expansion */
+	/* Find minimum and maximum expansion */
 	min_exp = min_expansion(next_variant);
+	max_exp = max_expansion(next_variant);
 
 	/* Sanity check expansion */
 	if (next_exp < min_exp) next_exp = min_exp;
+	if (next_exp > max_exp) next_exp = max_exp;
 
 	/* Save options for later */
 	opt.expanded = next_exp;

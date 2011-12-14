@@ -375,6 +375,18 @@ int read_cards()
 				/* Done */
 				break;
 
+			/* Preset start hands */
+			case 'S':
+
+				/* Get number */
+				ptr = buf + 2;
+
+				/* Parse number */
+				d_ptr->preset = (int8_t) strtol(ptr, NULL, 0);
+
+				/* Done */
+				break;
+
 			/* Flags */
 			case 'F':
 

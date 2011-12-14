@@ -25,6 +25,7 @@
 static char *variant_str[MAX_VARIANT] =
 {
 	"",
+	"V: Preset",
 	"V: Takeover",
 	"V: Draft",
 	"V: Separate",
