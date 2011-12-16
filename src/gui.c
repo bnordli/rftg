@@ -255,10 +255,13 @@ typedef struct discounts
 	/* The current temporary discount */
 	int bonus;
 
+	/* Maximum additional potential discount */
+	int max_bonus;
+
 	/* Additional specific discount */
 	int specific[6];
 
-	/* May discard to place at zero count */
+	/* May discard to place at zero cost */
 	card *zero[2];
 
 	/* Card to pay for non-Alien military worlds */
@@ -3090,6 +3093,15 @@ static char *get_discount_tooltip(discounts *discount)
 		}
 	}
 
+	/* Add maximum temporary discount */
+	if (discount->max_bonus)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional potential discount: -%d",
+		        discount->max_bonus);
+		strcat(msg, text);
+	}
+
 	/* Loop over all possible "discard to place at 0 cost" */
 	for (i = 0; i < 2; ++i)
 	{
@@ -3202,7 +3214,8 @@ static char *get_military_tooltip(mil_strength *military)
 	if (military->max_bonus)
 	{
 		/* Create text */
-		sprintf(text, "\nAdditional potential temporary military: %+d", military->max_bonus);
+		sprintf(text, "\nAdditional potential temporary military: %+d",
+		        military->max_bonus);
 		strcat(msg, text);
 	}
 
@@ -4928,7 +4941,7 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 	power_where w_list[100];
 	power *o_ptr;
 	card *c_ptr;
-	int i, n, pay_discount = 0;
+	int i, n, gene_goods, pay_discount = 0;
 
 	/* Clear discounts */
 	memset(d_ptr, 0, sizeof(discounts));
@@ -4944,6 +4957,9 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 		d_ptr->bonus += 3;
 	}
 
+	/* Count number of gene goods */
+	gene_goods = get_goods(g, who, NULL, GOOD_GENE);
+
 	/* Get settle phase powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
 
@@ -4956,14 +4972,27 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 		/* Get card pointer */
 		c_ptr = &g->deck[w_list[i].c_idx];
 
+		/* Skip used goods */
+		if (c_ptr->used & (1 << i)) continue;
+
 		/* Check discard for 0 */
 		if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
 		{
 			/* Check for no discard for 0 yet */
 			if (!d_ptr->zero[0]) d_ptr->zero[0] = c_ptr;
 
-			/* Use the second slot */
+			/* Use second slot */
 			else d_ptr->zero[1] = c_ptr;
+		}
+
+		/* Check discard to reduce and available goods */
+		if (o_ptr->code == (P3_CONSUME_GENE | P3_REDUCE) && gene_goods > 0)
+		{
+			/* Add discount */
+			d_ptr->max_bonus += o_ptr->value;
+
+			/* Consume good */
+			--gene_goods;
 		}
 
 		/* Check for reduce power */
@@ -5066,7 +5095,8 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 	d_ptr->alien_mil_bonus += pay_discount;
 
 	/* Check for any modifiers */
-	d_ptr->has_data = d_ptr->base || d_ptr->bonus || d_ptr->zero[0] ||
+	d_ptr->has_data =
+		d_ptr->base || d_ptr->bonus || d_ptr->max_bonus || d_ptr->zero[0] ||
 		d_ptr->specific[GOOD_NOVELTY] || d_ptr->specific[GOOD_RARE] ||
 		d_ptr->specific[GOOD_GENE] || d_ptr->specific[GOOD_ALIEN] ||
 		d_ptr->non_alien_mil_card || d_ptr->rebel_mil_card ||
