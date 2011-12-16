@@ -4698,7 +4698,7 @@ int settle_check_takeover(game *g, int who, card *extra, int ask)
 	int i, x, n, list[MAX_DECK];
 	int special[MAX_DECK], num_special = 0;
 	int takeover_rebel = 0, takeover_imperium = 0, takeover_military = 0;
-	int takeover_prestige = 0, conquer_peaceful = 0;
+	int takeover_prestige = 0, conquer_peaceful = -1;
 	int rebel_vuln, all_vuln, target, bonus = 0;
 	char msg[1024];
 
@@ -4766,7 +4766,7 @@ int settle_check_takeover(game *g, int who, card *extra, int ask)
 		    !(o_ptr->code & P3_NO_TAKEOVER))
 		{
 			/* Peaceful worlds can be made military */
-			conquer_peaceful = 1;
+			conquer_peaceful = w_list[i].c_idx;
 		}
 	}
 
@@ -4847,7 +4847,7 @@ int settle_check_takeover(game *g, int who, card *extra, int ask)
 
 			/* Skip non-military worlds unless convertable */
 			if (!(c_ptr->d_ptr->flags & FLAG_MILITARY) &&
-			    !conquer_peaceful) continue;
+			    conquer_peaceful < 0) continue;
 
 			/* Skip non-Rebel worlds unless completely vulnerable */
 			if (!all_vuln && !(c_ptr->d_ptr->flags & FLAG_REBEL))
@@ -4882,6 +4882,10 @@ int settle_check_takeover(game *g, int who, card *extra, int ask)
 	g->takeover_who[g->num_takeover] = who;
 	g->takeover_power[g->num_takeover] = special[0];
 	g->takeover_defeated[g->num_takeover] = 0;
+
+	/* Remember card used for conquer peacful */
+	/* XXX Will break if there are ever multiple such cards */
+	g->takeover_peaceful[g->num_takeover] = conquer_peaceful;
 
 	/* One more takeover to resolve */
 	g->num_takeover++;
@@ -5857,11 +5861,12 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 /*
  * Resolve a takeover.
  */
-int resolve_takeover(game *g, int who, int world, int special,
+int resolve_takeover(game *g, int who, int world, int special, int conquer,
                      int defeated, int simulated)
 {
 	player *p_ptr;
 	card *c_ptr;
+	design *d_ptr;
 	power *o_ptr = NULL;
 	char *name;
 	int defense;
@@ -5983,23 +5988,41 @@ int resolve_takeover(game *g, int who, int world, int special,
 	/* Recompute defense */
 	if (!defeated) defense = strength_against(g, defender, world, -1, 1);
 
-	/* Check for non-military target */
-	if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
+	/* Check for using conquer power */
+	if (conquer >= 0)
 	{
-		/* Check for previously awarded prestige */
-		if (prestige)
-		{
-			/* XXX Append card name */
-			strcat(prestige_reason, " and Imperium Invasion Fleet");
-		}
-		else
-		{
-			/* XXX Remember card name */
-			strcpy(prestige_reason, "Imperium Invasion Fleet");
-		}
+		/* Get design pointer to conquer card */
+		d_ptr = g->deck[conquer].d_ptr;
 
-		/* XXX Increase prestige award */
-		prestige += 2;
+		/* Loop over powers */
+		for (i = 0; i < d_ptr->num_power; ++i)
+		{
+			/* Look for conquer power giving prestige */
+			if ((d_ptr->powers[i].code & P3_CONQUER_SETTLE) &&
+			    (d_ptr->powers[i].code & P3_PRESTIGE))
+			{
+				/* Check for simulated game */
+				if (!g->simulation)
+				{
+					/* Check for previously awarded prestige */
+					if (prestige)
+					{
+						/* Append card name */
+						sprintf(prestige_reason + strlen(prestige_reason),
+						        " and %s", d_ptr->name);
+					}
+					else
+					{
+						/* Remember card name */
+						strcpy(prestige_reason, d_ptr->name);
+					}
+				}
+
+				/* XXX Increase prestige award */
+				prestige += 2;
+				break;
+			}
+		}
 	}
 
 	/* Message */
@@ -6236,6 +6259,7 @@ void resolve_takeovers(game *g)
 		if (!resolve_takeover(g, g->takeover_who[i],
 		                         g->takeover_target[i],
 		                         g->takeover_power[i],
+		                         g->takeover_peaceful[i],
 		                         g->takeover_defeated[i],
 		                         0))
 		{

@@ -259,31 +259,37 @@ typedef struct discounts
 	int specific[6];
 
 	/* May discard to place at zero count */
-	int zero;
+	card *zero[2];
 
-	/* Additional discount when paying for military */
-	int pay_discount;
+	/* Card to pay for non-Alien military worlds */
+	card *non_alien_mil_card;
 
-	/* May pay for military with 0 discount (Rebel Cantina) */
-	int non_alien_mil_0;
+	/* Bonus when paying for non-Alien military worlds */
+	int non_alien_mil_bonus;
 
-	/* May pay for military with 1 discount (Contact Specialist) */
-	int non_alien_mil_1;
+	/* Card to pay for Rebel military worlds */
+	card *rebel_mil_card;
 
-	/* May pay for rebel worlds with 2 discount (Rebel Alliance) */
-	int rebel_mil_2;
+	/* Bonus when paying for Rebel military worlds */
+	int rebel_mil_bonus;
 
-	/* May pay for chromosome worlds (Ravaged Uplift World) */
-	int chromo_mil;
+	/* Card to pay for chromosome military worlds */
+	card *chromo_mil_card;
 
-	/* May pay for alien worlds (Alien Research Team) */
-	int alien_mil;
+	/* Bonus when paying for Rebel military worlds */
+	int chromo_mil_bonus;
 
-	/* May discard to conquer with 0 discount (Imperium Invasion Fleet) */
-	int conquer_settle_0;
+	/* Card to pay for Alien military worlds */
+	card *alien_mil_card;
 
-	/* May discard to conquer with 2 discount (Imperium Cloaking Tech) */
-	int conquer_settle_2;
+	/* Bonus when paying for Alien military worlds */
+	int alien_mil_bonus;
+
+	/* May discard to conquer with 0 discount */
+	card *conquer_settle_0;
+
+	/* May discard to conquer with 2 discount */
+	card *conquer_settle_2;
 
 	/* Any value is set */
 	int has_data;
@@ -2999,96 +3005,123 @@ static char *get_discount_tooltip(discounts *discount)
 		}
 	}
 
-	/* Add pay for non-alien military with discount */
-	if (discount->non_alien_mil_1 ||
-	    (discount->non_alien_mil_0 && discount->pay_discount))
+	/* Check for ability to pay for non-Alien military worlds */
+	if (discount->non_alien_mil_card)
 	{
-		/* Create text */
-		sprintf(text, "\nAdditional discount when paying\n"
-		        "  for non-Alien military worlds: -%d",
-		        (discount->non_alien_mil_1 ? 1 : 0) + discount->pay_discount);
-		strcat(msg, text);
-	}
-
-	/* Add pay for rebel military with discount */
-	if (discount->rebel_mil_2)
-	{
-		/* Create text */
-		sprintf(text, "\nAdditional discount when paying\n"
-		        "  for Rebel military worlds: -%d", 2 + discount->pay_discount);
-		strcat(msg, text);
-	}
-
-	/* Check for discount when paying for military */
-	if (discount->pay_discount)
-	{
-		/* Add pay for chromo military with discount */
-		if (discount->chromo_mil)
+		/* Add pay for non-Alien military with discount */
+		if (discount->non_alien_mil_bonus)
 		{
 			/* Create text */
-			sprintf(text, "\nAdditional discount when paying\n"
-			        "  for worlds with a Chromosome symbol: -%d",
-			        discount->pay_discount);
+			sprintf(text, "\nAdditional discount when paying for\n"
+			        "  non-Alien military worlds: -%d",
+			        discount->non_alien_mil_bonus);
 			strcat(msg, text);
 		}
 
-		/* Add pay for alien military with discount */
-		if (discount->alien_mil)
-		{
-			/* Create text */
-			sprintf(text, "\nAdditional discount when paying\n"
-			        "  for Alien military worlds: -%d", discount->pay_discount);
-			strcat(msg, text);
-		}
-	}
-
-	/* No pay-for-military discount */
-	else
-	{
-		/* Add pay for non-alien military without discount */
-		if (discount->non_alien_mil_0 && !discount->non_alien_mil_1)
+		/* Add pay for non-Alien military without discount */
+		else
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle a non-Alien military world");
 		}
+	}
 
-		/* Add pay for chromo military without discount */
-		if (discount->chromo_mil)
+	/* Check for ability to pay for Rebel military worlds */
+	if (discount->rebel_mil_card)
+	{
+		/* Add pay for Rebel military with discount */
+		if (discount->rebel_mil_bonus)
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional discount when paying for \n"
+			        "  Rebel military worlds: -%d",
+			        discount->rebel_mil_bonus);
+			strcat(msg, text);
+		}
+
+		/* Add pay for Rebel military without discount */
+		else
+		{
+			/* Create text */
+			strcat(msg, "\nMay pay to settle a Rebel military world");
+		}
+	}
+
+	/* Check for ability to pay for Chromosome military worlds */
+	if (discount->chromo_mil_card)
+	{
+		/* Add pay for Chromosome military with discount */
+		if (discount->chromo_mil_bonus)
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional discount when paying for\n"
+			        "  military worlds with a Chromosome symbol: -%d",
+			        discount->chromo_mil_bonus);
+			strcat(msg, text);
+		}
+
+		/* Add pay for Chromosome military without discount */
+		else
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle a military world\n"
-				   "  with a Chromosome symbol");
+			       "  with a Chromosome symbol");
+		}
+	}
+
+	/* Check for ability to pay for Alien military worlds */
+	if (discount->alien_mil_card)
+	{
+		/* Add pay for Alien military with discount */
+		if (discount->alien_mil_bonus)
+		{
+			/* Create text */
+			sprintf(text, "\nAdditional discount when paying for\n"
+			        "  non-Alien military worlds: -%d",
+			       discount->alien_mil_bonus);
+			strcat(msg, text);
 		}
 
-		/* Add pay for alien military without discount */
-		if (discount->alien_mil)
+		/* Add pay for Alien military without discount */
+		else
 		{
 			/* Create text */
 			strcat(msg, "\nMay pay to settle an Alien military world");
 		}
 	}
 
-	/* Add discard to zero */
-	if (discount->zero)
+	/* Loop over all possible "discard to place at 0 cost" */
+	for (i = 0; i < 2; ++i)
 	{
-		/* Create text */
-		strcat(msg, "\nMay discard to place at 0 cost");
-	}
-
-	/* Add discard to conquer without discount */
-	if (discount->conquer_settle_0)
-	{
-		/* Create text */
-		strcat(msg, "\nMay discard to conquer a non-military world\n"
-		       "  (defense = cost)");
+		/* Add discard to zero */
+		if (discount->zero[i])
+		{
+			/* Create text */
+			sprintf(text, "\nMay discard %s to place\n"
+			        "  a non-military world at 0 cost",
+					discount->zero[i]->d_ptr->name);
+			strcat(msg, text);
+		}
 	}
 
 	/* Add discard to conquer with discount */
 	if (discount->conquer_settle_2)
 	{
 		/* Create text */
-		strcat(msg, "\nMay discard to conquer a non-military world\n"
-		       "  (defense = cost - 2)");
+		sprintf(text, "\nMay discard %s\n"
+		        "  to conquer a non-military world (defense = cost - 2)",
+		        discount->conquer_settle_2->d_ptr->name);
+		strcat(msg, text);
+	}
+
+	/* Add discard to conquer without discount */
+	if (discount->conquer_settle_0)
+	{
+		/* Create text */
+		sprintf(text, "\nMay discard %s\n"
+		        "  to conquer a non-military world (defense = cost)",
+		        discount->conquer_settle_0->d_ptr->name);
+		strcat(msg, text);
 	}
 
 	/* Return tooltip text */
@@ -3519,7 +3552,7 @@ static void military_world_payment(game *g, int who, int which,
                                    int *military, int *cost, char **cost_card)
 {
 	card *c_ptr;
-	int strength, pay_for_mil;
+	int strength, pay_for_mil = -10;
 
 	/* Get card */
 	c_ptr = &g->deck[which];
@@ -3533,74 +3566,67 @@ static void military_world_payment(game *g, int who, int which,
 	/* Do not reduce below 0 */
 	if (*military <= 0) *military = 0;
 
-	/* Reset cost and pay-for-military */
-	pay_for_mil = *cost = -1;
-
 	/* Check for no pay-for-military available */
 	if (mil_only) return;
 
-	/* Check for Rebel Alliance */
-	if (d_ptr->rebel_mil_2 && (c_ptr->d_ptr->flags & FLAG_REBEL))
-	{
-		/* Set reduction to 2 */
-		pay_for_mil = 2;
+	/* Clear pay-for-military card */
+	*cost_card = NULL;
 
-		/* XXX Save card name */
-		*cost_card = "Rebel Alliance";
+	/* Check for pay for non-Alien military worlds */
+	if (d_ptr->non_alien_mil_card &&
+	    c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	{
+		/* Remember reduction */
+		pay_for_mil = d_ptr->non_alien_mil_bonus;
+
+		/* Save card name */
+		*cost_card = d_ptr->non_alien_mil_card->d_ptr->name;
 	}
 
-	/* Check for Contact Specialist */
-	else if (d_ptr->non_alien_mil_1 &&
-	         c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	/* Check for pay for Rebel military worlds */
+	if (d_ptr->rebel_mil_card &&
+	    (c_ptr->d_ptr->flags & FLAG_REBEL) &&
+	    d_ptr->rebel_mil_bonus > pay_for_mil)
 	{
-		/* Set reduction to 1 */
-		pay_for_mil = 1;
+		/* Remember reduction */
+		pay_for_mil = d_ptr->rebel_mil_bonus;
 
-		/* XXX Save card name */
-		*cost_card = "Contact Specialist";
+		/* Save card name */
+		*cost_card = d_ptr->rebel_mil_card->d_ptr->name;
 	}
 
-	/* Check for Rebel Cantina */
-	else if (d_ptr->non_alien_mil_0 &&
-	         c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	/* Check for pay for Chromosome military worlds */
+	if (d_ptr->chromo_mil_card &&
+	    (c_ptr->d_ptr->flags & FLAG_CHROMO) &&
+	    d_ptr->chromo_mil_bonus > pay_for_mil)
 	{
-		/* Set reduction to 0 */
-		pay_for_mil = 0;
+		/* Remember reduction */
+		pay_for_mil = d_ptr->chromo_mil_bonus;
 
-		/* XXX Save card name */
-		*cost_card = "Rebel Cantina";
+		/* Save card name */
+		*cost_card = d_ptr->chromo_mil_card->d_ptr->name;
 	}
 
-	/* Check for Alien Research Team */
-	else if (d_ptr->alien_mil &&
-	         c_ptr->d_ptr->good_type == GOOD_ALIEN)
+	/* Check for pay for Alien military worlds */
+	if (d_ptr->alien_mil_card &&
+	    c_ptr->d_ptr->good_type == GOOD_ALIEN &&
+	    d_ptr->alien_mil_bonus > pay_for_mil)
 	{
-		/* Set reduction to 0 */
-		pay_for_mil = 0;
+		/* Remember reduction */
+		pay_for_mil = d_ptr->alien_mil_bonus;
 
-		/* XXX Save card name */
-		*cost_card = "Alien Research Team";
-	}
-
-	/* Check for Ravaged Uplift World */
-	else if (d_ptr->chromo_mil && c_ptr->d_ptr->flags & FLAG_CHROMO)
-	{
-		/* Set reduction to 0 */
-		pay_for_mil = 0;
-
-		/* XXX Save card name */
-		*cost_card = "Ravaged Uplift World";
+		/* Save card name */
+		*cost_card = d_ptr->alien_mil_card->d_ptr->name;
 	}
 
 	/* Check for any pay-for-military power */
-	if (pay_for_mil >= 0)
+	if (cost_card)
 	{
 		/* Compute cost */
 		*cost = c_ptr->d_ptr->cost - d_ptr->base - d_ptr->bonus -
-		        d_ptr->specific[c_ptr->d_ptr->good_type] -
-		        pay_for_mil - d_ptr->pay_discount;
+		        d_ptr->specific[c_ptr->d_ptr->good_type] - pay_for_mil;
 
-		/* Do not reduce below 0 */
+		/* Do not reduce cost below 0 */
 		if (*cost < 0) *cost = 0;
 	}
 }
@@ -3608,9 +3634,9 @@ static void military_world_payment(game *g, int who, int which,
 /*
  * Compute the cost/military needed for a non-military world.
  */
-static void peaceful_world_payment(game *g, int who, int which,
-                                   int mil_only, discounts *d_ptr,
-                                   int *cost, int *ict_mil, int *iif_mil)
+static void peaceful_world_payment(game *g, int who, int which, int mil_only,
+                                   discounts *d_ptr, int *cost,
+                                   int *conquer_mil, int *conquer_discount_mil)
 {
 	card *c_ptr;
 	int strength;
@@ -3637,38 +3663,38 @@ static void peaceful_world_payment(game *g, int who, int which,
 	/* Compute strength */
 	strength = strength_against(g, who, which, -1, 0);
 
-	/* Reset ICT/IIF military */
-	*ict_mil = *iif_mil = -1;
+	/* Reset conquer military */
+	*conquer_mil = *conquer_discount_mil = -1;
 
-	/* Check for Imperium Cloaking Technology */
-	if (d_ptr->conquer_settle_2)
-	{
-		/* Compute extra military needed */
-		*ict_mil = c_ptr->d_ptr->cost - strength - 2;
-
-		/* Do not reduce below 0 */
-		if (*ict_mil < 0) *ict_mil = 0;
-	}
-
-	/* Check for Imperium Invasion Fleet */
+	/* Check for conquer without discounts */
 	if (d_ptr->conquer_settle_0)
 	{
 		/* Compute extra military needed */
-		*iif_mil = c_ptr->d_ptr->cost - strength;
+		*conquer_mil = c_ptr->d_ptr->cost - strength;
 
 		/* Do not reduce below 0 */
-		if (*iif_mil < 0) *iif_mil = 0;
+		if (*conquer_mil < 0) *conquer_mil = 0;
+	}
+
+	/* Check for conquer with discounts */
+	if (d_ptr->conquer_settle_2)
+	{
+		/* Compute extra military needed */
+		*conquer_discount_mil = c_ptr->d_ptr->cost - strength - 2;
+
+		/* Do not reduce below 0 */
+		if (*conquer_discount_mil < 0) *conquer_discount_mil = 0;
 	}
 }
 /*
  * Create a tooltip for a world that can be placed.
  */
-static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr)
+static char *card_settle_tooltip(game *g, int who, int mil_only, displayed *i_ptr)
 {
 	card *c_ptr;
 	discounts *d_ptr;
 	char text[1024], *p, *cost_card;
-	int which, mil_only, mil_needed, ict_mil, iif_mil, cost;
+	int which, mil_needed, conquer_mil, conquer_discount_mil, cost;
 
 	/* Get discounts */
 	d_ptr = &status_player[who].discount;
@@ -3696,10 +3722,6 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	which = i_ptr->index;
 	c_ptr = &g->deck[which];
 
-	/* XXX Check for no pay-for-military available */
-	mil_only = special >= 0 &&
-	           !strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack");
-
 	/* Check for military world */
 	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
@@ -3721,7 +3743,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 		}
 
 		/* Check for any pay-for-military power */
-		if (cost >= 0)
+		if (cost_card)
 		{
 			/* Format text */
 			p += sprintf(p, "Cost to place if using %s: %d\n",
@@ -3731,8 +3753,8 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	else
 	{
 		/* Compute peaceful payment */
-		peaceful_world_payment(g, who, which, mil_only, d_ptr,
-		                       &cost, &ict_mil, &iif_mil);
+		peaceful_world_payment(g, who, which, mil_only, d_ptr, &cost,
+		                       &conquer_mil, &conquer_discount_mil);
 
 		/* Check for normal payment available */
 		if (cost >= 0)
@@ -3741,39 +3763,46 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 			p += sprintf(p, "Cost to place: %d\n", cost);
 		}
 
-		/* XXX Check for Imperium Cloaking Technology */
-		if (ict_mil >= 0)
+		/* Check for conquer without discounts */
+		if (d_ptr->conquer_settle_0)
 		{
+			/* Get card name */
+			cost_card = d_ptr->conquer_settle_0->d_ptr->name;
+
 			/* Check for no extra military */
-			if (ict_mil == 0)
+			if (conquer_mil == 0)
 			{
 				/* Format text */
-				p += sprintf(p, "No extra military needed to place\n  if using "
-				             "Imperium Cloaking Technology\n");
+				p += sprintf(p, "No extra military needed to place\n"
+				             "  if using %s\n", cost_card);
 			}
 			else
 			{
 				/* Format text */
-				p += sprintf(p, "Extra military needed to place\n  if using "
-				             "Imperium Cloaking Technology: %+d\n", ict_mil);
+				p += sprintf(p, "Extra military needed to place\n"
+				             "  if using %s: %+d\n", cost_card, conquer_mil);
 			}
 		}
 
-		/* XXX Check for Imperium Invasion Fleet */
-		if (iif_mil >= 0)
+		/* Check for conquer with discounts */
+		if (d_ptr->conquer_settle_2)
 		{
+			/* Get card name */
+			cost_card = d_ptr->conquer_settle_2->d_ptr->name;
+
 			/* Check for no extra military */
-			if (iif_mil == 0)
+			if (conquer_discount_mil == 0)
 			{
 				/* Format text */
-				p += sprintf(p, "No extra military needed to place\n  if using "
-				             "Imperium Invasion Fleet\n");
+				p += sprintf(p, "No extra military needed to place\n"
+				             "  if using %s\n", cost_card);
 			}
 			else
 			{
 				/* Format text */
-				p += sprintf(p, "Extra military needed to place\n  if using "
-				             "Imperium Invasion Fleet: %+d\n", iif_mil);
+				p += sprintf(p, "Extra military needed to place\n"
+				             "  if using %s: %+d\n",
+				             cost_card, conquer_discount_mil);
 			}
 		}
 	}
@@ -3813,8 +3842,8 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 	design *d_ptr;
 	displayed *j_ptr;
 	takeover_info takeovers[10], *t_ptr;
-	int num_takeovers = 0, total_takeovers = 0;
-	int i, j, k, which, defense, old_vp[2];
+	int num_takeovers = 0, total_takeovers = 0, conquer_peaceful = -1;
+	int i, j, k, card, which, defense, old_vp[2];
 	game sim;
 
 	/* Get card index */
@@ -3886,8 +3915,9 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 			/* Loop over cards in table */
 			for (j = 0; j < table_size[attacker]; ++j)
 			{
-				/* Get card */
-				d_ptr = g->deck[table[attacker][j].index].d_ptr;
+				/* Get card and design */
+				card = table[attacker][j].index;
+				d_ptr = g->deck[card].d_ptr;
 
 				/* Loop over powers */
 				for (k = 0; k < d_ptr->num_power; ++k)
@@ -3896,8 +3926,16 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 					if (d_ptr->powers[k].code & P3_CONQUER_SETTLE &&
 					    !(d_ptr->powers[k].code & P3_NO_TAKEOVER))
 					{
-						/* XXX Discard card */
-						discard_card(&sim, attacker, table[attacker][j].index);
+						/* Remember card */
+						conquer_peaceful = card;
+
+						/* Check for discard */
+						if (d_ptr->powers[k].code & P3_DISCARD)
+						{
+							/* Discard card */
+							discard_card(&sim, attacker, table[attacker][j].index);
+						}
+
 						break;
 					}
 				}
@@ -3905,7 +3943,8 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 		}
 
 		/* Simulate the takeover resolution */
-		resolve_takeover(&sim, attacker, which, t_ptr->card, 0, 1);
+		resolve_takeover(&sim, attacker, which, t_ptr->card,
+		                 conquer_peaceful, 0, 1);
 
 		/* Simulate end of phase (for self-scoring cards) */
 		clear_temp(&sim);
@@ -4888,7 +4927,8 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 {
 	power_where w_list[100];
 	power *o_ptr;
-	int i, n;
+	card *c_ptr;
+	int i, n, pay_discount = 0;
 
 	/* Clear discounts */
 	memset(d_ptr, 0, sizeof(discounts));
@@ -4913,9 +4953,18 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 		/* Get power pointer */
 		o_ptr = w_list[i].o_ptr;
 
+		/* Get card pointer */
+		c_ptr = &g->deck[w_list[i].c_idx];
+
 		/* Check discard for 0 */
 		if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
-			d_ptr->zero += 1;
+		{
+			/* Check for no discard for 0 yet */
+			if (!d_ptr->zero[0]) d_ptr->zero[0] = c_ptr;
+
+			/* Use the second slot */
+			else d_ptr->zero[1] = c_ptr;
+		}
 
 		/* Check for reduce power */
 		if (o_ptr->code & P3_REDUCE)
@@ -4944,47 +4993,84 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 		/* Check for pay-for-military powers */
 		if (o_ptr->code & P3_PAY_MILITARY)
 		{
-			/* Check for non-alien power without discount */
-			if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 0)
-				d_ptr->non_alien_mil_0 = TRUE;
+			/* Check for non-Alien power */
+			if (o_ptr->code == P3_PAY_MILITARY)
+			{
+				/* Check for better bonus */
+				if (!d_ptr->non_alien_mil_card ||
+				    o_ptr->value > d_ptr->non_alien_mil_bonus)
+				{
+					/* Remember card and bonus value */
+					d_ptr->non_alien_mil_card = c_ptr;
+					d_ptr->non_alien_mil_bonus = o_ptr->value;
+				}
+			}
 
-			/* Check for non-alien power with discount */
-			if (o_ptr->code == P3_PAY_MILITARY && o_ptr->value == 1)
-				d_ptr->non_alien_mil_1 = TRUE;
-
-			/* Check for rebel flag */
+			/* Check for Rebel flag */
 			if (o_ptr->code & P3_AGAINST_REBEL)
-				d_ptr->rebel_mil_2 = TRUE;
+			{
+				/* Check for better bonus */
+				if (!d_ptr->rebel_mil_card ||
+				    o_ptr->value > d_ptr->rebel_mil_bonus)
+				{
+					/* Remember card and bonus value */
+					d_ptr->rebel_mil_card = c_ptr;
+					d_ptr->rebel_mil_bonus = o_ptr->value;
+				}
+			}
 
-			/* Check for chromo flag */
+			/* Check for Chromo flag */
 			if (o_ptr->code & P3_AGAINST_CHROMO)
-				d_ptr->chromo_mil = TRUE;
+			{
+				/* Check for better bonus */
+				if (!d_ptr->chromo_mil_card ||
+				    o_ptr->value > d_ptr->chromo_mil_bonus)
+				{
+					/* Remember card and bonus value */
+					d_ptr->chromo_mil_card = c_ptr;
+					d_ptr->chromo_mil_bonus = o_ptr->value;
+				}
+			}
 
-			/* Check for alien flag */
+			/* Check for Alien flag */
 			if (o_ptr->code & P3_ALIEN)
-				d_ptr->alien_mil = TRUE;
+			{
+				/* Check for better bonus */
+				if (!d_ptr->alien_mil_card ||
+				    o_ptr->value > d_ptr->alien_mil_bonus)
+				{
+					/* Remember card and bonus value */
+					d_ptr->alien_mil_card = c_ptr;
+					d_ptr->alien_mil_bonus = o_ptr->value;
+				}
+			}
 		}
 
 		/* Check for pay-for-military discount */
 		if (o_ptr->code & P3_PAY_DISCOUNT)
-			d_ptr->pay_discount += o_ptr->value;
+			pay_discount += o_ptr->value;
 
 		/* Check for conquer settle without discount */
 		if ((o_ptr->code & P3_CONQUER_SETTLE) && o_ptr->value == 0)
-			d_ptr->conquer_settle_0 = TRUE;
+			d_ptr->conquer_settle_0 = c_ptr;
 
 		/* Check for conquer settle with discount */
 		if ((o_ptr->code & P3_CONQUER_SETTLE) && o_ptr->value == 2)
-			d_ptr->conquer_settle_2 = TRUE;
+			d_ptr->conquer_settle_2 = c_ptr;
 	}
 
+	/* Add bonuses to pay-for-military */
+	d_ptr->non_alien_mil_bonus += pay_discount;
+	d_ptr->rebel_mil_bonus += pay_discount;
+	d_ptr->chromo_mil_bonus += pay_discount;
+	d_ptr->alien_mil_bonus += pay_discount;
+
 	/* Check for any modifiers */
-	d_ptr->has_data = d_ptr->base || d_ptr->bonus ||
+	d_ptr->has_data = d_ptr->base || d_ptr->bonus || d_ptr->zero[0] ||
 		d_ptr->specific[GOOD_NOVELTY] || d_ptr->specific[GOOD_RARE] ||
 		d_ptr->specific[GOOD_GENE] || d_ptr->specific[GOOD_ALIEN] ||
-		d_ptr->zero || d_ptr->pay_discount ||
-		d_ptr->non_alien_mil_0 || d_ptr->non_alien_mil_1 ||
-		d_ptr->rebel_mil_2 || d_ptr->chromo_mil || d_ptr->alien_mil ||
+		d_ptr->non_alien_mil_card || d_ptr->rebel_mil_card ||
+		d_ptr->chromo_mil_card || d_ptr->alien_mil_card ||
 		d_ptr->conquer_settle_0 || d_ptr->conquer_settle_2;
 }
 
@@ -5053,8 +5139,9 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 				/* Check if card name already set */
 				if (strlen(m_ptr->imp_card))
 				{
-					/* XXX Use name of both cards */
-					strcpy(m_ptr->imp_card, "Rebel Alliance/Rebel Sneak Attack");
+					/* Use name of both cards */
+					sprintf(m_ptr->imp_card + strlen(m_ptr->imp_card),
+					        "/%s", c_ptr->d_ptr->name);
 				}
 				else
 				{
@@ -6678,7 +6765,8 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 {
 	char buf[1024];
 	displayed *i_ptr;
-	int i, j, allow_takeover = (phase == PHASE_SETTLE);
+	design *d_ptr;
+	int i, j, mil_only = FALSE;
 
 	/* Create prompt */
 	sprintf(buf, "Choose card to %s",
@@ -6687,20 +6775,29 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 	/* Check for special card used to provide power */
 	if (special != -1)
 	{
+		/* Get special card design */
+		d_ptr = g->deck[special].d_ptr;
+
 		/* Append name to prompt */
 		strcat(buf, " using ");
-		strcat(buf, g->deck[special].d_ptr->name);
+		strcat(buf, d_ptr->name);
 
-		/* XXX Check for "Rebel Sneak Attack" */
-		if (!strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack"))
+		/* Loop over card powers */
+		for (i = 0; i < d_ptr->num_power; ++i)
 		{
-			/* Takeover not allowed */
-			allow_takeover = FALSE;
+			/* Check for placing extra military world */
+			if (d_ptr->powers[i].code & P3_PLACE_MILITARY)
+			{
+				/* Placing military (only) */
+				mil_only = TRUE;
+				break;
+			}
 		}
 	}
 
 	/* Check for settle phase and possible takeover */
-	if (allow_takeover && settle_check_takeover(g, who, NULL, FALSE))
+	if (phase == PHASE_SETTLE && !mil_only &&
+	    settle_check_takeover(g, who, NULL, FALSE))
 	{
 		/* Append takeover information */
 		strcat(buf, " (or pass if you want to perform a takeover)");
@@ -6750,8 +6847,8 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 				else if (opt.cost_in_hand && phase == PHASE_SETTLE)
 				{
 					/* Set settle tool tip */
-					i_ptr->tooltip = card_settle_tooltip(g, player_us, special,
-					                                     i_ptr);
+					i_ptr->tooltip = card_settle_tooltip(
+						g, player_us, mil_only, i_ptr);
 				}
 			}
 		}
@@ -6864,7 +6961,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	char *cost_card;
 	char buf[1024], *p;
 	int i, j, n = 0, ns = 0, high_color;
-	int military, cost, ict_mil, iif_mil;
+	int military, cost, conquer_mil, conquer_discount_mil;
 	int forced_hand;
 	long special_forced, special_legal;
 
@@ -6933,7 +7030,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			                       &military, &cost, &cost_card);
 
 			/* Check for no pay-for-military power */
-			if (cost == -1)
+			if (!cost_card)
 			{
 				/* Format text */
 				p += sprintf(p, "(%d military)", military);
@@ -6950,7 +7047,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			/* Compute payment */
 			peaceful_world_payment(g, who, which, mil_only,
 			                       &status_player[who].discount,
-			                       &cost, &ict_mil, &iif_mil);
+			                       &cost, &conquer_mil, &conquer_discount_mil);
 
 			/* Format text */
 			p += sprintf(p, "(");
@@ -6962,31 +7059,33 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 				p += sprintf(p, "%d card%s", cost, PLURAL(cost));
 			}
 
-			/* Check for ICT or IIF */
-			if (ict_mil >= 0 || iif_mil >= 0)
+			/* Check for conquer military world */
+			if (conquer_mil >= 0 || conquer_discount_mil >= 0)
 			{
 				/* Check for cost */
 				if (cost >= 0) p += sprintf(p, " or ");
 
-				/* Check for both ICT and IIF and different military needed */
-				if (ict_mil >= 0 && iif_mil >= 0 && ict_mil != iif_mil)
+				/* Check for different military needed */
+				if (conquer_mil >= 0 && conquer_discount_mil >= 0 &&
+				    conquer_mil != conquer_discount_mil)
 				{
 					/* Format text */
-					p += sprintf(p, "%d/%d military", ict_mil, iif_mil);
+					p += sprintf(p, "%d/%d military",
+					             conquer_mil, conquer_discount_mil);
 				}
 
-				/* Check for only ICT, or equal military needed */
-				else if (ict_mil >= 0)
+				/* Check for no discounts, or equal military needed */
+				else if (conquer_mil >= 0)
 				{
 					/* Format text */
-					p += sprintf(p, "%d military", ict_mil);
+					p += sprintf(p, "%d military", conquer_mil);
 				}
 
-				/* Check for only IIF */
-				else if (iif_mil >= 0)
+				/* Check for only conquer with discount */
+				else if (conquer_discount_mil >= 0)
 				{
 					/* Format text */
-					p += sprintf(p, "%d military", iif_mil);
+					p += sprintf(p, "%d military", conquer_discount_mil);
 				}
 			}
 

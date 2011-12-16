@@ -920,6 +920,9 @@ typedef struct game
 	/* Card holding takeover power */
 	int16_t takeover_power[MAX_TAKEOVER];
 
+	/* Card holding takeover peaceful world power */
+	int16_t takeover_peaceful[MAX_TAKEOVER];
+
 	/* Takeover marked for failure */
 	int8_t takeover_defeated[MAX_TAKEOVER];
 
@@ -1030,7 +1033,7 @@ extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_action(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
-extern int resolve_takeover(game *g, int who, int world, int special,
+extern int resolve_takeover(game *g, int who, int world, int special, int conquer,
                             int defeated, int simulated);
 extern void resolve_takeovers(game *g);
 extern void phase_settle(game *g);
