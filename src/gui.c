@@ -3702,15 +3702,21 @@ static void peaceful_world_payment(game *g, int who, int which, int mil_only,
 /*
  * Create a tooltip for a world that can be placed.
  */
-static char *card_settle_tooltip(game *g, int who, int mil_only, displayed *i_ptr)
+static char *card_settle_tooltip(game *g, int who, int mil_only,
+                                 displayed *i_ptr)
 {
 	card *c_ptr;
 	discounts *d_ptr;
+	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
-	int which, mil_needed, conquer_mil, conquer_discount_mil, cost;
+	int num_hand, which, mil_needed, conquer_mil, conquer_discount_mil, cost;
 
 	/* Get discounts */
 	d_ptr = &status_player[who].discount;
+	m_ptr = &status_player[who].military;
+
+	/* Find hand size, less the placed world */
+	num_hand = count_player_area(g, who, WHERE_HAND) - 1;
 
 	/* Set text pointer */
 	p = text;
@@ -3748,7 +3754,9 @@ static char *card_settle_tooltip(game *g, int who, int mil_only, displayed *i_pt
 			/* Format text */
 			p += sprintf(p, "No extra military needed to place\n");
 		}
-		else
+
+		/* Check for achievable temporary military */
+		else if (mil_needed <= m_ptr->max_bonus)
 		{
 			/* Format text */
 			p += sprintf(p, "Extra military needed to place: %+d\n",
@@ -3756,11 +3764,20 @@ static char *card_settle_tooltip(game *g, int who, int mil_only, displayed *i_pt
 		}
 
 		/* Check for any pay-for-military power */
-		if (cost_card)
+		if (cost_card && cost <= num_hand + d_ptr->max_bonus)
 		{
 			/* Format text */
 			p += sprintf(p, "Cost to place if using %s: %d\n",
 			             cost_card, cost);
+		}
+
+		/* Check for any pay-for-military power and reduce to 0 */
+		// TODO: Exclude d_ptr->zero for Alien worlds
+		if (cost_card && d_ptr->zero[0])
+		{
+			/* Format text */
+			p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
+			             cost_card, d_ptr->zero[0]->d_ptr->name);
 		}
 	}
 	else
@@ -3770,7 +3787,7 @@ static char *card_settle_tooltip(game *g, int who, int mil_only, displayed *i_pt
 		                       &conquer_mil, &conquer_discount_mil);
 
 		/* Check for normal payment available */
-		if (cost >= 0)
+		if (0 <= cost && cost <= num_hand + d_ptr->max_bonus)
 		{
 			/* Format text */
 			p += sprintf(p, "Cost to place: %d\n", cost);
@@ -3789,7 +3806,9 @@ static char *card_settle_tooltip(game *g, int who, int mil_only, displayed *i_pt
 				p += sprintf(p, "No extra military needed to place\n"
 				             "  if using %s\n", cost_card);
 			}
-			else
+
+			/* Check for extra military achievable */
+			else if (0 < conquer_mil && conquer_mil <= m_ptr->max_bonus)
 			{
 				/* Format text */
 				p += sprintf(p, "Extra military needed to place\n"
@@ -3810,7 +3829,10 @@ static char *card_settle_tooltip(game *g, int who, int mil_only, displayed *i_pt
 				p += sprintf(p, "No extra military needed to place\n"
 				             "  if using %s\n", cost_card);
 			}
-			else
+
+			/* Check for extra military achievable */
+			else if (0 < conquer_discount_mil &&
+			         conquer_discount_mil <= m_ptr->max_bonus)
 			{
 				/* Format text */
 				p += sprintf(p, "Extra military needed to place\n"
@@ -6988,15 +7010,22 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	card *c_ptr;
 	displayed *i_ptr;
 	power *o_ptr;
+	discounts *d_ptr;
+	mil_strength *m_ptr;
 	char *cost_card;
 	char buf[1024], *p;
 	int i, j, n = 0, ns = 0, high_color;
+	int num_hand, conjunction;
 	int military, cost, conquer_mil, conquer_discount_mil;
 	int forced_hand;
 	long special_forced, special_legal;
 
 	/* Get card we are paying for */
 	c_ptr = &real_game.deck[which];
+
+	/* Get discounts */
+	d_ptr = &status_player[who].discount;
+	m_ptr = &status_player[who].military;
 
 	/* Reset displayed cards */
 	reset_cards(g, FALSE, FALSE);
@@ -7020,6 +7049,9 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	/* Check for world */
 	else if (c_ptr->d_ptr->type == TYPE_WORLD)
 	{
+		/* Find hand size */
+		num_hand = count_player_area(g, who, WHERE_HAND);
+
 		/* Check for takeover */
 		if (c_ptr->owner != who)
 		{
@@ -7059,18 +7091,70 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			                       &status_player[who].discount,
 			                       &military, &cost, &cost_card);
 
-			/* Check for no pay-for-military power */
-			if (!cost_card)
+			/* Format text */
+			p += sprintf(p, "(");
+
+			/* Reset conjuction */
+			conjunction = FALSE;
+
+			/* for achievable temporary military */
+			if (military <= m_ptr->max_bonus)
 			{
 				/* Format text */
-				p += sprintf(p, "(%d military)", military);
+				p += sprintf(p, "%d military", military);
+				conjunction = TRUE;
 			}
-			else
+
+			/* Check for any pay-for-military power */
+			if (cost_card)
 			{
-				/* Format text */
-				p += sprintf(p, "(%d military or %d card%s)",
-				             military, cost, PLURAL(cost));
+				/* Check for enough cards in hand and reduce to 0 */
+				// TODO: Exclude d_ptr->zero for Alien worlds
+				if (cost <= num_hand + d_ptr->max_bonus && d_ptr->zero[0])
+				{
+					/* Format text */
+					p += sprintf(p, "%s%s+%d card%s/%s",
+					             conjunction ? " or " : "",
+					             cost_card, cost, PLURAL(cost),
+					             d_ptr->zero[0]->d_ptr->name);
+
+					/* Check for yet another reduce to 0 */
+					if (d_ptr->zero[1])
+					{
+						/* Format text */
+						p += sprintf(p, "/%s", d_ptr->zero[1]->d_ptr->name);
+					}
+				}
+
+				/* Check for enough cards in hand */
+				else if (cost <= num_hand + d_ptr->max_bonus)
+				{
+					/* Format text */
+					p += sprintf(p, "%s%s+%d card%s",
+					             conjunction ? " or " : "",
+					             cost_card, cost, PLURAL(cost));
+				}
+
+				/* Check for reduce to 0 */
+				// TODO: Exclude d_ptr->zero for Alien worlds
+				else if (d_ptr->zero[0])
+				{
+					/* Format text */
+					p += sprintf(p, "%s%s+%s",
+					             conjunction ? " or " : "",
+					             cost_card, d_ptr->zero[0]->d_ptr->name);
+
+					/* Check for yet another reduce to 0 */
+					if (d_ptr->zero[1])
+					{
+						/* Format text */
+						p += sprintf(p, "/%s", d_ptr->zero[1]->d_ptr->name);
+					}
+				}
 			}
+
+			/* Format text */
+			p += sprintf(p, ")");
 		}
 		else
 		{
@@ -7081,41 +7165,47 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 
 			/* Format text */
 			p += sprintf(p, "(");
+			conjunction = FALSE;
 
 			/* Check for cost available */
-			if (cost >= 0)
+			if (0 <= cost && cost <= num_hand + d_ptr->max_bonus)
 			{
 				/* Format text */
 				p += sprintf(p, "%d card%s", cost, PLURAL(cost));
+				conjunction = TRUE;
 			}
 
-			/* Check for conquer military world */
-			if (conquer_mil >= 0 || conquer_discount_mil >= 0)
+			/* Check for achievable conquer with discount */
+			if (0 <= conquer_discount_mil &&
+			    conquer_discount_mil <= m_ptr->max_bonus)
 			{
-				/* Check for cost */
-				if (cost >= 0) p += sprintf(p, " or ");
+				/* Format text */
+				p += sprintf(p, "%s%s", conjunction ? " or " : "",
+				             d_ptr->conquer_settle_2->d_ptr->name);
 
-				/* Check for different military needed */
-				if (conquer_mil >= 0 && conquer_discount_mil >= 0 &&
-				    conquer_mil != conquer_discount_mil)
+				/* Check for any military needed */
+				if (conquer_discount_mil)
 				{
 					/* Format text */
-					p += sprintf(p, "%d/%d military",
-					             conquer_mil, conquer_discount_mil);
+					p += sprintf(p, "+%d military", conquer_discount_mil);
 				}
 
-				/* Check for no discounts, or equal military needed */
-				else if (conquer_mil >= 0)
-				{
-					/* Format text */
-					p += sprintf(p, "%d military", conquer_mil);
-				}
+				/* Remember conjunction */
+				conjunction = TRUE;
+			}
 
-				/* Check for only conquer with discount */
-				else if (conquer_discount_mil >= 0)
+			/* Check for achievable conquer without discount */
+			if (0 <= conquer_mil && conquer_mil <= m_ptr->max_bonus)
+			{
+				/* Format text */
+				p += sprintf(p, "%s%s", conjunction ? " or " : "",
+				             d_ptr->conquer_settle_0->d_ptr->name);
+
+				/* Check for any military needed */
+				if (conquer_mil)
 				{
 					/* Format text */
-					p += sprintf(p, "%d military", conquer_discount_mil);
+					p += sprintf(p, "+%d military", conquer_mil);
 				}
 			}
 
@@ -12713,7 +12803,7 @@ static void render_player(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 	}
 
 	/* Set "text" property of renderer */
-	g_object_set(cell, "text", name, NULL);
+	g_object_set(G_OBJECT(cell), "text", name, NULL);
 }
 
 /*
@@ -12729,7 +12819,7 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 	gtk_tree_model_get(model, iter, DEBUG_COL_LOCATION, &i, -1);
 
 	/* Set "text" property of renderer */
-	g_object_set(cell, "text", location_names[i], NULL);
+	g_object_set(G_OBJECT(cell), "text", location_names[i], NULL);
 }
 
 /*
@@ -13070,7 +13160,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	render = gtk_cell_renderer_combo_new();
 
 	/* Set renderer properties */
-	g_object_set(render, "text-column", 1, "model", where_list,
+	g_object_set(G_OBJECT(render), "text-column", 1, "model", where_list,
 	             "editable", TRUE, "has-entry", FALSE, NULL);
 
 	/* Connect "changed" signal */
