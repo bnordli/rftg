@@ -859,7 +859,7 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 		if (g->variant == VARIANT_DRAFTING && c_ptr->owner != who) continue;
 
 		/* Remember unknown card */
-		unknown[(*count)++] = c_ptr->d_ptr->index;
+		unknown[(*count)++] = i;
 	}
 
 	/* XXX In case of too few unknown cards, add cards from wherever */
@@ -876,7 +876,7 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 			if (c_ptr->owner == who && !(c_ptr->known & (1 << who))) continue;
 
 			/* Remember card */
-			unknown[(*count)++] = c_ptr->d_ptr->index;
+			unknown[(*count)++] = i;
 		}
 	}
 }
@@ -1312,8 +1312,11 @@ static double eval_game(game *g, int who)
 		/* Loop over unknown cards */
 		for (i = 0; i < count; i++)
 		{
+			/* Get card pointer */
+			c_ptr = &g->deck[unknown[i]];
+
 			/* Add probability we would have this card */
-			eval.input_value[n + card_input[unknown[i]]] +=
+			eval.input_value[n + c_ptr->d_ptr->index] +=
 				1.0 * p_ptr->total_fake / count;
 		}
 	}
