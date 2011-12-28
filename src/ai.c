@@ -875,7 +875,7 @@ static void get_unknown(game *g, int who, int min, int *count, int *unknown)
 			/* Skip our cards where we don't know the location */
 			if (c_ptr->owner == who && !(c_ptr->known & (1 << who))) continue;
 
-			/* Remember card */
+			/* Remember unknown card */
 			unknown[(*count)++] = i;
 		}
 	}

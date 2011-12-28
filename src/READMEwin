@@ -21,7 +21,7 @@ Copy these files into your rftg installation directory:
 
  rftg8n.exe:  The program itself
  icon0xx.png: The new icons
- cards.txt:   Updated cards definition
+ cards.txt:   Updated card definitions
 
 Start the patch by running rftg8n.exe.
 

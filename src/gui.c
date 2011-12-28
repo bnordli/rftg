@@ -288,10 +288,10 @@ typedef struct discounts
 	/* Bonus when paying for Alien military worlds */
 	int alien_mil_bonus;
 
-	/* May discard to conquer with 0 discount */
+	/* Card to discard in order to conquer with 0 discount */
 	card *conquer_settle_0;
 
-	/* May discard to conquer with 2 discount */
+	/* Card to discard in order to conquer with 2 discount */
 	card *conquer_settle_2;
 
 	/* Any value is set */
@@ -3111,7 +3111,7 @@ static char *get_discount_tooltip(discounts *discount)
 			/* Create text */
 			sprintf(text, "\nMay discard %s to place\n"
 			        "  a non-military world at 0 cost",
-					discount->zero[i]->d_ptr->name);
+			        discount->zero[i]->d_ptr->name);
 			strcat(msg, text);
 		}
 	}
