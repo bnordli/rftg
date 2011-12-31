@@ -689,7 +689,7 @@ void init_game(game *g)
 			j = GOAL_FIRST_5_VP;
 			k = GOAL_FIRST_8_ACTIVE;
 		}
-		else if (g->expanded == EXPANSION_BOW)
+		else
 		{
 			/* All expansions */
 			j = GOAL_FIRST_5_VP;

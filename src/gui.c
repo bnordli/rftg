@@ -3771,13 +3771,24 @@ static char *card_settle_tooltip(game *g, int who, int mil_only,
 			             cost_card, cost);
 		}
 
-		/* Check for any pay-for-military power and reduce to 0 */
-		// TODO: Exclude d_ptr->zero for Alien worlds
-		if (cost_card && d_ptr->zero[0])
+		/* Check for any pay-for-military power and non-alien world */
+		if (cost_card && c_ptr->d_ptr->good_type != GOOD_ALIEN)
 		{
-			/* Format text */
-			p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
-			             cost_card, d_ptr->zero[0]->d_ptr->name);
+			/* Check for reduce to zero cost */
+			if (d_ptr->zero[0])
+			{
+				/* Format text */
+				p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
+				             cost_card, d_ptr->zero[0]->d_ptr->name);
+			}
+
+			/* Check for another reduse to zero cost */
+			if (d_ptr->zero[1])
+			{
+				/* Format text */
+				p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
+				             cost_card, d_ptr->zero[1]->d_ptr->name);
+			}
 		}
 	}
 	else
@@ -7108,36 +7119,44 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			/* Check for any pay-for-military power */
 			if (cost_card)
 			{
-				/* Check for enough cards in hand and reduce to 0 */
-				// TODO: Exclude d_ptr->zero for Alien worlds
-				if (cost <= num_hand + d_ptr->max_bonus && d_ptr->zero[0])
+				/* Check for enough cards in hand for payment */
+				if (cost <= num_hand + d_ptr->max_bonus)
 				{
 					/* Format text */
-					p += sprintf(p, "%s%s+%d card%s/%s",
-					             conjunction ? " or " : "",
-					             cost_card, cost, PLURAL(cost),
-					             d_ptr->zero[0]->d_ptr->name);
+					p += sprintf(p, "%s%s",
+					             conjunction ? " or " : "", cost_card);
 
-					/* Check for yet another reduce to 0 */
-					if (d_ptr->zero[1])
+					/* Check for any cards */
+					if (cost > 0)
 					{
-						/* Format text */
-						p += sprintf(p, "/%s", d_ptr->zero[1]->d_ptr->name);
+						/* Add cost */
+						p += sprintf(p, "+%d card%s", cost, PLURAL(cost));
+					}
+
+					/* Check for non-alien world */
+					if (c_ptr->d_ptr->good_type != GOOD_ALIEN)
+					{
+						/* Check for reduce to 0 cost power */
+						if (d_ptr->zero[0])
+						{
+							/* Format text */
+							p += sprintf(p, "/%s",
+							             d_ptr->zero[0]->d_ptr->name);
+						}
+
+						/* Check for yet another reduce to 0 */
+						if (d_ptr->zero[1])
+						{
+							/* Format text */
+							p += sprintf(p, "/%s",
+							             d_ptr->zero[1]->d_ptr->name);
+						}
 					}
 				}
 
-				/* Check for enough cards in hand */
-				else if (cost <= num_hand + d_ptr->max_bonus)
-				{
-					/* Format text */
-					p += sprintf(p, "%s%s+%d card%s",
-					             conjunction ? " or " : "",
-					             cost_card, cost, PLURAL(cost));
-				}
-
-				/* Check for reduce to 0 */
-				// TODO: Exclude d_ptr->zero for Alien worlds
-				else if (d_ptr->zero[0])
+				/* Check for applicable reduce to 0 */
+				else if (c_ptr->d_ptr->good_type != GOOD_ALIEN &&
+				         d_ptr->zero[0])
 				{
 					/* Format text */
 					p += sprintf(p, "%s%s+%s",

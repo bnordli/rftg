@@ -895,7 +895,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 		export_locations(fff, g, player_us, num_special_cards, special_cards);
 
 		/* Write locations end tag */
-		fputs("  </Log>\n", fff);
+		fputs("  </Locations>\n", fff);
 	}
 
 	/* Check for export callback */
