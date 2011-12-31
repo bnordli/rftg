@@ -72,6 +72,9 @@ static unsigned char random_pool[MAX_RAND];
 /* Current position in random pool */
 static int random_pos;
 
+/* Current position in player's random pool */
+static int player_random_pos[MAX_PLAYER];
+
 /* Choices loaded from db */
 static int *choice_logs[MAX_PLAYER];
 
@@ -222,7 +225,7 @@ static void export_end_log(FILE *fff, int gid)
 	MYSQL_RES *res;
 	MYSQL_ROW row;
 	char query[1024];
-	char msg[1024], name[1024], *ptr;
+	char name[1024];
 
 	/* Create lookup query */
 	sprintf(query, "SELECT message, format, user "
@@ -246,9 +249,6 @@ static void export_end_log(FILE *fff, int gid)
 	/* Loop over rows returned */
 	while ((row = mysql_fetch_row(res)))
 	{
-		/* Reset message */
-		ptr = msg;
-
 		/* Check for chat message */
 		if (!strcmp(row[1], FORMAT_CHAT))
 		{
@@ -774,7 +774,7 @@ static void determine_message(game *g, int who, int type, int list[], int *nl,
 		case CHOICE_DRAFT:
 
 			/* Create prompt */
-			sprintf(buf, "Choose card to draft");
+			sprintf(msg, "Choose card to draft");
 			break;
 
 		/* Error */
@@ -934,7 +934,7 @@ static int db_load_game(int gid)
 	char name[80];
 
 	/* Format query */
-	sprintf(query, "SELECT exp, adv, dis_goal, dis_takeover \
+	sprintf(query, "SELECT exp, adv, dis_goal, dis_takeover, variant \
 	                FROM games WHERE gid = %d AND state = 'DONE'", gid);
 
 	/* Run query */
@@ -963,7 +963,8 @@ static int db_load_game(int gid)
 	g.advanced = strtol(row[1], NULL, 0);
 	g.goal_disabled = strtol(row[2], NULL, 0);
 	g.takeover_disabled = strtol(row[3], NULL, 0);
-
+	g.variant = strtol(row[4], NULL, 0);
+	
 	/* Free results */
 	mysql_free_result(res);
 
@@ -1098,28 +1099,45 @@ void display_error(char *msg)
  * Call simple RNG in simulated games, otherwise use the results from the
  * system RNG saved per session.
  */
-int game_rand(game *g)
+int game_rand(game *g, int who)
 {
-	unsigned int x;
+	unsigned int x, *seed;
+	int *pos;
 
 	/* Check for simulated game */
 	if (g->simulation)
 	{
+		/* Assume global seed */
+		seed = &g->random_seed;
+
+		/* Check for personal seed */
+		if (who >= 0) seed = &g->p[who].seed;
+
 		/* Use simple random number generator */
-		return simple_rand(&g->random_seed);
+		return simple_rand(seed);
 	}
+
+	/* Assume global seed */
+	pos = &random_pos;
+
+	/* Check for personal seed */
+	if (who >= 0) pos = &player_random_pos[original_id(who)];
 
 	/* Check for end of random bytes reached */
-	if (random_pos == MAX_RAND)
-	{
-		/* XXX Restart from beginning */
-		random_pos = 0;
-	}
+	if (*pos == MAX_RAND) *pos = 0;
 
-	/* Create random number from next two bytes */
-	x = random_pool[random_pos++];
-	x |= random_pool[random_pos++] << 8;
+	/* Retrieve first half of random number */
+	x = random_pool[(*pos)++];
 
+	/* Check for end of random bytes reached */
+	if (*pos == MAX_RAND) *pos = 0;
+
+	/* Retrieve second half of random number */
+	x |= random_pool[(*pos)++] << 8;
+	
+	printf("Rand(%d) is %d\n", who, x);
+
+	printf("Pos is now %d\n", *pos);
 	/* Return low bits */
 	return x & 0x7fff;
 }
@@ -1136,6 +1154,8 @@ void replay_game()
 
 	/* Initialize game */
 	init_game(&g);
+	
+	printf("After init\n");
 
 	/* Begin game */
 	begin_game(&g);
@@ -1187,7 +1207,6 @@ int main(int argc, char *argv[])
 	int i, j;
 	my_bool reconnect = 1;
 	char *db = "rftg";
-	char buf[1024];
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
@@ -1326,6 +1345,7 @@ int main(int argc, char *argv[])
 				num_choices[j] = 0;
 				decision_round[j][0] = 0;
 				log_pos[j] = 0;
+				player_random_pos[j] = (j+1) * 139;
 
 				/* Clear choice log size and position */
 				g.p[j].choice_size = 0;
