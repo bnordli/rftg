@@ -10937,7 +10937,7 @@ void save_prefs(void)
 	g_key_file_set_integer(pref_file, "multiplayer", "server_port",
 	                       opt.server_port);
 	g_key_file_set_string_list(pref_file, "multiplayer", "servers",
-	                           servers, num_servers);
+	                           (gchar**) servers, num_servers);
 	g_key_file_set_string(pref_file, "multiplayer", "username",
 	                      opt.username);
 	g_key_file_set_string(pref_file, "multiplayer", "password",

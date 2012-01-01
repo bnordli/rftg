@@ -3,6 +3,8 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file modified by B. Nordli, January 2012.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -39,7 +41,9 @@ int main(int argc, char *argv[])
 
 	make_learner(&learner, input, hidden, output);
 
-	load_net(&learner, argv[1]);
+	fff = fopen(argv[1], "r");
+
+	load_net(&learner, fff);
 
 	for (i = 0; i < input; i++) learner.input_value[i] = 0;
 

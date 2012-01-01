@@ -2825,6 +2825,11 @@ void create_dialog(GtkButton *button, gpointer data)
 		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
 		                  no_timeout_check);
 	}
+	else
+	{
+		/* Don't create timeout check box */
+		no_timeout_check = NULL;
+	}
 
 	/* Create vbox to hold expansion selection radio buttons */
 	exp_box = gtk_vbox_new(FALSE, 0);
@@ -3053,7 +3058,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	opt.variant = next_variant;
 	opt.game_desc = strdup(gtk_entry_get_text(GTK_ENTRY(desc_entry)));
 	opt.game_pass = strdup(gtk_entry_get_text(GTK_ENTRY(pass_entry)));
-	opt.no_timeout = gtk_toggle_button_get_active(
+	if (no_timeout_check) opt.no_timeout = gtk_toggle_button_get_active(
 	                              GTK_TOGGLE_BUTTON(no_timeout_check));
 	opt.advanced = gtk_toggle_button_get_active(
 	                              GTK_TOGGLE_BUTTON(advanced_check));
