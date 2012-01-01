@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, December 2011.
+ * Source file modified by B. Nordli, January 2012.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -3392,6 +3392,7 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 	}
 
 	/* Check for attack used */
+	/* XXX Will be 0 for pre-0.8.1n servers */
 	if (attack >= 0)
 	{
 		/* Get attack card */
@@ -4375,7 +4376,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
  * This may require using cards with a one-off discard ability to lower
  * cost or increase military, etc.
  */
-static void pay_settle(game *g, int who, int world, int mil_only)
+static void pay_settle(game *g, int who, int world,
+                       int mil_only, int takeover_power)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -4571,8 +4573,9 @@ static void pay_settle(game *g, int who, int world, int mil_only)
 	}
 
 	/* Have player decide how to pay */
+	/* takeover_power since 0.8.1n */
 	ask_player(g, who, CHOICE_PAYMENT, list, &n, special, &num_special,
-	           world, mil_only, 0);
+	           world, mil_only, takeover_power);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
@@ -5256,7 +5259,7 @@ void settle_action(game *g, int who, int world)
 	power *o_ptr;
 	int i, x, n, list[MAX_DECK];
 	int place_again = -1, place_military = -1, upgrade = 0;
-	int takeover = 0;
+	int takeover = 0, takeover_power = -1;
 	char msg[1024];
 
 	/* Get player pointer */
@@ -5272,13 +5275,16 @@ void settle_action(game *g, int who, int world)
 			/* Get most recent takeover target */
 			world = g->takeover_target[g->num_takeover - 1];
 
+			/* Get takeover power used */
+			takeover_power = g->takeover_power[g->num_takeover - 1];
+
 			/* Set takeover flag */
 			takeover = 1;
 		}
 	}
 
 	/* Have user pay for card (in some way) */
-	if (world != -1) pay_settle(g, who, world, 0);
+	if (world != -1) pay_settle(g, who, world, 0, takeover_power);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
@@ -5486,7 +5492,7 @@ void settle_action(game *g, int who, int world)
 			check_goal_loss(g, who, GOAL_MOST_DEVEL);
 
 			/* Have user pay for card (if necessary) */
-			pay_settle(g, who, p_ptr->placing, 1);
+			pay_settle(g, who, p_ptr->placing, 1, -1);
 
 			/* Check for aborted game */
 			if (g->game_over) return;

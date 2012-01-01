@@ -7016,7 +7016,8 @@ static void compute_forced_choice(int list[], int num,
  * such as the Contact Specialist or Colony Ship.
  */
 void gui_choose_pay(game *g, int who, int which, int list[], int *num,
-                    int special[], int *num_special, int mil_only)
+                    int special[], int *num_special,
+                    int mil_only, int takeover_power)
 {
 	card *c_ptr;
 	displayed *i_ptr;
@@ -7068,8 +7069,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 		{
 			/* Compute strength difference */
 			military =
-				strength_against(g, who, which,
-				                 g->takeover_power[g->num_takeover - 1], 0) -
+				strength_against(g, who, which, takeover_power, 0) -
 				strength_against(g, c_ptr->owner, which, -1, 1);
 
 			/* Check for ahead in strength */
@@ -9767,7 +9767,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose payment */
 			gui_choose_pay(g, who, arg1, list, nl, special, ns,
-			               arg2);
+			               arg2, arg3);
 			rv = 0;
 			break;
 
