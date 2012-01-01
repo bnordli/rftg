@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, December 2011.
+ * Source file modified by B. Nordli, January 2012.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -571,9 +571,6 @@ void init_game(game *g)
 	sprintf(msg, "start seed: %u\n", g->start_seed);
 	message_add(msg);
 #endif
-
-	/* Assuming game is offline */
-	g->session_id = -1;
 
 	/* Game is not simulated */
 	g->simulation = 0;

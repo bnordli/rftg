@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, December 2011.
+ * Source file modified by B. Nordli, January 2012.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -10582,6 +10582,9 @@ static void run_game(void)
 
 		/* Clear restart loop flag */
 		restart_loop = 0;
+
+		/* Game is run by gui */
+		real_game.session_id = -1;
 
 		/* Begin game */
 		begin_game(&real_game);

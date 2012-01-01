@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2011.
+ * Source file modified by B. Nordli, January 2012.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -187,6 +187,9 @@ int main(int argc, char *argv[])
 	{
 		/* Initialize game */
 		init_game(&my_game);
+
+		/* Game is learning game */
+		my_game.session_id = -2;
 
 		/* Begin game */
 		begin_game(&my_game);
