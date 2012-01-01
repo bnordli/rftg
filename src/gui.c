@@ -10859,7 +10859,7 @@ void save_prefs(void)
 	FILE *fff;
 	char *path, *data;
 	char msg[1024];
-	char **servers;
+	gchar **servers;
 	int i;
 
 	/* Build user preference filename */
@@ -10871,7 +10871,7 @@ void save_prefs(void)
 #endif
 
 	/* Allocate memory to store server names */
-	servers = (char **)malloc(sizeof(char**) *
+	servers = (gchar **)malloc(sizeof(gchar **) *
 		gtk_tree_model_iter_n_children(GTK_TREE_MODEL(opt.servers), NULL));
 
 	/* Read list of servers from the list store */
@@ -10937,7 +10937,7 @@ void save_prefs(void)
 	g_key_file_set_integer(pref_file, "multiplayer", "server_port",
 	                       opt.server_port);
 	g_key_file_set_string_list(pref_file, "multiplayer", "servers",
-	                           (gchar**) servers, num_servers);
+	                           (const gchar* const*) servers, num_servers);
 	g_key_file_set_string(pref_file, "multiplayer", "username",
 	                      opt.username);
 	g_key_file_set_string(pref_file, "multiplayer", "password",
