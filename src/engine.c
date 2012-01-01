@@ -6056,9 +6056,6 @@ int resolve_takeover(game *g, int who, int world, int special, int conquer,
 		return 0;
 	}
 
-	/* Award prestige for success */
-	if (prestige) gain_prestige(g, who, prestige, prestige_reason);
-
 	/* Check for destruction instead of normal takeover */
 	if (o_ptr->code & P3_DESTROY)
 	{
@@ -6075,6 +6072,9 @@ int resolve_takeover(game *g, int who, int world, int special, int conquer,
 
 		/* Discard card */
 		discard_card(g, defender, world);
+
+		/* Award prestige for success */
+		if (prestige) gain_prestige(g, who, prestige, prestige_reason);
 
 		/* Award settle bonus */
 		settle_bonus(g, who, world, 1, simulated);
@@ -6149,6 +6149,9 @@ int resolve_takeover(game *g, int who, int world, int special, int conquer,
 			}
 		}
 	}
+
+	/* Award prestige for success */
+	if (prestige) gain_prestige(g, who, prestige, prestige_reason);
 
 	/* Award settle bonus */
 	settle_bonus(g, who, world, 1, simulated);
