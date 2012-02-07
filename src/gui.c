@@ -10316,6 +10316,9 @@ static void run_game(void)
 		/* Holding pattern for multiplayer */
 		else if (restart_loop == RESTART_NONE)
 		{
+			/* Notify gui */
+			update_menu_items();
+
 			/* Do nothing until disconnected from server */
 			while (restart_loop == RESTART_NONE)
 			{
