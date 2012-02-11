@@ -83,7 +83,6 @@ static void handle_status_meta(char *ptr)
 	real_game.advanced = get_integer(&ptr);
 	real_game.goal_disabled = get_integer(&ptr);
 	real_game.takeover_disabled = get_integer(&ptr);
-	real_game.variant = get_integer(&ptr);
 
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
@@ -116,6 +115,16 @@ static void handle_status_meta(char *ptr)
 		/* Copy name */
 		real_game.p[i].name = strdup(name);
 	}
+
+	/* Loop over players (since 0.8.1m) */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Copy ai flag */
+		real_game.p[i].ai = get_integer(&ptr);
+	}
+
+	/* Read variant parameter (since 0.8.1n) */
+	real_game.variant = get_integer(&ptr);
 }
 
 /*
