@@ -3081,7 +3081,7 @@ static char *get_discount_tooltip(discounts *discount)
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
 			        "  non-Alien military worlds: -%d",
-			       discount->alien_mil_bonus);
+			        discount->alien_mil_bonus);
 			strcat(msg, text);
 		}
 
