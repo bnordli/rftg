@@ -729,7 +729,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 		}
 
 		/* Check for separate decks */
-		if (!separate_decks(g))
+		if (separate_decks(g))
 		{
 			/* Write deck and discard size */
 			fprintf(fff, "    <Deck>%d</Deck>\n", deck[n]);
