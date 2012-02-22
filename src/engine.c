@@ -3,7 +3,7 @@
  * 
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, January 2012.
+ * Source file modified by B. Nordli, February 2012.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -594,6 +594,13 @@ static int first_draw(game *g, int who, int *emptied)
 {
 	card *c_ptr = NULL;
 	int i;
+
+	/* Check for common decks */
+	if (!separate_decks(g))
+	{
+		/* Draw deck is global */
+		who = -1;
+	}
 
 	/* Check for no cards */
 	if (!count_draw(g, who))
