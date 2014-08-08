@@ -1,9 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2011.
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -639,8 +639,8 @@ typedef struct card
 	/* Bitmask of players who know card's location */
 	uint8_t known;
 
-	/* Bitmask of card powers which have been used */
-	uint8_t used;
+	/* Card powers which have been used */
+	short used[MAX_POWER];
 
 	/* Card has produced this phase */
 	int8_t produced;
@@ -746,8 +746,8 @@ typedef struct player
 	/* Number of cards discarded at end of turn */
 	int8_t end_discard;
 
-	/* Bitmask of goal cards claimed */
-	uint32_t goal_claimed;
+	/* Goal cards claimed */
+	short goal_claimed[MAX_GOAL];
 
 	/* Progress toward each goal */
 	int8_t goal_progress[MAX_GOAL];
@@ -852,11 +852,11 @@ typedef struct game
 	/* Victory points remaining in the pool */
 	int8_t vp_pool;
 
-	/* Bitmask of goals active in this game */
-	uint32_t goal_active;
+	/* Goals active in this game */
+	short goal_active[MAX_GOAL];
 
-	/* Bitmask of goals yet unclaimed */
-	uint32_t goal_avail;
+	/* Goals yet unclaimed */
+	short goal_avail[MAX_GOAL];
 
 	/* Maximum progress toward a "most" goal */
 	int8_t goal_most[MAX_GOAL];

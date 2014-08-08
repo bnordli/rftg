@@ -1,9 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2011.
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1730,7 +1730,7 @@ static void update_meta(int sid)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Add goal presence to message */
-		put_integer((s_ptr->g.goal_active & (1 << i)) > 0, &ptr);
+		put_integer(s_ptr->g.goal_active[i], &ptr);
 	}
 
 	/* Loop over players */
@@ -1853,6 +1853,8 @@ static void obfuscate_game(game *ob, game *g, int who)
  */
 static int player_changed(player *p_ptr, player *q_ptr)
 {
+	int i;
+
 	/* Check for change in actions selected */
 	if (p_ptr->action[0] != q_ptr->action[0]) return 1;
 	if (p_ptr->action[1] != q_ptr->action[1]) return 1;
@@ -1867,10 +1869,13 @@ static int player_changed(player *p_ptr, player *q_ptr)
 	if (p_ptr->bonus_military != q_ptr->bonus_military) return 1;
 	if (p_ptr->bonus_reduce != q_ptr->bonus_reduce) return 1;
 
-	/* Check for change in goal parameters */
-	if (p_ptr->goal_claimed != q_ptr->goal_claimed) return 1;
-	if (memcmp(p_ptr->goal_progress, q_ptr->goal_progress,
-	           MAX_GOAL * sizeof(int8_t))) return 1;
+	/* Loop over goals */
+	for (i = 0; i < MAX_GOAL; i++)
+	{
+		/* Check for change in goal parameters */
+		if (p_ptr->goal_claimed[i] != q_ptr->goal_claimed[i]) return 1;
+		if (p_ptr->goal_progress[i] != q_ptr->goal_progress[i])return 1;
+	}
 
 	/* No change */
 	return 0;
@@ -1933,7 +1938,7 @@ static void update_status_one(int sid, int who)
 			for (j = 0; j < MAX_GOAL; j++)
 			{
 				/* Add whether player has claimed goal */
-				put_integer((p_ptr->goal_claimed & (1 << j)) > 0, &ptr);
+				put_integer(p_ptr->goal_claimed[j], &ptr);
 
 				/* Add player's progress toward goal */
 				put_integer(p_ptr->goal_progress[j], &ptr);
@@ -2001,7 +2006,7 @@ static void update_status_one(int sid, int who)
 			for (j = 0; j < c_ptr->d_ptr->num_power; ++j)
 			{
 				/* Put used flag (since 0.8.1l) */
-				put_integer((c_ptr->used & (1 << j)) > 0, &ptr);
+				put_integer(c_ptr->used[j], &ptr);
 			}
 
 			/* Finish message */
@@ -2013,7 +2018,8 @@ static void update_status_one(int sid, int who)
 	}
 
 	/* Check for change in goal status */
-	if (obfus.goal_avail != s_ptr->old[who].goal_avail ||
+	if (memcmp(obfus.goal_avail, s_ptr->old[who].goal_avail,
+	           MAX_GOAL * sizeof(int)) ||
 	    memcmp(obfus.goal_most, s_ptr->old[who].goal_most,
 	           MAX_GOAL * sizeof(int8_t)))
 	{
@@ -2026,8 +2032,8 @@ static void update_status_one(int sid, int who)
 		/* Copy goal availability and most progress */
 		for (i = 0; i < MAX_GOAL; i++)
 		{
-			/* Put availability and progress counts */
-			put_integer((s_ptr->g.goal_avail & (1 << i)) > 0, &ptr);
+			/* Put availabiltiy and progress counts */
+			put_integer(s_ptr->g.goal_avail[i], &ptr);
 			put_integer(s_ptr->g.goal_most[i], &ptr);
 		}
 

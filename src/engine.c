@@ -1,9 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2011.
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -879,8 +879,12 @@ void clear_temp(game *g)
 		/* Clear produced flag */
 		c_ptr->produced = 0;
 
-		/* Clear used flags */
-		c_ptr->used = 0;
+		/* Loop over used flags */
+		for (j = 0; j < MAX_POWER; j++)
+		{
+			/* Clear flag */
+			c_ptr->used[j] = 0;
+		}
 	}
 
 	/* Loop over players */
@@ -1344,7 +1348,7 @@ int get_powers(game *g, int who, int phase, power_where *w_list)
 			o_ptr = &c_ptr->d_ptr->powers[i];
 
 			/* Skip used powers */
-			if (c_ptr->used & (1 << i)) continue;
+			if (c_ptr->used[i]) continue;
 
 			/* Skip incorrect phase */
 			if (o_ptr->phase != phase) continue;
@@ -3493,7 +3497,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_MILITARY_HAND)
 			{
 				/* Mark power as used */
-				c_ptr->used |= 1 << j;
+				c_ptr->used[j] = 1;
 
 				/* Assume cards are for military strength */
 				hand_military += o_ptr->value;
@@ -3503,7 +3507,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_GENE)
 			{
 				/* Mark power as used */
-				c_ptr->used |= 1 << j;
+				c_ptr->used[j] = 1;
 
 				/* Remember power is used */
 				consume_reduce++;
@@ -3536,7 +3540,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Mark power as used */
-				c_ptr->used |= 1 << j;
+				c_ptr->used[j] = 1;
 
 				/* Ask for goods to consume later */
 				consume_military++;
@@ -3566,7 +3570,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_PRESTIGE)
 			{
 				/* Mark power as used */
-				c_ptr->used |= 1 << j;
+				c_ptr->used[j] = 1;
 
 				/* Spend prestige */
 				spend_prestige(g, who, 1);
@@ -4227,7 +4231,7 @@ int takeover_callback(game *g, int special, int world)
 		else
 		{
 			/* Mark power as used */
-			c_ptr->used |= 1 << i;
+			c_ptr->used[i] = 1;
 		}
 
 		/* Check for takeover rebel power */
@@ -4900,7 +4904,7 @@ void settle_action(game *g, int who, int world)
 			place_again = w_ptr->c_idx;
 
 			/* Mark power as used */
-			g->deck[w_ptr->c_idx].used |= 1 << w_ptr->o_idx;
+			g->deck[w_ptr->c_idx].used[w_ptr->o_idx] = 1;
 		}
 
 		/* Check for place military world power */
@@ -4910,7 +4914,7 @@ void settle_action(game *g, int who, int world)
 			place_military = w_ptr->c_idx;
 
 			/* Mark power as used */
-			g->deck[w_ptr->c_idx].used |= 1 << w_ptr->o_idx;
+			g->deck[w_ptr->c_idx].used[w_ptr->o_idx] = 1;
 		}
 
 		/* Check for upgrade world power */
@@ -4920,7 +4924,7 @@ void settle_action(game *g, int who, int world)
 			upgrade = 1;
 
 			/* Mark power as used */
-			g->deck[w_ptr->c_idx].used |= 1 << w_ptr->o_idx;
+			g->deck[w_ptr->c_idx].used[w_ptr->o_idx] = 1;
 		}
 	}
 
@@ -5165,7 +5169,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 			if (o_ptr->code & P3_MILITARY_HAND)
 			{
 				/* Mark power as used */
-				c_ptr->used |= 1 << j;
+				c_ptr->used[j] = 1;
 
 				/* Assume cards are for military strength */
 				hand_military += o_ptr->value;
@@ -5175,7 +5179,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Mark power as used */
-				c_ptr->used |= 1 << j;
+				c_ptr->used[j] = 1;
 
 				/* Add extra military */
 				military += o_ptr->value;
@@ -5199,7 +5203,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_PRESTIGE)
 			{
 				/* Mark power as used */
-				c_ptr->used |= 1 << j;
+				c_ptr->used[j] = 1;
 
 				/* Spend prestige */
 				spend_prestige(g, who, 1);
@@ -5778,7 +5782,7 @@ void resolve_takeovers(game *g)
 			if (!(o_ptr->code & P3_PREVENT_TAKEOVER)) continue;
 
 			/* Mark power as used */
-			c_ptr->used |= 1 << w_list[j].o_idx;
+			c_ptr->used[w_list[j].o_idx] = 1;
 
 			/* Ask player which takeover (if any) to defeat */
 			ask_player(g, i, CHOICE_TAKEOVER_PREVENT,
@@ -7043,7 +7047,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	name = c_ptr->d_ptr->name;
 
 	/* Mark power as used */
-	c_ptr->used |= 1 << o_idx;
+	c_ptr->used[o_idx] = 1;
 
 	/* Get pointer to power */
 	o_ptr = &c_ptr->d_ptr->powers[o_idx];
@@ -8059,7 +8063,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Mark power used */
-	c_ptr->used |= 1 << o_idx;
+	c_ptr->used[o_idx] = 1;
 
 	/* Get name of card with power */
 	name = c_ptr->d_ptr->name;
@@ -9529,10 +9533,10 @@ void check_goal_loss(game *g, int who, int goal)
 	int i;
 
 	/* Check for inactive goal */
-	if ((g->goal_active & (1 << goal)) == 0) return;
+	if (!g->goal_active[goal]) return;
 
 	/* Only check for player who has claimed goal */
-	if ((p_ptr->goal_claimed & (1 << goal)) == 0) return;
+	if (!p_ptr->goal_claimed[goal]) return;
 
 	/* Recheck progress */
 	count = check_goal_player(g, goal, who);
@@ -9561,8 +9565,8 @@ void check_goal_loss(game *g, int who, int goal)
 	if (count < most || count == 0)
 	{
 		/* Goal is now unclaimed */
-		p_ptr->goal_claimed &= ~(1 << goal);
-		g->goal_avail |= 1 << goal;
+		p_ptr->goal_claimed[goal] = 0;
+		g->goal_avail[goal] = 1;
 
 		/* Message */
 		if (!g->simulation)
@@ -9591,10 +9595,10 @@ void check_goals(game *g)
 	for (i = GOAL_FIRST_5_VP; i <= GOAL_FIRST_4_MILITARY; i++)
 	{
 		/* Skip inactive goals */
-		if ((g->goal_active & (1 << i)) == 0) continue;
+		if (!g->goal_active[i]) continue;
 
 		/* Skip already claimed goals */
-		if ((g->goal_avail & (1 << i)) == 0) continue;
+		if (!g->goal_avail[i]) continue;
 
 		/* Do not check goals that cannot happen yet */
 		switch (i)
@@ -9676,10 +9680,10 @@ void check_goals(game *g)
 			if (count[j] >= goal_minimum(i))
 			{
 				/* Claim goal */
-				p_ptr->goal_claimed |= 1 << i;
+				p_ptr->goal_claimed[i] = 1;
 
 				/* Remove goal availability */
-				g->goal_avail &= ~(1 << i);
+				g->goal_avail[i] = 0;
 
 				/* Message */
 				if (!g->simulation)
@@ -9699,7 +9703,7 @@ void check_goals(game *g)
 	for (i = GOAL_MOST_MILITARY; i <= GOAL_MOST_CONSUME; i++)
 	{
 		/* Skip inactive goals */
-		if ((g->goal_active & (1 << i)) == 0) continue;
+		if (!g->goal_active[i]) continue;
 
 		/* Do not check goals that cannot happen yet */
 		switch (i)
@@ -9769,11 +9773,11 @@ void check_goals(game *g)
 			p_ptr = &g->p[j];
 
 			/* Check for goal claimed and lost */
-			if ((p_ptr->goal_claimed & (1 << i)) && !count[j])
+			if (p_ptr->goal_claimed[i] && !count[j])
 			{
 				/* Lose goal */
-				g->goal_avail |= 1 << i;
-				p_ptr->goal_claimed &= ~(1 << i);
+				g->goal_avail[i] = 1;
+				p_ptr->goal_claimed[i] = 0;
 
 				/* Message */
 				if (!g->simulation)
@@ -9808,10 +9812,10 @@ void check_goals(game *g)
 			p_ptr = &g->p[j];
 
 			/* Check for more than anyone else */
-			if (most && (p_ptr->goal_claimed & (1 << i)) == 0)
+			if (most && !p_ptr->goal_claimed[i])
 			{
 				/* Goal is no longer available */
-				g->goal_avail &= ~(1 << i);
+				g->goal_avail[i] = 0;
 
 				/* Loop over players */
 				for (k = 0; k < g->num_players; k++)
@@ -9819,17 +9823,8 @@ void check_goals(game *g)
 					/* Get player pointer */
 					p_ptr = &g->p[k];
 
-					/* Check for matching player */
-					if (j == k)
-					{
-						/* Award goal to player */
-						p_ptr->goal_claimed |= 1 << i;
-					}
-					else
-					{
-						/* Remove goal from player */
-						p_ptr->goal_claimed &= ~(1 << i);
-					}
+					/* Award card to player with most */
+					p_ptr->goal_claimed[i] = (j == k);
 				}
 
 				/* Message */
@@ -11225,17 +11220,17 @@ static void score_game_player(game *g, int who)
 	for (i = GOAL_FIRST_5_VP; i <= GOAL_FIRST_4_MILITARY; i++)
 	{
 		/* Skip inactive goals */
-		if ((g->goal_active & (1 << i)) == 0) continue;
+		if (!g->goal_active[i]) continue;
 
 		/* Check for goal claimed */
-		if (p_ptr->goal_claimed & (1 << i)) p_ptr->goal_vp += 3;
+		if (p_ptr->goal_claimed[i]) p_ptr->goal_vp += 3;
 	}
 
 	/* Loop over "most" goals */
 	for (i = GOAL_MOST_MILITARY; i <= GOAL_MOST_CONSUME; i++)
 	{
 		/* Skip inactive goals */
-		if ((g->goal_active & (1 << i)) == 0) continue;
+		if (!g->goal_active[i]) continue;
 
 		/* Get progress toward goal */
 		count = g->p[who].goal_progress[i];
@@ -11244,7 +11239,7 @@ static void score_game_player(game *g, int who)
 		if (count < goal_minimum(i)) continue;
 
 		/* Check for goal claimed */
-		if (p_ptr->goal_claimed & (1 << i))
+		if (p_ptr->goal_claimed[i])
 		{
 			/* Award most points */
 			p_ptr->goal_vp += 5;

@@ -1,9 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2011.
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1105,7 +1105,7 @@ static int eval_game_player(game *g, int who, int n, int max_vp,
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if goal claimed */
-		eval.input_value[n++] = (p_ptr->goal_claimed & (1 << i)) > 0;
+		eval.input_value[n++] = p_ptr->goal_claimed[i];
 	}
 
 	/* Set input if player has used prestige/search action */
@@ -1217,14 +1217,14 @@ static double eval_game(game *g, int who)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is active for this game */
-		eval.input_value[n++] = (g->goal_active & (1 << i)) > 0;
+		eval.input_value[n++] = g->goal_active[i];
 	}
 
 	/* Set inputs for available goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is still available */
-		eval.input_value[n++] = (g->goal_avail & (1 << i)) > 0;
+		eval.input_value[n++] = g->goal_avail[i];
 	}
 
 	/* Get player pointer */
@@ -1542,7 +1542,7 @@ static int predict_action_player(game *g, int who, int n)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if goal claimed */
-		role.input_value[n++] = (p_ptr->goal_claimed & (1 << i)) > 0;
+		role.input_value[n++] = p_ptr->goal_claimed[i];
 	}
 
 	/* Set input if player has used prestige/search action */
@@ -1648,14 +1648,14 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION])
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is active for this game */
-		role.input_value[n++] = (g->goal_active & (1 << i)) > 0;
+		role.input_value[n++] = g->goal_active[i];
 	}
 
 	/* Set inputs for available goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Set input if this goal is still available */
-		role.input_value[n++] = (g->goal_avail & (1 << i)) > 0;
+		role.input_value[n++] = g->goal_avail[i];
 	}
 
 	/* Compute role choice probabilities */
@@ -2048,7 +2048,7 @@ static void ai_choose_action_advanced_aux(game *g, int who, int oa,
  * Choose actions in advanced game.
  *
  * Depending on the "one" parameter, we need to choose one or both actions:
- * 
+ *
  *  0 - choose both
  *  1 - choose first action
  *  2 - choose second action (and opponent's actions are known)
@@ -6407,14 +6407,14 @@ static void initial_training(game *g)
 	g->vp_pool = 0;
 	g->deck_size = 0;
 	memset(g->deck, 0, sizeof(card) * MAX_DECK);
-	g->goal_active = 0;
-	g->goal_avail = 0;
+	memset(g->goal_active, 0, sizeof(int) * MAX_GOAL);
+	memset(g->goal_avail, 0, sizeof(int) * MAX_GOAL);
 
 	/* Clear some uninitialized player information */
 	for (i = 0; i < g->num_players; i++)
 	{
 		/* Clear player's card counts and winner flag */
-		g->p[i].goal_claimed = 0;
+		memset(g->p[i].goal_claimed, 0, sizeof(int) * MAX_GOAL);
 		g->p[i].fake_hand = 0;
 		g->p[i].total_fake = 0;
 		g->p[i].fake_discards = 0;

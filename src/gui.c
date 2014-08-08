@@ -1,9 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2011.
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2651,7 +2651,7 @@ static char *goal_tooltip(game *g, int goal)
 	if (goal <= GOAL_FIRST_4_MILITARY)
 	{
 		/* Check for claimed goal */
-		if ((g->goal_avail & (1 << goal)) == 0)
+		if (!g->goal_avail[goal])
 		{
 			/* Add text to tooltip */
 			strcat(msg, "\n\nClaimed by:");
@@ -2663,7 +2663,7 @@ static char *goal_tooltip(game *g, int goal)
 				p_ptr = &g->p[i];
 
 				/* Check for claim */
-				if (p_ptr->goal_claimed & (1 << goal))
+				if (p_ptr->goal_claimed[goal])
 				{
 					/* Add name to tooltip */
 					strcat(msg, "\n  ");
@@ -2710,7 +2710,7 @@ static char *goal_tooltip(game *g, int goal)
 
 			/* Create progress string */
 			sprintf(text, "\n%c %s: %d",
-			        (p_ptr->goal_claimed & (1 << goal)) ? '*' : ' ',
+			        p_ptr->goal_claimed[goal] ? '*' : ' ',
 			        p_ptr->name, p_ptr->goal_progress[goal]);
 
 			/* Add progress string to tooltip */
@@ -2746,7 +2746,7 @@ void redraw_goal(void)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Skip inactive goals */
-		if ((real_game.goal_active & (1 << i)) == 0) continue;
+		if (!real_game.goal_active[i]) continue;
 
 		/* Check for "first" goal */
 		if (i <= GOAL_FIRST_4_MILITARY)
@@ -2765,7 +2765,7 @@ void redraw_goal(void)
 		                              GDK_INTERP_BILINEAR);
 
 		/* Check for unavailable goal */
-		if ((real_game.goal_avail & (1 << i)) == 0)
+		if (!real_game.goal_avail[i])
 		{
 			/* Desaturate */
 			gdk_pixbuf_saturate_and_pixelate(buf, buf, 0, TRUE);
@@ -4970,7 +4970,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 			}
 
 			/* Skip used powers */
-			if (c_ptr->used & (1 << i)) continue;
+			if (c_ptr->used[i]) continue;
 
 			/* Check for military from hand */
 			if (o_ptr->code & P3_MILITARY_HAND)
@@ -5250,13 +5250,13 @@ void reset_status(game *g, int who)
 		status_player[who].goal_gray[i] = 0;
 
 		/* Skip inactive goals */
-		if ((g->goal_active & (1 << i)) == 0) continue;
+		if (!g->goal_active[i]) continue;
 
 		/* Check for "first" goal */
 		if (i <= GOAL_FIRST_4_MILITARY)
 		{
 			/* Check for unclaimed */
-			if ((g->p[who].goal_claimed & (1 << i)) == 0) continue;
+			if (!g->p[who].goal_claimed[i]) continue;
 		}
 		else
 		{
@@ -5269,7 +5269,7 @@ void reset_status(game *g, int who)
 				continue;
 
 			/* Unclaimed goals should be gray */
-			if ((g->p[who].goal_claimed & (1 << i)) == 0)
+			if (!g->p[who].goal_claimed[i])
 				status_player[who].goal_gray[i] = 1;
 		}
 

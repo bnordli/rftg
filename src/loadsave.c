@@ -1,9 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2011.
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -518,12 +518,11 @@ int export_game(game *g, char *filename, char *style_sheet,
 		for (i = 0; i < MAX_GOAL; ++i)
 		{
 			/* Skip unused goals */
-			if ((g->goal_active & (1 << i)) == 0) continue;
+			if (!g->goal_active[i]) continue;
 
 			/* Write goal and availability */
 			fprintf(fff, "      <Goal id=\"%d\" claimed=\"%s\">%s</Goal>\n", i,
-			        (g->goal_avail & (1 << i)) ? "no" : "yes",
-			        xml_escape(goal_name[i]));
+			        g->goal_avail[i] ? "no" : "yes", xml_escape(goal_name[i]));
 		}
 
 		/* Write end tag */
@@ -611,7 +610,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 			for (i = 0; i < MAX_GOAL; ++i)
 			{
 				/* Check if player has goal */
-				if (p_ptr->goal_claimed & (1 << i))
+				if (p_ptr->goal_claimed[i])
 				{
 					/* Write goal */
 					fprintf(fff, "      <Goal id=\"%d\">%s</Goal>\n",
@@ -676,7 +675,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 			/* Write end tag */
 			fprintf(fff, "    </Saved>\n");
 		}
-		
+
 		/* Check for known hand */
 		if (player_us == -1 || player_us == n)
 		{
