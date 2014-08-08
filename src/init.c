@@ -26,6 +26,11 @@
 design library[MAX_DESIGN];
 
 /*
+ * Campaign settings.
+ */
+campaign camp;
+
+/*
  * Names of card flags.
  */
 static char *flag_name[] =
@@ -35,6 +40,7 @@ static char *flag_name[] =
 	"START",
 	"START_RED",
 	"START_BLUE",
+	"PROMO",
 	"REBEL",
 	"UPLIFT",
 	"ALIEN",
@@ -48,6 +54,9 @@ static char *flag_name[] =
 	"GAME_END_14",
 	"TAKE_DISCARDS",
 	"SELECT_LAST",
+	"EXTRA_SURVEY",
+	"NO_PRODUCE",
+	"DISCARD_PRODUCE",
 	NULL
 };
 
@@ -81,6 +90,7 @@ static char *power_name[6][64] =
 		"KEEP",
 		"DISCARD_ANY",
 		"DISCARD_PRESTIGE",
+		"ORB_MOVEMENT",
 		NULL,
 	},
 
@@ -127,8 +137,11 @@ static char *power_name[6][64] =
 		"SAVE_COST",
 		"PLACE_TWO",
 		"PLACE_MILITARY",
+		"PLACE_LEFTOVER",
+		"PLACE_ZERO",
 		"CONSUME_RARE",
 		"CONSUME_GENE",
+		"CONSUME_ALIEN",
 		"CONSUME_PRESTIGE",
 		"AUTO_PRODUCE",
 		"PRODUCE_PRESTIGE",
@@ -140,6 +153,7 @@ static char *power_name[6][64] =
 		"TAKEOVER_DEFENSE",
 		"PREVENT_TAKEOVER",
 		"UPGRADE_WORLD",
+		"FLIP_ZERO",
 		NULL,
 	},
 
@@ -168,6 +182,7 @@ static char *power_name[6][64] =
 		"CONSUME_PRESTIGE",
 		"GET_CARD",
 		"GET_2_CARD",
+		"GET_3_CARD",
 		"GET_VP",
 		"GET_PRESTIGE",
 		"DRAW",
@@ -175,7 +190,6 @@ static char *power_name[6][64] =
 		"DISCARD_HAND",
 		"ANTE_CARD",
 		"VP",
-		"RECYCLE",
 		NULL,
 	},
 
@@ -197,14 +211,20 @@ static char *power_name[6][64] =
 		"DRAW_EACH_GENE",
 		"DRAW_EACH_ALIEN",
 		"DRAW_WORLD_GENE",
-		"DRAW_MOST_RARE",
 		"DRAW_MOST_PRODUCED",
 		"DRAW_DIFFERENT",
+		"DRAW_MOST_NOVELTY",
+		"DRAW_MOST_RARE",
+		"DRAW_MOST_GENE",
 		"PRESTIGE_MOST_CHROMO",
 		"DRAW_MILITARY",
 		"DRAW_REBEL",
+		"DRAW_REBEL_MILITARY",
+		"DRAW_IMPERIUM",
 		"DRAW_CHROMO",
+		"DRAW_5_DEV",
 		"TAKE_SAVED",
+		"SHIFT_RARE",
 		NULL,
 	}
 };
@@ -231,6 +251,8 @@ static char *vp_name[] =
 	"SIX_DEVEL",
 	"DEVEL",
 	"WORLD",
+	"NONMILITARY_WORLD",
+	"NONMILITARY_TRADE",
 	"REBEL_FLAG",
 	"ALIEN_FLAG",
 	"TERRAFORMING_FLAG",
@@ -244,6 +266,9 @@ static char *vp_name[] =
 	"THREE_VP",
 	"KIND_GOOD",
 	"PRESTIGE",
+	"ALIEN_TECHNOLOGY",
+	"ALIEN_SCIENCE",
+	"ALIEN_UPLIFT",
 	"NAME",
 	NULL
 };
@@ -533,6 +558,135 @@ void read_cards(void)
 }
 
 /*
+ * Initialize a campaign.
+ */
+static void init_campaign(game *g)
+{
+	FILE *fff;
+	char buf[1024];
+	int who = 0, n = 0;
+	int i;
+
+	/* Clear campaign data */
+	memset(&camp, 0, sizeof(campaign));
+
+	/* Check for campaign disabled */
+	if (g->campaign_disabled) return;
+
+	/* Open campaign description file */
+	fff = fopen(RFTGDIR "/campaign.txt", "r");
+
+	/* Check for error */
+	if (!fff)
+	{
+		/* Try reading from current directory instead */
+		fff = fopen("campaign.txt", "r");
+	}
+
+	/* Check for failure */
+	if (!fff)
+	{
+		/* Print error */
+		/* perror("campaign.txt"); */
+		return;
+	}
+
+	/* Loop over file */
+	while (1)
+	{
+		/* Read a line */
+		fgets(buf, 1024, fff);
+
+		/* Check for end of file */
+		if (feof(fff)) break;
+
+		/* Strip newline */
+		buf[strlen(buf) - 1] = '\0';
+
+		/* Skip comments and blank lines */
+		if (!buf[0] || buf[0] == '#') continue;
+
+		/* Check for next player */
+		if (!strcmp(buf, "---"))
+		{
+			/* Advance to next player */
+			who++;
+
+			/* Start at beginning of next player order */
+			n = 0;
+			continue;
+		}
+
+		/* Check for random card */
+		if (!strcmp(buf, "RANDOM"))
+		{
+			/* Add random card to order */
+			camp.order[who][n++] = -1;
+
+			/* Save size */
+			camp.size[who] = n;
+			continue;
+		}
+
+		/* Loop over "first" goal names */
+		for (i = 0; i < MAX_GOAL; i++)
+		{
+			/* Check for match */
+			if (!strcmp(buf, goal_name[i]))
+			{
+				/* Add to first goals list */
+				camp.goal[camp.num_goal++] = i;
+				break;
+			}
+		}
+
+		/* Check for matched goal name */
+		if (i < MAX_GOAL) continue;
+
+		/* Loop over cards */
+		for (i = 0; i < g->deck_size; i++)
+		{
+			/* Skip cards that are not in draw pile */
+			if (g->deck[i].where != WHERE_DECK) continue;
+
+			/* Check for name match */
+			if (!strcmp(buf, g->deck[i].d_ptr->name))
+			{
+				/* Add card to campaign */
+				camp.order[who][n++] = i;
+
+				/* Save size */
+				camp.size[who] = n;
+
+				/* Move card to campaign stack */
+				move_card(g, i, who, WHERE_CAMPAIGN);
+
+				/* Done looking */
+				break;
+			}
+		}
+
+		/* Check for no match */
+		if (i == g->deck_size)
+		{
+			/* Error */
+			fprintf(stderr, "Could not find card %s!\n", buf);
+			exit(1);
+		}
+	}
+
+	/* Close campaign file */
+	fclose(fff);
+
+	/* Loop over players */
+	for (i = 0; i < MAX_PLAYER; i++)
+	{
+		/* Reset campaign position */
+		camp.pos[i] = 0;
+	}
+}
+
+/*
  * Initialize a game.
  */
 void init_game(game *g)
@@ -558,10 +712,10 @@ void init_game(game *g)
 	g->vp_pool = g->num_players * 12;
 
 	/* Increase size of pool in third expansion */
-	if (g->expanded >= 3) g->vp_pool += 5;
+	if (g->expanded == 3) g->vp_pool += 5;
 
-	/* First game round */
-	g->round = 1;
+	/* No game round yet */
+	g->round = 0;
 
 	/* No phase or turn */
 	g->cur_action = -1;
@@ -601,6 +755,9 @@ void init_game(game *g)
 		/* Get number of cards in use */
 		n = d_ptr->expand[g->expanded];
 
+		/* Skip promo cards if not included */
+		if (!g->promo && (d_ptr->flags & FLAG_PROMO)) n = 0;
+
 		/* Add cards */
 		for (j = 0; j < n; j++)
 		{
@@ -613,122 +770,20 @@ void init_game(game *g)
 			/* Put location in draw deck */
 			c_ptr->start_where = c_ptr->where = WHERE_DECK;
 
-			/* Card is not unpaid */
-			c_ptr->unpaid = 0;
-
-			/* Card's location is not known */
-			c_ptr->known = 0;
-
-			/* Clear used power list */
-			for (k = 0; k < MAX_POWER; k++) c_ptr->used[k] = 0;
-
-			/* Card has not produced */
-			c_ptr->produced = 0;
+			/* Clear card misc flags */
+			c_ptr->misc = 0;
 
 			/* Set card's design */
 			c_ptr->d_ptr = d_ptr;
 
-			/* Card is not covered by a good */
-			c_ptr->covered = -1;
+			/* Card is not covering another */
+			c_ptr->covering = -1;
+
+			/* No goods on card */
+			c_ptr->num_goods = 0;
 
 			/* Card is not followed by any other */
-			c_ptr->next = -1;
-		}
-	}
-
-	/* Add goals when expanded */
-	if (g->expanded && !g->goal_disabled)
-	{
-		/* No goals available yet */
-		n = 0;
-
-		/* Use correct "first" goals */
-		if (g->expanded == 1)
-		{
-			/* First expansion only */
-			j = GOAL_FIRST_5_VP;
-			k = GOAL_FIRST_SIX_DEVEL;
-		}
-		else if (g->expanded == 2)
-		{
-			/* First and second expansion */
-			j = GOAL_FIRST_5_VP;
-			k = GOAL_FIRST_8_ACTIVE;
-		}
-		else
-		{
-			/* All expansions */
-			j = GOAL_FIRST_5_VP;
-			k = GOAL_FIRST_4_MILITARY;
-		}
-
-		/* Add "first" goals to list */
-		for (i = j; i <= k; i++)
-		{
-			/* Add goal to list */
-			goal[n++] = i;
-		}
-
-		/* Select four "first" goals at random */
-		for (i = 0; i < 4; i++)
-		{
-			/* Choose goal at random */
-			j = game_rand(g) % n;
-
-			/* Goal is active */
-			g->goal_active[goal[j]] = 1;
-
-			/* Goal is available */
-			g->goal_avail[goal[j]] = 1;
-
-			/* Remove chosen goal from list */
-			goal[j] = goal[--n];
-		}
-
-		/* No goals available yet */
-		n = 0;
-
-		/* Use correct "most" goals */
-		if (g->expanded == 1)
-		{
-			/* First expansion only */
-			j = GOAL_MOST_MILITARY;
-			k = GOAL_MOST_PRODUCTION;
-		}
-		else if (g->expanded == 2)
-		{
-			/* First and second expansion */
-			j = GOAL_MOST_MILITARY;
-			k = GOAL_MOST_REBEL;
-		}
-		else
-		{
-			/* All expansions */
-			j = GOAL_MOST_MILITARY;
-			k = GOAL_MOST_CONSUME;
-		}
-
-		/* Add "most" goals to list */
-		for (i = j; i <= k; i++)
-		{
-			/* Add goal to list */
-			goal[n++] = i;
-		}
-
-		/* Select two "most" goals at random */
-		for (i = 0; i < 2; i++)
-		{
-			/* Choose goal at random */
-			j = game_rand(g) % n;
-
-			/* Goal is active */
-			g->goal_active[goal[j]] = 1;
-
-			/* Goal is available */
-			g->goal_avail[goal[j]] = 1;
-
-			/* Remove chosen goal from list */
-			goal[j] = goal[--n];
+			c_ptr->next = c_ptr->start_next = -1;
 		}
 	}
 
@@ -775,6 +830,12 @@ void init_game(game *g)
 		/* Player has no bonus settle discount */
 		p_ptr->bonus_reduce = 0;
 
+		/* Player has not used any partial hand military powers */
+		p_ptr->hand_military_spent = 0;
+
+		/* Player has not spent any military */
+		p_ptr->military_spent = 0;
+
 		/* Player has not discarded any end of turn cards */
 		p_ptr->end_discard = 0;
 
@@ -795,7 +856,173 @@ void init_game(game *g)
 		p_ptr->phase_prestige = 0;
 
 		/* Player has no fake cards */
-		p_ptr->fake_hand = p_ptr->total_fake = 0;
+		p_ptr->fake_hand = 0;
 	       	p_ptr->fake_discards = 0;
+		p_ptr->drawn_round = 0;
+
+		/* Player has not skipped build phases */
+		p_ptr->skip_develop = p_ptr->skip_settle = 0;
+
+		/* Clear lowest hand size */
+		p_ptr->low_hand = 0;
+	}
+
+	/* Read campaign settings */
+	init_campaign(g);
+
+	/* Add goals when expanded */
+	if (g->expanded > 0 && g->expanded < 4 && !g->goal_disabled)
+	{
+		/* No goals available yet */
+		n = 0;
+
+		/* Use correct "first" goals */
+		if (g->expanded == 1)
+		{
+			/* First expansion only */
+			j = GOAL_FIRST_5_VP;
+			k = GOAL_FIRST_SIX_DEVEL;
+		}
+		else if (g->expanded == 2)
+		{
+			/* First and second expansion */
+			j = GOAL_FIRST_5_VP;
+			k = GOAL_FIRST_8_ACTIVE;
+		}
+		else
+		{
+			/* All expansions */
+			j = GOAL_FIRST_5_VP;
+			k = GOAL_FIRST_4_MILITARY;
+		}
+
+		/* Add "first" goals to list */
+		for (i = j; i <= k; i++)
+		{
+			/* Add goal to list */
+			goal[n++] = i;
+		}
+
+		/* Assume no campaign goals */
+		k = 0;
+
+		/* Loop over campaign goals */
+		for (i = 0; i < camp.num_goal; i++)
+		{
+			/* Skip "most" goals */
+			if (camp.goal[i] > GOAL_FIRST_4_MILITARY) continue;
+
+			/* Goal is active */
+			g->goal_active[camp.goal[i]] = 1;
+
+			/* Goal is available */
+			g->goal_avail[camp.goal[i]] = 1;
+
+			/* Remove campaign goal from list */
+			for (j = 0; j < n; j++)
+			{
+				/* Check for match */
+				if (goal[j] == camp.goal[i])
+				{
+					/* Remove from list */
+					goal[j] = goal[--n];
+				}
+			}
+
+			/* Count campaign "first" goals */
+			k++;
+		}
+
+		/* Select four "first" goals at random */
+		for (i = k; i < 4; i++)
+		{
+			/* Choose goal at random */
+			j = game_rand(g) % n;
+
+			/* Goal is active */
+			g->goal_active[goal[j]] = 1;
+
+			/* Goal is available */
+			g->goal_avail[goal[j]] = 1;
+
+			/* Remove chosen goal from list */
+			goal[j] = goal[--n];
+		}
+
+		/* No goals available yet */
+		n = 0;
+
+		/* Use correct "most" goals */
+		if (g->expanded == 1)
+		{
+			/* First expansion only */
+			j = GOAL_MOST_MILITARY;
+			k = GOAL_MOST_PRODUCTION;
+		}
+		else if (g->expanded == 2)
+		{
+			/* First and second expansion */
+			j = GOAL_MOST_MILITARY;
+			k = GOAL_MOST_REBEL;
+		}
+		else
+		{
+			/* All expansions */
+			j = GOAL_MOST_MILITARY;
+			k = GOAL_MOST_CONSUME;
+		}
+
+		/* Add "most" goals to list */
+		for (i = j; i <= k; i++)
+		{
+			/* Add goal to list */
+			goal[n++] = i;
+		}
+
+		/* Assume no campaign goals */
+		k = 0;
+
+		/* Loop over campaign goals */
+		for (i = 0; i < camp.num_goal; i++)
+		{
+			/* Skip "first" goals */
+			if (camp.goal[i] < GOAL_MOST_MILITARY) continue;
+
+			/* Goal is active */
+			g->goal_active[camp.goal[i]] = 1;
+
+			/* Goal is available */
+			g->goal_avail[camp.goal[i]] = 1;
+
+			/* Remove campaign goal from list */
+			for (j = 0; j < n; j++)
+			{
+				/* Check for match */
+				if (goal[j] == camp.goal[i])
+				{
+					/* Remove from list */
+					goal[j] = goal[--n];
+				}
+			}
+
+			/* Count campaign goals */
+			k++;
+		}
+
+		/* Select two "most" goals at random */
+		for (i = k; i < 2; i++)
+		{
+			/* Choose goal at random */
+			j = game_rand(g) % n;
+
+			/* Goal is active */
+			g->goal_active[goal[j]] = 1;
+
+			/* Goal is available */
+			g->goal_avail[goal[j]] = 1;
+
+			/* Remove chosen goal from list */
+			goal[j] = goal[--n];
+		}
 	}
 }

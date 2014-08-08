@@ -41,13 +41,16 @@ int main(int argc, char *argv[])
 
 	load_net(&learner, argv[1]);
 
-	for (i = 0; i < input; i++) learner.input_value[i] = 0;
+	for (i = 0; i < input; i++) learner.input_value[i] = -1;
 
 	compute_net(&learner);
 
 	start = (double *)malloc(sizeof(double) * output);
 
-	for (i = 0; i < output; i++) start[i] = learner.win_prob[i];
+	for (i = 0; i < output; i++)
+	{
+		start[i] = learner.win_prob[i];
+	}
 
 	for (i = 0; i < input; i++)
 	{
@@ -68,7 +71,7 @@ int main(int argc, char *argv[])
 		
 		printf("\n");
 
-		learner.input_value[i] = 0;
+		learner.input_value[i] = -1;
 	}
 
 	return 0;

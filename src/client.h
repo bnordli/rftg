@@ -20,11 +20,17 @@ typedef struct options
 	/* Two-player advanced game */
 	int advanced;
 
+	/* Promo cards */
+	int promo;
+
 	/* Disable goals */
 	int disable_goal;
 
 	/* Disable takeovers */
 	int disable_takeover;
+
+	/* Disable campaign */
+	int disable_campaign;
 
 	/* Reduce/eliminate full-size card image */
 	int full_reduced;

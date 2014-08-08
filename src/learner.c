@@ -51,8 +51,9 @@ int main(int argc, char *argv[])
 	game my_game;
 	int i, j, n = 100;
 	int num_players = 3;
-	int expansion = 0, advanced = 0;
-	char buf[1024];
+	int expansion = 0, advanced = 0, promo = 0;
+	int campaign_disabled = 0;
+	char buf[1024], *names[MAX_PLAYER];
 	double factor = 1.0;
 
 	/* Set random seed */
@@ -92,6 +93,20 @@ int main(int argc, char *argv[])
 			expansion = atoi(argv[++i]);
 		}
 
+		/* Check for promo cards */
+		else if (!strcmp(argv[i], "-o"))
+		{
+			/* Set promo cards */
+			promo = 1;
+		}
+
+		/* Check for disable campaign option */
+		else if (!strcmp(argv[i], "-c"))
+		{
+			/* Disable campaign */
+			campaign_disabled = 1;
+		}
+
 		/* Check for number of games */
 		else if (!strcmp(argv[i], "-n"))
 		{
@@ -123,9 +138,15 @@ int main(int argc, char *argv[])
 	/* Set advanced flag */
 	my_game.advanced = advanced;
 
+	/* Set promo flag */
+	my_game.promo = promo;
+
 	/* Assume no options disabled */
 	my_game.goal_disabled = 0;
 	my_game.takeover_disabled = 0;
+
+	/* Set campaign disabled flag */
+	my_game.campaign_disabled = campaign_disabled;
 
 	/* Call initialization functions */
 	for (i = 0; i < num_players; i++)
@@ -135,6 +156,7 @@ int main(int argc, char *argv[])
 
 		/* Set player name */
 		my_game.p[i].name = strdup(buf);
+		names[i] = my_game.p[i].name;
 
 		/* Set player interfaces to AI functions */
 		my_game.p[i].control = &ai_func;
@@ -155,6 +177,8 @@ int main(int argc, char *argv[])
 	{
 		/* Initialize game */
 		init_game(&my_game);
+
+		printf("Start seed: %u\n", my_game.start_seed);
 
 		/* Begin game */
 		begin_game(&my_game);
@@ -185,6 +209,13 @@ int main(int argc, char *argv[])
 			/* Clear choice log */
 			my_game.p[j].choice_size = 0;
 			my_game.p[j].choice_pos = 0;
+		}
+
+		/* Reset player names */
+		for (j = 0; j < num_players; j++)
+		{
+			/* Reset name */
+			my_game.p[j].name = names[j];
 		}
 	}
 

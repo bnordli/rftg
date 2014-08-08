@@ -419,6 +419,9 @@ static void db_load_sessions(void)
 		/* Get pointer to session */
 		s_ptr = &s_list[sid];
 
+		/* Initialize session mutex */
+		pthread_mutex_init(&s_ptr->session_mutex, NULL);
+
 		/* Read fields */
 		s_ptr->gid = strtol(row[0], NULL, 0);
 		strcpy(s_ptr->desc, row[1]);
@@ -1328,7 +1331,7 @@ static void update_meta(int sid)
  */
 static void obfuscate_game(game *ob, game *g, int who)
 {
-	int i, j;
+	int i, j, k;
 
 	/* Copy game state */
 	*ob = *g;
@@ -1347,6 +1350,9 @@ static void obfuscate_game(game *ob, game *g, int who)
 		/* Clear card location */
 		ob->deck[i].owner = ob->deck[i].start_owner = -1;
 		ob->deck[i].where = ob->deck[i].start_where = WHERE_DECK;
+
+		/* Clear covering card */
+		ob->deck[i].covering = -1;
 	}
 
 	/* Start at beginning of obfuscated deck */
@@ -1376,35 +1382,35 @@ static void obfuscate_game(game *ob, game *g, int who)
 		ob->deck[j].start_owner = g->deck[i].start_owner;
 	}
 
-	/* Start at beginning of deck */
-	j = 0;
-
 	/* Loop over cards */
 	for (i = 0; i < g->deck_size; i++)
 	{
-		/* Skip cards without a good */
-		if (ob->deck[i].covered < 0) continue;
-
-		/* Find substitute good */
-		while (ob->deck[j].where != WHERE_GOOD)
+		/* Loop over goods on card */
+		for (j = 0; j < ob->deck[i].num_goods; j++)
 		{
-			/* Go to next substitute card */
-			j++;
-
-			/* XXX */
-			if (j >= g->deck_size)
+			/* Loop over cards in deck */
+			for (k = 0; k < g->deck_size; k++)
 			{
-				printf("Failed to find substitute good\n");
-				j = 0;
+				/* Skip cards not in owner's good stack */
+				if (ob->deck[k].owner != ob->deck[i].owner ||
+				    ob->deck[k].where != WHERE_GOOD) continue;
+
+				/* Skip cards already covering */
+				if (ob->deck[k].covering != -1) continue;
+
+				/* Use this card for a good */
+				ob->deck[k].covering = i;
+
+				/* Done */
 				break;
 			}
+
+			/* XXX */
+			if (k == g->deck_size)
+			{
+				printf("Failed to find substitute good\n");
+			}
 		}
-
-		/* Use this card for a good */
-		ob->deck[i].covered = j;
-
-		/* Go to next card in deck */
-		j++;
 	}
 }
 
@@ -1551,14 +1557,17 @@ static void update_status_one(int sid, int who)
 			put_integer(c_ptr->where, &ptr);
 			put_integer(c_ptr->start_where, &ptr);
 
-			/* Add unpaid good flag */
-			put_integer(c_ptr->unpaid, &ptr);
+			/* Add misc flags */
+			put_integer(c_ptr->misc, &ptr);
 
 			/* Add order played on table */
 			put_integer(c_ptr->order, &ptr);
 
-			/* Add covered flag */
-			put_integer(c_ptr->covered, &ptr);
+			/* Add number of goods */
+			put_integer(c_ptr->num_goods, &ptr);
+
+			/* Add covering flag */
+			put_integer(c_ptr->covering, &ptr);
 
 			/* Finish message */
 			finish_msg(msg, ptr);
@@ -2179,6 +2188,7 @@ static void send_gamechat(int sid, char *user, char *text)
  */
 static void kick_player(int cid, char *reason)
 {
+	session *s_ptr;
 	int sid, i;
 	char text[1024];
 
@@ -2209,14 +2219,20 @@ static void kick_player(int cid, char *reason)
 	/* Remove from session */
 	c_list[cid].sid = -1;
 
+	/* Get session pointer */
+	s_ptr = &s_list[sid];
+
+	/* Grab session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
+
 	/* Loop over connections in session */
-	for (i = 0; i < s_list[sid].num_users; i++)
+	for (i = 0; i < s_ptr->num_users; i++)
 	{
 		/* Check for match */
-		if (s_list[sid].cids[i] == cid)
+		if (s_ptr->cids[i] == cid)
 		{
 			/* Clear connection ID */
-			s_list[sid].cids[i] = -1;
+			s_ptr->cids[i] = -1;
 			break;
 		}
 	}
@@ -2225,7 +2241,7 @@ static void kick_player(int cid, char *reason)
 	send_session(sid);
 
 	/* Check for active session */
-	if (s_list[sid].state == SS_STARTED)
+	if (s_ptr->state == SS_STARTED)
 	{
 		/* Format offline message */
 		sprintf(text, "%s disconnected.", c_list[cid].user);
@@ -2236,11 +2252,14 @@ static void kick_player(int cid, char *reason)
 		/* Format time to AI control message */
 		sprintf(text, "%s will be set to AI control in %d seconds.",
 		        c_list[cid].user,
-			(30 - s_list[sid].wait_ticks[i]) / 5 * 10);
+			(30 - s_ptr->wait_ticks[i]) / 5 * 10);
 
 		/* Send to remaining players in session */
 		send_gamechat(sid, "", text);
 	}
+
+	/* Release session mutex */
+	pthread_mutex_unlock(&s_ptr->session_mutex);
 }
 
 /*
@@ -2396,8 +2415,7 @@ void *run_game(void *arg)
 	session *s_ptr = (session *)arg;
 	int i;
 
-	/* Initialize  mutex and condition variable */
-	pthread_mutex_init(&s_ptr->session_mutex, NULL);
+	/* Initialize condition variable */
 	pthread_cond_init(&s_ptr->wait_cond, NULL);
 
 	/* Acquire session mutex */
@@ -2577,7 +2595,7 @@ static void handle_login(int cid, char *ptr)
 	printf("Login attempt from %s\n", user);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.8.1") < 0)
+	if (strcmp(version, "0.9.2") < 0)
 	{
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
@@ -2825,6 +2843,9 @@ static void handle_create(int cid, char *ptr)
 		return;
 	}
 
+	/* Initialize session mutex */
+	pthread_mutex_init(&s_ptr->session_mutex, NULL);
+
 	/* Set session state */
 	s_ptr->state = SS_WAITING;
 
@@ -2868,11 +2889,14 @@ static void handle_create(int cid, char *ptr)
 
 	/* Validate expansion level */
 	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
-	if (s_ptr->expanded > 3) s_ptr->expanded = 3;
+	if (s_ptr->expanded > 4) s_ptr->expanded = 4;
 
 	/* Compute maximum number of players allowed */
 	maxp = s_ptr->expanded + 4;
 	if (maxp > 6) maxp = 6;
+
+	/* Maximum of 5 players for Alien Artifacts */
+	if (s_ptr->expanded == 4 && maxp > 5) maxp = 5;
 
 	/* Validate number of players */
 	if (s_ptr->min_player < 2) s_ptr->min_player = 2;
@@ -3659,8 +3683,16 @@ static void do_housekeeping(void)
 		/* Get session pointer */
 		s_ptr = &s_list[i];
 
+		/* Acquire session mutex */
+		pthread_mutex_lock(&s_ptr->session_mutex);
+
 		/* Skip sessions that aren't waiting for players */
-		if (s_ptr->state != SS_WAITING) continue;
+		if (s_ptr->state != SS_WAITING)
+		{
+			/* Release session mutex */
+			pthread_mutex_unlock(&s_ptr->session_mutex);
+			continue;
+		}
 
 		/* Assume nobody connected */
 		num = 0;
@@ -3673,7 +3705,12 @@ static void do_housekeeping(void)
 		}
 
 		/* Don't remove session if someone is connected */
-		if (num) continue;
+		if (num)
+		{
+			/* Release session mutex */
+			pthread_mutex_unlock(&s_ptr->session_mutex);
+			continue;
+		}
 
 		/* Check for long time since join activity */
 		if (time(NULL) - s_ptr->last_join > 3600)
@@ -3681,6 +3718,9 @@ static void do_housekeeping(void)
 			/* Abandon session */
 			abandon_session(i);
 		}
+
+		/* Release session mutex */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
 	}
 
 	/* Loop over sessions */

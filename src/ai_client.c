@@ -178,27 +178,30 @@ static void handle_status_card(char *ptr)
 	/* Move "start of phase" location */
 	move_start(&real_game, x, start_owner, start_where);
 
-	/* Read unpaid good flag */
-	c_ptr->unpaid = get_integer(&ptr);
+	/* Read misc flags */
+	c_ptr->misc = get_integer(&ptr);
 
 	/* Read order played */
 	c_ptr->order = get_integer(&ptr);
 
-	/* Read covered by good flag */
-	c_ptr->covered = get_integer(&ptr);
+	/* Read number of goods */
+	c_ptr->num_goods = get_integer(&ptr);
+
+	/* Read covered card */
+	c_ptr->covering = get_integer(&ptr);
 
 	/* Set known flags for active cards */
 	if (c_ptr->where == WHERE_ACTIVE)
 	{
 		/* Card's location is known to everyone */
-		c_ptr->known = ~0;
+		c_ptr->misc |= MISC_KNOWN_MASK;
 	}
 
 	/* Set known flags for our cards in hand */
 	if (c_ptr->where == WHERE_HAND && c_ptr->owner == player_us)
 	{
 		/* Set known flag */
-		c_ptr->known = (1 << c_ptr->owner);
+		c_ptr->misc |= (1 << c_ptr->owner);
 	}
 }
 
@@ -531,6 +534,11 @@ int game_rand(game *g)
 int main(int argc, char *argv[])
 {
 	int i;
+#if 0
+	volatile int f = 1;
+
+	while (f) ;
+#endif
 
 	/* Read card database */
 	read_cards();

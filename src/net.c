@@ -180,12 +180,18 @@ static double sigmoid(double x)
 }
 
 /*
+ * SIMD type.  Two doubles at once.
+ */
+typedef double v2d __attribute__ ((vector_size (16)));
+
+/*
  * Compute a neural net's result.
  */
 void compute_net(net *learn)
 {
 	int i, j;
 	double sum, adj = 0.0;
+	v2d *weight, *hid_sum;
 
 	/* Loop over inputs */
 	for (i = 0; i < learn->num_inputs + 1; i++)
@@ -193,6 +199,16 @@ void compute_net(net *learn)
 		/* Check for difference from previous input */
 		if (learn->input_value[i] != learn->prev_input[i])
 		{
+#if 0
+			for (j = 0; j < learn->num_hidden; j += 2)
+			{
+				weight = &learn->hidden_weight[i][j];
+				hid_sum = &learn->hidden_sum[j];
+
+				*hid_sum += *weight * (learn->input_value[i] -
+						       learn->prev_input[i]);
+			}
+#else
 			/* Check for increase by one */
 			if (learn->input_value[i] - learn->prev_input[i] == 1)
 			{
@@ -231,12 +247,13 @@ void compute_net(net *learn)
 				                         learn->prev_input[i]);
 				}
 			}
+#endif
 
 			/* Store input */
 			learn->prev_input[i] = learn->input_value[i];
 		}
 	}
-	
+
 	/* Normalize hidden node results */
 	for (i = 0; i < learn->num_hidden; i++)
 	{
