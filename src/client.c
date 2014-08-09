@@ -682,7 +682,7 @@ static void handle_status_player(char *ptr, int size)
 static void handle_status_card(char *ptr, int size)
 {
 	card *c_ptr;
-	int x, i;
+	int x;
 	int owner, where, start_owner, start_where;
 	char *start = ptr;
 
@@ -721,17 +721,6 @@ static void handle_status_card(char *ptr, int size)
 	/* Card locations have been updated */
 	cards_updated = 1;
 	status_updated = 1;
-
-	/* Check for 'used' flags (since 0.8.1l) */
-	if (size > ptr - start)
-	{
-		/* Loop over all powers */
-		for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
-		{
-			/* Read used flag */
-			c_ptr->used[i] = get_integer(&ptr);
-		}
-	}
 
 	/* Track latest played card */
 	if (c_ptr->owner >= 0 &&
@@ -1180,7 +1169,7 @@ static void handle_prepare(char *ptr)
 static gboolean message_read(gpointer data)
 {
 	char *ptr = data;
-	int type;
+	int type, size;
 	char text[1024], format[1024], username[1024];
 	GtkTreeIter list_iter;
 	GtkTextIter end_iter;
@@ -1191,7 +1180,7 @@ static gboolean message_read(gpointer data)
 
 	/* Read message type and size */
 	type = get_integer(&ptr);
-	/* size = */ get_integer(&ptr);
+	size = get_integer(&ptr);
 
 	/* Check message type */
 	switch (type)

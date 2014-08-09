@@ -5018,7 +5018,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 			}
 
 			/* Skip used powers */
-			if (c_ptr->used[i]) continue;
+			if (c_ptr->misc & (1 << (MISC_USED_SHIFT + i))) continue;
 
 			/* Check for military from hand */
 			if (o_ptr->code & P3_MILITARY_HAND)

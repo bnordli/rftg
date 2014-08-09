@@ -350,9 +350,10 @@ static void export_cards(FILE *fff, char *header, game *g, int n, card **cards,
 		       cards[p]->start_owner != cards[p]->owner);
 
 		/* Write card name and good indicator */
-		fprintf(fff, "      <Card id=\"%d\"%s%s>%s</Card>\n",
+		fprintf(fff, "      <Card id=\"%d\"%s num_goods=\"%d\"%s>%s</Card>\n",
 		        cards[p]->d_ptr->index,
-		        cards[p]->covered != -1 ? " good=\"yes\"" : "",
+		        cards[p]->num_goods > 0 ? " good=\"yes\"" : "",
+		        cards[p]->num_goods,
 		        exp ? " explore=\"yes\"" : "",
 		        xml_escape(cards[p]->d_ptr->name));
 	}

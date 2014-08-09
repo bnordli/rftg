@@ -1000,7 +1000,7 @@ extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
 extern char *player_labels[MAX_PLAYER];
-extern char *location_names[7];
+extern char *location_names[9];
 extern decisions ai_func;
 extern decisions gui_func;
 

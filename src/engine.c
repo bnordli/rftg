@@ -4054,6 +4054,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	int g_list[MAX_DECK], num_goods;
 	int goods_needed[6];
 	int i, j, n;
+	char* name;
 	char msg[1024];
 
 	/* Get player pointer */
@@ -5964,6 +5965,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 	int list[MAX_DECK];
 	int mil_spent, mil_spent_spec, mil_bonus;
 	int x, n;
+	char msg[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -8148,7 +8150,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_3_CARD)
 		{
 			/* Award cards */
-			draw_cards(g, who, o_ptr->value * 3);
+			draw_cards(g, who, o_ptr->value * 3, NULL);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value * 3;
@@ -9391,7 +9393,7 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 				/* Format message */
 				sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
 				        "kind to %s.\n",
-				        p_ptr->name, good_printable[c_ptr->produced]);
+				        p_ptr->name, good_printable[kind]);
 
 				/* Send message */
 				message_add_formatted(g, msg, FORMAT_VERBOSE);
@@ -11863,6 +11865,7 @@ void start_chosen(game *g)
 	card *c_ptr;
 	int hand[MAX_DECK], discarding[MAX_PLAYER];
 	int i, j, n;
+	char msg[1024];
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
