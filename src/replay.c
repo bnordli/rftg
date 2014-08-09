@@ -1,9 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2011.
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -504,7 +504,7 @@ static void choose_place(game *g, int who, int list[], int num, int phase,
 	}
 
 	/* Check for settle phase and possible takeover */
-	if (allow_takeover && settle_check_takeover(g, who, NULL, 0))
+	if (allow_takeover && settle_check_takeover(g, who, NULL, 1))
 	{
 		/* Append takeover information */
 		strcat(msg, " (or pass if you want to perform a takeover)");

@@ -15,14 +15,30 @@ name=$expanded.$players$advanced
 
 rm -f rftg.$name.out
 
-for i in `seq 1 200`
+ulimit -c unlimited
+
+for i in `seq 1 250`
 do
 	date
+	factor=100
+	if [ $i -gt 100 ]
+	then
+		factor=1
+	fi
+	promo=''
+	if [ `expr $i % 2` = 1 ]
+	then
+		promo=-o
+	fi
+	advopt=''
 	if [ "$advanced" = a ]
 	then
-		./learner -e $1 -p $2 -f 100 -a >> rftg.$name.out
-	else
-		./learner -e $1 -p $2 -f 100 >> rftg.$name.out
+		advopt=-a
 	fi
+	opts="-e $1 -p $2 -f $factor -c $promo $advopt -v"
+
+	./learner $opts >> rftg.$name.out
+
+	./dumpnet network/rftg.eval.$name.net > netdump/eval.$name.$i.dump
 	echo $i
 done

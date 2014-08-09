@@ -31,6 +31,9 @@ typedef struct options
 	/* Two-player advanced game */
 	int advanced;
 
+	/* Promo cards */
+	int promo;
+
 	/* Disable goals */
 	int disable_goal;
 
@@ -45,6 +48,12 @@ typedef struct options
 
 	/* Hide/show card preview (For legacy reasons: 0: Show, 2: Hide) */
 	int hide_card;
+
+	/* Disable campaign */
+	int disable_campaign;
+
+	/* Reduce/eliminate full-size card image */
+	int full_reduced;
 
 	/* Shrink opponent areas to fit without scrolling */
 	int shrink_opponent;

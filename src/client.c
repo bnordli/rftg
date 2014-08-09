@@ -706,14 +706,17 @@ static void handle_status_card(char *ptr, int size)
 	/* Move "start of phase" location */
 	move_start(&real_game, x, start_owner, start_where);
 
-	/* Read unpaid good flag */
-	c_ptr->unpaid = get_integer(&ptr);
+	/* Read card flags */
+	c_ptr->misc = get_integer(&ptr);
 
 	/* Read order played */
 	c_ptr->order = get_integer(&ptr);
 
-	/* Read covered by good flag */
-	c_ptr->covered = get_integer(&ptr);
+	/* Read number of goods */
+	c_ptr->num_goods = get_integer(&ptr);
+
+	/* Read covered card */
+	c_ptr->covering = get_integer(&ptr);
 
 	/* Card locations have been updated */
 	cards_updated = 1;
@@ -999,7 +1002,7 @@ static void prepare_make_choice(game *g, int who, int type, int list[], int *nl,
 	int i;
 
 	/* Check for random number generator used in simulated game */
-	if (g->random_seed != 0)
+	if (g->random_seed != 0 || g->p[who].fake_hand > 0)
 	{
 		/* Abort preparation */
 		g->game_over = 1;
@@ -1124,7 +1127,8 @@ static void handle_prepare(char *ptr)
 			if (arg == -1) break;
 
 			/* Perform settle action */
-			settle_action(&sim, player_us, arg);
+			settle_finish(&sim, player_us, arg, 0, -1);
+			settle_extra(&sim, player_us, arg);
 			break;
 
 		/* Consume */
@@ -1176,7 +1180,7 @@ static void handle_prepare(char *ptr)
 static gboolean message_read(gpointer data)
 {
 	char *ptr = data;
-	int type, size;
+	int type;
 	char text[1024], format[1024], username[1024];
 	GtkTreeIter list_iter;
 	GtkTextIter end_iter;
@@ -1187,7 +1191,7 @@ static gboolean message_read(gpointer data)
 
 	/* Read message type and size */
 	type = get_integer(&ptr);
-	size = get_integer(&ptr);
+	/* size = */ get_integer(&ptr);
 
 	/* Check message type */
 	switch (type)
@@ -2392,10 +2396,11 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 		gtk_range_set_range(GTK_RANGE(max_player), 2, max);
 
 		/* Set goal disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_goal_check, i > 0);
+		gtk_widget_set_sensitive(disable_goal_check, i > 0 && i < 4);
 
 		/* Set takeover disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_takeover_check, i > 1);
+		gtk_widget_set_sensitive(disable_takeover_check, i > 1 &&
+		                                                 i < 4);
 	}
 }
 
@@ -2447,7 +2452,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	GtkWidget *table, *label;
 	GtkWidget *exp_box, *exp_frame;
 	GtkWidget *desc, *pass;
-	int i, exp;
+	int i, exp = 0;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Create Game", NULL,
