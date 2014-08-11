@@ -2379,6 +2379,7 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 		/* Set maximum number of players */
 		max = i + 4;
 		if (max > 6) max = 6;
+		if (i == 4) max = 5;
 
 		/* Adjust scale widgets to new maximum */
 		gtk_range_set_range(GTK_RANGE(min_player), 2, max);
