@@ -333,6 +333,7 @@ static void export_cards(FILE *fff, char *header, game *g, int n, card **cards,
                          int (*cmp)(const void *, const void *))
 {
 	int p, exp;
+	char num_goods[64] = "";
 
 	/* Sort the cards */
 	if (cmp) qsort(cards, n, sizeof(card*), cmp);
@@ -349,11 +350,18 @@ static void export_cards(FILE *fff, char *header, game *g, int n, card **cards,
 		      (cards[p]->start_where != WHERE_HAND ||
 		       cards[p]->start_owner != cards[p]->owner);
 
+		/* Check for any goods on card */
+		if (cards[p]->num_goods > 0)
+		{
+			/* Format message */
+			sprintf(num_goods, " num_goods=\"%d\"", cards[p]->num_goods);
+		}
+
 		/* Write card name and good indicator */
-		fprintf(fff, "      <Card id=\"%d\"%s num_goods=\"%d\"%s>%s</Card>\n",
+		fprintf(fff, "      <Card id=\"%d\"%s%s%s>%s</Card>\n",
 		        cards[p]->d_ptr->index,
 		        cards[p]->num_goods > 0 ? " good=\"yes\"" : "",
-		        cards[p]->num_goods,
+		        num_goods,
 		        exp ? " explore=\"yes\"" : "",
 		        xml_escape(cards[p]->d_ptr->name));
 	}

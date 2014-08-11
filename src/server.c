@@ -3629,8 +3629,8 @@ static void handle_create(int cid, char *ptr)
 		s_ptr->min_player = s_ptr->max_player;
 
 	/* Validate disabled flags */
-	if (s_ptr->expanded < 1) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2) s_ptr->disable_takeover = 0;
+	if (s_ptr->expanded < 1 || s_ptr->expanded == 4) s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < 2 || s_ptr->expanded == 4) s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */
 	s_ptr->gid = db_new_game(sid);

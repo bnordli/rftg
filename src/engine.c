@@ -5943,7 +5943,7 @@ void settle_finish(game *g, int who, int world, int mil_only, int special)
 		{
 			/* Format message */
 			sprintf(msg, "%s discards %s.\n", p_ptr->name,
-				c_ptr->d_ptr->name);
+			        c_ptr->d_ptr->name);
 
 			/* Send message */
 			message_add(g, msg);
@@ -6079,15 +6079,15 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			if (g->game_over) return;
 		}
 		
-		/* Get card used to place world */
-		c_ptr = &g->deck[c_idx];
-
 		/* Check for choice made */
 		if (p_ptr->placing != -1)
 		{
 			/* Message */
 			if (!g->simulation)
 			{
+				/* Get card used to place world */
+				c_ptr = &g->deck[c_idx];
+
 				/* Format message */
 				sprintf(msg, "%s uses %s to place an additional world.\n",
 				        p_ptr->name, c_ptr->d_ptr->name);
@@ -6160,15 +6160,15 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			if (g->game_over) return;
 		}
 
-		/* Get card used to place world */
-		c_ptr = &g->deck[c_idx];
-
 		/* Check for choice made */
 		if (p_ptr->placing != -1)
 		{
 			/* Message */
 			if (!g->simulation)
 			{
+				/* Get card used to place world */
+				c_ptr = &g->deck[c_idx];
+
 				/* Format message */
 				sprintf(msg, "%s uses %s to place an additional world.\n",
 				        p_ptr->name, c_ptr->d_ptr->name);
@@ -6240,8 +6240,11 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			/* Message */
 			if (!g->simulation)
 			{
+				/* Get card used to place world */
+				c_ptr = &g->deck[c_idx];
+
 				/* Format message */
-				sprintf(msg, "%s discards %s to place an additional world.\n",
+				sprintf(msg, "%s uses %s to place an additional world.\n",
 				        p_ptr->name, c_ptr->d_ptr->name);
 
 				/* Add message */
@@ -6494,6 +6497,9 @@ static int settle_action(game *g, int who, int world)
 
 	/* Ask player which power to use */
 	ask_player(g, who, CHOICE_SETTLE, cidx, &num, oidx, &num, 0, 0, 0);
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
 
 	/* Check for no power selected */
 	if (num == 0) return 0;

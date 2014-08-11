@@ -684,7 +684,7 @@ typedef struct card
 	int8_t start_where;
 
 	/* Miscellaneous card flags */
-	uint8_t misc;
+	uint16_t misc;
 
 	/* Card design */
 	design *d_ptr;

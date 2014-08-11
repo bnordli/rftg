@@ -3187,7 +3187,7 @@ static char *get_prestige_tooltip(game *g, int who)
 	static char msg[1024];
 
 	/* Do nothing unless third expansion is present */
-	if (g->expanded < 3) return "";
+	if (g->expanded != 3) return "";
 
 	/* Create text */
 	sprintf(msg, "Prestige/Search action used: <b>%s</b> ",
@@ -3330,7 +3330,7 @@ static char *card_hand_tooltip(game *g, int who, int which)
 				    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
 				{
 					/* Add good to world */
-					add_good(&sim, c_ptr);
+					add_good(&sim, which);
 				}
 			}
 		}
@@ -3664,7 +3664,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	discounts *d_ptr;
 	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
-	int which, mil_only, mil_needed, ict_mil, iif_mil, cost;
+	int which, mil_only, mil_needed, ict_mil, iif_mil, cost, zero_cost;
 
 	/* Get discounts */
 	d_ptr = &status_player[who].discount;
@@ -3699,6 +3699,10 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	mil_only = special >= 0 &&
 	           !strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack");
 
+	/* XXX Check for zero cost */
+	zero_cost = special >= 0 &&
+	            !strcmp(g->deck[special].d_ptr->name, "Terraforming Project");
+
 	/* Check for military world */
 	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
@@ -3727,7 +3731,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 			             cost_card, cost);
 		}
 	}
-	else
+	else if (!zero_cost)
 	{
 		/* Compute peaceful payment */
 		peaceful_world_payment(g, who, which, mil_only, d_ptr,
@@ -6509,7 +6513,9 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 {
 	char buf[1024];
 	displayed *i_ptr;
-	int i, j, allow_takeover = (phase == PHASE_SETTLE);
+	int i, j, n, allow_takeover = (phase == PHASE_SETTLE);
+	power_where w_list[100];
+	power *o_ptr;
 
 	/* Create prompt */
 	sprintf(buf, "Choose card to %s",
@@ -6536,6 +6542,30 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 		/* Append takeover information */
 		strcat(buf, " (or pass if you want to perform a takeover)");
 	}
+
+	/* Check for possible flip power */
+	if (phase == PHASE_SETTLE)
+	{
+		/* Get settle powers */
+		n = get_powers(g, who, PHASE_SETTLE, w_list);
+
+		/* Loop over powers */
+		for (i = 0; i < n; i++)
+		{
+			/* Get power pointer */
+			o_ptr = w_list[i].o_ptr;
+
+			/* Skip powers that aren't "flip for zero" */
+			if (!(o_ptr->code & P3_FLIP_ZERO)) continue;
+
+			/* Append flip information */
+			strcat(buf, " (or pass if you want to flip a card)");
+
+			/* Done */
+			break;
+		}
+	}
+
 
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
@@ -9792,8 +9822,8 @@ static void apply_options(void)
 		opt.num_players = 4;
 	}
 
-	/* Sanity check number of players in first expansion */
-	if (opt.expanded < 2 && opt.num_players > 5)
+	/* Sanity check number of players in first or fourth expansion */
+	if ((opt.expanded < 2 || opt.expanded == 4) && opt.num_players > 5)
 	{
 		/* Reset to five players */
 		opt.num_players = 5;
