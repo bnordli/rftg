@@ -613,6 +613,15 @@ static void handle_status_meta(char *ptr, int size)
 			real_game.p[i].ai = get_integer(&ptr);
 		}
 	}
+	else
+	{
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; i++)
+		{
+			/* Assume no ai */
+			real_game.p[i].ai = 0;
+		}
+	}
 
 	/* Redraw status areas */
 	redraw_status();

@@ -4820,6 +4820,9 @@ int main(int argc, char *argv[])
 					handle_data(i);
 				}
 
+				/* Check for connection closed */
+				if (c_list[i].fd < 0) continue;
+
 				/* Check for unsent data ready to send */
 				if (FD_ISSET(c_list[i].fd, &writefds))
 				{
