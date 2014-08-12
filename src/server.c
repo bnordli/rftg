@@ -1589,7 +1589,7 @@ void message_add_formatted(game *g, char *txt, char *tag)
 	/* Add text of message */
 	put_string(txt, &ptr);
 
-	/* Add format of message (since 0.8.1b) */
+	/* Add format of message (since 0.9.2m) */
 	put_string(tag, &ptr);
 
 	/* Finish message */
@@ -1743,7 +1743,7 @@ static void update_meta(int sid)
 		put_string(s_ptr->g.p[i].name, &ptr);
 	}
 
-	/* Loop over players again (since 0.8.1m) */
+	/* Loop over players again (since 0.9.2m) */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
 		/* Add ai flag to message */
@@ -1960,7 +1960,7 @@ static void update_status_one(int sid, int who)
 			put_integer(p_ptr->bonus_military, &ptr);
 			put_integer(p_ptr->bonus_reduce, &ptr);
 
-			/* Add whether player has prestige on the tile (since 0.8.1m) */
+			/* Add whether player has prestige on the tile (since 0.9.2m) */
 			put_integer(p_ptr->prestige_turn, &ptr);
 
 			/* Finish message */

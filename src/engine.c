@@ -6078,7 +6078,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			/* Check for aborted game */
 			if (g->game_over) return;
 		}
-		
+
 		/* Check for choice made */
 		if (p_ptr->placing != -1)
 		{
@@ -9384,11 +9384,11 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 			kind = ask_player(g, who, CHOICE_OORT_KIND, NULL, NULL,
 			                  NULL, NULL, 0, 0, 0);
 
-			/* Set kind on world */
-			SET_PRODUCED(c_ptr, kind);
-
 			/* Check for aborted game */
 			if (g->game_over) return;
+
+			/* Set kind on world */
+			SET_PRODUCED(c_ptr, kind);
 
 			/* Set kind */
 			g->oort_kind = kind;
