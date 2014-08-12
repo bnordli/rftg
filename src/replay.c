@@ -622,6 +622,13 @@ static void determine_message(game *g, int who, int type, int list[], int *nl,
 			choose_pay(g, who, arg1, list, nl, special, ns, arg2);
 			break;
 
+		/* Choose settle power to use next */
+		case CHOICE_SETTLE:
+
+			/* Create prompt */
+			sprintf(msg, "Choose Settle power");
+			break;
+
 		/* Choose a world to takeover */
 		case CHOICE_TAKEOVER:
 
@@ -955,6 +962,8 @@ static int db_load_game(int gid)
 	g.advanced = strtol(row[1], NULL, 0);
 	g.goal_disabled = strtol(row[2], NULL, 0);
 	g.takeover_disabled = strtol(row[3], NULL, 0);
+	g.promo = 0;
+	g.campaign_disabled = 1;
 
 	/* Free results */
 	mysql_free_result(res);
