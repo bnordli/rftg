@@ -6507,6 +6507,9 @@ static int settle_action(game *g, int who, int world)
 	/* Use chosen power */
 	settle_chosen(g, who, world, cidx[0], oidx[0]);
 
+	/* Check for aborted game */
+	if (g->game_over) return 0;
+
 	/* Successfully used power */
 	return 1;
 }
