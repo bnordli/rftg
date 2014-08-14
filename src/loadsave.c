@@ -94,9 +94,6 @@ static int read_game(game *g, FILE* fff)
 	/* Clear simulation flag */
 	g->simulation = 0;
 
-	/* Clear campaign */
-	g->campaign_disabled = 1;
-
 	/* Load over players */
 	for (i = 0; i < g->num_players; i++)
 	{

@@ -3712,6 +3712,8 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 		military_world_payment(g, who, which, mil_only, d_ptr,
 		                       &mil_needed, &cost, &cost_card);
 
+		// TODO: Take mil_bonus into account, if first world placed
+
 		/* Check for no extra military */
 		if (mil_needed <= 0)
 		{
@@ -6649,7 +6651,7 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
  */
 static void compute_forced_choice(int list[], int num,
                                   int special[], int num_special,
-                                  long *special_mask, int *forced_hand)
+                                  long *special_mask, int *forced_hand, int mil_bonus)
 {
 	game sim;
 	int i, j, num_choice;
@@ -6696,7 +6698,7 @@ static void compute_forced_choice(int list[], int num,
 			/* Try to make payment */
 			if (payment_callback(&sim, player_us, action_payment_which,
 			                     list, i, special_choice, num_choice,
-			                     action_payment_mil))
+			                     action_payment_mil, mil_bonus))
 			{
 				/* Check for legal without all hand cards */
 				if (i != num) *forced_hand = FALSE;
@@ -6796,6 +6798,9 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			                       &status_player[who].discount,
 			                       &military, &cost, &cost_card);
 
+			/* Add military bonus */
+			military += mil_bonus;
+
 			/* Check for no pay-for-military power */
 			if (cost == -1)
 			{
@@ -6873,7 +6878,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	{
 		/* Find any forced choices */
 		compute_forced_choice(list, *num, special, *num_special,
-		                      &forced_special, &forced_hand);
+		                      &forced_special, &forced_hand, mil_bonus);
 	}
 	else
 	{
@@ -11725,11 +11730,22 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
 
+		/* Set custom seed flag */
+		opt.customize_seed = gtk_toggle_button_get_active(
+		                          GTK_TOGGLE_BUTTON(custom_seed_check));
+
+		/* Set seed */
+		opt.seed = (unsigned int) atof(gtk_entry_get_text(
+		                               GTK_ENTRY(seed_entry)));
+
+		/* Clear campaign */
+		opt.campaign_name = "";
+
 		/* Apply options */
 		apply_options();
 
 		/* Recreate GUI elements for new number of players */
-		modify_gui();
+		modify_gui(TRUE);
 
 		/* Force game over */
 		real_game.game_over = 1;
@@ -11874,14 +11890,6 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 			/* Set campaign */
 			opt.campaign_name = camp_library[i - 1].name;
 		}
-
-		/* Set custom seed flag */
-		opt.customize_seed = gtk_toggle_button_get_active(
-		                          GTK_TOGGLE_BUTTON(custom_seed_check));
-
-		/* Set seed */
-		opt.seed = (unsigned int) atof(gtk_entry_get_text(
-		                               GTK_ENTRY(seed_entry)));
 
 		/* Apply options */
 		apply_options();
