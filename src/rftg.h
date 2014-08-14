@@ -28,7 +28,7 @@
 #endif
 
 #ifndef VERSION
-#define VERSION "0.9.2"
+#define VERSION "0.9.3"
 #endif
 
 #ifndef RELEASE
@@ -249,6 +249,11 @@
 #define SEARCH_MILITARY_5         6
 #define SEARCH_6_DEV              7
 #define SEARCH_TAKEOVER           8
+
+/*
+ * Campaign flags.
+ */
+#define CAMP_DRAW_EXTRA          0x1
 
 
 /*
@@ -866,6 +871,12 @@ typedef struct player
  */
 typedef struct game
 {
+	/* Campaign in use (if any) */
+	struct campaign *camp;
+
+	/* Status of campaign (if any) */
+	struct campaign_status *camp_status;
+
 	/* Session ID in online server */
 	int session_id;
 
@@ -904,9 +915,6 @@ typedef struct game
 
 	/* Include promo start worlds in deck */
 	int8_t promo;
-
-	/* Disable campaign */
-	int8_t campaign_disabled;
 
 	/* Size of deck in use */
 	int16_t deck_size;
@@ -969,14 +977,31 @@ typedef struct game
  */
 typedef struct campaign
 {
+	/* Expansion level needed */
+	int expanded;
+
+	/* Number of players */
+	int num_players;
+
+	/* Game options */
+	int advanced;
+	int goal_disabled;
+	int takeover_disabled;
+
+	/* Campaign name */
+	char *name;
+
+	/* Campaign description */
+	char *desc;
+
 	/* Set-aside card order */
-	int order[MAX_PLAYER][MAX_DECK];
+	design *order[MAX_PLAYER][MAX_DECK];
 
 	/* Number of set-aside cards */
 	int size[MAX_PLAYER];
 
-	/* Current position in card order */
-	int pos[MAX_PLAYER];
+	/* Campaign flags */
+	int flags;
 
 	/* Number of goals specified */
 	int num_goal;
@@ -986,13 +1011,30 @@ typedef struct campaign
 
 } campaign;
 
+/*
+ * Current status of a campaign.
+ */
+typedef struct campaign_status
+{
+	/* Card indices used */
+	int index[MAX_PLAYER][MAX_DECK];
+
+	/* Current position with campaign order */
+	int pos[MAX_PLAYER];
+
+	/* Size of campaign ordering */
+	int size[MAX_PLAYER];
+
+} campaign_status;
+
 
 /*
  * External variables.
  */
 extern int num_design;
 extern design library[AVAILABLE_DESIGN];
-extern campaign camp;
+extern campaign *camp_library;
+extern int num_campaign;
 extern char *actname[MAX_ACTION * 2 - 1];
 extern char *plain_actname[MAX_ACTION + 1];
 extern char *good_printable[MAX_GOOD];
@@ -1020,6 +1062,8 @@ extern int takeovers_enabled(game *g);
 extern void auto_export(void);
 extern int game_rand(game *g);
 extern int read_cards(char *suggestion);
+extern void read_campaign(void);
+extern void apply_campaign(game *g);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);
@@ -1057,16 +1101,17 @@ extern int develop_discount(game *g, int who);
 extern void phase_develop(game *g);
 extern int strength_against(game *g, int who, int world, int attack, int defend);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
-                            int special[], int num_special, int mil_only);
+                            int special[], int num_special, int mil_only,
+                            int mil_bonus);
 extern int needed_callback(game *g, int who, int which, int special[],
-                           int num_special, int mil_only);
+                           int num_special, int mil_only, int mil_bonus);
 extern int settle_legal(game *g, int who, int which, int mil_bonus,
-                        int mil_only, int takeover);
+                        int mil_only, int peace_zero, int takeover);
 extern int takeover_callback(game *g, int special, int world);
 extern int settle_check_takeover(game *g, int who, card *extra, int no_ask);
 extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_finish(game *g, int who, int world, int mil_only,
-			  int special);
+			  int special, int mil_bonus);
 extern void settle_extra(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);

@@ -1,0 +1,51 @@
+N:Alien Nightmare
+O:1:2:1:0:0
+D:You have a random start world versus Earth's Lost Colony with Alien
+D:Toy Shop in the starting hand.
+C:---
+C:Earth's Lost Colony
+C:Alien Toy Shop
+
+N:Rebel vs Imperium
+O:2:2:1:0:0
+D:Play Rebel Cantina vs Imperium Warlord
+F:DRAW_EXTRA
+C:Rebel Cantina
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:Rebel Alliance
+C:---
+C:Imperium Warlord
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:Imperium Seat
+
+N:Imperium vs Rebel
+O:2:2:1:0:0
+D:Play Imperium Warlord vs Rebel Cantina
+F:DRAW_EXTRA
+C:Imperium Warlord
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:Imperium Seat
+C:---
+C:Rebel Cantina
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:RANDOM
+C:Rebel Alliance

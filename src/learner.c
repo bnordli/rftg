@@ -72,7 +72,6 @@ int main(int argc, char *argv[])
 	int i, j, n = 100;
 	int num_players = 3;
 	int expansion = 0, advanced = 0, promo = 0;
-	int campaign_disabled = 0;
 	char buf[1024], *names[MAX_PLAYER];
 	double factor = 1.0;
 
@@ -124,13 +123,6 @@ int main(int argc, char *argv[])
 			promo = 1;
 		}
 
-		/* Check for disable campaign option */
-		else if (!strcmp(argv[i], "-c"))
-		{
-			/* Disable campaign */
-			campaign_disabled = 1;
-		}
-
 		/* Check for number of games */
 		else if (!strcmp(argv[i], "-n"))
 		{
@@ -169,8 +161,8 @@ int main(int argc, char *argv[])
 	my_game.goal_disabled = 0;
 	my_game.takeover_disabled = 0;
 
-	/* Set campaign disabled flag */
-	my_game.campaign_disabled = campaign_disabled;
+	/* No campaign selected */
+	my_game.camp = NULL;
 
 	/* Call initialization functions */
 	for (i = 0; i < num_players; i++)

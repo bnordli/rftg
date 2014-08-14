@@ -49,8 +49,8 @@ typedef struct options
 	/* Hide/show card preview (For legacy reasons: 0: Show, 2: Hide) */
 	int hide_card;
 
-	/* Disable campaign */
-	int disable_campaign;
+	/* Campaign name */
+	char *campaign_name;
 
 	/* Reduce/eliminate full-size card image */
 	int full_reduced;

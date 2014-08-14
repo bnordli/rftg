@@ -414,6 +414,34 @@ int random_draw(game *g)
 }
 
 /*
+ * Return a random card from the draw deck, unless the given player
+ * has more campaign cards set to be given.
+ */
+static int campaign_draw(game *g, int who)
+{
+	int which;
+
+	/* Check for simulated game or no campaign */
+	if (g->simulation || !g->camp) return random_draw(g);
+
+	/* Check for player's campaign cards exhausted */
+	if (g->camp_status->pos[who] >= g->camp_status->size[who])
+		return random_draw(g);
+
+	/* Get next campaign card */
+	which = g->camp_status->index[who][g->camp_status->pos[who]];
+
+	/* Advance position */
+	g->camp_status->pos[who]++;
+
+	/* Check for random card */
+	if (which < 0) which = random_draw(g);
+
+	/* Return card */
+	return which;
+}
+
+/*
  * Return the first card pointer from the draw deck.
  *
  * We use this in simulated games for choosing cards to be used as goods
@@ -637,23 +665,8 @@ void draw_card(game *g, int who, char *reason)
 		return;
 	}
 
-	/* Check for campaign set card */
-	if (camp.size[who] > camp.pos[who])
-	{
-		/* Get campaign card instead */
-		which = camp.order[who][camp.pos[who]];
-
-		/* Move position */
-		camp.pos[who]++;
-
-		/* Check for random card */
-		if (which < 0) which = random_draw(g);
-	}
-	else
-	{
-		/* Choose random card */
-		which = random_draw(g);
-	}
+	/* Choose random (or campaign) card */
+	which = campaign_draw(g, who);
 
 	/* Check for failure */
 	if (which == -1) return;
@@ -1054,7 +1067,7 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	{
 		/* Error */
 		display_error("No data available in choice log!\n");
-		exit(1);
+		abort();
 	}
 
 	/* Look for and execute any debug choices in the log */
@@ -1070,7 +1083,7 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 		sprintf(message, "Expected %d in choice log for player %d, found %d!\n",
 		        type, who, *l_ptr);
 		display_error(message);
-		exit(1);
+		abort();
 	}
 
 	/* Advance pointer */
@@ -1807,23 +1820,8 @@ void phase_search(game *g)
 		/* Loop until match is found or search failed */
 		while (1)
 		{
-			/* Check for campaign set card */
-			if (!g->simulation && (camp.size[i] > camp.pos[i]))
-			{
-				/* Get campaign card instead */
-				which = camp.order[i][camp.pos[i]];
-
-				/* Move position */
-				camp.pos[i]++;
-
-				/* Check for random card */
-				if (which < 0) which = random_draw(g);
-			}
-			else
-			{
-				/* Draw a card */
-				which = random_draw(g);
-			}
+			/* Choose random (or campaign) card */
+			which = campaign_draw(g, i);
 
 			/* Check for failure */
 			if (which == -1)
@@ -3406,7 +3404,7 @@ static int strength_first(game *g, int who, int w1, int w2)
  * Return true if the given player can settle the given world.
  */
 int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
-		 int takeover)
+		 int peace_zero, int takeover)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -3650,6 +3648,16 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 		}
 	}
 
+	/* Check for peaceful only worlds at zero cost */
+	if (peace_zero)
+	{
+		/* Check for non-military */
+		if (!conquer) return 1;
+
+		/* Check for military and pay-for-military available */
+		return pay_military;
+	}
+
 	/* Apply bonus military accrued earlier in the phase */
 	military += p_ptr->bonus_military;
 
@@ -3703,7 +3711,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
  * We return -1 if the given combination of special powers is illegal.
  */
 int settle_needed(game *g, int who, int which, int special[], int num_special,
-		  int mil_only)
+                  int mil_only, int mil_bonus)
 {
 	player *p_ptr;
 	card *c_ptr, *t_ptr;
@@ -3740,7 +3748,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	military = total_military(g, who);
 
 	/* Add bonuses from earlier in the phase */
-	military += p_ptr->bonus_military;
+	military += p_ptr->bonus_military + mil_bonus;
 
 	/* Reduce cost by bonus reductions from earlier in the phase */
 	cost -= p_ptr->bonus_reduce;
@@ -4039,7 +4047,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
  * cases where too many cards were discarded, to prevent stupid AI play.
  */
 int settle_callback(game *g, int who, int which, int list[], int num,
-		    int special[], int num_special, int mil_only)
+		    int special[], int num_special, int mil_only, int mil_bonus)
 {
 	player *p_ptr;
 	card *c_ptr, *t_ptr;
@@ -4079,7 +4087,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	military = total_military(g, who);
 
 	/* Add bonuses from earlier in the phase */
-	military += p_ptr->bonus_military;
+	military += p_ptr->bonus_military + mil_bonus;
 
 	/* Reduce cost by bonus reductions from earlier in the phase */
 	cost -= p_ptr->bonus_reduce;
@@ -4751,7 +4759,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
  * This may require using cards with a one-off discard ability to lower
  * cost or increase military, etc.
  */
-static void pay_settle(game *g, int who, int world, int mil_only)
+static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -4786,7 +4794,7 @@ static void pay_settle(game *g, int who, int world, int mil_only)
 	flags = c_ptr->d_ptr->flags;
 
 	/* Count basic military strength */
-	military = total_military(g, who);
+	military = total_military(g, who) + mil_bonus;
 
 	/* Get settle phase powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -4985,13 +4993,14 @@ static void pay_settle(game *g, int who, int world, int mil_only)
 
 	/* Have player decide how to pay */
 	ask_player(g, who, CHOICE_PAYMENT, list, &n, special, &num_special,
-		   world, mil_only, 0);
+		   world, mil_only, mil_bonus);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
 
 	/* Apply payment */
-	settle_callback(g, who, world, list, n, special, num_special, mil_only);
+	settle_callback(g, who, world, list, n, special, num_special, mil_only,
+	                mil_bonus);
 }
 
 /*
@@ -5286,7 +5295,7 @@ int settle_check_takeover(game *g, int who, card *extra, int no_ask)
 				continue;
 
 			/* Check for sufficient military strength */
-			if (!settle_legal(g, who, x, bonus, 0, 1)) continue;
+			if (!settle_legal(g, who, x, bonus, 0, 0, 1)) continue;
 
 			/* Add target world to list */
 			list[n++] = x;
@@ -5846,7 +5855,8 @@ static void flip_world(game *g, int who)
 /*
  * The second half of the Settle Phase -- paying for chosen worlds.
  */
-void settle_finish(game *g, int who, int world, int mil_only, int special)
+void settle_finish(game *g, int who, int world, int mil_only, int special,
+                   int mil_bonus)
 {
 	player *p_ptr;
 	card *c_ptr = NULL;
@@ -5898,7 +5908,7 @@ void settle_finish(game *g, int who, int world, int mil_only, int special)
 		if (!o_ptr || !(o_ptr->code & P3_PLACE_ZERO))
 		{
 			/* Ask user for payment */
-			pay_settle(g, who, world, mil_only);
+			pay_settle(g, who, world, mil_only, mil_bonus);
 		}
 		else
 		{
@@ -5998,7 +6008,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
 			/* Skip cards that cannot be settled */
-			if (!settle_legal(g, who, x, 0, 0, 0)) continue;
+			if (!settle_legal(g, who, x, 0, 0, 0, 0)) continue;
 
 			/* Add card to list */
 			list[n++] = x;
@@ -6023,7 +6033,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			if (settle_check_takeover(g, who, c_ptr, 0))
 			{
 				/* Act on declaration */
-				settle_finish(g, who, -1, 0, c_idx);
+				settle_finish(g, who, -1, 0, c_idx, 0);
 			}
 
 			/* Check for aborted game */
@@ -6035,7 +6045,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			place_card(g, who, p_ptr->placing);
 
 			/* Act on settle */
-			settle_finish(g, who, p_ptr->placing, 0, c_idx);
+			settle_finish(g, who, p_ptr->placing, 0, c_idx, 0);
 		}
 	}
 
@@ -6061,7 +6071,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
 			/* Skip cards that cannot be settled */
-			if (!settle_legal(g, who, x, 0, 1, 0)) continue;
+			if (!settle_legal(g, who, x, 0, 1, 0, 0)) continue;
 
 			/* Add card to list */
 			list[n++] = x;
@@ -6100,7 +6110,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			place_card(g, who, p_ptr->placing);
 
 			/* Pay for world and collect bonuses */
-			settle_finish(g, who, p_ptr->placing, 1, c_idx);
+			settle_finish(g, who, p_ptr->placing, 1, c_idx, 0);
 		}
 	}
 
@@ -6141,7 +6151,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			if (mil_bonus < 0) mil_bonus = 0;
 
 			/* Skip cards that cannot be settled */
-			if (!settle_legal(g, who, x, -mil_bonus, 1, 0))
+			if (!settle_legal(g, who, x, -mil_bonus, 1, 0, 0))
 				continue;
 
 			/* Add card to list */
@@ -6180,8 +6190,19 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			/* Place card */
 			place_card(g, who, p_ptr->placing);
 
+			/* Determine amount of military that cannot be reused */
+			mil_spent_spec = strength_first(g, who, first,
+			                                p_ptr->placing);
+
+			/* Compute military that was spent */
+			mil_bonus = mil_spent - mil_spent_spec;
+
+			/* Do not accrue negative bonus */
+			if (mil_bonus < 0) mil_bonus = 0;
+
 			/* Pay for world and collect bonuses */
-			settle_finish(g, who, p_ptr->placing, 1, c_idx);
+			settle_finish(g, who, p_ptr->placing, 1, c_idx,
+			              -mil_bonus);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
@@ -6209,11 +6230,11 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			/* Skip developments */
 			if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
-			/* Skip military worlds */
-			if (c_ptr->d_ptr->flags & FLAG_MILITARY) continue;
-
 			/* Skip Alien worlds */
 			if (c_ptr->d_ptr->good_type == GOOD_ALIEN) continue;
+
+			/* Skip cards that cannot be settled */
+			if (!settle_legal(g, who, x, 0, 0, 1, 0)) continue;
 
 			/* Add card to list */
 			list[n++] = x;
@@ -6252,7 +6273,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			}
 
 			/* Award bonuses for settling */
-			settle_finish(g, who, p_ptr->placing, 0, c_idx);
+			settle_finish(g, who, p_ptr->placing, 0, c_idx, 0);
 		}
 	}
 
@@ -6342,7 +6363,8 @@ static int settle_action(game *g, int who, int world)
 				if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
 				/* Skip cards that cannot be settled */
-				if (!settle_legal(g, who, x, 0, 0, 0)) continue;
+				if (!settle_legal(g, who, x, 0, 0, 0, 0))
+					continue;
 
 				/* Add power to list */
 				cidx[num] = w_ptr->c_idx;
@@ -6373,7 +6395,8 @@ static int settle_action(game *g, int who, int world)
 				if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
 				/* Skip cards that cannot be settled */
-				if (!settle_legal(g, who, x, 0, 1, 0)) continue;
+				if (!settle_legal(g, who, x, 0, 1, 0, 0))
+					continue;
 
 				/* Add power to list */
 				cidx[num] = w_ptr->c_idx;
@@ -6423,8 +6446,8 @@ static int settle_action(game *g, int who, int world)
 				if (mil_bonus < 0) mil_bonus = 0;
 
 				/* Skip cards that cannot be settled */
-				if (!settle_legal(g, who, x, -mil_bonus, 1, 0))
-					continue;
+				if (!settle_legal(g, who, x, -mil_bonus, 1, 0,
+				                  0)) continue;
 
 				/* Add power to list */
 				cidx[num] = w_ptr->c_idx;
@@ -6464,8 +6487,8 @@ static int settle_action(game *g, int who, int world)
 				/* Skip developments */
 				if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
-				/* Skip military worlds */
-				if (c_ptr->d_ptr->flags & FLAG_MILITARY)
+				/* Skip cards that cannot be settled */
+				if (!settle_legal(g, who, x, 0, 0, 1, 0))
 					continue;
 
 				/* Skip Alien worlds */
@@ -7489,7 +7512,7 @@ void phase_settle(game *g)
 			if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
 
 			/* Skip cards that cannot be settled */
-			if (!settle_legal(g, i, x, 0, 0, 0)) continue;
+			if (!settle_legal(g, i, x, 0, 0, 0, 0)) continue;
 
 			/* Add card to list */
 			list[n++] = x;
@@ -7618,7 +7641,7 @@ void phase_settle(game *g)
 		}
 
 		/* Handle choice */
-		settle_finish(g, i, p_ptr->placing, 0, -1);
+		settle_finish(g, i, p_ptr->placing, 0, -1, 0);
 
 		/* Use extra settle powers */
 		settle_extra(g, i, p_ptr->placing);
@@ -7650,7 +7673,8 @@ void phase_settle(game *g)
  * Pass a payment callback either to the develop or settle callback.
  */
 int payment_callback(game *g, int who, int which, int list[], int num,
-                     int special[], int num_special, int mil_only)
+                     int special[], int num_special, int mil_only,
+                     int mil_bonus)
 {
 	card *c_ptr;
 
@@ -7668,7 +7692,7 @@ int payment_callback(game *g, int who, int which, int list[], int num,
 	{
 		/* Use settle callback */
 		return settle_callback(g, who, which, list, num, special,
-		                       num_special, mil_only);
+		                       num_special, mil_only, mil_bonus);
 	}
 }
 
@@ -7676,7 +7700,7 @@ int payment_callback(game *g, int who, int which, int list[], int num,
  * Pass a cards needed callback either to the develop or settle callback.
  */
 int needed_callback(game *g, int who, int which, int special[], int num_special,
-                    int mil_only)
+                    int mil_only, int mil_bonus)
 {
 	card *c_ptr;
 
@@ -7693,7 +7717,7 @@ int needed_callback(game *g, int who, int which, int special[], int num_special,
 	{
 		/* Use settle callback */
 		return settle_needed(g, who, which, special, num_special,
-		                     mil_only);
+		                     mil_only, mil_bonus);
 	}
 }
 
@@ -8203,23 +8227,8 @@ static void draw_lucky(game *g, int who)
 	/* Check for aborted game */
 	if (g->game_over) return;
 
-	/* Check for campaign set card */
-	if (camp.size[who] > camp.pos[who])
-	{
-		/* Get campaign card instead */
-		which = camp.order[who][camp.pos[who]];
-
-		/* Move position */
-		camp.pos[who]++;
-
-		/* Check for random card */
-		if (which < 0) which = random_draw(g);
-	}
-	else
-	{
-		/* Draw a card */
-		which = random_draw(g);
-	}
+	/* Get random (or campaign) card */
+	which = campaign_draw(g, who);
 
 	/* Check for failure */
 	if (which == -1) return;
@@ -8339,23 +8348,8 @@ static void ante_card(game *g, int who)
 			drawn[i] = first_draw(g);
 		}
 
-		/* Check for campaign set card */
-		else if (camp.size[who] > camp.pos[who])
-		{
-			/* Get campaign card instead */
-			drawn[i] = camp.order[who][camp.pos[who]];
-
-			/* Move position */
-			camp.pos[who]++;
-
-			/* Check for random card */
-			if (drawn[i] < 0) drawn[i] = random_draw(g);
-		}
-		else
-		{
-			/* Draw a card */
-			drawn[i] = random_draw(g);
-		}
+		/* Get random (or campaign) draw */
+		drawn[i] = campaign_draw(g, who);
 
 		/* Check for failure */
 		if (drawn[i] == -1) return;
@@ -11766,24 +11760,32 @@ static void rotate_players(game *g)
 	/* Store old player 0 in last spot */
 	g->p[i] = temp;
 
-	/* Store copy of player 0's campaign settings */
-	memcpy(camp_order, camp.order[0], sizeof(int) * MAX_DECK);
-	camp_size = camp.size[0];
-	camp_pos = camp.pos[0];
-
-	/* Loop over campaign settings */
-	for (i = 0; i < g->num_players - 1; i++)
+	/* Check for campaign */
+	if (g->camp)
 	{
-		/* Copy campaign settings one space */
-		memcpy(camp.order[i], camp.order[i + 1], sizeof(int)*MAX_DECK);
-		camp.size[i] = camp.size[i + 1];
-		camp.pos[i] = camp.pos[i + 1];
-	}
+		/* Store copy of player 0's campaign settings */
+		memcpy(camp_order, g->camp_status->index[0], sizeof(int) *
+		                                             MAX_DECK);
+		camp_size = g->camp_status->size[0];
+		camp_pos = g->camp_status->pos[0];
 
-	/* Store temp copy in last spot */
-	memcpy(camp.order[i], camp_order, sizeof(int) * MAX_DECK);
-	camp.size[i] = camp_size;
-	camp.pos[i] = camp_pos;
+		/* Loop over campaign settings */
+		for (i = 0; i < g->num_players - 1; i++)
+		{
+			/* Copy campaign settings one space */
+			memcpy(g->camp_status->index[i],
+			       g->camp_status->index[i + 1],
+			       sizeof(int) * MAX_DECK);
+			g->camp_status->size[i] = g->camp_status->size[i + 1];
+			g->camp_status->pos[i] = g->camp_status->pos[i + 1];
+		}
+
+		/* Store temp copy in last spot */
+		memcpy(g->camp_status->index[i], camp_order, sizeof(int) *
+		                                             MAX_DECK);
+		g->camp_status->size[i] = camp_size;
+		g->camp_status->pos[i] = camp_pos;
+	}
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -12004,6 +12006,16 @@ void begin_game(game *g)
 	/* Send message */
 	message_add(g, msg);
 
+	/* Check for campaign game */
+	if (g->camp)
+	{
+		/* Format campaign message */
+		sprintf(msg, "Campaign: %s\n", g->camp);
+
+		/* Send message */
+		message_add(g, msg);
+	}
+
 	/* Format num players and advanced message */
 	if (!g->advanced)
 	{
@@ -12084,41 +12096,28 @@ void begin_game(game *g)
 	}
 
 	/* Check for second (or later) expansion */
-	if (g->expanded >= 2 || g->promo)
+	if ((g->expanded >= 2 || g->promo) && !g->camp)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
 		{
-			/* Check campaign for start worlds */
-			if (camp.size[i] >= 2)
-			{
-				/* Set picks */
-				start_picks[i][0] = camp.order[i][0];
-				start_picks[i][1] = camp.order[i][1];
+			/* Choose a Red start world */
+			n = game_rand(g) % num_start_red;
 
-				/* Move campaign position */
-				camp.pos[i] = 2;
-			}
-			else
-			{
-				/* Choose a Red start world */
-				n = game_rand(g) % num_start_red;
+			/* Add to start world choices */
+			start_picks[i][0] = start_red[n];
 
-				/* Add to start world choices */
-				start_picks[i][0] = start_red[n];
+			/* Collapse list */
+			start_red[n] = start_red[--num_start_red];
 
-				/* Collapse list */
-				start_red[n] = start_red[--num_start_red];
+			/* Choose a Blue start world */
+			n = game_rand(g) % num_start_blue;
 
-				/* Choose a Blue start world */
-				n = game_rand(g) % num_start_blue;
+			/* Add to start world choices */
+			start_picks[i][1] = start_blue[n];
 
-				/* Add to start world choices */
-				start_picks[i][1] = start_blue[n];
-
-				/* Collapse list */
-				start_blue[n] = start_blue[--num_start_blue];
-			}
+			/* Collapse list */
+			start_blue[n] = start_blue[--num_start_blue];
 
 			/* Remember original picks */
 			original_start_picks[i][0] = start_picks[i][0];
@@ -12128,6 +12127,7 @@ void begin_game(game *g)
 			c_ptr = &g->deck[start_picks[i][0]];
 
 			/* XXX Move card to discard */
+			c_ptr->owner = -1;
 			c_ptr->where = WHERE_DISCARD;
 
 			/* Card is known to player */
@@ -12149,6 +12149,7 @@ void begin_game(game *g)
 			c_ptr = &g->deck[start_picks[i][1]];
 
 			/* XXX Move card to discard */
+			c_ptr->owner = -1;
 			c_ptr->where = WHERE_DISCARD;
 
 			/* Card is known to player */
@@ -12256,16 +12257,21 @@ void begin_game(game *g)
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Check for campaign start world */
-			if (camp.size[i] >= 1)
+			if (g->camp && g->camp_status->size[i] >= 1)
+			{
+				/* Advance position */
+				g->camp_status->pos[i] = 1;
+			}
+
+			/* Check for non-random campaign start world */
+			if (g->camp && g->camp_status->size[i] >= 1 &&
+			    g->camp_status->index[i][0] > 0)
 			{
 				/* Place start world */
-				place_card(g, i, camp.order[i][0]);
+				place_card(g, i, g->camp_status->index[i][0]);
 
 				/* Remember start world */
-				g->p[i].start = camp.order[i][0];
-
-				/* Move position */
-				camp.pos[i] = 1;
+				g->p[i].start = g->camp_status->index[i][0];
 				continue;
 			}
 
@@ -12282,7 +12288,7 @@ void begin_game(game *g)
 			start[n] = start[--num_start];
 		}
 
-		/* Loop over start worlds */
+		/* Loop over remaining start worlds */
 		for (i = 0; i < num_start; i++)
 		{
 			/* Get card pointer for start world */
@@ -12347,6 +12353,17 @@ void begin_game(game *g)
 
 	/* Send message */
 	message_add_formatted(g, msg, FORMAT_VERBOSE);
+
+	/* Check for "draw extra" campaign flag */
+	if (g->camp && (g->camp->flags & CAMP_DRAW_EXTRA))
+	{
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Draw one card */
+			draw_card(g, i, "campaign");
+		}
+	}
 
 	/* Clear temporary flags on drawn cards */
 	clear_temp(g);

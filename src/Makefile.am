@@ -14,12 +14,12 @@ server_SOURCES = server.c engine.c init.c ai.c loadsave.c net.c net.h rftg.h \
 ai_client_SOURCES = ai_client.c engine.c init.c ai.c net.c net.h rftg.h comm.c \
 			comm.h
 
-dist_pkgdata_DATA = cards.txt images.data
+dist_pkgdata_DATA = cards.txt campaign.txt images.data
 
 AM_CFLAGS = -Wall
 
-rftg_CFLAGS = -Wall @GTK_CFLAGS@ -DRFTGDIR=\"$(pkgdatadir)\"
-rftg_LDADD = @GTK_LIBS@
+rftg_CFLAGS = -Wall @GTK_CFLAGS@ @GTK_MAC_CFLAGS@ -DRFTGDIR=\"$(pkgdatadir)\"
+rftg_LDADD = @GTK_LIBS@ @GTK_MAC_LIBS@
 
 server_LDADD = -lmysqlclient -lpthread
 
