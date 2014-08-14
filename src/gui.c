@@ -3709,7 +3709,6 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	/* Check for military world */
 	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
-		// TODO: Take mil_bonus into account, if first world placed
 		/* XXX Check for using extra military */
 		if (special >= 0 &&
 		    !strcmp(g->deck[special].d_ptr->name, "Imperium Supply Convoy"))
@@ -11255,7 +11254,6 @@ static void gui_redo(GtkMenuItem *menu_item, gpointer data)
  */
 static GtkWidget *num_players_radio[MAX_PLAYER];
 static GtkWidget *advanced_check;
-static GtkWidget *promo_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
 static GtkWidget *name_entry;
