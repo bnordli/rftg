@@ -626,7 +626,7 @@ void move_start(game *g, int which, int owner, int where)
 /*
  * Draw a card from the deck.
  */
-void draw_card(game *g, int who, char *reason)
+int draw_card(game *g, int who, char *reason)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -653,7 +653,7 @@ void draw_card(game *g, int who, char *reason)
 		which = first_draw(g);
 
 		/* Check for failure */
-		if (which == -1) return;
+		if (which == -1) return -1;
 
 		/* Get card pointer */
 		c_ptr = &g->deck[which];
@@ -662,14 +662,14 @@ void draw_card(game *g, int who, char *reason)
 		c_ptr->where = WHERE_DISCARD;
 
 		/* Done */
-		return;
+		return which;
 	}
 
 	/* Choose random (or campaign) card */
 	which = campaign_draw(g, who);
 
 	/* Check for failure */
-	if (which == -1) return;
+	if (which == -1) return -1;
 
 	/* Move card to player's hand */
 	move_card(g, which, who, WHERE_HAND);
@@ -704,6 +704,8 @@ void draw_card(game *g, int who, char *reason)
 			g->p[who].control->private_message(g, who, msg, FORMAT_DRAW);
 		}
 	}
+
+	return which;
 }
 
 /*
@@ -3337,7 +3339,7 @@ int strength_against(game *g, int who, int world, int attack, int defend)
  * Return the amount of military strength that applies only to the first
  * given world, but not the second.
  */
-static int strength_first(game *g, int who, int w1, int w2)
+int strength_first(game *g, int who, int w1, int w2)
 {
 	card *c_ptr1, *c_ptr2;
 	power_where w_list[100];
@@ -12010,7 +12012,7 @@ void begin_game(game *g)
 	if (g->camp)
 	{
 		/* Format campaign message */
-		sprintf(msg, "Campaign: %s\n", g->camp);
+		sprintf(msg, "Campaign: %s.\n", g->camp->name);
 
 		/* Send message */
 		message_add(g, msg);
@@ -12361,7 +12363,13 @@ void begin_game(game *g)
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Draw one card */
-			draw_card(g, i, "campaign");
+			int j = draw_card(g, i, NULL);
+
+			/* Format message */
+			sprintf(msg, "%s is given %s.\n", g->p[i].name, g->deck[j].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
 		}
 	}
 

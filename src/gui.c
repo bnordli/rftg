@@ -13803,7 +13803,7 @@ int main(int argc, char *argv[])
 	/* Create game menu items */
 	new_item = gtk_menu_item_new_with_mnemonic("_New");
 	new_parameters_item = gtk_menu_item_new_with_mnemonic("N_ew...");
-	campaign_item = gtk_menu_item_new_with_label("Select _Campaign...");
+	campaign_item = gtk_menu_item_new_with_mnemonic("Select _Campaign...");
 	load_item = gtk_menu_item_new_with_mnemonic("_Load Game...");
 	replay_item = gtk_menu_item_new_with_mnemonic("Re_play Game...");
 	save_item = gtk_menu_item_new_with_mnemonic("_Save Game...");

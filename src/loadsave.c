@@ -484,6 +484,10 @@ int export_game(game *g, char *filename, char *style_sheet,
 	/* Write setup start tag */
 	fputs("  <Setup>\n", fff);
 
+	/* Check for campaign */
+	if (g->camp)
+		fprintf(fff, "    <Campaign>%s</Campaign>\n", g->camp->name);
+
 	/* Write number of players (and advanced game) */
 	fprintf(fff, "    <Players%s>%d</Players>\n",
 		g->num_players == 2 && g->advanced ? " advanced=\"yes\"" : "",
@@ -494,12 +498,12 @@ int export_game(game *g, char *filename, char *style_sheet,
 	        g->expanded, xml_escape(exp_names[g->expanded]));
 
 	/* Check for expansion with goals */
-	if (g->expanded)
+	if (g->expanded > 0 && g->expanded < 4)
 		fprintf(fff, "    <Goals>%s</Goals>\n",
 		        g->goal_disabled ? "off" : "on");
 
 	/* Check for expansion with takeovers */
-	if (g->expanded > 1)
+	if (g->expanded > 1 && g->expanded < 4)
 		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
 		        g->takeover_disabled ? "off" : "on");
 

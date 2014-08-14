@@ -1077,7 +1077,7 @@ extern int random_draw(game *g);
 extern int first_draw(game *g);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);
-extern void draw_card(game *g, int who, char *reason);
+extern int draw_card(game *g, int who, char *reason);
 extern void draw_cards(game *g, int who, int num, char *reason);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
