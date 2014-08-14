@@ -11051,6 +11051,9 @@ static void gui_load_game(GtkMenuItem *menu_item, gpointer data)
 			load_state.p[i].choice_log = orig_log[i];
 		}
 
+		/* Clear campaign structure */
+		load_state.camp_status = NULL;
+
 		/* Try to load savefile into load state */
 		if (load_game(&load_state, fname) < 0)
 		{
