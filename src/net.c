@@ -191,7 +191,9 @@ void compute_net(net *learn)
 {
 	int i, j;
 	double sum, adj = 0.0;
+#if 0
 	v2d *weight, *hid_sum;
+#endif
 
 	/* Loop over inputs */
 	for (i = 0; i < learn->num_inputs + 1; i++)

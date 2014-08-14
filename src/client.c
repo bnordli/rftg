@@ -1026,7 +1026,7 @@ static void handle_prepare(char *ptr)
 			if (arg == -1) break;
 
 			/* Perform settle action */
-			settle_finish(&sim, player_us, arg, 0, -1);
+			settle_finish(&sim, player_us, arg, 0, -1, 0);
 			settle_extra(&sim, player_us, arg);
 			break;
 

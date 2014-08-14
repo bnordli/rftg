@@ -26,9 +26,19 @@
 design library[MAX_DESIGN];
 
 /*
- * Campaign settings.
+ * Campaign library.
  */
-campaign camp;
+campaign *camp_library;
+int num_campaign;
+
+/*
+ * Names of campaign flags.
+ */
+static char *camp_flags[] =
+{
+	"DRAW_EXTRA",
+	NULL
+};
 
 /*
  * Names of card flags.
@@ -558,20 +568,15 @@ void read_cards(void)
 }
 
 /*
- * Initialize a campaign.
+ * Read the campaign descriptions from the 'campaign.txt' file.
  */
-static void init_campaign(game *g)
+void read_campaign(void)
 {
 	FILE *fff;
-	char buf[1024];
-	int who = 0, n = 0;
+	campaign *a_ptr = NULL;
+	char buf[1024], *ptr;
+	int who = 0, n = 0, len;
 	int i;
-
-	/* Clear campaign data */
-	memset(&camp, 0, sizeof(campaign));
-
-	/* Check for campaign disabled */
-	if (g->campaign_disabled) return;
 
 	/* Open campaign description file */
 	fff = fopen(RFTGDIR "/campaign.txt", "r");
@@ -587,7 +592,7 @@ static void init_campaign(game *g)
 	if (!fff)
 	{
 		/* Print error */
-		/* perror("campaign.txt"); */
+		perror("campaign.txt");
 		return;
 	}
 
@@ -606,83 +611,327 @@ static void init_campaign(game *g)
 		/* Skip comments and blank lines */
 		if (!buf[0] || buf[0] == '#') continue;
 
-		/* Check for next player */
-		if (!strcmp(buf, "---"))
+		/* Switch on type of line */
+		switch (buf[0])
 		{
-			/* Advance to next player */
-			who++;
+			/* New campaign */
+			case 'N':
 
-			/* Start at beginning of next player order */
-			n = 0;
-			continue;
-		}
+				/* One more campaign */
+				num_campaign++;
 
-		/* Check for random card */
-		if (!strcmp(buf, "RANDOM"))
-		{
-			/* Add random card to order */
-			camp.order[who][n++] = -1;
+				/* Resize library array */
+				camp_library = (campaign *)realloc(camp_library,
+				               sizeof(campaign) * num_campaign);
 
-			/* Save size */
-			camp.size[who] = n;
-			continue;
-		}
+				/* Get campaign pointer */
+				a_ptr = &camp_library[num_campaign - 1];
 
-		/* Loop over "first" goal names */
-		for (i = 0; i < MAX_GOAL; i++)
-		{
-			/* Check for match */
-			if (!strcmp(buf, goal_name[i]))
-			{
-				/* Add to first goals list */
-				camp.goal[camp.num_goal++] = i;
+				/* Loop over players */
+				for (i = 0; i < MAX_PLAYER; i++)
+				{
+					/* Reset campaign size data */
+					a_ptr->size[i] = 0;
+				}
+
+				/* Clear flags */
+				a_ptr->flags = 0;
+
+				/* Reset campaign goal data */
+				a_ptr->num_goal = 0;
+
+				/* Start reading cards with first player */
+				who = n = 0;
+
+				/* Get campaign name */
+				ptr = buf + 2;
+
+				/* Copy name */
+				a_ptr->name = strdup(ptr);
+
+				/* Clear description */
+				a_ptr->desc = strdup("");
 				break;
-			}
-		}
 
-		/* Check for matched goal name */
-		if (i < MAX_GOAL) continue;
+			/* Campaign options */
+			case 'O':
 
-		/* Loop over cards */
-		for (i = 0; i < g->deck_size; i++)
-		{
-			/* Skip cards that are not in draw pile */
-			if (g->deck[i].where != WHERE_DECK) continue;
+				/* Get expansion string */
+				ptr = strtok(buf + 2, ":");
 
-			/* Check for name match */
-			if (!strcmp(buf, g->deck[i].d_ptr->name))
-			{
-				/* Add card to campaign */
-				camp.order[who][n++] = i;
+				/* Read type */
+				a_ptr->expanded = strtol(ptr, NULL, 0);
 
-				/* Save size */
-				camp.size[who] = n;
+				/* Get number of players string */
+				ptr = strtok(NULL, ":");
 
-				/* Move card to campaign stack */
-				move_card(g, i, who, WHERE_CAMPAIGN);
+				/* Read number of players */
+				a_ptr->num_players = strtol(ptr, NULL, 0);
 
-				/* Done looking */
+				/* Get advanced string */
+				ptr = strtok(NULL, ":");
+
+				/* Read advanced option */
+				a_ptr->advanced = strtol(ptr, NULL, 0);
+
+				/* Get goals disabled string */
+				ptr = strtok(NULL, ":");
+
+				/* Read goal disabled option */
+				a_ptr->goal_disabled = strtol(ptr, NULL, 0);
+
+				/* Get takeovers disabled string */
+				ptr = strtok(NULL, ":");
+
+				/* Read takeover disabled option */
+				a_ptr->takeover_disabled = strtol(ptr, NULL, 0);
 				break;
-			}
-		}
 
-		/* Check for no match */
-		if (i == g->deck_size)
-		{
-			/* Error */
-			fprintf(stderr, "Could not find card %s!\n", buf);
-			exit(1);
+			/* Campaign description */
+			case 'D':
+
+				/* Get current length */
+				len = strlen(a_ptr->desc);
+
+				/* Add space if necessary */
+				if (len) len++;
+
+				/* Add space for terminator */
+				len++;
+
+				/* Get next piece of description */
+				ptr = buf + 2;
+
+				/* Increase allocation */
+				a_ptr->desc = (char *)realloc(a_ptr->desc,
+				                             len + strlen(ptr));
+
+				/* Add newline if necessary */
+				if (len > 1) strcat(a_ptr->desc, "\n");
+
+				/* Add to description */
+				strcat(a_ptr->desc, ptr);
+				break;
+
+			/* Flags */
+			case 'F':
+
+				/* Get first flag */
+				ptr = strtok(buf + 2, " |");
+
+				/* Loop over flags */
+				while (ptr)
+				{
+					/* Check each flag */
+					for (i = 0; camp_flags[i]; i++)
+					{
+						/* Check this flag */
+						if (!strcmp(ptr, camp_flags[i]))
+						{
+							/* Set flag */
+							a_ptr->flags |= 1 << i;
+							break;
+						}
+					}
+
+					/* Check for no match */
+					if (!camp_flags[i])
+					{
+						/* Error */
+						printf("Unknown flag '%s'!\n",
+						       ptr);
+
+						/* Exit */
+						exit(1);
+					}
+
+					/* Get next flag */
+					ptr = strtok(NULL, " |");
+				}
+
+				/* Done with flag line */
+				break;
+
+			/* Card */
+			case 'C':
+
+				/* Get card name */
+				ptr = buf + 2;
+
+				/* Check for next player */
+				if (!strcmp(ptr, "---"))
+				{
+					/* Advance to next player */
+					who++;
+
+					/* Start at beginning of next player */
+					n = 0;
+					break;
+				}
+
+				/* Check for random card */
+				if (!strcmp(ptr, "RANDOM"))
+				{
+					/* Add random card to order */
+					a_ptr->order[who][n++] = NULL;
+
+					/* Save size */
+					a_ptr->size[who] = n;
+					break;
+				}
+
+				/* Loop over designs */
+				for (i = 0; i < MAX_DESIGN; i++)
+				{
+					/* Check for name match */
+					if (!strcmp(ptr, library[i].name))
+					{
+						/* Add design to campaign */
+						a_ptr->order[who][n++] =
+						              &library[i];
+
+						/* Save size */
+						a_ptr->size[who] = n;
+
+						/* Done looking */
+						break;
+					}
+				}
+
+				/* Check for no match */
+				if (i == MAX_DESIGN)
+				{
+					/* Error */
+					fprintf(stderr,
+						"Could not find card %s!\n",
+					        ptr);
+					exit(1);
+				}
+
+				/* Done with line */
+				break;
+
+			/* Goal name */
+			case 'G':
+
+				/* Advance to goal name */
+				ptr = buf + 2;
+
+				/* Get current number of set goals */
+				len = a_ptr->num_goal;
+
+				/* Loop over goal names */
+				for (i = 0; i < MAX_GOAL; i++)
+				{
+					/* Check for match */
+					if (!strcmp(ptr, goal_name[i]))
+					{
+						/* Add to first goals list */
+						a_ptr->goal[len] = i;
+
+						/* One more goal */
+						a_ptr->num_goal++;
+						break;
+					}
+				}
+
+				/* Check for no matched goal */
+				if (i == MAX_GOAL)
+				{
+					/* Error */
+					fprintf(stderr,
+						"Could not find goal %s!\n",
+					        ptr);
+					exit(1);
+				}
 		}
 	}
 
 	/* Close campaign file */
 	fclose(fff);
+}
+
+/*
+ * Initialize a campaign status.
+ */
+static void init_campaign(game *g)
+{
+	int i, j, k;
+
+	/* Check for pre-existing campaign status */
+	if (!g->camp_status)
+	{
+		/* Make a status structure */
+		g->camp_status = (campaign_status *)
+		                               malloc(sizeof(campaign_status));
+	}
+
+	/* Clear campaign status */
+	memset(g->camp_status, 0, sizeof(campaign_status));
 
 	/* Loop over players */
 	for (i = 0; i < MAX_PLAYER; i++)
 	{
-		/* Reset campaign position */
-		camp.pos[i] = 0;
+		/* Loop over set aside cards for this player */
+		for (j = 0; j < g->camp->size[i]; j++)
+		{
+			/* Loop over cards in deck */
+			for (k = 0; k < g->deck_size; k++)
+			{
+				/* Skip cards not in deck */
+				if (g->deck[k].where != WHERE_DECK) continue;
+
+				/* Skip cards that do not match */
+				if (g->deck[k].d_ptr != g->camp->order[i][j])
+					continue;
+
+				/* Move card to campaign location */
+				move_card(g, k, i, WHERE_CAMPAIGN);
+
+				/* Save index */
+				g->camp_status->index[i][j] = k;
+
+				/* Done looking */
+				break;
+			}
+
+			/* Check for random card */
+			if (!g->camp->order[i][j])
+			{
+				/* Add random card */
+				g->camp_status->index[i][j] = -1;
+				continue;
+			}
+
+			/* Check for failure to find card */
+			if (k == g->deck_size)
+			{
+				/* Error */
+				fprintf(stderr, "Could not find enough %s.\n",
+				        g->camp->order[i][j]->name);
+				exit(1);
+			}
+		}
+
+		/* Set size */
+		g->camp_status->size[i] = g->camp->size[i];
+	}
+}
+
+/*
+ * Apply campaign options to game.
+ */
+void apply_campaign(game *g)
+{
+	/* Check for campaign */
+	if (g->camp)
+	{
+		/* Override game options with campaign versions */
+		g->expanded = g->camp->expanded;
+		g->num_players = g->camp->num_players;
+		g->advanced = g->camp->advanced;
+		g->goal_disabled = g->camp->goal_disabled;
+		g->takeover_disabled = g->camp->takeover_disabled;
 	}
 }
 
@@ -696,6 +945,7 @@ void init_game(game *g)
 	card *c_ptr;
 	int goal[MAX_GOAL];
 	int i, j, k, n;
+	int num_goal = 0;
 
 	/* Save current random seed */
 	g->start_seed = g->random_seed;
@@ -704,6 +954,9 @@ void init_game(game *g)
 	sprintf(msg, "start seed: %u\n", g->start_seed);
 	message_add(msg);
 #endif
+
+	/* Apply campaign options */
+	apply_campaign(g);
 
 	/* Game is not simulated */
 	g->simulation = 0;
@@ -867,8 +1120,12 @@ void init_game(game *g)
 		p_ptr->low_hand = 0;
 	}
 
-	/* Read campaign settings */
-	init_campaign(g);
+	/* Check for campaign */
+	if (g->camp)
+	{
+		/* Set aside campaign cards */
+		init_campaign(g);
+	}
 
 	/* Add goals when expanded */
 	if (g->expanded > 0 && g->expanded < 4 && !g->goal_disabled)
@@ -906,23 +1163,26 @@ void init_game(game *g)
 		/* Assume no campaign goals */
 		k = 0;
 
+		/* Check for campaign goals */
+		if (g->camp) num_goal = g->camp->num_goal;
+
 		/* Loop over campaign goals */
-		for (i = 0; i < camp.num_goal; i++)
+		for (i = 0; i < num_goal; i++)
 		{
 			/* Skip "most" goals */
-			if (camp.goal[i] > GOAL_FIRST_4_MILITARY) continue;
+			if (g->camp->goal[i] > GOAL_FIRST_4_MILITARY) continue;
 
 			/* Goal is active */
-			g->goal_active[camp.goal[i]] = 1;
+			g->goal_active[g->camp->goal[i]] = 1;
 
 			/* Goal is available */
-			g->goal_avail[camp.goal[i]] = 1;
+			g->goal_avail[g->camp->goal[i]] = 1;
 
 			/* Remove campaign goal from list */
 			for (j = 0; j < n; j++)
 			{
 				/* Check for match */
-				if (goal[j] == camp.goal[i])
+				if (goal[j] == g->camp->goal[i])
 				{
 					/* Remove from list */
 					goal[j] = goal[--n];
@@ -983,22 +1243,22 @@ void init_game(game *g)
 		k = 0;
 
 		/* Loop over campaign goals */
-		for (i = 0; i < camp.num_goal; i++)
+		for (i = 0; i < num_goal; i++)
 		{
 			/* Skip "first" goals */
-			if (camp.goal[i] < GOAL_MOST_MILITARY) continue;
+			if (g->camp->goal[i] < GOAL_MOST_MILITARY) continue;
 
 			/* Goal is active */
-			g->goal_active[camp.goal[i]] = 1;
+			g->goal_active[g->camp->goal[i]] = 1;
 
 			/* Goal is available */
-			g->goal_avail[camp.goal[i]] = 1;
+			g->goal_avail[g->camp->goal[i]] = 1;
 
 			/* Remove campaign goal from list */
 			for (j = 0; j < n; j++)
 			{
 				/* Check for match */
-				if (goal[j] == camp.goal[i])
+				if (goal[j] == g->camp->goal[i])
 				{
 					/* Remove from list */
 					goal[j] = goal[--n];

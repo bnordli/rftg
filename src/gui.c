@@ -27,7 +27,7 @@
 /* Apple OS X specific-code */
 #ifdef __APPLE__     
 #include "CoreFoundation/CoreFoundation.h"
-#include "ige-mac-menu.h"
+#include "gtk-mac-menu.h"
 #endif
 
 /*
@@ -251,6 +251,7 @@ static int display_deck, display_discard, display_pool;
  */
 static int action_restrict;
 static int action_min, action_max, action_payment_which, action_payment_mil;
+static int action_payment_bonus;
 static int action_cidx, action_oidx;
 
 /*
@@ -875,7 +876,8 @@ static gboolean action_check_payment(void)
 
 	/* Try to make payment */
 	return payment_callback(&sim, player_us, action_payment_which,
-	                        list, n, special, ns, action_payment_mil);
+	                        list, n, special, ns, action_payment_mil,
+	                        action_payment_bonus);
 }
 
 /*
@@ -4153,7 +4155,8 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
  * such as the Contact Specialist or Colony Ship.
  */
 void gui_choose_pay(game *g, int who, int which, int list[], int *num,
-                    int special[], int *num_special, int mil_only)
+                    int special[], int *num_special, int mil_only,
+                    int mil_bonus)
 {
 	card *c_ptr;
 	displayed *i_ptr;
@@ -4177,6 +4180,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	action_restrict = RESTRICT_PAY;
 	action_payment_which = which;
 	action_payment_mil = mil_only;
+	action_payment_bonus = mil_bonus;
 
 	/* Deactivate action button */
 	gtk_widget_set_sensitive(action_button, action_check_payment());
@@ -6371,7 +6375,7 @@ static void gui_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose payment */
 			gui_choose_pay(g, who, arg1, list, nl, special, ns,
-			               arg2);
+			               arg2, arg3);
 			rv = 0;
 			break;
 
@@ -6739,6 +6743,9 @@ static void run_game(void)
 		/* Check for new game starting */
 		if (restart_loop == RESTART_NEW)
 		{
+			/* Initialize game */
+			init_game(&real_game);
+
 			/* Reset game */
 			reset_gui();
 
@@ -6752,9 +6759,6 @@ static void run_game(void)
 
 			/* Clear undos */
 			num_undo = 0;
-
-			/* Initialize game */
-			init_game(&real_game);
 		}
 
 		/* Holding pattern for multiplayer */
@@ -6895,8 +6899,10 @@ static void read_prefs(void)
 	                                           NULL);
 	opt.disable_takeover = g_key_file_get_boolean(pref_file, "game",
 	                                              "no_takeover", NULL);
-	opt.disable_campaign = g_key_file_get_boolean(pref_file, "game",
-						      "no_campaign", NULL);
+
+	/* Read campaign options */
+	opt.campaign_name = g_key_file_get_string(pref_file, "game", "campaign",
+	                                          NULL);
 
 	/* Read GUI options */
 	opt.full_reduced = g_key_file_get_integer(pref_file, "gui",
@@ -6956,8 +6962,9 @@ void save_prefs(void)
 	g_key_file_set_boolean(pref_file, "game", "no_goals", opt.disable_goal);
 	g_key_file_set_boolean(pref_file, "game", "no_takeover",
 	                       opt.disable_takeover);
-	g_key_file_set_boolean(pref_file, "game", "no_campaign",
-	                       opt.disable_campaign);
+
+	/* Set campaign (if any) */
+	g_key_file_set_string(pref_file, "game", "campaign", opt.campaign_name);
 
 	/* Set GUI options */
 	g_key_file_set_integer(pref_file, "gui", "full_reduced",
@@ -7014,6 +7021,8 @@ void save_prefs(void)
  */
 static void apply_options(void)
 {
+	int i;
+
 	/* Sanity check number of players in base game */
 	if (opt.expanded < 1 && opt.num_players > 4)
 	{
@@ -7021,8 +7030,8 @@ static void apply_options(void)
 		opt.num_players = 4;
 	}
 
-	/* Sanity check number of players in first expansion */
-	if (opt.expanded < 2 && opt.num_players > 5)
+	/* Sanity check number of players in first or fourth expansion */
+	if ((opt.expanded < 2 || opt.expanded > 3) && opt.num_players > 5)
 	{
 		/* Reset to five players */
 		opt.num_players = 5;
@@ -7049,18 +7058,33 @@ static void apply_options(void)
 	/* Set takeover disabled */
 	real_game.takeover_disabled = opt.disable_takeover;
 
-#if 0
-	/* Set campaign disabled */
-	real_game.campaign_disabled = opt.disable_campaign;
-#endif
-	real_game.campaign_disabled = 1;
-
 	/* Sanity check advanced mode */
 	if (real_game.num_players > 2)
 	{
 		/* Clear advanced mode */
 		real_game.advanced = 0;
 	}
+
+	/* Assume no campaign */
+	real_game.camp = NULL;
+
+	/* Check for campaign name set */
+	if (opt.campaign_name)
+	{
+		/* Loop over available campaigns */
+		for (i = 0; i < num_campaign; i++)
+		{
+			/* Check for match */
+			if (!strcmp(opt.campaign_name, camp_library[i].name))
+			{
+				/* Set campaign */
+				real_game.camp = &camp_library[i];
+			}
+		}
+	}
+
+	/* Apply campaign options (number of players, etc) */
+	apply_campaign(&real_game);
 }
 
 /*
@@ -7263,7 +7287,6 @@ static GtkWidget *advanced_check;
 static GtkWidget *promo_check;
 static GtkWidget *disable_goal_check;
 static GtkWidget *disable_takeover_check;
-static GtkWidget *disable_campaign_check;
 
 /*
  * Current selections for next game options.
@@ -7493,20 +7516,6 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		gtk_widget_set_sensitive(disable_takeover_check, FALSE);
 	}
 
-#if 0
-	/* Create check box for disabled campaign */
-	disable_campaign_check = gtk_check_button_new_with_label(
-							    "Disable campaign");
-
-	/* Set checkbox status */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_campaign_check),
-	                             opt.disable_campaign);
-
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_campaign_check);
-#endif
-
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
 
@@ -7546,11 +7555,155 @@ static void select_parameters(GtkMenuItem *menu_item, gpointer data)
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
 
-#if 0
-		/* Set campaign disabled flag */
-		opt.disable_campaign = gtk_toggle_button_get_active(
-				GTK_TOGGLE_BUTTON(disable_campaign_check));
-#endif
+		/* Apply options */
+		apply_options();
+
+		/* Recreate GUI elements for new number of players */
+		modify_gui();
+
+		/* Force game over */
+		real_game.game_over = 1;
+
+		/* Start new game */
+		restart_loop = RESTART_NEW;
+
+		/* Save preferences */
+		save_prefs();
+
+		/* Quit waiting for events */
+		gtk_main_quit();
+	}
+
+	/* Destroy dialog */
+	gtk_widget_destroy(dialog);
+}
+
+/*
+ * Campaign description label.
+ */
+static GtkWidget *campaign_desc;
+
+/*
+ * Selected campaign was changed.
+ */
+static void campaign_changed(GtkComboBox *combo, gpointer data)
+{
+	int i;
+
+	/* Get combo box choice */
+	i = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+
+	/* Check for no campaign */
+	if (!i)
+	{
+		/* Set description */
+		gtk_label_set_text(GTK_LABEL(campaign_desc), "No campaign");
+	}
+	else
+	{
+		/* Set campaign description */
+		gtk_label_set_text(GTK_LABEL(campaign_desc),
+		                   camp_library[i - 1].desc);
+	}
+}
+
+/*
+ * Select a campaign to use.
+ */
+static void select_campaign(GtkMenuItem *menu_item, gpointer data)
+{
+	GtkWidget *dialog, *combo;
+	GtkWidget *frame;
+	int i;
+
+	/* Check for connected to server */
+	if (client_state != CS_DISCONN) return;
+
+	/* Create dialog box */
+	dialog = gtk_dialog_new_with_buttons("Select Campaign", NULL,
+	                                     GTK_DIALOG_MODAL,
+	                                     GTK_STOCK_OK,
+                                             GTK_RESPONSE_ACCEPT,
+	                                     GTK_STOCK_CANCEL,
+	                                     GTK_RESPONSE_REJECT, NULL);
+
+	/* Set default width */
+	gtk_window_set_default_size(GTK_WINDOW(dialog), 480, -1);
+
+	/* Set window title */
+	gtk_window_set_title(GTK_WINDOW(dialog),
+	                     "Race for the Galaxy " VERSION);
+
+	/* Set spacing */
+	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 5);
+
+	/* Create combo box */
+	combo = gtk_combo_box_new_text();
+
+	/* Add "no campaign" option */
+	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "None");
+
+	/* Assume no campaign */
+	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
+
+	/* Loop over campaigns */
+	for (i = 0; i < num_campaign; i++)
+	{
+		/* Add campaign name to combo box */
+		gtk_combo_box_append_text(GTK_COMBO_BOX(combo),
+		                          camp_library[i].name);
+
+		/* Check for currently active */
+		if (opt.campaign_name &&
+		    !strcmp(opt.campaign_name, camp_library[i].name))
+		{
+			/* Set active */
+			gtk_combo_box_set_active(GTK_COMBO_BOX(combo), i + 1);
+		}
+	}
+
+	/* Add combo box to dialog */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), combo);
+
+	/* Create frame to hold campaign description */
+	frame = gtk_frame_new("Campaign description");
+
+	/* Add frame to dialog */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), frame);
+
+	/* Add campaign description label */
+	campaign_desc = gtk_label_new("");
+
+	/* Add label to dialog */
+	gtk_container_add(GTK_CONTAINER(frame), campaign_desc);
+
+	/* Add handler */
+	g_signal_connect(G_OBJECT(combo), "changed",
+			 G_CALLBACK(campaign_changed), NULL);
+
+	/* Initialize description label */
+	campaign_changed(GTK_COMBO_BOX(combo), NULL);
+
+	/* Show all widgets */
+	gtk_widget_show_all(dialog);
+
+	/* Run dialog */
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		/* Get combo box choice */
+		i = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+
+		/* Check for no campaign set */
+		if (!i)
+		{
+			/* Clear campaign */
+			opt.campaign_name = "";
+		}
+		else
+		{
+			/* Set campaign */
+			opt.campaign_name = camp_library[i - 1].name;
+		}
 
 		/* Apply options */
 		apply_options();
@@ -8503,6 +8656,7 @@ int main(int argc, char *argv[])
 	GtkWidget *menu_bar, *game_menu, *debug_menu, *help_menu, *network_menu;
 	GtkWidget *game_item, *network_item, *debug_item, *help_item;
 	GtkWidget *new_item, *load_item, *select_item, *option_item, *quit_item;
+	GtkWidget *campaign_item;
 	GtkWidget *debug_card_item, *debug_ai_item, *about_item;
 	GtkWidget *connect_item, *disconnect_item, *resign_item;
 	GtkWidget *h_sep, *v_sep, *event;
@@ -8554,6 +8708,9 @@ int main(int argc, char *argv[])
 
 	/* Load card designs */
 	read_cards();
+
+	/* Load campaigns */
+	read_campaign();
 
 	/* Load card images */
 	load_images();
@@ -8683,6 +8840,7 @@ int main(int argc, char *argv[])
 	save_item = gtk_menu_item_new_with_label("Save Game..."); 
 	undo_item = gtk_menu_item_new_with_label("Undo Turn");
 	select_item = gtk_menu_item_new_with_label("Select Parameters...");
+	campaign_item = gtk_menu_item_new_with_label("Select Campaign...");
 	option_item = gtk_menu_item_new_with_label("GUI Options...");
 	quit_item = gtk_menu_item_new_with_label("Quit"); 
 
@@ -8692,6 +8850,7 @@ int main(int argc, char *argv[])
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), save_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), undo_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), select_item);
+	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), campaign_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), option_item);
 	gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), quit_item);
 
@@ -8739,6 +8898,8 @@ int main(int argc, char *argv[])
 	                 G_CALLBACK(gui_undo_game), NULL);
 	g_signal_connect(G_OBJECT(select_item), "activate",
 	                 G_CALLBACK(select_parameters), NULL);
+	g_signal_connect(G_OBJECT(campaign_item), "activate",
+	                 G_CALLBACK(select_campaign), NULL);
 	g_signal_connect(G_OBJECT(option_item), "activate",
 	                 G_CALLBACK(gui_options), NULL);
 	g_signal_connect(G_OBJECT(quit_item), "activate",
@@ -9315,19 +9476,19 @@ int main(int argc, char *argv[])
 
 #ifdef __APPLE__
 	/* Setup OS X style menus */	
-	IgeMacMenuGroup *group = ige_mac_menu_add_app_menu_group();
-	ige_mac_menu_add_app_menu_item(group,
+	GtkMacMenuGroup *group = gtk_mac_menu_add_app_menu_group();
+	gtk_mac_menu_add_app_menu_item(group,
 	                               GTK_MENU_ITEM(about_item), NULL);
 	
-	group = ige_mac_menu_add_app_menu_group();
-	ige_mac_menu_add_app_menu_item(group,
+	group = gtk_mac_menu_add_app_menu_group();
+	gtk_mac_menu_add_app_menu_item(group,
 	                               GTK_MENU_ITEM(option_item),
 	                               "Preferences...");
 	
-	ige_mac_menu_set_quit_menu_item(GTK_MENU_ITEM(quit_item));
+	gtk_mac_menu_set_quit_menu_item(GTK_MENU_ITEM(quit_item));
 	
 	gtk_widget_hide(menu_bar);
-	ige_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));	
+	gtk_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));	
 #endif
 
 	/* Reset GUI */

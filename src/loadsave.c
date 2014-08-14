@@ -53,7 +53,7 @@ int load_game(game *g, char *filename)
 	if (strcmp(version, VERSION) > 0) return -1;
 
 	/* Check for too old version */
-	if (strcmp(version, "0.7.2") < 0) return -1;
+	if (strcmp(version, "0.9.3") < 0) return -1;
 
 	/* Read random seed information */
 	fscanf(fff, "%u\n", &g->start_seed);
@@ -62,6 +62,39 @@ int load_game(game *g, char *filename)
 	fscanf(fff, "%d %d\n", &g->num_players, &g->expanded);
 	fscanf(fff, "%d %d %d\n", &g->advanced, &g->goal_disabled,
 	                          &g->takeover_disabled);
+
+	/* Read campaign name */
+	fgets(buf, 1024, fff);
+
+	/* Strip newline from campaign name */
+	buf[strlen(buf) - 1] = '\0';
+
+	/* Check for no campaign */
+	if (!strcmp(buf, "none"))
+	{
+		/* Clear campaign */
+		g->camp = NULL;
+	}
+	else
+	{
+		/* Loop over campaigns */
+		for (i = 0; i < num_campaign; i++)
+		{
+			/* Check for match */
+			if (!strcmp(camp_library[i].name, buf))
+			{
+				/* Set campaign */
+				g->camp = &camp_library[i];
+				break;
+			}
+		}
+
+		/* Check for no match */
+		if (i == num_campaign) return -1;
+	}
+
+	/* Clear other options */
+	g->promo = 0;
 
 	/* Clear simulation flag */
 	g->simulation = 0;
@@ -119,6 +152,9 @@ int save_game(game *g, char *filename, int player_us)
 	fprintf(fff, "%d %d\n", g->num_players, g->expanded);
 	fprintf(fff, "%d %d %d\n", g->advanced, g->goal_disabled,
 	                           g->takeover_disabled);
+
+	/* Write campaign information (if any) */
+	fprintf(fff, "%s\n", g->camp ? g->camp->name : "none");
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)

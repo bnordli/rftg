@@ -1344,7 +1344,9 @@ static void obfuscate_game(game *ob, game *g, int who)
 		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
 
 		/* Check for card owned by player (but not a good) */
-		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
+		if ((g->deck[i].owner == who ||
+		     g->deck[i].start_owner == who) &&
+		    g->deck[i].where != WHERE_GOOD)
 			continue;
 
 		/* Clear card location */
@@ -1369,7 +1371,9 @@ static void obfuscate_game(game *ob, game *g, int who)
 		if (g->deck[i].start_where == WHERE_ACTIVE) continue;
 
 		/* Skip cards known by owner */
-		if (g->deck[i].owner == who && g->deck[i].where != WHERE_GOOD)
+		if ((g->deck[i].owner == who ||
+		     g->deck[i].start_owner == who) &&
+		    g->deck[i].where != WHERE_GOOD)
 			continue;
 
 		/* Find substitute card */
@@ -2498,6 +2502,7 @@ static void start_session(int sid)
 	s_ptr->g.advanced = s_ptr->advanced;
 	s_ptr->g.goal_disabled = s_ptr->disable_goal;
 	s_ptr->g.takeover_disabled = s_ptr->disable_takeover;
+	s_ptr->g.camp = NULL;
 
 	/* Save session ID in game structure */
 	s_ptr->g.session_id = sid;
@@ -2595,7 +2600,7 @@ static void handle_login(int cid, char *ptr)
 	printf("Login attempt from %s\n", user);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.9.2") < 0)
+	if (strcmp(version, "0.9.3") < 0)
 	{
 		/* Send denied message */
 		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
@@ -3604,6 +3609,7 @@ static void do_housekeeping(void)
 	session *s_ptr;
 	time_t cur_time = time(NULL);
 	int i, j, num;
+	int cid;
 	char msg[1024];
 
 	/* Loop over sessions */
@@ -3772,8 +3778,11 @@ static void do_housekeeping(void)
 			/* Add to wait count */
 			s_ptr->wait_ticks[j]++;
 
+			/* Get connection ID */
+			cid = s_ptr->cids[j];
+
 			/* Check for disconnected player */
-			if (s_ptr->cids[j] < 0)
+			if (cid < 0)
 			{
 				/* Time out disconnected players more quickly */
 				s_ptr->wait_ticks[j] += 4;
@@ -3783,11 +3792,19 @@ static void do_housekeeping(void)
 			if (s_ptr->wait_ticks[j] >= 30)
 			{
 				/* Check for player connected */
-				if (s_ptr->cids[j] >= 0)
+				if (cid >= 0)
 				{
+					/* Release wait mutex */
+					pthread_mutex_unlock(
+					                 &s_ptr->session_mutex);
+
 					/* Kick player */
-					kick_player(s_ptr->cids[j],
+					kick_player(cid,
 					            "Set to AI due to delay");
+
+					/* Reacquire wait mutex */
+					pthread_mutex_lock(
+					                 &s_ptr->session_mutex);
 				}
 
 				/* Release wait mutex */

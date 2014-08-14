@@ -29,8 +29,8 @@ typedef struct options
 	/* Disable takeovers */
 	int disable_takeover;
 
-	/* Disable campaign */
-	int disable_campaign;
+	/* Campaign name */
+	char *campaign_name;
 
 	/* Reduce/eliminate full-size card image */
 	int full_reduced;

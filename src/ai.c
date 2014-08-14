@@ -2459,7 +2459,7 @@ static double eval_game(game *g, int who)
 		else
 		{
 			/* Check for illegal world */
-			if (!settle_legal(g, who, x, 0, 0, 0)) continue;
+			if (!settle_legal(g, who, x, 0, 0, 0, 0)) continue;
 
 			/* One more buildable world */
 			build_world++;
@@ -2603,7 +2603,7 @@ static double eval_hand(game *g, int who)
 		else
 		{
 			/* Check for unplayable */
-			if (!settle_legal(g, who, x, 0, 0, 0)) continue;
+			if (!settle_legal(g, who, x, 0, 0, 0, 0)) continue;
 		}
 
 		/* Simulate game */
@@ -5338,7 +5338,7 @@ static double ai_choose_place_opp_aux(game *g, int who, int which, int phase,
 		if (which != -1 || settle_check_takeover(g, who, 0))
 		{
 			/* Pay for world */
-			settle_finish(g, who, which, 0, special);
+			settle_finish(g, who, which, 0, special, 0);
 
 			/* Use rest of settle powers */
 			settle_extra(g, who, which);
@@ -5419,7 +5419,13 @@ static int ai_choose_place_opp(game *g, int who, int phase, int special)
 
 			/* Check for place military world power */
 			if (o_ptr->code & P3_PLACE_MILITARY) mil_only = 1;
-			if (o_ptr->code & P3_PLACE_LEFTOVER) mil_only = 1;
+
+			/* Check for place with leftover power */
+			if (o_ptr->code & P3_PLACE_LEFTOVER)
+			{
+				/* XXX Assume no second placement */
+				return -1;
+			}
 		}
 	}
 
@@ -5512,7 +5518,8 @@ static int ai_choose_place_opp(game *g, int who, int phase, int special)
 		if (phase == PHASE_SETTLE)
 		{
 			/* Check for illegal world */
-			if (!settle_legal(g, who, unknown[j], 0, mil_only, 0))
+			if (!settle_legal(g, who, unknown[j], 0, mil_only, 0,
+			                  0))
 				continue;
 		}
 
@@ -5696,7 +5703,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
 				{
 					/* Settle choice */
 					settle_finish(&sim, i, which, 0,
-						      special);
+						      special, 0);
 				}
 			}
 			else
@@ -5731,7 +5738,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
 		if (settle_check_takeover(&sim2, who, 0))
 		{
 			/* Take no-place action */
-			settle_finish(&sim2, who, -1, 0, special);
+			settle_finish(&sim2, who, -1, 0, special, 0);
 			settle_extra(&sim2, who, -1);
 
 			/* Resolve takeovers */
@@ -5795,7 +5802,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
 		else
 		{
 			/* Settle choice */
-			settle_finish(&sim2, who, list[i], 0, special);
+			settle_finish(&sim2, who, list[i], 0, special, 0);
 			settle_extra(&sim2, who, list[i]);
 		}
 
@@ -5834,8 +5841,9 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
  */
 static void ai_choose_pay_aux2(game *g, int who, int which, int list[],
                                int special[], int num_special, int mil_only,
-                               int n, int c, int chosen, int chosen_special,
-                               int *best, int *best_special, double *b_s)
+                               int mil_bonus, int n, int c, int chosen,
+                               int chosen_special, int *best, int *best_special,
+                               double *b_s)
 {
 	game sim;
 	int payment[MAX_DECK], num_payment = 0, used[MAX_DECK], n_used = 0;
@@ -5875,7 +5883,7 @@ static void ai_choose_pay_aux2(game *g, int who, int which, int list[],
 
 		/* Attempt to pay */
 		if (!payment_callback(&sim, who, which, payment, num_payment,
-		                      used, n_used, mil_only))
+		                      used, n_used, mil_only, mil_bonus))
 		{
 			/* Illegal payment */
 			return;
@@ -5902,14 +5910,14 @@ static void ai_choose_pay_aux2(game *g, int who, int which, int list[],
 
 	/* Try without current card */
 	ai_choose_pay_aux2(g, who, which, list, special, num_special,
-	                   mil_only, n - 1, c, chosen << 1, chosen_special,
-	                   best, best_special, b_s);
+	                   mil_only, mil_bonus, n - 1, c, chosen << 1,
+	                   chosen_special, best, best_special, b_s);
 
 	/* Try with current card */
 	if (c) ai_choose_pay_aux2(g, who, which, list, special,
-	                          num_special, mil_only, n - 1, c - 1,
-	                          (chosen << 1) + 1, chosen_special, best,
-	                          best_special, b_s);
+	                          num_special, mil_only, mil_bonus, n - 1,
+	                          c - 1, (chosen << 1) + 1, chosen_special,
+	                          best, best_special, b_s);
 }
 
 /*
@@ -5938,7 +5946,7 @@ int num_legal_payment;
  */
 static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
                                int special[], int num_special, int mil_only,
-                               int next, int chosen_special,
+                               int mil_bonus, int next, int chosen_special,
                                int *best, int *best_special, double *b_s)
 {
 	game sim;
@@ -5960,7 +5968,8 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
 		}
 
 		/* Determine cards needed */
-		need = needed_callback(g, who, which, used, n_used, mil_only);
+		need = needed_callback(g, who, which, used, n_used, mil_only,
+		                       mil_bonus);
 
 		/* Check for illegal combination */
 		if (need < 0) return;
@@ -6028,7 +6037,8 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
 			else
 			{
 				/* Ask for settle payment */
-				settle_finish(&sim, i, g->p[i].placing, 0, -1);
+				settle_finish(&sim, i, g->p[i].placing, 0, -1,
+					      0);
 
 				/* Ask about future settle powers */
 				settle_extra(&sim, i, g->p[i].placing);
@@ -6037,8 +6047,8 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
 
 		/* Try payment with different card combinations */
 		ai_choose_pay_aux2(&sim, who, which, list, special, num_special,
-				   mil_only, num, need, 0, chosen_special,
-				   best, best_special, b_s);
+				   mil_only, mil_bonus, num, need, 0,
+		                   chosen_special, best, best_special, b_s);
 
 		/* Done */
 		return;
@@ -6046,20 +6056,22 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
 
 	/* Try without current ability */
 	ai_choose_pay_aux1(g, who, which, list, num, special, num_special,
-	                   mil_only, next + 1, chosen_special, best,
+	                   mil_only, mil_bonus, next + 1, chosen_special, best,
 	                   best_special, b_s);
 
 	/* Try with current ability */
 	ai_choose_pay_aux1(g, who, which, list, num, special, num_special,
-	                   mil_only, next + 1, chosen_special | (1 << next),
-	                   best, best_special, b_s);
+	                   mil_only, mil_bonus, next + 1,
+	                   chosen_special | (1 << next), best, best_special,
+	                   b_s);
 }
 
 /*
  * Choose method of payment.
  */
 static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
-                          int special[], int *num_special, int mil_only)
+                          int special[], int *num_special, int mil_only,
+                          int mil_bonus)
 {
 	game sim;
 	double b_s = -1, score;
@@ -6075,7 +6087,8 @@ static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
 
 	/* Find best set of special abilities */
 	ai_choose_pay_aux1(g, who, which, list, *num, special, *num_special,
-	                   mil_only, 0, 0, &best, &best_special, &b_s);
+	                   mil_only, mil_bonus, 0, 0, &best, &best_special,
+	                   &b_s);
 
 	/* Check for only one payment strategy */
 	if (b_s == -1 && num_legal_payment == 1)
@@ -6118,7 +6131,8 @@ static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
 			/* Attempt to pay */
 			if (!payment_callback(&sim, who, which, payment,
 					      payment_list[i].needed,
-			                      used, n_used, mil_only))
+			                      used, n_used, mil_only,
+			                      mil_bonus))
 			{
 				/* Error */
 				printf("Payment failed!\n");
@@ -6260,7 +6274,7 @@ static int ai_choose_takeover(game *g, int who, int list[], int *num,
 			sim.num_takeover++;
 
 			/* Pay for extra military for this takeover */
-			settle_finish(&sim, who, -1, 0, -1);
+			settle_finish(&sim, who, -1, 0, -1, 0);
 
 			/* Complete turn */
 			complete_turn(&sim, COMPLETE_ROUND);
@@ -6962,6 +6976,9 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 	game sim;
 	card *c_ptr, *b_ptr;
 	power *o_ptr, *n_ptr;
+	int code1, code2;
+	int type1, type2;
+	int cards1, cards2;
 	int i, j, best = -1, skip[100];
 	double score, b_s = -1;
 
@@ -7023,6 +7040,9 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 	/* Loop over powers */
 	for (i = 0; i < *num; i++)
 	{
+		/* Do not check for skippable powers in simulated games */
+		if (g->simulation) break;
+
 		/* Skip bonus power from prestige trade */
 		if (cidx[i] < 0) continue;
 
@@ -7031,6 +7051,15 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 
 		/* Get power pointer */
 		o_ptr = &c_ptr->d_ptr->powers[oidx[i]];
+
+		/* Do not compare unusual powers */
+		if (o_ptr->code & (P4_DISCARD_HAND | P4_ANTE_CARD |
+		                   P4_CONSUME_PRESTIGE | P4_CONSUME_ALL |
+		                   P4_CONSUME_3_DIFF | P4_CONSUME_N_DIFF))
+		{
+			/* Skip power */
+			continue;
+		}
 
 		/* Loop over other powers */
 		for (j = 0; j < *num; j++)
@@ -7050,8 +7079,22 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 			/* Get power pointer */
 			n_ptr = &b_ptr->d_ptr->powers[oidx[j]];
 
+			/* Do not compare unusual powers */
+			if (n_ptr->code & (P4_DISCARD_HAND | P4_ANTE_CARD |
+					   P4_CONSUME_PRESTIGE |
+					   P4_CONSUME_ALL | P4_CONSUME_3_DIFF |
+					   P4_CONSUME_N_DIFF))
+			{
+				/* Skip power */
+				continue;
+			}
+
+			/* Get power codes */
+			code1 = o_ptr->code;
+			code2 = n_ptr->code;
+
 			/* Check for identical powers */
-			if (o_ptr->code == n_ptr->code &&
+			if (code1 == code2 &&
 			    o_ptr->value == n_ptr->value &&
 			    o_ptr->times == n_ptr->times)
 			{
@@ -7061,19 +7104,33 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 			}
 
 			/* Check for better trade power */
-			if ((o_ptr->code & P4_TRADE_ACTION) &&
-			    (n_ptr->code & P4_TRADE_ACTION) &&
-			    (o_ptr->code & P4_TRADE_NO_BONUS))
+			if ((code1 & P4_TRADE_ACTION) &&
+			    (code2 & P4_TRADE_ACTION) &&
+			    (code1 & P4_TRADE_NO_BONUS))
 			{
 				/* Skip power */
 				skip[i] = 1;
 				break;
 			}
 
+			/* Stop looking at trade actions */
+			if (code1 & P4_TRADE_ACTION) continue;
+			if (code2 & P4_TRADE_ACTION) continue;
+
 			/* Check for more reward */
-			if (o_ptr->code == n_ptr->code &&
+			if (code1 == code2 &&
 			    o_ptr->times == n_ptr->times &&
 			    o_ptr->value < n_ptr->value)
+			{
+				/* Skip power */
+				skip[i] = 1;
+				break;
+			}
+
+			/* Check for identical reward but more times */
+			if (code1 == code2 &&
+			    o_ptr->value == n_ptr->value &&
+			    o_ptr->times > n_ptr->times)
 			{
 				/* Skip power */
 				skip[i] = 1;
@@ -7084,32 +7141,48 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 			if (o_ptr->times != n_ptr->times ||
 			    o_ptr->value != n_ptr->value) continue;
 
+			/* Get consume types */
+			type1 = code1 & CONSUME_TYPE_MASK;
+			type2 = code2 & CONSUME_TYPE_MASK;
+
+			/* Strip out consume types */
+			code1 &= ~CONSUME_TYPE_MASK;
+			code2 &= ~CONSUME_TYPE_MASK;
+
+			/* Assume no cards rewards */
+			cards1 = cards2 = 0;
+
+			/* Check for 1 card reward */
+			if (code1 & P4_GET_CARD) cards1 = 1;
+			if (code2 & P4_GET_CARD) cards2 = 1;
+
+			/* Check for 2 card reward */
+			if (code1 & P4_GET_2_CARD) cards1 = 2;
+			if (code2 & P4_GET_2_CARD) cards2 = 2;
+
+			/* Check for 3 card reward */
+			if (code1 & P4_GET_3_CARD) cards1 = 3;
+			if (code2 & P4_GET_3_CARD) cards2 = 3;
+
+			/* Strip card rewards from codes */
+			code1 &= ~(P4_GET_CARD | P4_GET_2_CARD | P4_GET_3_CARD);
+			code2 &= ~(P4_GET_CARD | P4_GET_2_CARD | P4_GET_3_CARD);
+
+			/* Check for better card reward */
+			if (code1 == code2 &&
+			    type1 == type2 &&
+			    cards1 < cards2)
+			{
+				/* Skip power */
+				skip[i] = 1;
+				break;
+			}
+
 			/* Check for better reward */
-			if (((n_ptr->code == (o_ptr->code | P4_GET_CARD)) ||
-			     (n_ptr->code == (o_ptr->code | P4_GET_VP))))
-			{
-				/* Skip power */
-				skip[i] = 1;
-				break;
-			}
-
-
-			/* Check for more general consume power */
-			if ((o_ptr->code & ~CONSUME_TYPE_MASK) ==
-			    (n_ptr->code & ~CONSUME_TYPE_MASK) &&
-			    (n_ptr->code & P4_CONSUME_ANY))
-			{
-				/* Skip power */
-				skip[i] = 1;
-				break;
-			}
-
-			/* Check for more general power and better reward */
-			if ((((o_ptr->code & ~CONSUME_TYPE_MASK)|P4_GET_CARD) ==
-			      (n_ptr->code & ~CONSUME_TYPE_MASK) ||
-			     ((o_ptr->code & ~CONSUME_TYPE_MASK) | P4_GET_VP) ==
-			      (n_ptr->code & ~CONSUME_TYPE_MASK)) &&
-			    (n_ptr->code & P4_CONSUME_ANY))
+			if ((type1 == type2) &&
+			    (cards1 == cards2) &&
+			    ((code2 == (code1 | P4_GET_VP)) ||
+			     (code2 == (code1 | P4_GET_PRESTIGE))))
 			{
 				/* Skip power */
 				skip[i] = 1;
@@ -8286,7 +8359,7 @@ static void ai_make_choice(game *g, int who, int type, int list[], int *nl,
 
 			/* Choose payment */
 			ai_choose_pay(g, who, arg1, list, nl, special, ns,
-			              arg2);
+			              arg2, arg3);
 			rv = 0;
 			break;
 
