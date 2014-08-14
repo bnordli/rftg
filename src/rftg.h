@@ -1100,6 +1100,7 @@ extern void develop_action(game *g, int who, int placing);
 extern int develop_discount(game *g, int who);
 extern void phase_develop(game *g);
 extern int strength_against(game *g, int who, int world, int attack, int defend);
+extern int strength_first(game *g, int who, int w1, int w2);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
                             int special[], int num_special, int mil_only,
                             int mil_bonus);

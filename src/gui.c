@@ -3512,7 +3512,7 @@ static char *card_develop_tooltip(game *g, int who, displayed *i_ptr)
  * Compute the military/cost needed for a military world.
  */
 static void military_world_payment(game *g, int who, int which,
-                                   int mil_only, discounts *d_ptr,
+                                   int mil_only, int mil_bonus, discounts *d_ptr,
                                    int *military, int *cost, char **cost_card)
 {
 	card *c_ptr;
@@ -3522,7 +3522,7 @@ static void military_world_payment(game *g, int who, int which,
 	c_ptr = &g->deck[which];
 
 	/* Get current strength */
-	strength = strength_against(g, who, which, -1, 0);
+	strength = strength_against(g, who, which, -1, 0) + mil_bonus;
 
 	/* Compute extra military needed */
 	*military = c_ptr->d_ptr->cost - strength;
@@ -3667,6 +3667,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
 	int which, mil_only, mil_needed, ict_mil, iif_mil, cost, zero_cost;
+	int mil_bonus = 0, placed;
 
 	/* Get discounts */
 	d_ptr = &status_player[who].discount;
@@ -3708,11 +3709,21 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 	/* Check for military world */
 	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
-		/* Compute payment */
-		military_world_payment(g, who, which, mil_only, d_ptr,
-		                       &mil_needed, &cost, &cost_card);
-
 		// TODO: Take mil_bonus into account, if first world placed
+		/* XXX Check for using extra military */
+		if (special >= 0 &&
+		    !strcmp(g->deck[special].d_ptr->name, "Imperium Supply Convoy"))
+		{
+			/* Look up the first world placed */
+			placed = g->p[who].head[WHERE_ACTIVE];
+
+			/* Compute strength used for first world */
+			mil_bonus = g->deck[placed].d_ptr->cost - strength_first(g, who, g->p[who].head[WHERE_ACTIVE], which);
+		}
+
+		/* Compute payment */
+		military_world_payment(g, who, which, mil_only, -mil_bonus,
+		                       d_ptr, &mil_needed, &cost, &cost_card);
 
 		/* Check for no extra military */
 		if (mil_needed <= 0)
@@ -3723,7 +3734,7 @@ static char *card_settle_tooltip(game *g, int who, int special, displayed *i_ptr
 		else
 		{
 			/* Format text */
-			p += sprintf(p, "Extra military needed to place: %+d\n",
+			p += sprintf(p, "Extra military needed to place: %d\n",
 			             mil_needed);
 		}
 
@@ -6794,12 +6805,9 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 		else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 		{
 			/* Compute payment */
-			military_world_payment(g, who, which, mil_only,
+			military_world_payment(g, who, which, mil_only, mil_bonus,
 			                       &status_player[who].discount,
 			                       &military, &cost, &cost_card);
-
-			/* Add military bonus */
-			military += mil_bonus;
 
 			/* Check for no pay-for-military power */
 			if (cost == -1)
