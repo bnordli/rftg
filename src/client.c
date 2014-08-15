@@ -603,7 +603,7 @@ static void handle_status_meta(char *ptr, int size)
 		real_game.p[i].name = strdup(name);
 	}
 
-	/* Check for ai information (since 0.9.2m) */
+	/* Check for ai information (since 0.9.3m) */
 	if (size > ptr - start)
 	{
 		/* Loop over players */
@@ -674,7 +674,7 @@ static void handle_status_player(char *ptr, int size)
 	p_ptr->bonus_military = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 
-	/* Check for prestige on the tile information (since 0.9.2m) */
+	/* Check for prestige on the tile information (since 0.9.3m) */
 	if (size > ptr - start)
 	{
 		/* Copy prestige information */
@@ -2177,7 +2177,7 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
-		/* RELEASE since 0.9.2m */
+		/* RELEASE since 0.9.3m */
 		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
 		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
