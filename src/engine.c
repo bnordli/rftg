@@ -6048,6 +6048,9 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 
 			/* Act on settle */
 			settle_finish(g, who, p_ptr->placing, 0, c_idx, 0);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -6113,6 +6116,9 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 
 			/* Pay for world and collect bonuses */
 			settle_finish(g, who, p_ptr->placing, 1, c_idx, 0);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -6276,6 +6282,9 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 
 			/* Award bonuses for settling */
 			settle_finish(g, who, p_ptr->placing, 0, c_idx, 0);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -7644,6 +7653,9 @@ void phase_settle(game *g)
 
 		/* Handle choice */
 		settle_finish(g, i, p_ptr->placing, 0, -1, 0);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 
 		/* Use extra settle powers */
 		settle_extra(g, i, p_ptr->placing);
