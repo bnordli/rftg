@@ -10616,7 +10616,8 @@ void produce_player(game *g, int who)
 	player *p_ptr = &g->p[who];
 
 	/* Clear phase rewards */
-	p_ptr->phase_cards = p_ptr->phase_prestige = 0;
+	p_ptr->phase_cards = p_ptr->phase_vp = 0;
+	p_ptr->phase_prestige = 0;
 
 	/* Set current player */
 	g->turn = who;
