@@ -148,7 +148,7 @@ extern game real_game;
 extern int player_us;
 extern int restart_loop;
 
-extern int client_state;
+extern int client_state, playing_game, making_choice;
 extern char server_version[30];
 extern int debug_server;
 extern int waiting_player[MAX_PLAYER];
@@ -165,7 +165,7 @@ extern void redraw_everything(void);
 extern void modify_gui(int reset_card);
 extern void reset_gui(void);
 extern void switch_view(int lobby, int chat);
-extern void gui_client_state_changed(int playing_game, int making_choice);
+extern void update_menu_items();
 
 extern void game_view_changed(GtkTreeView *view, gpointer data);
 extern void send_chat(GtkEntry *entry, gpointer data);

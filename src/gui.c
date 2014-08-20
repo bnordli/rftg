@@ -9334,50 +9334,6 @@ static void gui_notify_rotation(game *g, int who)
 }
 
 /*
- * Updates the sensitivity on menu items.
- */
-void update_menu_items(void)
-{
-	/* Only control sensitivity when disconnected */
-	if (client_state != CS_DISCONN) return;
-
-	/* Check for no undo possibility */
-	if (num_undo == 0)
-	{
-		/* Disable undo items */
-		gtk_widget_set_sensitive(undo_item, FALSE);
-		gtk_widget_set_sensitive(undo_round_item, FALSE);
-		gtk_widget_set_sensitive(undo_game_item, FALSE);
-	}
-	else
-	{
-		/* Enable undo items */
-		gtk_widget_set_sensitive(undo_item, TRUE);
-		gtk_widget_set_sensitive(undo_round_item, TRUE);
-		gtk_widget_set_sensitive(undo_game_item, TRUE);
-	}
-
-	/* Check for no redo possibility */
-	if (num_undo == max_undo)
-	{
-		/* Disable redo items */
-		gtk_widget_set_sensitive(redo_item, FALSE);
-		gtk_widget_set_sensitive(redo_round_item, FALSE);
-		gtk_widget_set_sensitive(redo_game_item, FALSE);
-	}
-	else
-	{
-		/* Enable redo items */
-		gtk_widget_set_sensitive(redo_item, TRUE);
-		gtk_widget_set_sensitive(redo_round_item, TRUE);
-		gtk_widget_set_sensitive(redo_game_item, TRUE);
-	}
-
-	/* Enable save item */
-	gtk_widget_set_sensitive(save_item, TRUE);
-}
-
-/*
  * Auto save during the game.
  */
 static void auto_save_choice(game *g, int who)
@@ -9913,6 +9869,35 @@ static void apply_options(void)
 }
 
 /*
+ * Disable all menu items, in order to avoid opening dialogs
+ * while loading games, etc.
+ */
+static void disable_menu_items(void)
+{
+	/* Deactivate menu items */
+	gtk_widget_set_sensitive(new_item, FALSE);
+	gtk_widget_set_sensitive(new_parameters_item, FALSE);
+	gtk_widget_set_sensitive(load_item, FALSE);
+	gtk_widget_set_sensitive(replay_item, FALSE);
+	gtk_widget_set_sensitive(save_item, FALSE);
+	gtk_widget_set_sensitive(export_item, FALSE);
+	gtk_widget_set_sensitive(option_item, FALSE);
+	gtk_widget_set_sensitive(advanced_item, FALSE);
+	gtk_widget_set_sensitive(undo_item, FALSE);
+	gtk_widget_set_sensitive(undo_round_item, FALSE);
+	gtk_widget_set_sensitive(undo_game_item, FALSE);
+	gtk_widget_set_sensitive(redo_item, FALSE);
+	gtk_widget_set_sensitive(redo_round_item, FALSE);
+	gtk_widget_set_sensitive(redo_game_item, FALSE);
+	gtk_widget_set_sensitive(connect_item, FALSE);
+	gtk_widget_set_sensitive(disconnect_item, FALSE);
+	gtk_widget_set_sensitive(resign_item, FALSE);
+	gtk_widget_set_sensitive(debug_card_item, FALSE);
+	gtk_widget_set_sensitive(debug_ai_item, FALSE);
+	gtk_widget_set_sensitive(about_item, FALSE);
+}
+
+/*
  * Reset player structures.
  */
 void reset_gui(void)
@@ -10070,6 +10055,9 @@ static void run_game(void)
 	/* Loop forever */
 	while (1)
 	{
+		/* Disable menu items */
+		disable_menu_items();
+
 		/* Replay by default */
 		game_replaying = TRUE;
 
@@ -10132,6 +10120,9 @@ static void run_game(void)
 		/* Holding pattern for multiplayer */
 		else if (restart_loop == RESTART_NONE)
 		{
+			/* Notify gui */
+			update_menu_items();
+
 			/* Do nothing until disconnected from server */
 			while (restart_loop == RESTART_NONE)
 			{
@@ -10715,9 +10706,9 @@ void save_prefs(void)
 }
 
 /*
- * Set sensitivity of menu items based on client state.
+ * Update the sensitivity of meny items.
  */
-void gui_client_state_changed(int playing_game, int making_choice)
+void update_menu_items()
 {
 	/* Check if client is disconnected */
 	if (client_state == CS_DISCONN)
@@ -10731,18 +10722,24 @@ void gui_client_state_changed(int playing_game, int making_choice)
 		gtk_widget_set_sensitive(export_item, TRUE);
 		gtk_widget_set_sensitive(option_item, TRUE);
 		gtk_widget_set_sensitive(advanced_item, TRUE);
-		gtk_widget_set_sensitive(undo_item, TRUE);
-		gtk_widget_set_sensitive(undo_round_item, TRUE);
-		gtk_widget_set_sensitive(undo_game_item, TRUE);
-		gtk_widget_set_sensitive(redo_item, TRUE);
-		gtk_widget_set_sensitive(redo_round_item, TRUE);
-		gtk_widget_set_sensitive(redo_game_item, TRUE);
-		gtk_widget_set_sensitive(debug_card_item, TRUE);
-		gtk_widget_set_sensitive(debug_ai_item, TRUE);
+
+		/* Activate undo and redo items based on undo information */
+		gtk_widget_set_sensitive(undo_item, num_undo > 0);
+		gtk_widget_set_sensitive(undo_round_item, num_undo > 0);
+		gtk_widget_set_sensitive(undo_game_item, num_undo > 0);
+		gtk_widget_set_sensitive(redo_item, num_undo != max_undo);
+		gtk_widget_set_sensitive(redo_round_item, num_undo != max_undo);
+		gtk_widget_set_sensitive(redo_game_item, num_undo != max_undo);
+
+		/* Activate debug items based on game information */
+		gtk_widget_set_sensitive(debug_card_item, !real_game.game_over);
+		gtk_widget_set_sensitive(debug_ai_item, !real_game.game_over);
+
+		/* Activate connect and about items */
 		gtk_widget_set_sensitive(connect_item, TRUE);
 		gtk_widget_set_sensitive(about_item, TRUE);
 
-		/* Deactivate disconnect and resign menu item */
+		/* Deactivate disconnect and resign menu items */
 		gtk_widget_set_sensitive(disconnect_item, FALSE);
 		gtk_widget_set_sensitive(resign_item, FALSE);
 	}
@@ -10782,7 +10779,8 @@ void gui_client_state_changed(int playing_game, int making_choice)
 				gtk_widget_set_sensitive(export_item, TRUE);
 				gtk_widget_set_sensitive(option_item, TRUE);
 				gtk_widget_set_sensitive(advanced_item, TRUE);
-				gtk_widget_set_sensitive(debug_card_item, debug_server);
+				gtk_widget_set_sensitive(debug_card_item, debug_server &&
+				                         !real_game.game_over);
 				gtk_widget_set_sensitive(about_item, TRUE);
 			}
 			else
@@ -14636,9 +14634,6 @@ int main(int argc, char *argv[])
 	/* Add main hbox to main window */
 	gtk_container_add(GTK_CONTAINER(window), main_vbox);
 
-	/* Simulate client state changed */
-	gui_client_state_changed(FALSE, FALSE);
-
 	/* Show all widgets */
 	gtk_widget_show_all(window);
 
@@ -14661,6 +14656,12 @@ int main(int argc, char *argv[])
 	gtk_widget_hide(menu_bar);
 	gtk_mac_menu_set_menu_bar(GTK_MENU_SHELL(menu_bar));
 #endif
+
+	/* Not playing game and not making choice */
+	playing_game = making_choice = 0;
+
+	/* Disable menu items */
+	disable_menu_items();
 
 	/* Reset GUI */
 	reset_gui();

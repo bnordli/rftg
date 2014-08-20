@@ -41,6 +41,16 @@ static GSource *server_src;
 int client_state = CS_DISCONN;
 
 /*
+ * We are currently playing in a game.
+ */
+int playing_game;
+
+/*
+ * We are currently making a choice.
+ */
+int making_choice;
+
+/*
  * The version of the server we are connected to.
  */
 char server_version[30];
@@ -61,19 +71,9 @@ static int client_sid = -1;
 static int connect_dialog_closed;
 
 /*
- * We are currently playing in a game.
- */
-static int playing_game;
-
-/*
  * Widgets used in multiple functions.
  */
 static GtkWidget *login_status;
-
-/*
- * We are currently making a choice.
- */
-static int making_choice;
 
 /*
  * Prevent displayed card updates until server catches up with us.
@@ -938,7 +938,7 @@ static void handle_choose(char *ptr)
 	making_choice = 1;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game, making_choice);
+	update_menu_items();
 
 	/* Ask player for decision */
 	gui_func.make_choice(&real_game, player_us, type, list, &num,
@@ -948,7 +948,7 @@ static void handle_choose(char *ptr)
 	making_choice = 0;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game, making_choice);
+	update_menu_items();
 
 	/* Reset hand/table areas to default */
 	reset_cards(&real_game, TRUE, TRUE);
@@ -1104,7 +1104,7 @@ static void handle_prepare(char *ptr)
 	making_choice = 1;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game, making_choice);
+	update_menu_items();
 
 	/* Check phase */
 	switch (phase)
@@ -1158,7 +1158,7 @@ static void handle_prepare(char *ptr)
 	making_choice = 0;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game, making_choice);
+	update_menu_items();
 
 	/* Copy simulated game choice log to real game */
 	real_game.p[player_us].choice_size = sim.p[player_us].choice_size;
@@ -1219,7 +1219,7 @@ static gboolean message_read(gpointer data)
 			client_state = CS_LOBBY;
 
 			/* Notify gui */
-			gui_client_state_changed(playing_game, making_choice);
+			update_menu_items();
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1405,8 +1405,7 @@ static gboolean message_read(gpointer data)
 			playing_game = 1;
 
 			/* Notify gui */
-			gui_client_state_changed(playing_game, making_choice);
-
+			update_menu_items();
 			break;
 
 		/* We have been removed from a game */
@@ -1632,7 +1631,7 @@ static gboolean message_read(gpointer data)
 			making_choice = 1;
 
 			/* Notify gui */
-			gui_client_state_changed(playing_game, making_choice);
+			update_menu_items();
 
 			/* Reset displayed cards */
 			reset_cards(&real_game, TRUE, TRUE);
@@ -1660,7 +1659,7 @@ static gboolean message_read(gpointer data)
 			making_choice = 0;
 
 			/* Notify gui */
-			gui_client_state_changed(playing_game, making_choice);
+			update_menu_items();
 
 			/* Check for disconnected */
 			if (client_state != CS_DISCONN)
@@ -2165,7 +2164,7 @@ with the password you enter.");
 		client_state = CS_INIT;
 
 		/* Notify gui */
-		gui_client_state_changed(playing_game, making_choice);
+		update_menu_items();
 
 		/* Freeze server name/port once connection is established */
 		gtk_widget_set_sensitive(server, FALSE);
@@ -2234,7 +2233,7 @@ with the password you enter.");
 		client_state = CS_DISCONN;
 
 		/* Notify gui */
-		gui_client_state_changed(playing_game, making_choice);
+		update_menu_items();
 	}
 	else
 	{
@@ -2319,7 +2318,7 @@ static void disconnect(void)
 	playing_game = 0;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game, making_choice);
+	update_menu_items();
 
 	/* Quit from all nested main loops */
 	g_timeout_add(0, quit_from_main, NULL);
@@ -2726,7 +2725,7 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 	playing_game = 0;
 
 	/* Notify gui */
-	gui_client_state_changed(playing_game, making_choice);
+	update_menu_items();
 
 	/* Switch back to lobby view */
 	switch_view(1, 1);
