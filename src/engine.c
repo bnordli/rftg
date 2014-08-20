@@ -761,6 +761,31 @@ void gain_prestige(game *g, int who, int num, char *reason)
 }
 
 /*
+ * Give player VPs from the pool.
+ */
+static void gain_vps(game *g, int who, int num, char *reason)
+{
+	char msg[1024];
+	player *p_ptr = &g->p[who];
+
+	/* Award VPs */
+	p_ptr->vp += num;
+
+	/* Remove from pool */
+	g->vp_pool -= num;
+
+	/* Check for simulated game and reason */
+	if (!g->simulation && reason)
+	{
+		sprintf(msg, "%s receives %d VP%s from %s.\n",
+		        g->p[who].name, num, PLURAL(num), reason);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_VERBOSE);
+	}
+}
+
+/*
  * Spend some of a player's prestige.
  */
 void spend_prestige(game *g, int who, int num)
@@ -8164,10 +8189,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 			}
 
 			/* Award VPs */
-			p_ptr->vp += vp * vp_mult;
-
-			/* Remove from pool */
-			g->vp_pool -= vp * vp_mult;
+			gain_vps(g, who, vp * vp_mult, NULL);
 
 			/* Count reward */
 			p_ptr->phase_vp += vp * vp_mult;
@@ -8550,10 +8572,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 		if (o_ptr->code & P4_GET_VP)
 		{
 			/* Add points */
-			p_ptr->vp += o_ptr->value;
-
-			/* Remove from pool */
-			g->vp_pool -= o_ptr->value;
+			gain_vps(g, who, o_ptr->value, NULL);
 
 			/* Count reward */
 			p_ptr->phase_vp += o_ptr->value;
@@ -8681,10 +8700,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Add points */
-		p_ptr->vp += vp * vp_mult;
-
-		/* Remove from pool */
-		g->vp_pool -= vp * vp_mult;
+		gain_vps(g, who, vp * vp_mult, NULL);
 
 		/* Count reward */
 		p_ptr->phase_vp += vp * vp_mult;
@@ -8804,11 +8820,8 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		/* Multiply vp */
 		vp *= vp_mult;
 
-		/* Award VPs */
-		p_ptr->vp += vp;
-
-		/* Remove from pool */
-		g->vp_pool -= vp;
+		/* Add points */
+		gain_vps(g, who, vp, NULL);
 
 		/* Count reward */
 		p_ptr->phase_vp += vp;
