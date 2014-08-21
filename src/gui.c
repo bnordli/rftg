@@ -10070,7 +10070,6 @@ void modify_gui(int reset_card)
  */
 static void run_game(void)
 {
-	char buf[1024];
 	int i;
 	int pos, choice, saved_choice;
 
@@ -10437,12 +10436,6 @@ static void run_game(void)
 		/* Declare winner */
 		declare_winner(&real_game);
 
-		/* Format seed message */
-		sprintf(buf, "(The seed for this game was %u.)\n", real_game.start_seed);
-
-		/* Send message */
-		message_add(&real_game, buf);
-
 		/* Auto save */
 		auto_save_end(&real_game, player_us);
 
@@ -10459,11 +10452,8 @@ static void run_game(void)
 		/* Redraw everything */
 		redraw_everything();
 
-		/* Create prompt */
-		sprintf(buf, "Game Over");
-
 		/* Set prompt */
-		gtk_label_set_text(GTK_LABEL(action_prompt), buf);
+		gtk_label_set_text(GTK_LABEL(action_prompt), "Game over");
 
 		/* Update menu items */
 		update_menu_items();
