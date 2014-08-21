@@ -12169,22 +12169,18 @@ void start_chosen(game *g)
 }
 
 /*
- * Deal out start worlds and ask for initial discards.
+ * Send game information to players.
  */
-void begin_game(game *g)
+static void game_information(game *g)
 {
-	player *p_ptr;
-	card *c_ptr;
-	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
-	int start_picks[MAX_PLAYER][2], original_start_picks[MAX_PLAYER][2];
-	int hand[MAX_DECK];
-	int i, j, n, ns;
-	int lowest = MAX_DECK, low_i = -1;
-	int num_start = 0, num_start_red = 0, num_start_blue = 0;
 	char msg[1024];
 
+	/* Send game information header */
+	message_add_formatted(g, "=== Game information ===\n", FORMAT_EM);
+
 	/* Format message */
-	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n", exp_names[g->expanded]);
+	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n",
+	        exp_names[g->expanded]);
 
 	/* Send message */
 	message_add(g, msg);
@@ -12206,7 +12202,8 @@ void begin_game(game *g)
 	}
 	else
 	{
-		sprintf(msg, "%s, advanced game.\n", player_labels[g->num_players - 2]);
+		sprintf(msg, "%s, advanced game.\n",
+		        player_labels[g->num_players - 2]);
 	}
 
 	/* Send message */
@@ -12243,6 +12240,25 @@ void begin_game(game *g)
 			message_add_formatted(g, "Takeovers enabled.\n", FORMAT_TAKEOVER);
 		}
 	}
+}
+
+/*
+ * Deal out start worlds and ask for initial discards.
+ */
+void begin_game(game *g)
+{
+	player *p_ptr;
+	card *c_ptr;
+	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
+	int start_picks[MAX_PLAYER][2], original_start_picks[MAX_PLAYER][2];
+	int hand[MAX_DECK];
+	int i, j, n, ns;
+	int lowest = MAX_DECK, low_i = -1;
+	int num_start = 0, num_start_red = 0, num_start_blue = 0;
+	char msg[1024];
+
+	/* Send game information */
+	game_information(g);
 
 	/* Start game */
 	g->cur_action = ACT_GAME_START;
@@ -13776,11 +13792,14 @@ void declare_winner(game *g)
 			}
 		}
 
+		/* Send game information */
+		game_information(g);
+
 		/* Check for offline game */
 		if (g->session_id < 0)
 		{
 			/* Format seed message */
-			sprintf(msg, "(The seed for this game was %u.)\n", g->start_seed);
+			sprintf(msg, "The seed for this game was %u.\n", g->start_seed);
 
 			/* Send message */
 			message_add(g, msg);
@@ -13790,7 +13809,7 @@ void declare_winner(game *g)
 		if (g->debug_game)
 		{
 			/* Add debug note */
-			message_add_formatted(g, "(Debug game.)\n", FORMAT_DEBUG);
+			message_add_formatted(g, "Debug game.\n", FORMAT_DEBUG);
 		}
 	}
 }
