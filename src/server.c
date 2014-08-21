@@ -2497,7 +2497,7 @@ static void kick_player(int cid, char *reason)
 		update_waiting(sid);
 
 		/* Check for kick timeout */
-		if (kick_timeout)
+		if (kick_timeout && !c_list[cid].ai)
 		{
 			/* Format time to AI control message */
 			sprintf(text, "%s will be set to AI control in %d seconds.",
