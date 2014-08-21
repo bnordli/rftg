@@ -1080,20 +1080,21 @@ static void perform_debug_moves(game *g, int who)
 					case WHERE_ACTIVE:
 
 						/* Make card known to everyone */
-						g->deck[c].known = ~0;
+						g->deck[c].misc |= MISC_KNOWN_MASK;
 						break;
 
 					case WHERE_HAND:
 					case WHERE_SAVED:
 
 						/* Make card known to player */
-						g->deck[c].known = 1 << owner;
+						g->deck[c].misc &= ~MISC_KNOWN_MASK;
+						g->deck[c].misc |= (1 << who);
 						break;
 
 					default:
 
 						/* Card's location unknown to everybody */
-						g->deck[c].known = 0;
+						g->deck[c].misc &= ~MISC_KNOWN_MASK;
 						break;
 				}
 

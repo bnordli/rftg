@@ -6970,8 +6970,8 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			/* Get table card pointer */
 			i_ptr = &table[player_us][j];
 
-			/* Check for matching index */
-			if (i_ptr->index == special[i] && (special_legal & (1 << i))
+			/* Check for matching index and legal card */
+			if (i_ptr->index == special[i] && (special_legal & (1 << i)))
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
@@ -10412,7 +10412,7 @@ static void run_game(void)
 		restart_loop = 0;
 
 		/* Game is run by gui */
-		real_game.session.id = -1;
+		real_game.session_id = -1;
 
 		/* Begin game */
 		begin_game(&real_game);
