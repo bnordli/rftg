@@ -194,6 +194,9 @@ int main(int argc, char *argv[])
 		/* Initialize game */
 		init_game(&my_game);
 
+		/* Game is learning game */
+		my_game.session_id = -2;
+
 		printf("Start seed: %u\n", my_game.start_seed);
 
 		/* Begin game */

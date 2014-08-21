@@ -977,9 +977,6 @@ void init_game(game *g)
 	/* Apply campaign options */
 	apply_campaign(g);
 
-	/* Assuming game is offline */
-	g->session_id = -1;
-
 	/* Game is not simulated */
 	g->simulation = 0;
 
