@@ -2574,7 +2574,7 @@ static void handle_choice(int cid, char *ptr, int size)
 		type = get_integer(&ptr);
 
 		/* Check whether we got a real choice */
-		got_choice |= (type != CHOICE_DEBUG);
+		got_choice |= (type >= 0);
 
 		/* Copy choice type to log */
 		*l_ptr++ = type;
@@ -2583,7 +2583,7 @@ static void handle_choice(int cid, char *ptr, int size)
 		server_log("S:%d P:%d Received choice type %d position %d from %d, current size is %d.", sid, who, *(l_ptr - 1), pos, cid, p_ptr->choice_size);
 
 		/* Check for debug choice */
-		if (type == CHOICE_DEBUG && !debug_server)
+		if (type < 0 && !debug_server)
 		{
 			/* Kick player */
 			kick_player(cid, "This server does not accept debug message");

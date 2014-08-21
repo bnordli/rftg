@@ -138,6 +138,7 @@
 /*
  * Player action choices.
  */
+#define ACT_GAME_START     -2
 #define ACT_ROUND_START    -1
 #define ACT_SEARCH         0
 #define ACT_EXPLORE_5_0    1
@@ -550,7 +551,15 @@
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
 
-#define CHOICE_DEBUG            -10
+/*
+ * Debug choices are negative
+ */
+#define CHOICE_D_MOVE           -10
+#define CHOICE_D_SHUFFLE        -11
+#define CHOICE_D_TAKE_CARD      -12
+#define CHOICE_D_TAKE_VP        -13
+#define CHOICE_D_TAKE_PRESTIGE  -14
+#define CHOICE_D_ROTATE         -15
 
 
 /*
@@ -889,6 +898,12 @@ typedef struct game
 	/* Game is a simulation */
 	int8_t simulation;
 
+	/* Whether game is a debug game or not */
+	int8_t debug_game;
+
+	/* Number of debug rotations since last check */
+	int8_t debug_rotate;
+
 	/* Who initiated the simulation */
 	int8_t sim_who;
 
@@ -1067,7 +1082,6 @@ extern void apply_campaign(game *g);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
 extern int next_choice(int* log, int pos);
-extern void perform_debug_moves(game *g, int who);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_has(game *g, int who, design *d_ptr);

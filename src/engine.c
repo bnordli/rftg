@@ -1016,9 +1016,9 @@ int next_choice(int* log, int pos)
 }
 
 /*
- * Look for CHOICE_DEBUG in the log and execute the choices.
+ * Look for debug choices in the log and execute the choices.
  */
-void perform_debug_moves(game *g, int who)
+static void perform_debug_moves(game *g, int who)
 {
 	player *p_ptr;
 	int *l_ptr;
@@ -1032,46 +1032,151 @@ void perform_debug_moves(game *g, int who)
 	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
 
 	/* Loop for debug choices */
-	while (*l_ptr == CHOICE_DEBUG && p_ptr->choice_pos < p_ptr->choice_size)
+	while (p_ptr->choice_pos < p_ptr->choice_size)
 	{
-		/* Advance pointer */
-		l_ptr++;
+		/* Read next choice type */
+		switch (*l_ptr)
+		{
+			/* Move a card in debug mode */
+			case CHOICE_D_MOVE:
 
-		/* Get card index value */
-		c = *l_ptr++;
+				/* Advance pointer */
+				l_ptr++;
 
-		/* Advance pointer to start of list */
-		l_ptr++;
+				/* Get card index value */
+				c = *l_ptr++;
 
-		/* Get new owner */
-		owner = *l_ptr++;
+				/* Advance pointer to start of list */
+				l_ptr++;
 
-		/* Get new location */
-		where = *l_ptr++;
+				/* Get new owner */
+				owner = *l_ptr++;
 
-		/* Format message */
-		sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
-		        g->deck[c].d_ptr->name,
-		        owner == -1 ? "None" : g->p[owner].name,
-		        location_names[where]);
+				/* Get new location */
+				where = *l_ptr++;
 
-		/* Add message */
-		message_add_formatted(g, msg, FORMAT_DEBUG);
+				/* Advance pointer to next choice */
+				l_ptr++;
 
-		/* Move card */
-		move_card(g, c, owner, where);
+				/* Format message */
+				sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
+				        g->deck[c].d_ptr->name,
+				        owner == -1 ? "None" : g->p[owner].name,
+				        location_names[where]);
 
-		/* Always place debug cards first in order */
-		g->deck[c].order = -1;
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
 
-		/* Advance pointer to next choice */
-		l_ptr++;
+				/* Move card */
+				move_card(g, c, owner, where);
+
+				/* Always place debug cards first in order */
+				g->deck[c].order = -1;
+				break;
+
+			/* Shuffle the deck */
+			case CHOICE_D_SHUFFLE:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Format message */
+				sprintf(msg, "%s shuffles the draw deck.\n",
+				        g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Move to next random number */
+				game_rand(g);
+				break;
+
+			/* Take a card */
+			case CHOICE_D_TAKE_CARD:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Format message */
+				sprintf(msg, "%s takes a card.\n", g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Shuffle the deck to avoid peeking */
+				game_rand(g);
+
+				/* Give player a card */
+				draw_card(g, who, NULL);
+				break;
+
+			/* Take a card */
+			case CHOICE_D_TAKE_VP:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Format message */
+				sprintf(msg, "%s takes a VP.\n", g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Give player a VP */
+				gain_vps(g, who, 1, NULL);
+				break;
+
+			/* Take a card */
+			case CHOICE_D_TAKE_PRESTIGE:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Don't do anything if expansion does not have prestige */
+				if (g->expanded != 3) break;
+
+				/* Format message */
+				sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Give player a prestige */
+				gain_prestige(g, who, 1, NULL);
+				break;
+
+			/* Rotate players */
+			case CHOICE_D_ROTATE:
+
+				/* Ignore all data in choice */
+				l_ptr += 4;
+
+				/* Don't do anything if game has not started */
+				if (g->cur_action <= ACT_GAME_START) break;
+
+				/* Format message */
+				sprintf(msg, "%s changes the first player.\n", g->p[who].name);
+
+				/* Add message */
+				message_add_formatted(g, msg, FORMAT_DEBUG);
+
+				/* Remember to rotate players on step */
+				++g->debug_rotate;
+				break;
+
+			/* No more debug choices */
+			default:
+				return;
+		}
 
 		/* Set log position to current */
 		p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
 
 		/* Update unread position */
 		p_ptr->choice_unread_pos = p_ptr->choice_pos;
+
+		/* Set game debugged flag */
+		g->debug_game = 1;
 	}
 }
 
@@ -11856,6 +11961,31 @@ static void rotate_players(game *g)
 	}
 }
 
+ /*
++ * Checks for and performs any debug rotations.
++ */
+static void check_debug_rotate(game *g)
+{
+	int i;
+	char msg[1024];
+
+	/* Check for debug rotation */
+	if (g->debug_rotate)
+	{
+		/* Rotate players */
+		for (i = 0; i < g->debug_rotate; ++i) rotate_players(g);
+
+		/* Format message */
+		sprintf(msg, "%s is now the first player.\n", g->p[0].name);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_DEBUG);
+
+		/* Clear rotation */
+		g->debug_rotate = 0;
+	}
+}
+
 /*
  * Called when a player has chosen a start world and initial discards.
  */
@@ -12088,6 +12218,9 @@ void begin_game(game *g)
 			message_add_formatted(g, "Takeovers enabled.\n", FORMAT_TAKEOVER);
 		}
 	}
+
+	/* Start game */
+	g->cur_action = ACT_GAME_START;
 
 	/* Send start of game message */
 	message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
@@ -12744,6 +12877,9 @@ int game_round(game *g)
 		/* Skip unchosen phases */
 		if (!g->action_selected[i]) continue;
 
+		/* Check for rotation */
+		check_debug_rotate(g);
+
 		/* Check for real game */
 		if (!g->simulation)
 		{
@@ -12808,6 +12944,9 @@ int game_round(game *g)
 
 	/* Set current phase to end of round */
 	g->cur_action = ACT_ROUND_END;
+
+	/* Check for rotation */
+	check_debug_rotate(g);
 
 	/* Handle discard phase */
 	phase_discard(g);
@@ -13611,5 +13750,12 @@ void declare_winner(game *g)
 				message_add_formatted(g, msg, FORMAT_EM);
 			}
 		}
+	}
+
+	/* Check for debug game */
+	if (g->debug_game)
+	{
+		/* Add debug note */
+		message_add_formatted(g, "(Debug game.)\n", FORMAT_DEBUG);
 	}
 }
