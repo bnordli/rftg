@@ -3975,15 +3975,18 @@ static char *card_takeover_tooltip(game *g, int defender, int attacker,
 		/* Add attack strength */
 		p += sprintf(p, "\nCurrent attack: %d", t_ptr->attack);
 
-		/* Add defender vp diff */
-		p += sprintf(p, "\n%s: %d VP%s",
-		             g->p[defender].name,
-		             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
+		if (opt.vp_in_hand)
+		{
+			/* Add defender vp diff */
+			p += sprintf(p, "\n%s: %d VP%s",
+			             g->p[defender].name,
+			             t_ptr->vp_diff[0], PLURAL(t_ptr->vp_diff[0]));
 
-		/* Add attacker vp diff */
-		p += sprintf(p, "\n%s: %d VP%s",
-		             g->p[attacker].name,
-		             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+			/* Add attacker vp diff */
+			p += sprintf(p, "\n%s: %d VP%s",
+			             g->p[attacker].name,
+			             t_ptr->vp_diff[1], PLURAL(t_ptr->vp_diff[1]));
+		}
 	}
 	else
 	{
