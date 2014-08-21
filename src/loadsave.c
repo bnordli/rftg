@@ -427,11 +427,84 @@ static void export_linked_cards(FILE *fff, char *header, game *g, int x,
 }
 
 /*
+ * Export all card's locations (as seen from a specific player).
+ */
+static void export_locations(FILE *fff, game *g, int who,
+                             int num_special_cards, card **special_cards)
+{
+	int i;
+	card *c_ptr, *start_worlds[2];
+	char owner[1024], *location;
+
+	/* Check for start worlds passed */
+	if (g->cur_action == ACT_GAME_START)
+	{
+		/* Save start worlds */
+		start_worlds[0] = special_cards[0];
+		start_worlds[1] = special_cards[1];
+	}
+	else
+	{
+		/* Clear start worlds */
+		start_worlds[0] = start_worlds[1] = NULL;
+	}
+
+	/* Loop over cards */
+	for (i = 0; i < g->deck_size; ++i)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Check for start world choice */
+		if (c_ptr == start_worlds[0] || c_ptr == start_worlds[1])
+		{
+			/* Format owner attribute */
+			sprintf(owner, " owner=\"%s\"", g->p[who].name);
+
+			/* Set start location */
+			location = "Start";
+		}
+
+		/* Check for unknown card */
+		else if (who >= 0 && !(c_ptr->misc & 1 << who))
+		{
+			/* Set unknown owner and location */
+			strcpy(owner, "");
+			location = "Unknown";
+		}
+		else
+		{
+			/* Check for unowned card */
+			if (c_ptr->owner < 0)
+			{
+				/* No owner */
+				strcpy(owner, "");
+			}
+			else
+			{
+				/* Format owner attribute */
+				sprintf(owner, " owner=\"%s\"", g->p[c_ptr->owner].name);
+			}
+
+			/* Remember location */
+			location = location_names[c_ptr->where];
+		}
+
+		/* Write card name and location tag */
+		fprintf(fff,
+		        "    <Card id=\"%d\"%s location=\"%s\">%s</Card>\n",
+				c_ptr->d_ptr->index, owner, location,
+		        xml_escape(c_ptr->d_ptr->name));
+	}
+}
+
+/*
  * Export the game state to the given filename.
  */
 int export_game(game *g, char *filename, char *style_sheet,
                 char *server, int player_us, const char *message,
                 int num_special_cards, card **special_cards,
+                int export_card_locations,
                 void (*export_log)(FILE *fff, int gid),
                 void (*export_callback)(FILE *fff, int gid), int gid)
 {
@@ -739,13 +812,9 @@ int export_game(game *g, char *filename, char *style_sheet,
 				switch (g->cur_action)
 				{
 					/* Start world choice */
-					case ACT_ROUND_START:
-						/* XXX Check for start world choice */
-						if (num_special_cards == 2)
-						{
-							export_cards(fff, "Start", g, num_special_cards,
-							             special_cards, NULL);
-						}
+					case ACT_GAME_START:
+						export_cards(fff, "Start", g, num_special_cards,
+						             special_cards, NULL);
 						break;
 
 					/* Search */
@@ -793,6 +862,19 @@ int export_game(game *g, char *filename, char *style_sheet,
 
 		/* Write log end tag */
 		fputs("  </Log>\n", fff);
+	}
+
+	/* Check for export locations */
+	if (export_card_locations)
+	{
+		/* Write locations start tag */
+		fputs("  <Locations>\n", fff);
+
+		/* Export the locations of all cards */
+		export_locations(fff, g, player_us, num_special_cards, special_cards);
+
+		/* Write locations end tag */
+		fputs("  </Locations>\n", fff);
 	}
 
 	/* Check for export callback */
