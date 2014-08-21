@@ -10411,9 +10411,6 @@ static void run_game(void)
 		/* Clear restart loop flag */
 		restart_loop = 0;
 
-		/* Clear game over flag */
-		real_game.game_over = 0;
-
 		/* Game is run by gui */
 		real_game.session.id = -1;
 
