@@ -1,7 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
+ *
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,12 +28,30 @@
 int verbose = 0;
 
 /*
+ * Print errors to standard output.
+ */
+void display_error(char *msg)
+{
+	/* Forward message */
+	printf("%s", msg);
+}
+
+/*
  * Print messages to standard output.
  */
 void message_add(game *g, char *msg)
 {
 	/* Print if verbose flag set */
 	if (verbose) printf("%s", msg);
+}
+
+/*
+ * Print messages to standard output.
+ */
+void message_add_formatted(game *g, char *msg, char *tag)
+{
+	/* Print without formatting */
+	message_add(g, msg);
 }
 
 /*
@@ -59,7 +79,11 @@ int main(int argc, char *argv[])
 	my_game.random_seed = time(NULL);
 
 	/* Read card database */
-	read_cards();
+	if (read_cards(NULL) < 0)
+	{
+		/* Exit */
+		exit(1);
+	}
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)

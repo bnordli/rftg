@@ -7,7 +7,7 @@
     <key>CFBundleExecutable</key>
     <string>RFTG</string>
     <key>CFBundleGetInfoString</key>
-    <string>0.9.3, Copyright 2010-2014 Keldon Jones</string>
+    <string>0.9.4, Copyright 2010-2014 Keldon Jones</string>
     <key>CFBundleIconFile</key>
     <string>rftg.icns</string>
     <key>CFBundleIdentifier</key>
@@ -19,11 +19,11 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.9.3</string>
+    <string>0.9.4</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleVersion</key>
-    <string>0.9.3</string>
+    <string>0.9.4</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright 2010-2014 Keldon Jones, GNU General Public License.</string>
     <key>LSMinimumSystemVersion</key>

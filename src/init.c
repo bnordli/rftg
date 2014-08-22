@@ -1,7 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
+ *
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +23,14 @@
 #include "rftg.h"
 
 /*
+ * Number of loaded designs.
+ */
+int num_design;
+
+/*
  * Card designs.
  */
-design library[MAX_DESIGN];
+design library[AVAILABLE_DESIGN];
 
 /*
  * Campaign library.
@@ -289,6 +296,7 @@ static char *vp_name[] =
 static uint64_t lookup_power(char *ptr, int phase)
 {
 	int i = 0;
+	char message[1024];
 
 	/* Loop over power names */
 	while (power_name[phase][i])
@@ -301,18 +309,18 @@ static uint64_t lookup_power(char *ptr, int phase)
 	}
 
 	/* No match */
-	printf("No power named '%s'\n", ptr);
+	sprintf(message, "No power named '%s'\n", ptr);
+	display_error(message);
 	exit(1);
 }
 
 /*
  * Read card designs from 'cards.txt' file.
  */
-void read_cards(void)
+int read_cards(char *suggestion)
 {
 	FILE *fff;
 	char buf[1024], *ptr;
-	int num_design = 0;
 	design *d_ptr = NULL;
 	power *o_ptr;
 	vp_bonus *v_ptr;
@@ -329,16 +337,26 @@ void read_cards(void)
 		fff = fopen("cards.txt", "r");
 	}
 
+	/* Check for error and alternative suggestion */
+	if (!fff && suggestion)
+	{
+		/* Combine the paths */
+		sprintf(buf, "%s/cards.txt", suggestion);
+
+		/* Try reading from suggested directory instead */
+		fff = fopen(buf, "r");
+	}
+
 	/* Check for failure */
 	if (!fff)
 	{
-		/* Print error and exit */
+		/* Error */
 		perror("cards.txt");
-		exit(1);
+		return -1;
 	}
 
 	/* Loop over file */
-	while (1)
+	while (num_design < AVAILABLE_DESIGN)
 	{
 		/* Read a line */
 		fgets(buf, 1024, fff);
@@ -375,19 +393,19 @@ void read_cards(void)
 				ptr = strtok(buf + 2, ":");
 
 				/* Read type */
-				d_ptr->type = strtol(ptr, NULL, 0);
+				d_ptr->type = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get cost string */
 				ptr = strtok(NULL, ":");
 
 				/* Read cost */
-				d_ptr->cost = strtol(ptr, NULL, 0);
+				d_ptr->cost = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get VP string */
 				ptr = strtok(NULL, ":");
 
 				/* Read VP */
-				d_ptr->vp = strtol(ptr, NULL, 0);
+				d_ptr->vp = (int8_t) strtol(ptr, NULL, 0);
 				break;
 
 			/* Expansion counts */
@@ -400,7 +418,7 @@ void read_cards(void)
 				for (i = 0; i < MAX_EXPANSION; i++)
 				{
 					/* Set count */
-					d_ptr->expand[i] = strtol(ptr, NULL, 0);
+					d_ptr->expand[i] = (int8_t) strtol(ptr, NULL, 0);
 
 					/* Read next count */
 					ptr = strtok(NULL, ":");
@@ -436,9 +454,7 @@ void read_cards(void)
 						/* Error */
 						printf("Unknown flag '%s'!\n",
 						       ptr);
-
-						/* Exit */
-						exit(1);
+						return -2;
 					}
 
 					/* Get next flag */
@@ -447,7 +463,7 @@ void read_cards(void)
 
 				/* Done with flag line */
 				break;
-			
+
 			/* Good */
 			case 'G':
 
@@ -471,7 +487,7 @@ void read_cards(void)
 				{
 					/* Error */
 					printf("No good name '%s'!\n", ptr);
-					exit(1);
+					return -2;
 				}
 
 				/* Done with good line */
@@ -510,13 +526,13 @@ void read_cards(void)
 				o_ptr->code = code;
 
 				/* Read power's value */
-				o_ptr->value = strtol(ptr, NULL, 0);
+				o_ptr->value = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get times string */
 				ptr = strtok(NULL, ":");
 
 				/* Read power's number of times */
-				o_ptr->times = strtol(ptr, NULL, 0);
+				o_ptr->times = (int8_t) strtol(ptr, NULL, 0);
 				break;
 
 			/* VP flags */
@@ -529,7 +545,7 @@ void read_cards(void)
 				ptr = strtok(buf + 2, ":");
 
 				/* Read point value */
-				v_ptr->point = strtol(ptr, NULL, 0);
+				v_ptr->point = (int8_t) strtol(ptr, NULL, 0);
 
 				/* Get bonus type string */
 				ptr = strtok(NULL, ":");
@@ -551,7 +567,7 @@ void read_cards(void)
 				{
 					/* Error */
 					printf("No VP type '%s'!\n", ptr);
-					exit(1);
+					return -2;
 				}
 
 				/* Get name string */
@@ -565,6 +581,9 @@ void read_cards(void)
 
 	/* Close card design file */
 	fclose(fff);
+
+	/* Success */
+	return 0;
 }
 
 /*
@@ -971,7 +990,7 @@ void init_game(game *g)
 	g->round = 0;
 
 	/* No phase or turn */
-	g->cur_action = -1;
+	g->cur_action = ACT_ROUND_START;
 	g->turn = 0;
 
 	/* Clear selected actions */
@@ -1000,7 +1019,7 @@ void init_game(game *g)
 	g->oort_kind = GOOD_ANY;
 
 	/* Loop over card designs */
-	for (i = 0; i < MAX_DESIGN; i++)
+	for (i = 0; i < num_design; i++)
 	{
 		/* Get design pointer */
 		d_ptr = &library[i];
@@ -1014,6 +1033,14 @@ void init_game(game *g)
 		/* Add cards */
 		for (j = 0; j < n; j++)
 		{
+			/* Check for too large deck */
+			if (g->deck_size >= MAX_DECK)
+			{
+				/* Error */
+				display_error("Deck is too large!");
+				exit(1);
+			}
+
 			/* Get card pointer */
 			c_ptr = &g->deck[g->deck_size++];
 
@@ -1110,7 +1137,7 @@ void init_game(game *g)
 
 		/* Player has no fake cards */
 		p_ptr->fake_hand = 0;
-	       	p_ptr->fake_discards = 0;
+		p_ptr->fake_discards = 0;
 		p_ptr->drawn_round = 0;
 
 		/* Player has not skipped build phases */

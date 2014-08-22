@@ -1,7 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
+ *
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -190,15 +192,16 @@ static void handle_status_card(char *ptr)
 	/* Read covered card */
 	c_ptr->covering = get_integer(&ptr);
 
-	/* Set known flags for active cards */
-	if (c_ptr->where == WHERE_ACTIVE)
+	/* Set known flags for active and revealed cards */
+	if (c_ptr->where == WHERE_ACTIVE || c_ptr->where == WHERE_ASIDE)
 	{
 		/* Card's location is known to everyone */
 		c_ptr->misc |= MISC_KNOWN_MASK;
 	}
 
-	/* Set known flags for our cards in hand */
-	if (c_ptr->where == WHERE_HAND && c_ptr->owner == player_us)
+	/* Set known flags for our cards in hand and saved cards */
+	if (c_ptr->owner == player_us &&
+	    (c_ptr->where == WHERE_HAND || c_ptr->where == WHERE_SAVED))
 	{
 		/* Set known flag */
 		c_ptr->misc |= (1 << c_ptr->owner);
@@ -411,17 +414,18 @@ static void message_read(char *data)
 
 		/* Server disconnect */
 		case MSG_GOODBYE:
-
 			/* Read reason */
 			get_string(text, &ptr);
 
 			/* Print reason and exit */
-			printf("Server disconnected: %s\n", text);
+			sprintf(text + 512, "Server disconnected: %s\n", text);
+			display_error(text + 512);
 			exit(0);
 			break;
 
 		/* Unneeded message types */
 		case MSG_LOG:
+		case MSG_LOG_FORMAT:
 		case MSG_CHAT:
 		case MSG_GAMECHAT:
 		case MSG_WAITING:
@@ -461,7 +465,7 @@ static void data_ready(void)
 	if (x > 1024)
 	{
 		/* Error */
-		printf("Received too long message!\n");
+		display_error("Received too long message!\n");
 		exit(1);
 	}
 
@@ -496,7 +500,7 @@ static void data_ready(void)
 		if (x < 8)
 		{
 			/* Print error */
-			printf("Got too small message!\n");
+			display_error("Got too small message!\n");
 			exit(1);
 		}
 
@@ -513,9 +517,25 @@ static void data_ready(void)
 }
 
 /*
+ * Print errors to standard output.
+ */
+void display_error(char *msg)
+{
+	/* Forward message */
+	printf("%s", msg);
+}
+
+/*
  * Handle a message.
  */
 void message_add(game *g, char *msg)
+{
+}
+
+/*
+ * Handle a formatted message.
+ */
+void message_add_formatted(game *g, char *msg, char *tag)
 {
 }
 
@@ -541,7 +561,11 @@ int main(int argc, char *argv[])
 #endif
 
 	/* Read card database */
-	read_cards();
+	if (read_cards(NULL) < 0)
+	{
+		/* Exit */
+		exit(1);
+	}
 
 	/* Create choice logs */
 	for (i = 0; i < MAX_PLAYER; i++)

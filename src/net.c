@@ -179,10 +179,12 @@ static double sigmoid(double x)
 	return tanh(x);
 }
 
+#if 0
 /*
  * SIMD type.  Two doubles at once.
  */
 typedef double v2d __attribute__ ((vector_size (16)));
+#endif
 
 /*
  * Compute a neural net's result.

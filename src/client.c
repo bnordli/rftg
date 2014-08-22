@@ -1,7 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
+ *
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,9 +41,24 @@ static GSource *server_src;
 int client_state = CS_DISCONN;
 
 /*
+ * The version of the server we are connected to.
+ */
+char server_version[30];
+
+/*
+ * Whether the connected server accepts debug choices.
+ */
+int debug_server;
+
+/*
  * Our joined session ID.
  */
 static int client_sid = -1;
+
+/*
+ * Set when the connect dialog is closed.
+ */
+static int connect_dialog_closed;
 
 /*
  * We are currently playing in a game.
@@ -294,7 +311,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 {
 	GtkTreePath *game_path;
 	GtkTreeIter game_iter, parent_iter;
-	int owned, minp, user = 1, self;
+	int owned, minp, maxp, user = 1, self, nump;
 
 	/* Check for ability to join game */
 	gtk_widget_set_sensitive(join_button, client_sid == -1);
@@ -334,9 +351,9 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 		user = 0;
 	}
 
-	/* Get game owned flag and minimum number of players */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 10, &owned,
-	                   12, &minp, -1);
+	/* Get game information */
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
+	                   10, &owned, 12, &minp, 13, &maxp, -1);
 
 	/* Check for user */
 	if (user)
@@ -346,16 +363,19 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 		                   10, &self, -1);
 	}
 
+	/* Get current number of players */
+	nump = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(game_list),
+	                                      &parent_iter);
+
 	/* Check for ability to start game */
-	gtk_widget_set_sensitive(start_button, owned &&
-	               gtk_tree_model_iter_n_children(GTK_TREE_MODEL(game_list),
-	                                              &parent_iter) >= minp);
+	gtk_widget_set_sensitive(start_button, owned && nump >= minp);
 
 	/* Check for ability to kick player */
 	gtk_widget_set_sensitive(kick_button, user && !self && owned);
 
 	/* Check for ability to add AI player */
-	gtk_widget_set_sensitive(addai_button, owned);
+	gtk_widget_set_sensitive(addai_button, client_sid != -1 && owned &&
+	                         nump < maxp);
 }
 
 /*
@@ -363,7 +383,7 @@ void game_view_changed(GtkTreeView *view, gpointer data)
  */
 static void handle_open_game(char *ptr)
 {
-	int x, y;
+	int x, y, new_game = FALSE;
 	char buf[1024];
 	GtkTreeIter list_iter;
 
@@ -378,11 +398,14 @@ static void handle_open_game(char *ptr)
 
 		/* Set ID in game tree */
 		gtk_tree_store_set(game_list, &list_iter, 0, x, -1);
+
+		/* Remember game is new */
+		new_game = TRUE;
 	}
 
 	/* Read description */
 	get_string(buf, &ptr);
-	
+
 	/* Set description */
 	gtk_tree_store_set(game_list, &list_iter, 1, buf, -1);
 
@@ -414,8 +437,8 @@ static void handle_open_game(char *ptr)
 		sprintf(buf, "%d", x);
 	}
 
-	/* Set number of players string */
-	gtk_tree_store_set(game_list, &list_iter, 4, buf, 12, x, -1);
+	/* Set number of players */
+	gtk_tree_store_set(game_list, &list_iter, 4, buf, 12, x, 13, y, -1);
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
@@ -447,6 +470,16 @@ static void handle_open_game(char *ptr)
 
 	/* Set owner information */
 	gtk_tree_store_set(game_list, &list_iter, 10, x, -1);
+
+	/* Check for owner */
+	if (x && new_game)
+	{
+		/* Set the cursor at the new game */
+		gtk_tree_view_set_cursor(
+			GTK_TREE_VIEW(games_view),
+			gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
+			NULL, FALSE);
+	}
 
 	/* Make checkboxes visible */
 	gtk_tree_store_set(game_list, &list_iter, 11, 1, -1);
@@ -534,7 +567,7 @@ static void handle_game_player(char *ptr)
 /*
  * Handle a message about game parameters.
  */
-static void handle_status_meta(char *ptr)
+static void handle_status_meta(char *ptr, int size)
 {
 	char name[1024];
 	int i;
@@ -545,6 +578,9 @@ static void handle_status_meta(char *ptr)
 	real_game.advanced = get_integer(&ptr);
 	real_game.goal_disabled = get_integer(&ptr);
 	real_game.takeover_disabled = get_integer(&ptr);
+
+	/* Clear campaign */
+	real_game.camp = NULL;
 
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
@@ -569,18 +605,25 @@ static void handle_status_meta(char *ptr)
 		real_game.p[i].name = strdup(name);
 	}
 
+	/* Loop over players */
+	for (i = 0; i < real_game.num_players; i++)
+	{
+		/* Copy ai flag */
+		real_game.p[i].ai = get_integer(&ptr);
+	}
+
 	/* Redraw status areas */
 	redraw_status();
 	redraw_goal();
 
 	/* Modify GUI for expansion and number of players */
-	modify_gui();
+	modify_gui(TRUE);
 }
 
 /*
  * Handle a status update about a player.
  */
-static void handle_status_player(char *ptr)
+static void handle_status_player(char *ptr, int size)
 {
 	player *p_ptr;
 	int x;
@@ -619,6 +662,9 @@ static void handle_status_player(char *ptr)
 	p_ptr->bonus_military = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 
+	/* Copy prestige information */
+	p_ptr->prestige_turn = get_integer(&ptr);
+
 	/* Redraw status information later */
 	status_updated = 1;
 }
@@ -626,7 +672,7 @@ static void handle_status_player(char *ptr)
 /*
  * Handle a status update about a card.
  */
-static void handle_status_card(char *ptr)
+static void handle_status_card(char *ptr, int size)
 {
 	card *c_ptr;
 	int x;
@@ -736,8 +782,8 @@ static void handle_status_misc(char *ptr)
 		reset_cards(&real_game, TRUE, TRUE);
 
 		/* Redraw hand and table areas */
-		redraw_hand();
 		redraw_table();
+		redraw_hand();
 
 		/* Clear cards updated flag */
 		cards_updated = 0;
@@ -746,6 +792,13 @@ static void handle_status_misc(char *ptr)
 	/* Check for update in status */
 	if (status_updated)
 	{
+		/* Loop over players */
+		for (i = 0; i < real_game.num_players; i++)
+		{
+			/* Reset status information for player */
+			reset_status(&real_game, i);
+		}
+
 		/* Redraw status areas */
 		redraw_status();
 
@@ -759,13 +812,33 @@ static void handle_status_misc(char *ptr)
  */
 static void handle_waiting(char *ptr)
 {
-	int i;
+	int i, waiting_for_server = TRUE;
+	char *msg;
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Get wait status */
 		waiting_player[i] = get_integer(&ptr);
+
+		/* Check if we are waiting for the player */
+		if (i != player_us && waiting_player[i] == WAIT_BLOCKED)
+		{
+			/* Remember we are waiting for a player */
+			waiting_for_server = FALSE;
+		}
+	}
+
+	/* Don't update the prompt if the user is currently making a choice */
+	if (!making_choice)
+	{
+		/* Select appropriate message */
+		if (waiting_for_server) msg = "Waiting for server";
+		else if (real_game.num_players == 2) msg = "Waiting for opponent";
+		else msg = "Waiting for opponents";
+
+		/* Reset action prompt */
+		gtk_label_set_text(GTK_LABEL(action_prompt), msg);
 	}
 
 	/* Update status areas */
@@ -843,12 +916,18 @@ static void handle_choose(char *ptr)
 	/* Do not update hand/table areas while player is deciding */
 	making_choice = 1;
 
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
+
 	/* Ask player for decision */
 	gui_func.make_choice(&real_game, player_us, type, list, &num,
 	                     special, &num_special, arg1, arg2, arg3);
 
 	/* Hand/table areas may be redrawn */
 	making_choice = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
 
 	/* Reset hand/table areas to default */
 	reset_cards(&real_game, TRUE, TRUE);
@@ -1003,6 +1082,9 @@ static void handle_prepare(char *ptr)
 	/* We are making choices */
 	making_choice = 1;
 
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
+
 	/* Check phase */
 	switch (phase)
 	{
@@ -1054,6 +1136,9 @@ static void handle_prepare(char *ptr)
 	/* Done making choices */
 	making_choice = 0;
 
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
+
 	/* Copy simulated game choice log to real game */
 	real_game.p[player_us].choice_size = sim.p[player_us].choice_size;
 	real_game.p[player_us].choice_pos = sim.p[player_us].choice_pos;
@@ -1076,8 +1161,8 @@ static void handle_prepare(char *ptr)
 static gboolean message_read(gpointer data)
 {
 	char *ptr = data;
-	int type;
-	char text[1024], username[1024];
+	int type, size;
+	char text[1024], format[1024], username[1024];
 	GtkTreeIter list_iter;
 	GtkTextIter end_iter;
 	GtkTextMark *end_mark;
@@ -1087,7 +1172,7 @@ static gboolean message_read(gpointer data)
 
 	/* Read message type and size */
 	type = get_integer(&ptr);
-	/* size = */ get_integer(&ptr);
+	size = get_integer(&ptr);
 
 	/* Check message type */
 	switch (type)
@@ -1095,8 +1180,25 @@ static gboolean message_read(gpointer data)
 		/* Login successful */
 		case MSG_HELLO:
 
+			/* Assume no server version */
+			strcpy(server_version, "");
+			debug_server = 0;
+
+			/* Only new servers send version information */
+			if (size > 8)
+			{
+				/* Get server version */
+				get_string(server_version, &ptr);
+
+				/* Check for debug server */
+				debug_server = strstr(server_version, "-debug") != NULL;
+			}
+
 			/* Set state */
 			client_state = CS_LOBBY;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game, making_choice);
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1122,6 +1224,9 @@ static gboolean message_read(gpointer data)
 
 			/* Set login status */
 			gtk_label_set_text(GTK_LABEL(login_status), text);
+
+			/* Disconnect from server */
+			disconnect();
 
 			/* Quit from main loop inside connection dialog */
 			gtk_main_quit();
@@ -1269,11 +1374,18 @@ static gboolean message_read(gpointer data)
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			                   "Waiting for server");
 
+			/* Client can be updated */
+			prevent_update = 0;
+
 			/* Revert to game view */
 			switch_view(0, 1);
 
 			/* Mark game as being played */
 			playing_game = 1;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game, making_choice);
+
 			break;
 
 		/* We have been removed from a game */
@@ -1296,6 +1408,19 @@ static gboolean message_read(gpointer data)
 			message_add(&real_game, text);
 			break;
 
+		/* Formatted game log message */
+		case MSG_LOG_FORMAT:
+
+			/* Read message */
+			get_string(text, &ptr);
+
+			/* Read format tag */
+			get_string(format, &ptr);
+
+			/* Add formatted message to log */
+			message_add_formatted(&real_game, text, format);
+			break;
+
 		/* Received in-game chat message */
 		case MSG_GAMECHAT:
 
@@ -1314,7 +1439,7 @@ static gboolean message_read(gpointer data)
 			/* Get chat buffer */
 			chat_buffer = gtk_text_view_get_buffer(
 			                           GTK_TEXT_VIEW(message_view));
-			
+
 			/* Get end mark */
 			gtk_text_buffer_get_iter_at_mark(chat_buffer, &end_iter,
 			                                 message_end);
@@ -1322,7 +1447,7 @@ static gboolean message_read(gpointer data)
 			/* Add username */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_CHAT,
 			                                 NULL);
 
 			/* Get end mark */
@@ -1332,13 +1457,13 @@ static gboolean message_read(gpointer data)
 			/* Check for message from server */
 			if (!strlen(username))
 			{
-				/* Add text (bolded) */
+				/* Add text (emphasized) */
 				gtk_text_buffer_insert_with_tags_by_name(
 				                                 chat_buffer,
-								 &end_iter,
-								 text, -1,
-				                                 "bold",
-								 NULL);
+				                                 &end_iter,
+				                                 text, -1,
+				                                 FORMAT_CHAT,
+				                                 NULL);
 			}
 			else
 			{
@@ -1378,7 +1503,7 @@ static gboolean message_read(gpointer data)
 			/* Add username to chat window */
 			gtk_text_buffer_insert_with_tags_by_name(chat_buffer,
 			                                 &end_iter,
-			                                 username, -1, "bold",
+			                                 username, -1, FORMAT_CHAT,
 			                                 NULL);
 
 			/* Get end of buffer */
@@ -1400,7 +1525,7 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_META:
 
 			/* Handle message */
-			handle_status_meta(ptr);
+			handle_status_meta(ptr, size - 8);
 
 			/* XXX Do not free data */
 			return FALSE;
@@ -1409,14 +1534,14 @@ static gboolean message_read(gpointer data)
 		case MSG_STATUS_PLAYER:
 
 			/* Handle message */
-			handle_status_player(ptr);
+			handle_status_player(ptr, size - 8);
 			break;
 
 		/* Card status update */
 		case MSG_STATUS_CARD:
 
 			/* Handle message */
-			handle_status_card(ptr);
+			handle_status_card(ptr, size - 8);
 			break;
 
 		/* Goal status update */
@@ -1473,11 +1598,20 @@ static gboolean message_read(gpointer data)
 		/* Game is over */
 		case MSG_GAMEOVER:
 
+			/* Set game over */
+			real_game.game_over = 1;
+
 			/* Clear session ID */
 			client_sid = -1;
 
 			/* Clear game played flag */
 			playing_game = 0;
+
+			/* Set making choice (to enable disabled dialogs) */
+			making_choice = 1;
+
+			/* Notify gui */
+			gui_client_state_changed(playing_game, making_choice);
 
 			/* Reset displayed cards */
 			reset_cards(&real_game, TRUE, TRUE);
@@ -1489,6 +1623,9 @@ static gboolean message_read(gpointer data)
 			gtk_label_set_text(GTK_LABEL(action_prompt),
 			           "Game Over - Press Done to return to lobby");
 
+			/* Auto export game */
+			auto_export();
+
 			/* Enable action button */
 			gtk_widget_set_sensitive(action_button, TRUE);
 
@@ -1498,15 +1635,28 @@ static gboolean message_read(gpointer data)
 			/* Tell server we are out of the game */
 			send_msgf(server_fd, MSG_GAMEOVER, "");
 
-			/* Switch back to lobby view */
-			switch_view(1, 1);
+			/* Unset making_choice */
+			making_choice = 0;
 
-			/* Reset buttons */
-			game_view_changed(GTK_TREE_VIEW(games_view), NULL);
+			/* Notify gui */
+			gui_client_state_changed(playing_game, making_choice);
+
+			/* Check for disconnected */
+			if (client_state != CS_DISCONN)
+			{
+				/* Switch back to lobby view */
+				switch_view(1, 1);
+
+				/* Reset buttons */
+				game_view_changed(GTK_TREE_VIEW(games_view), NULL);
+			}
+
+			/* Done */
 			break;
 
 		default:
-			printf("Unknown message type %d\n", type);
+			sprintf(text, "Unknown message type %d\n", type);
+			display_error(text);
 			break;
 	}
 
@@ -1552,7 +1702,7 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 	if (x > 1024)
 	{
 		/* Error */
-		printf("Received too long message!\n");
+		display_error("Received too long message!\n");
 		exit(1);
 	}
 
@@ -1606,7 +1756,7 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 		if (x < 8)
 		{
 			/* Print error */
-			printf("Got too small message!\n");
+			display_error("Got too small message!\n");
 			exit(1);
 		}
 
@@ -1646,6 +1796,26 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 }
 
 /*
+ * Callback to trigger the accept response of a dialog
+ */
+static void enter_callback(GtkWidget *widget, GtkWidget *dialog)
+{
+    g_signal_emit_by_name(G_OBJECT(dialog), "response", GTK_RESPONSE_ACCEPT);
+}
+
+/*
+ * Remember that the connect dialog is closed
+ */
+static gboolean deleted_callback(GtkWidget *widget, GdkEvent event, gpointer data)
+{
+	/* Set the dialog closed flag */
+	connect_dialog_closed = TRUE;
+
+	/* Continue handling events */
+	return FALSE;
+}
+
+/*
  * Connect to a multiplayer server.
  */
 void connect_dialog(GtkMenuItem *menu_item, gpointer data)
@@ -1653,10 +1823,12 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	struct hostent *server_host;
 	struct sockaddr_in server_addr;
 	int portno;
-	GtkWidget *dialog;
+	char *old_server_name;
+	GtkWidget *dialog, *connect_button, *cancel_button;
 	GtkWidget *label, *hsep;
 	GtkWidget *server, *port, *user, *pass;
 	GtkWidget *table;
+	GtkTextBuffer *chat_buffer;
 	GIOChannel *io;
 	unsigned int id;
 #ifdef WIN32
@@ -1683,11 +1855,17 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Connect to Server", NULL,
-	                                     GTK_DIALOG_MODAL,
-	                                     GTK_STOCK_CONNECT,
-	                                     GTK_RESPONSE_ACCEPT,
-	                                     GTK_STOCK_CANCEL,
-	                                     GTK_RESPONSE_REJECT, NULL);
+	                                     GTK_DIALOG_MODAL, NULL);
+
+	/* Create connect button */
+	connect_button = gtk_dialog_add_button(GTK_DIALOG(dialog),
+	                                       GTK_STOCK_CONNECT,
+	                                       GTK_RESPONSE_ACCEPT);
+
+	/* Create cancel button */
+	cancel_button = gtk_dialog_add_button(GTK_DIALOG(dialog),
+	                                      GTK_STOCK_CANCEL,
+	                                      GTK_RESPONSE_REJECT);
 
 	/* Create a table for labels and text entry fields */
 	table = gtk_table_new(6, 4, FALSE);
@@ -1698,6 +1876,9 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Check for no server name in preferences */
 	if (!opt.server_name) opt.server_name = "keldon.net";
+
+	/* Save previous server */
+	old_server_name = opt.server_name;
 
 	/* Set default server name */
 	gtk_entry_set_text(GTK_ENTRY(server), opt.server_name);
@@ -1783,14 +1964,34 @@ with the password you enter.");
 	/* Add table to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
 
+	/* Connect the entries' activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(server), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+	g_signal_connect(G_OBJECT(port), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+	g_signal_connect(G_OBJECT(user), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+	g_signal_connect(G_OBJECT(pass), "activate",
+	                 G_CALLBACK(enter_callback), (gpointer) dialog);
+
+	/* Connect the dialog's delete event to catch that the dialog is closed */
+	g_signal_connect(G_OBJECT(dialog), "delete-event",
+	                 G_CALLBACK(deleted_callback), NULL);
+
+	/* Unset the dialog closed flag */
+	connect_dialog_closed = FALSE;
+
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);
 
 	/* Run dialog */
 	while (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
+		/* Disable button while processing connection */
+		gtk_widget_set_sensitive(connect_button, FALSE);
+
 		/* Get port number */
-		portno =gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(port));
+		portno = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(port));
 
 		/* Store changes to parameters */
 		opt.server_name = strdup(gtk_entry_get_text(GTK_ENTRY(server)));
@@ -1800,6 +2001,16 @@ with the password you enter.");
 
 		/* Save change to file */
 		save_prefs();
+
+		/* Check for changed server */
+		if (strcmp(opt.server_name, old_server_name))
+		{
+			/* Get chat buffer */
+			chat_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(chat_view));
+
+			/* Clear text */
+			gtk_text_buffer_set_text(chat_buffer, "", 0);
+		}
 
 		/* Clear status label */
 		gtk_label_set_text(GTK_LABEL(login_status), "");
@@ -1814,6 +2025,9 @@ with the password you enter.");
 			/* Handle pending events */
 			while (gtk_events_pending()) gtk_main_iteration();
 
+			/* Back out if dialog is closed (by escape) */
+			if (connect_dialog_closed) break;
+
 			/* Lookup server hostname */
 			server_host =
 			   gethostbyname(gtk_entry_get_text(GTK_ENTRY(server)));
@@ -1824,6 +2038,10 @@ with the password you enter.");
 				/* Set status label text */
 				gtk_label_set_text(GTK_LABEL(login_status),
 				                   "Failed to lookup name");
+
+				/* Enable button */
+				gtk_widget_set_sensitive(connect_button, TRUE);
+
 				continue;
 			}
 
@@ -1842,6 +2060,9 @@ with the password you enter.");
 				gtk_label_set_text(GTK_LABEL(login_status),
 				                   strerror(errno));
 #endif
+				/* Enable button */
+				gtk_widget_set_sensitive(connect_button, TRUE);
+
 				continue;
 			}
 
@@ -1851,6 +2072,9 @@ with the password you enter.");
 
 			/* Handle pending events */
 			while (gtk_events_pending()) gtk_main_iteration();
+
+			/* Back out if dialog is closed (by escape) */
+			if (connect_dialog_closed) break;
 
 			/* Create server address */
 			server_addr.sin_family = AF_INET;
@@ -1888,6 +2112,9 @@ with the password you enter.");
 				/* Reset server socket number */
 				server_fd = -1;
 
+				/* Enable button */
+				gtk_widget_set_sensitive(connect_button, TRUE);
+
 				/* Try again */
 				continue;
 			}
@@ -1916,6 +2143,9 @@ with the password you enter.");
 		/* Set client state */
 		client_state = CS_INIT;
 
+		/* Notify gui */
+		gui_client_state_changed(playing_game, making_choice);
+
 		/* Freeze server name/port once connection is established */
 		gtk_widget_set_sensitive(server, FALSE);
 		gtk_widget_set_sensitive(port, FALSE);
@@ -1926,10 +2156,14 @@ with the password you enter.");
 		/* Handle pending events */
 		while (gtk_events_pending()) gtk_main_iteration();
 
+		/* Back out if dialog is closed (by escape) */
+		if (connect_dialog_closed) break;
+
 		/* Send login message to server */
-		send_msgf(server_fd, MSG_LOGIN, "sss",
+		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
-		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION);
+		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
+
 
 		/* Enter main loop to wait for response */
 		gtk_main();
@@ -1944,6 +2178,11 @@ with the password you enter.");
 			/* Quit loop */
 			break;
 		}
+
+		/* Enable buttons and inputs */
+		gtk_widget_set_sensitive(connect_button, TRUE);
+		gtk_widget_set_sensitive(server, TRUE);
+		gtk_widget_set_sensitive(port, TRUE);
 	}
 
 	/* Check for failure to login */
@@ -1966,8 +2205,14 @@ with the password you enter.");
 		/* End current local game */
 		real_game.game_over = 1;
 
-		/* Start new game */
-		restart_loop = RESTART_NEW;
+		/* Restore single-player game */
+		restart_loop = RESTART_RESTORE;
+
+		/* Set state to disconnected */
+		client_state = CS_DISCONN;
+
+		/* Notify gui */
+		gui_client_state_changed(playing_game, making_choice);
 	}
 	else
 	{
@@ -1981,8 +2226,12 @@ with the password you enter.");
 		gtk_main_quit();
 	}
 
-	/* Destroy dialog */
-	gtk_widget_destroy(dialog);
+	/* Check if dialog still exists */
+	if (GTK_IS_WIDGET(dialog))
+	{
+		/* Destroy dialog */
+		gtk_widget_destroy(dialog);
+	}
 }
 
 /*
@@ -2038,14 +2287,17 @@ static void disconnect(void)
 	/* Switch view to game */
 	switch_view(0, 0);
 
-	/* Restart single-player game */
-	restart_loop = RESTART_NEW;
+	/* Restore single-player game */
+	restart_loop = RESTART_RESTORE;
 
 	/* No longer making a choice */
 	making_choice = 0;
 
 	/* Not playing in a game */
 	playing_game = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
 
 	/* Quit from all nested main loops */
 	g_timeout_add(0, quit_from_main, NULL);
@@ -2077,8 +2329,15 @@ void disconnect_server(GtkMenuItem *menu_item, gpointer data)
 		/* Destroy dialog */
 		gtk_widget_destroy(dialog);
 
+		/* Check for escape pressed */
+		if (response == GTK_RESPONSE_DELETE_EVENT)
+		{
+			/* Stay in game */
+			return;
+		}
+
 		/* Check for "yes" answer */
-		if (response == GTK_RESPONSE_YES)
+		else if (response == GTK_RESPONSE_YES)
 		{
 			/* Ask server to resign */
 			send_msgf(server_fd, MSG_RESIGN, "");
@@ -2111,6 +2370,7 @@ static void exp_toggle(GtkToggleButton *button, gpointer data)
 		/* Set maximum number of players */
 		max = i + 4;
 		if (max > 6) max = 6;
+		if (i == 4) max = 5;
 
 		/* Adjust scale widgets to new maximum */
 		gtk_range_set_range(GTK_RANGE(min_player), 2, max);
@@ -2190,6 +2450,9 @@ void create_dialog(GtkButton *button, gpointer data)
 	label = gtk_label_new("Description:");
 	desc = gtk_entry_new();
 
+	/* Cap the description length */
+	gtk_entry_set_max_length(GTK_ENTRY(desc), 40);
+
 	/* Check for no game description in preferences */
 	if (!opt.game_desc) opt.game_desc = "";
 
@@ -2204,11 +2467,20 @@ void create_dialog(GtkButton *button, gpointer data)
 	label = gtk_label_new("Game password:");
 	pass = gtk_entry_new();
 
+	/* Cap the password length */
+	gtk_entry_set_max_length(GTK_ENTRY(pass), 20);
+
 	/* Check for no game password in preferences */
 	if (!opt.game_pass) opt.game_pass = "";
 
 	/* Set default password */
 	gtk_entry_set_text(GTK_ENTRY(pass), opt.game_pass);
+
+	/* Connect the entries' activate signal to the accept response on the dialog */
+	g_signal_connect(G_OBJECT(desc), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
+	g_signal_connect(G_OBJECT(pass), "activate", G_CALLBACK(enter_callback),
+	                 (gpointer) dialog);
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
@@ -2327,7 +2599,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_widget_show_all(dialog);
 
 	/* Run dialog */
-	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_REJECT)
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) != GTK_RESPONSE_ACCEPT)
 	{
 		/* Destroy dialog */
 		gtk_widget_destroy(dialog);
@@ -2383,6 +2655,9 @@ void create_dialog(GtkButton *button, gpointer data)
  */
 void send_chat(GtkEntry *entry, gpointer data)
 {
+	/* Do not send empty messages */
+	if (!strlen(gtk_entry_get_text(entry))) return;
+
 	/* Send message to server */
 	send_msgf(server_fd, MSG_CHAT, "s", gtk_entry_get_text(entry));
 
@@ -2417,7 +2692,7 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 	gtk_widget_destroy(dialog);
 
 	/* Check for "no" answer */
-	if (response == GTK_RESPONSE_NO) return;
+	if (response != GTK_RESPONSE_YES) return;
 
 	/* Ask server to resign */
 	send_msgf(server_fd, MSG_RESIGN, "");
@@ -2427,6 +2702,9 @@ void resign_game(GtkMenuItem *menu_item, gpointer data)
 
 	/* Clear game played flag */
 	playing_game = 0;
+
+	/* Notify gui */
+	gui_client_state_changed(playing_game, making_choice);
 
 	/* Switch back to lobby view */
 	switch_view(1, 1);
@@ -2493,12 +2771,19 @@ void join_game(GtkButton *button, gpointer data)
 		label = gtk_label_new("Game password:");
 		password = gtk_entry_new();
 
+		/* Cap the password length */
+		gtk_entry_set_max_length(GTK_ENTRY(password), 20);
+
 		/* Add widgets to hbox */
 		gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(hbox), password, TRUE, TRUE, 0);
 
 		/* Add hbox to dialog */
-		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),hbox);
+		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), hbox);
+
+		/* Connect the entry's activate signal to the accept response on the dialog */
+		g_signal_connect(G_OBJECT(password), "activate", G_CALLBACK(enter_callback),
+		                 (gpointer) dialog);
 
 		/* Show everything */
 		gtk_widget_show_all(dialog);
@@ -2567,7 +2852,7 @@ void kick_player(GtkButton *button, gpointer data)
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, 0, &x, -1);
 
 	/* Get name of user to kick */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf, 
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter, 1, &buf,
 	                   10, &self, -1);
 
 	/* Check for self selected */
@@ -2585,6 +2870,9 @@ void kick_player(GtkButton *button, gpointer data)
  */
 void add_ai_player(GtkButton *button, gpointer data)
 {
+	/* Check for not joined a game */
+	if (client_sid == -1) return;
+
 	/* Send add AI message to server */
 	send_msgf(server_fd, MSG_ADD_AI, "d", client_sid);
 }

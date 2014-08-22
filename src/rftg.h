@@ -1,7 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009 Keldon Jones
+ *
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,11 +23,25 @@
 /*
  * Standard headers.
  */
+#ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#ifndef VERSION
+#define VERSION "0.9.4"
+#endif
+
+#ifndef RELEASE
+#define RELEASE VERSION
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef WIN32
+#include "stdint.h"
+#else
 #include <stdint.h>
+#endif
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
@@ -48,14 +64,19 @@
 #define MAX_EXPANSION 5
 
 /*
- * Number of card designs.
+ * Number of available card designs slots.
+ */
+#define AVAILABLE_DESIGN 256
+
+/*
+ * Number of original card designs.
  */
 #define MAX_DESIGN 236
 
 /*
  * Number of cards in the deck.
  */
-#define MAX_DECK 234
+#define MAX_DECK 328
 
 /*
  * Number of powers per card.
@@ -71,6 +92,11 @@
  * Maximum number of pending takeovers.
  */
 #define MAX_TAKEOVER 12
+
+/*
+ * Number of goods.
+ */
+#define MAX_GOOD 6
 
 /*
  * Number of intermediate goals.
@@ -112,6 +138,7 @@
 /*
  * Player action choices.
  */
+#define ACT_ROUND_START    -1
 #define ACT_SEARCH         0
 #define ACT_EXPLORE_5_0    1
 #define ACT_EXPLORE_1_1    2
@@ -122,6 +149,7 @@
 #define ACT_CONSUME_TRADE  7
 #define ACT_CONSUME_X2     8
 #define ACT_PRODUCE        9
+#define ACT_ROUND_END      10
 
 #define ACT_MASK           0x7f
 #define ACT_PRESTIGE       0x80
@@ -522,6 +550,22 @@
 #define CHOICE_SEARCH_KEEP      23
 #define CHOICE_OORT_KIND        24
 
+#define CHOICE_DEBUG            -10
+
+
+/*
+ * GUI: Text formatting
+ */
+#define FORMAT_EM "em"
+#define FORMAT_CHAT "chat"
+#define FORMAT_PHASE "phase"
+#define FORMAT_TAKEOVER "takeover"
+#define FORMAT_GOAL "goal"
+#define FORMAT_PRESTIGE "prestige"
+#define FORMAT_VERBOSE "verbose"
+#define FORMAT_DRAW "draw"
+#define FORMAT_DISCARD "discard"
+#define FORMAT_DEBUG "debug"
 
 /*
  * Forward declaration.
@@ -536,16 +580,16 @@ struct game;
 typedef struct power
 {
 	/* Phase power is used in */
-	int phase;
+	int8_t phase;
 
 	/* Power's effect code */
 	uint64_t code;
 
 	/* Power's value */
-	int value;
+	int8_t value;
 
 	/* Number of times power may be used */
-	int times;
+	int8_t times;
 
 } power;
 
@@ -555,10 +599,10 @@ typedef struct power
 typedef struct power_where
 {
 	/* Card index */
-	int c_idx;
+	int16_t c_idx;
 
 	/* Power index */
-	int o_idx;
+	int8_t o_idx;
 
 	/* Pointer to power */
 	power *o_ptr;
@@ -571,10 +615,10 @@ typedef struct power_where
 typedef struct vp_bonus
 {
 	/* Points */
-	int point;
+	int8_t point;
 
 	/* Type */
-	int type;
+	uint64_t type;
 
 	/* String for "name" type */
 	char *name;
@@ -590,37 +634,37 @@ typedef struct design
 	char *name;
 
 	/* Design index */
-	int index;
+	int16_t index;
 
 	/* Type (development or world) */
-	int type;
+	int8_t type;
 
 	/* Cost to play */
-	int cost;
+	int8_t cost;
 
 	/* Victory points given */
-	int vp;
+	int8_t vp;
 
 	/* Number of cards in each expansion deck */
-	int expand[MAX_EXPANSION];
+	int8_t expand[MAX_EXPANSION];
 
 	/* Type of good produced (if any) */
-	int good_type;
+	int8_t good_type;
 
 	/* Flags (military, windfall, alien, rebel, start world, etc) */
-	int flags;
+	uint32_t flags;
 
 	/* Number of this design in the deck */
-	int dup;
+	int8_t dup;
 
 	/* Number of card powers */
-	int num_power;
+	int8_t num_power;
 
 	/* List of powers */
 	power powers[MAX_POWER];
 
 	/* Number of vp bonuses */
-	int num_vp_bonus;
+	int8_t num_vp_bonus;
 
 	/* List of VP bonuses */
 	vp_bonus bonuses[MAX_VP_BONUS];
@@ -633,37 +677,37 @@ typedef struct design
 typedef struct card
 {
 	/* Card's owner (if any) */
-	int owner;
+	int8_t owner;
 
 	/* Card's location */
-	int where;
+	int8_t where;
 
 	/* Card's owner at start of phase */
-	int start_owner;
+	int8_t start_owner;
 
 	/* Card's location at start of phase */
-	int start_where;
+	int8_t start_where;
 
 	/* Miscellaneous card flags */
-	int misc;
+	uint16_t misc;
 
 	/* Card design */
 	design *d_ptr;
 
 	/* Card we are covering (if a good) */
-	int covering;
+	int16_t covering;
 
 	/* Number of goods placed on this card */
-	int num_goods;
+	int8_t num_goods;
 
 	/* Order played on the table */
-	int order;
+	int8_t order;
 
 	/* Next card index if belonging to player */
-	int next;
+	int16_t next;
 
 	/* Next card index as of start of phase */
-	int start_next;
+	int16_t start_next;
 
 } card;
 
@@ -693,16 +737,14 @@ typedef struct decisions
 	void (*explore_sample)(struct game *g, int who, int draw, int keep,
 	                       int discard_any);
 
-	/* Verify a choice in the log */
-	int (*verify_choice)(struct game *g, int who, int type, int list[],
-	                     int *nl, int special[], int *ns, int arg1,
-	                     int arg2, int arg3);
-
 	/* Game over */
 	void (*game_over)(struct game *g, int who);
 
 	/* Shutdown */
 	void (*shutdown)(struct game *g, int who);
+
+	/* Private message */
+	void (*private_message)(struct game *g, int who, char *msg, char *tag);
 
 } decisions;
 
@@ -714,6 +756,9 @@ typedef struct player
 	/* Player's name/color */
 	char *name;
 
+	/* Whether the player is played by the AI */
+	int8_t ai;
+
 	/* Ask player to make decisions */
 	decisions *control;
 
@@ -724,87 +769,87 @@ typedef struct player
 	int prev_action[2];
 
 	/* Player has used prestige/search action */
-	int prestige_action_used;
+	int8_t prestige_action_used;
 
 	/* Player has used phase bonus */
-	int phase_bonus_used;
+	int8_t phase_bonus_used;
 
 	/* Player's start world */
-	int start;
+	int16_t start;
 
 	/* Player's first card of each location */
-	int head[MAX_WHERE];
+	int16_t head[MAX_WHERE];
 
 	/* Player's first card of each location as of the start of the phase */
-	int start_head[MAX_WHERE];
+	int16_t start_head[MAX_WHERE];
 
 	/* Card chosen in Develop or Settle phase */
-	int placing;
+	int16_t placing;
 
 	/* Bonus military accrued so far this phase */
-	int bonus_military;
+	int8_t bonus_military;
 
 	/* Bonus settle discount accrued so far this phase */
-	int bonus_reduce;
+	int8_t bonus_reduce;
 
 	/* Partial hand military spent this phase */
-	int hand_military_spent;
+	int8_t hand_military_spent;
 
 	/* Military spent so far this phase */
-	int military_spent;
+	int8_t military_spent;
 
 	/* Number of cards discarded at end of turn */
-	int end_discard;
+	int8_t end_discard;
 
 	/* Goal cards claimed */
-	int goal_claimed[MAX_GOAL];
+	int8_t goal_claimed[MAX_GOAL];
 
 	/* Progress toward each goal */
-	int goal_progress[MAX_GOAL];
+	int8_t goal_progress[MAX_GOAL];
 
 	/* Prestige */
-	int prestige;
+	int8_t prestige;
 
 	/* Prestige earned this turn */
-	int prestige_turn;
+	int8_t prestige_turn;
 
 	/* Victory point chips */
-	int vp;
+	int16_t vp;
 
 	/* Victory points from goals */
-	int goal_vp;
+	int16_t goal_vp;
 
 	/* Total victory points (if game ended now) */
-	int end_vp;
+	int16_t end_vp;
 
 	/* Player is the winner */
-	int winner;
+	int8_t winner;
 
 	/* Number of "fake" drawn cards in simulated games */
-	int fake_hand;
+	int16_t fake_hand;
 
 	/* Number of cards discarded this turn but not removed from hand */
-	int fake_discards;
+	int16_t fake_discards;
 
 	/* Number of cards drawn this round (or last round) */
-	int drawn_round;
+	int8_t drawn_round;
 
 	/* Player skipped last Develop phase and hasn't drawn new cards */
-	int skip_develop;
+	int8_t skip_develop;
 
 	/* Player skipped last Settle phase and hasn't drawn new cards */
-	int skip_settle;
+	int8_t skip_settle;
 
 	/* Lowest hand size of turn */
-	int low_hand;
+	int8_t low_hand;
 
 	/* Counter for cards played */
-	int table_order;
+	int8_t table_order;
 
 	/* Cards, VP, and prestige earned during the current phase */
-	int phase_cards;
-	int phase_vp;
-	int phase_prestige;
+	int16_t phase_cards;
+	int16_t phase_vp;
+	int16_t phase_prestige;
 
 	/* Log of player's choices */
 	int *choice_log;
@@ -815,6 +860,9 @@ typedef struct player
 
 	/* History of log sizes */
 	int *choice_history;
+
+	/* Last write position for log */
+	int choice_unread_pos;
 
 } player;
 
@@ -839,82 +887,88 @@ typedef struct game
 	unsigned int start_seed;
 
 	/* Game is a simulation */
-	int simulation;
+	int8_t simulation;
 
 	/* Who initiated the simulation */
-	int sim_who;
+	int8_t sim_who;
+
+	/* Name of human player */
+	char *human_name;
 
 	/* Players */
 	player p[MAX_PLAYER];
 
 	/* Number of players */
-	int num_players;
+	int8_t num_players;
 
 	/* This is an "advanced" 2 player game */
-	int advanced;
+	int8_t advanced;
 
 	/* Number of expansions in use */
-	int expanded;
+	int8_t expanded;
 
 	/* Disable goals in expanded games */
-	int goal_disabled;
+	int8_t goal_disabled;
 
 	/* Disable takeovers in second (or later) expansion */
-	int takeover_disabled;
+	int8_t takeover_disabled;
 
 	/* Include promo start worlds in deck */
-	int promo;
+	int8_t promo;
 
 	/* Size of deck in use */
-	int deck_size;
+	int16_t deck_size;
 
 	/* Information about each card */
 	card deck[MAX_DECK];
 
 	/* Victory points remaining in the pool */
-	int vp_pool;
+	int8_t vp_pool;
 
 	/* Goals active in this game */
-	int goal_active[MAX_GOAL];
+	short goal_active[MAX_GOAL];
 
 	/* Goals yet unclaimed */
-	int goal_avail[MAX_GOAL];
+	short goal_avail[MAX_GOAL];
 
 	/* Maximum progress toward a "most" goal */
-	int goal_most[MAX_GOAL];
+	int8_t goal_most[MAX_GOAL];
 
 	/* Number of pending takeovers */
-	int num_takeover;
+	int8_t num_takeover;
 
 	/* Worlds targeted for takeover */
-	int takeover_target[MAX_TAKEOVER];
+	int16_t takeover_target[MAX_TAKEOVER];
 
 	/* Player attempting each takeover */
-	int takeover_who[MAX_TAKEOVER];
+	int8_t takeover_who[MAX_TAKEOVER];
 
 	/* Card holding takeover power */
-	int takeover_power[MAX_TAKEOVER];
+	int16_t takeover_power[MAX_TAKEOVER];
 
 	/* Takeover marked for failure */
-	int takeover_defeated[MAX_TAKEOVER];
+	int8_t takeover_defeated[MAX_TAKEOVER];
 
 	/* XXX Current kind of "any" good world */
-	int oort_kind;
+	int8_t oort_kind;
+
+	/* Current kind of "any" good giving owner the best score */
+	int8_t best_oort_kind;
 
 	/* Actions selected this round */
-	int action_selected[MAX_ACTION];
+	int8_t action_selected[MAX_ACTION];
 
 	/* Current action */
-	int cur_action;
+	int8_t cur_action;
 
 	/* Current player in phase */
-	int turn;
+	int8_t turn;
 
 	/* Current round number */
-	int round;
+	int8_t round;
 
 	/* Game is over */
-	int game_over;
+	int8_t game_over;
 
 } game;
 
@@ -977,49 +1031,76 @@ typedef struct campaign_status
 /*
  * External variables.
  */
-extern design library[MAX_DESIGN];
+extern int num_design;
+extern design library[AVAILABLE_DESIGN];
 extern campaign *camp_library;
 extern int num_campaign;
+extern char *actname[MAX_ACTION * 2 - 1];
+extern char *plain_actname[MAX_ACTION + 1];
+extern char *good_printable[MAX_GOOD];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
+extern char *exp_names[MAX_EXPANSION + 1];
+extern char *player_labels[MAX_PLAYER];
+extern char *location_names[9];
 extern decisions ai_func;
 extern decisions gui_func;
 
 /*
+ * Macro functions.
+ */
+#define PLURAL(x) ((x) == 1 ? "" : "s")
+
+/*
  * External functions.
  */
+extern void display_error(char *msg);
 extern void message_add(game *g, char *msg);
+extern void message_add_formatted(game *g, char *msg, char *tag);
+extern int goals_enabled(game *g);
+extern int takeovers_enabled(game *g);
+extern void auto_export(void);
 extern int game_rand(game *g);
-extern void read_cards(void);
+extern int read_cards(char *suggestion);
 extern void read_campaign(void);
 extern void apply_campaign(game *g);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);
+extern int next_choice(int* log, int pos);
+extern void perform_debug_moves(game *g, int who);
 extern int count_player_area(game *g, int who, int where);
 extern int count_active_flags(game *g, int who, int flags);
 extern int player_has(game *g, int who, design *d_ptr);
 extern int player_chose(game *g, int who, int act);
+extern int prestige_on_tile(game *g, int who);
 extern int random_draw(game *g);
 extern int first_draw(game *g);
 extern void move_card(game *g, int which, int who, int where);
 extern void move_start(game *g, int which, int who, int where);
-extern void draw_card(game *g, int who);
-extern void draw_cards(game *g, int who, int num);
+extern int draw_card(game *g, int who, char *reason);
+extern void draw_cards(game *g, int who, int num, char *reason);
 extern void start_prestige(game *g);
 extern void clear_temp(game *g);
-extern void gain_prestige(game *g, int who, int amt);
+extern void gain_prestige(game *g, int who, int amt, char *reason);
 extern void spend_prestige(game *g, int who, int amt);
 extern void check_prestige(game *g);
+extern int get_goods(game *g, int who, int goods[], int type);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
+extern int get_powers(game *g, int who, int phase, power_where *w_list);
 extern void add_good(game *g, int which);
 extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);
 extern void phase_explore(game *g);
 extern void place_card(game *g, int who, int which);
+extern int devel_cost(game *g, int who, int which);
+extern int devel_callback(game *g, int who, int which, int list[], int num,
+                          int special[], int num_special);
 extern void develop_action(game *g, int who, int placing);
 extern int develop_discount(game *g, int who);
 extern void phase_develop(game *g);
+extern int strength_against(game *g, int who, int world, int attack, int defend);
+extern int strength_first(game *g, int who, int w1, int w2);
 extern int payment_callback(game *g, int who, int which, int list[], int num,
                             int special[], int num_special, int mil_only,
                             int mil_bonus);
@@ -1028,15 +1109,18 @@ extern int needed_callback(game *g, int who, int which, int special[],
 extern int settle_legal(game *g, int who, int which, int mil_bonus,
                         int mil_only, int peace_zero, int takeover);
 extern int takeover_callback(game *g, int special, int world);
-extern int settle_check_takeover(game *g, int who, int no_ask);
+extern int settle_check_takeover(game *g, int who, card *extra, int no_ask);
 extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_finish(game *g, int who, int world, int mil_only,
 			  int special, int mil_bonus);
 extern void settle_extra(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
+extern int resolve_takeover(game *g, int who, int world, int special,
+                            int defeated, int simulated);
 extern void resolve_takeovers(game *g);
 extern void phase_settle(game *g);
+extern int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus);
 extern void trade_chosen(game *g, int who, int which, int no_bonus);
 extern void trade_action(game *g, int who, int no_bonus, int phase_bonus);
 extern int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[],
@@ -1078,3 +1162,10 @@ extern void ai_debug(game *g, double win_prob[MAX_PLAYER][MAX_PLAYER],
 
 extern int load_game(game *g, char *filename);
 extern int save_game(game *g, char *filename, int player_us);
+extern void write_game(game *g, FILE *fff, int player_us);
+extern char *xml_escape(const char *s);
+extern int export_game(game *g, char *filename, char *style_sheet,
+                       char *server, int player_us, const char *message,
+                       int num_special, card** special_cards,
+                       void (*export_log)(FILE *fff, int gid),
+                       void (*export_callback)(FILE *fff, int gid), int gid);

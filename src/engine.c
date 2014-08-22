@@ -1,7 +1,9 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
+ *
+ * Source file modified by B. Nordli, August 2014.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +21,48 @@
  */
 
 #include "rftg.h"
+
+/*
+ * Expansion level names.
+ */
+char *exp_names[MAX_EXPANSION + 1] =
+{
+	"Base game only",
+	"The Gathering Storm",
+	"Rebel vs Imperium",
+	"The Brink of War",
+	"Alien Artifacts",
+	NULL
+};
+
+/*
+ * Textual representation for number of players.
+ */
+char *player_labels[MAX_PLAYER] =
+{
+	"Two players",
+	"Three players",
+	"Four players",
+	"Five players",
+	"Six players",
+	NULL
+};
+
+/*
+ * Textual representation for card locations.
+ */
+char *location_names[9] =
+{
+	"Deck",
+	"Discard",
+	"Hand",
+	"Active",
+	"Good",
+	"Saved",
+	"Aside",
+	"Campaign",
+	"Revealed",
+};
 
 void dump_hand(game *g, int who)
 {
@@ -97,6 +141,22 @@ int simple_rand(unsigned int *seed)
 {
 	*seed = *seed * 1664525 + 1013904223;
 	return ((unsigned)(*seed/65536) % 32768);
+}
+
+/*
+ * Return whether goals are enabled in this game.
+ */
+int goals_enabled(game *g)
+{
+	return g->expanded > 0 && g->expanded < 4 && !g->goal_disabled;
+}
+
+/*
+ * Return whether takeovers are enabled in this game.
+ */
+int takeovers_enabled(game *g)
+{
+	return g->expanded > 1 && g->expanded < 4 && !g->takeover_disabled;
 }
 
 /*
@@ -236,6 +296,38 @@ int player_chose(game *g, int who, int act)
 }
 
 /*
+ * Check whether a player has the prestige tile and prestige on it.
+ */
+int prestige_on_tile(game *g, int who)
+{
+	player *p_ptr;
+	int i;
+
+	/* Get player pointer */
+	p_ptr = &g->p[who];
+
+	if (p_ptr->prestige == 0 || !p_ptr->prestige_turn)
+	{
+		/* Player has not earned prestige this turn */
+		return 0;
+	}
+
+	/* Loop over players */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Check if another player has more or equal prestige */
+		if (i != who && g->p[i].prestige >= p_ptr->prestige)
+		{
+			/* Not prestige leader */
+			return 0;
+		}
+	}
+
+	/* Player is prestige leader and has prestige on the tile */
+	return 1;
+}
+
+/*
  * Refresh the draw deck.
  */
 static void refresh_draw(game *g)
@@ -247,7 +339,7 @@ static void refresh_draw(game *g)
 	if (!g->simulation)
 	{
 		/* Send message */
-		message_add(g, "Refreshing draw deck.\n");
+		message_add_formatted(g, "Refreshing draw deck.\n", FORMAT_EM);
 	}
 
 	/* Loop over cards */
@@ -534,10 +626,11 @@ void move_start(game *g, int which, int owner, int where)
 /*
  * Draw a card from the deck.
  */
-void draw_card(game *g, int who)
+int draw_card(game *g, int who, char *reason)
 {
 	player *p_ptr;
 	card *c_ptr;
+	char msg[1024];
 	int which;
 
 	/* Get player pointer */
@@ -560,7 +653,7 @@ void draw_card(game *g, int who)
 		which = first_draw(g);
 
 		/* Check for failure */
-		if (which == -1) return;
+		if (which == -1) return -1;
 
 		/* Get card pointer */
 		c_ptr = &g->deck[which];
@@ -569,14 +662,14 @@ void draw_card(game *g, int who)
 		c_ptr->where = WHERE_DISCARD;
 
 		/* Done */
-		return;
+		return which;
 	}
 
 	/* Choose random (or campaign) card */
 	which = campaign_draw(g, who);
 
 	/* Check for failure */
-	if (which == -1) return;
+	if (which == -1) return -1;
 
 	/* Move card to player's hand */
 	move_card(g, which, who, WHERE_HAND);
@@ -587,31 +680,81 @@ void draw_card(game *g, int who)
 	/* Card's location is known to player */
 	c_ptr->misc &= ~MISC_KNOWN_MASK;
 	c_ptr->misc |= 1 << who;
+
+	/* Check for real game and reason */
+	if (!g->simulation)
+	{
+		if (reason)
+		{
+			/* Format message */
+			sprintf(msg, "%s receives 1 card from %s.\n",
+			        p_ptr->name, reason);
+
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
+
+		/* Check for private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Format draw message */
+			sprintf(msg, "%s draws %s.\n", p_ptr->name, c_ptr->d_ptr->name);
+
+			/* Add message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DRAW);
+		}
+	}
+
+	return which;
 }
 
 /*
  * Draw a number of cards, as in draw_card() above.
  */
-void draw_cards(game *g, int who, int num)
+void draw_cards(game *g, int who, int num, char *reason)
 {
 	int i;
+	char msg[1024];
+
+	/* Check for real game and reason */
+	if (!g->simulation && reason)
+	{
+		/* Format message */
+		sprintf(msg, "%s receives %d card%s from %s.\n",
+		        g->p[who].name, num, PLURAL(num), reason);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_VERBOSE);
+	}
 
 	/* Draw required number */
-	for (i = 0; i < num; i++) draw_card(g, who);
+	for (i = 0; i < num; i++) draw_card(g, who, NULL);
 }
 
 /*
  * Give a player some prestige.
  */
-void gain_prestige(game *g, int who, int num)
+void gain_prestige(game *g, int who, int num, char *reason)
 {
 	player *p_ptr;
+	char msg[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
 	/* Add to prestige */
 	p_ptr->prestige += num;
+
+	/* Check for real game and reason */
+	if (!g->simulation && reason)
+	{
+		/* Format message */
+		sprintf(msg, "%s receives %d prestige from %s.\n",
+		        p_ptr->name, num, reason);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_VERBOSE);
+	}
 
 	/* Mark prestige earned this turn */
 	p_ptr->prestige_turn = 1;
@@ -743,7 +886,7 @@ void start_prestige(game *g)
 			if (num == 1 && p_ptr->prestige_turn)
 			{
 				/* Draw a card as well */
-				draw_card(g, i);
+				draw_card(g, i, NULL);
 
 				/* Message */
 				if (!g->simulation)
@@ -760,7 +903,7 @@ void start_prestige(game *g)
 				strcat(msg, " for Prestige Leader.\n");
 
 				/* Send message */
-				message_add(g, msg);
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
 			}
 		}
 
@@ -830,6 +973,84 @@ void clear_temp(game *g)
 }
 
 /*
+ * Find the next choice in a log after the current position.
+ */
+int next_choice(int* log, int pos)
+{
+	/* Step over the type and the return value */
+	pos += 2;
+
+	/* Step over the list size and the list itself */
+	pos += *(log + pos) + 1;
+
+	/* Step over the special size and the special list itself */
+	pos += *(log + pos) + 1;
+
+	/* Return the start of the next choice */
+	return pos;
+}
+
+/*
+ * Look for CHOICE_DEBUG in the log and execute the choices.
+ */
+void perform_debug_moves(game *g, int who)
+{
+	player *p_ptr;
+	int *l_ptr;
+	char msg[1024];
+	int c, owner, where;
+
+	/* Get player pointer */
+	p_ptr = &g->p[who];
+
+	/* Get current position in log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
+
+	/* Loop for debug choices */
+	while (*l_ptr == CHOICE_DEBUG && p_ptr->choice_pos < p_ptr->choice_size)
+	{
+		/* Advance pointer */
+		l_ptr++;
+
+		/* Get card index value */
+		c = *l_ptr++;
+
+		/* Advance pointer to start of list */
+		l_ptr++;
+
+		/* Get new owner */
+		owner = *l_ptr++;
+
+		/* Get new location */
+		where = *l_ptr++;
+
+		/* Format message */
+		sprintf(msg, "%s moved %s to (%s, %s).\n", g->p[who].name,
+		        g->deck[c].d_ptr->name,
+		        owner == -1 ? "None" : g->p[owner].name,
+		        location_names[where]);
+
+		/* Add message */
+		message_add_formatted(g, msg, FORMAT_DEBUG);
+
+		/* Move card */
+		move_card(g, c, owner, where);
+
+		/* Always place debug cards first in order */
+		g->deck[c].order = -1;
+
+		/* Advance pointer to next choice */
+		l_ptr++;
+
+		/* Set log position to current */
+		p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
+
+		/* Update unread position */
+		p_ptr->choice_unread_pos = p_ptr->choice_pos;
+	}
+}
+
+/*
  * Extract an answer to a pending choice from the player's choice log.
  */
 static int extract_choice(game *g, int who, int type, int list[], int *nl,
@@ -838,26 +1059,32 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 	player *p_ptr;
 	int *l_ptr;
 	int rv, i, num;
+	char message[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
-
-	/* Get current position in log */
-	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
 
 	/* Check for no data in log */
 	if (p_ptr->choice_pos >= p_ptr->choice_size)
 	{
 		/* Error */
-		printf("No data available in choice log!\n");
+		display_error("No data available in choice log!\n");
 		abort();
 	}
+
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
+
+	/* Get current position in log */
+	l_ptr = &p_ptr->choice_log[p_ptr->choice_pos];
 
 	/* Check for correct type of answer */
 	if (*l_ptr != type)
 	{
 		/* Error */
-		printf("Expected %d in choice log, found %d!\n", type, *l_ptr);
+		sprintf(message, "Expected %d in choice log for player %d, found %d!\n",
+		        type, who, *l_ptr);
+		display_error(message);
 		abort();
 	}
 
@@ -889,7 +1116,7 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 		if (num)
 		{
 			/* Error */
-			printf("Log has items but nowhere to copy them!\n");
+			display_error("Log has items but nowhere to copy them!\n");
 			exit(1);
 		}
 	}
@@ -916,13 +1143,16 @@ static int extract_choice(game *g, int who, int type, int list[], int *nl,
 		if (num)
 		{
 			/* Error */
-			printf("Log has specials but nowhere to copy them!\n");
+			display_error("Log has specials but nowhere to copy them!\n");
 			exit(1);
 		}
 	}
 
 	/* Set log position to current */
 	p_ptr->choice_pos = l_ptr - p_ptr->choice_log;
+
+	/* Update unread position */
+	p_ptr->choice_unread_pos = p_ptr->choice_pos;
 
 	/* Return logged answer */
 	return rv;
@@ -946,7 +1176,10 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
-	/* Check for unconsumed choices in log */
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
+
+	/* Check for (still) unconsumed choices in log */
 	if (p_ptr->choice_pos < p_ptr->choice_size)
 	{
 		/* Return logged answer */
@@ -975,7 +1208,7 @@ static int ask_player(game *g, int who, int type, int list[], int *nl,
  * Ask a player to make a decision.
  *
  * In this function we will return immediately after asking.  The answer
- * can later be retrieved using extract_answer() above.
+ * can later be retrieved using extract_choice() above.
  */
 static void send_choice(game *g, int who, int type, int list[], int *nl,
                         int special[], int *ns, int arg1, int arg2, int arg3)
@@ -985,12 +1218,24 @@ static void send_choice(game *g, int who, int type, int list[], int *nl,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
+	/* Look for and execute any debug choices in the log */
+	perform_debug_moves(g, who);
+
 	/* Check for unconsumed choices in log */
-	if (p_ptr->choice_pos < p_ptr->choice_size) return;
+	if (p_ptr->choice_pos < p_ptr->choice_size)
+	{
+		/* Update unread pos */
+		p_ptr->choice_unread_pos = next_choice(p_ptr->choice_log,
+		                                       p_ptr->choice_pos);
+		return;
+	}
 
 	/* Ask player for answer */
 	p_ptr->control->make_choice(g, who, type, list, nl, special, ns,
 	                            arg1, arg2, arg3);
+
+	/* Set the unread position of the log */
+	p_ptr->choice_unread_pos = p_ptr->choice_size;
 }
 
 /*
@@ -1040,7 +1285,7 @@ static int get_player_area(game *g, int who, int list[MAX_DECK], int where)
 /*
  * Return a list of cards holding the given type of good.
  */
-static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
+int get_goods(game *g, int who, int goods[], int type)
 {
 	card *c_ptr;
 	int i, x, n = 0;
@@ -1068,7 +1313,10 @@ static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
 		for (i = 0; i < c_ptr->num_goods; i++)
 		{
 			/* Add card to list */
-			goods[n++] = x;
+			if (goods) goods[n] = x;
+
+			/* Increase number of goods */
+			++n;
 		}
 	}
 
@@ -1081,6 +1329,7 @@ static int get_goods(game *g, int who, int goods[MAX_DECK], int type)
  */
 void discard_callback(game *g, int who, int list[], int num)
 {
+	char msg[1024];
 	player *p_ptr;
 	int i;
 
@@ -1092,6 +1341,18 @@ void discard_callback(game *g, int who, int list[], int num)
 	{
 		/* Move card to discard */
 		move_card(g, list[i], -1, WHERE_DISCARD);
+
+		/* Message */
+		if (!g->simulation && g->p[who].control->private_message)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n",
+			        p_ptr->name,
+			        g->deck[list[i]].d_ptr->name);
+
+			/* Send message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		}
 	}
 
 	/* Compute hand size */
@@ -1137,7 +1398,7 @@ void player_discard(game *g, int who, int discard)
 /*
  * Return locations of powers for a given player for the given phase.
  */
-static int get_powers(game *g, int who, int phase, power_where *w_list)
+int get_powers(game *g, int who, int phase, power_where *w_list)
 {
 	card *c_ptr;
 	power *o_ptr;
@@ -1227,10 +1488,14 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
                             int c_idx, int o_idx)
 {
 	player *p_ptr;
+	card *c_ptr;
 	char msg[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
+
+	/* Get card pointer */
+	c_ptr = &g->deck[discard];
 
 	/* Move card to discard */
 	move_card(g, discard, -1, WHERE_DISCARD);
@@ -1238,6 +1503,16 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n", p_ptr->name, c_ptr->d_ptr->name);
+
+			/* Send message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		}
+
 		/* Format message */
 		sprintf(msg, "%s discards to produce.\n", p_ptr->name);
 
@@ -1289,7 +1564,7 @@ char *search_name[MAX_SEARCH] =
 	"world producing or coming with Alien good",
 	"card consuming two or more goods",
 	"military world with 5 or more defense",
-	"6-cost development",
+	"6-cost development giving ? VPs",
 	"card with takeover power"
 };
 
@@ -1519,7 +1794,7 @@ void phase_search(game *g)
 		if (g->simulation)
 		{
 			/* Just give player a card */
-			draw_card(g, i);
+			draw_card(g, i, NULL);
 			continue;
 		}
 
@@ -1586,13 +1861,25 @@ void phase_search(game *g)
 			/* Message */
 			if (!g->simulation)
 			{
-				/* Format message */
-				sprintf(msg, "%s reveals %s (%s).\n",
-				        p_ptr->name, c_ptr->d_ptr->name,
-				        match ? "match" : "no match");
+				/* Check for match */
+				if (match)
+				{
+					/* Format message */
+					sprintf(msg, "%s reveals %s (match).\n",
+							p_ptr->name, c_ptr->d_ptr->name);
 
-				/* Send message */
-				message_add(g, msg);
+					/* Send formatted message */
+					message_add_formatted(g, msg, FORMAT_PRESTIGE);
+				}
+				else
+				{
+					/* Format message */
+					sprintf(msg, "%s reveals %s (no match).\n",
+							p_ptr->name, c_ptr->d_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 			}
 
 			/* Keep looking if no match */
@@ -1753,14 +2040,14 @@ void phase_explore(game *g)
 			discard_callback(g, i, list, num);
 
 			/* Gain prestige */
-			gain_prestige(g, i, o_ptr->value);
+			gain_prestige(g, i, o_ptr->value, NULL);
 
 			/* Message */
 			if (!g->simulation)
 			{
 				/* Format message */
-				sprintf(msg, "%s discards for prestige.\n",
-					g->p[i].name);
+				sprintf(msg, "%s discards to gain prestige from %s.\n",
+				        g->p[i].name, g->deck[w_list[j].c_idx].d_ptr->name);
 
 				/* Send message */
 				message_add(g, msg);
@@ -1808,7 +2095,7 @@ void phase_explore(game *g)
 		}
 
 		/* Draw cards */
-		draw_cards(g, i, draw);
+		draw_cards(g, i, draw, NULL);
 
 		/* Remember cards drawn */
 		drawn[i] = draw;
@@ -1878,7 +2165,7 @@ void phase_explore(game *g)
 			c_ptr = &g->deck[x];
 
 			/* Skip cards already in hand unless discarding any */
-			if (c_ptr->start_where == WHERE_HAND && 
+			if (c_ptr->start_where == WHERE_HAND &&
 			    c_ptr->start_owner == i && !discard_any)
 				continue;
 
@@ -1965,6 +2252,7 @@ void place_card(game *g, int who, int which)
 {
 	player *p_ptr;
 	card *c_ptr;
+	char reason[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -1990,8 +2278,11 @@ void place_card(game *g, int who, int which)
 		/* Check for prestige from card */
 		if (c_ptr->d_ptr->flags & FLAG_PRESTIGE)
 		{
+			/* Format reason */
+			sprintf(reason, "placing %s", c_ptr->d_ptr->name);
+
 			/* Add prestige to player */
-			gain_prestige(g, who, 1);
+			gain_prestige(g, who, 1, reason);
 		}
 	}
 
@@ -2085,6 +2376,49 @@ int develop_needed(game *g, int who, int which, int special[], int num_special)
 }
 
 /*
+ * Computes the current cost for a development.
+ * Assumes the current phase of the game is develop.
+ */
+int devel_cost(game *g, int who, int which)
+{
+	card *c_ptr;
+	power_where w_list[100];
+	power *o_ptr;
+	int i, n, cost;
+
+	/* Get pointer to card being played */
+	c_ptr = &g->deck[which];
+
+	/* Start with card cost */
+	cost = c_ptr->d_ptr->cost;
+
+	/* Check for develop action chosen */
+	if (player_chose(g, who, g->cur_action)) cost -= 1;
+
+	/* Check for prestige develop */
+	if (player_chose(g, who, ACT_PRESTIGE | g->cur_action)) cost -= 2;
+
+	/* Get list of develop powers */
+	n = get_powers(g, who, PHASE_DEVELOP, w_list);
+
+	/* Loop over develop powers */
+	for (i = 0; i < n; i++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[i].o_ptr;
+
+		/* Check for reduce power */
+		if (o_ptr->code & P2_REDUCE) cost -= o_ptr->value;
+	}
+
+	/* Cost cannot be less than zero */
+	if (cost < 0) cost = 0;
+
+	/* Return the computed cost */
+	return cost;
+}
+
+/*
  * Called when a player has chosen how to pay for a development.
  *
  * We return 0 if the payment would not succeed.
@@ -2098,37 +2432,15 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 	power *o_ptr;
 	int i, j, n;
 	int g_list[MAX_DECK], num_goods = 0;
-	int cost, reduce = 0, consume = 0;
+	int cost, consume = 0;
 	int consume_special[2], num_consume_special;
 	char msg[1024];
 
+	/* Get cost */
+	cost = devel_cost(g, who, which);
+
 	/* Get player pointer */
 	p_ptr = &g->p[who];
-
-	/* Get pointer to card being played */
-	c_ptr = &g->deck[which];
-
-	/* Get card cost */
-	cost = c_ptr->d_ptr->cost;
-
-	/* Get list of develop powers */
-	n = get_powers(g, who, PHASE_DEVELOP, w_list);
-
-	/* Check for develop action chosen */
-	if (player_chose(g, who, g->cur_action)) reduce += 1;
-
-	/* Check for prestige develop */
-	if (player_chose(g, who, ACT_PRESTIGE | g->cur_action)) reduce += 2;
-
-	/* Loop over develop powers */
-	for (i = 0; i < n; i++)
-	{
-		/* Get power pointer */
-		o_ptr = w_list[i].o_ptr;
-
-		/* Check for reduce power */
-		if (o_ptr->code & P2_REDUCE) reduce += o_ptr->value;
-	}
 
 	/* Loop over special cards used */
 	for (i = 0; i < num_special; i++)
@@ -2166,8 +2478,8 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				/* Check goal losses */
 				check_goal_loss(g, who, GOAL_MOST_CONSUME);
 
-				/* Reduce cost */
-				reduce += o_ptr->value;
+				/* Reduce cost by value */
+				cost -= o_ptr->value;
 			}
 
 			/* Check for consume good to reduce cost */
@@ -2177,21 +2489,29 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 				consume = 1;
 
 				/* Reduce cost by value */
-				reduce += o_ptr->value;
+				cost -= o_ptr->value;
 
 				/* Track location of consume power */
 				consume_special[0] = special[i];
 				consume_special[1] = j;
 				num_consume_special = 2;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Rare good to "
+					        "reduce cost.\n", p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 			}
 		}
 	}
 
 	/* Get pointer to card being played */
 	c_ptr = &g->deck[p_ptr->placing];
-
-	/* Reduce cost */
-	cost -= reduce;
 
 	/* Do not reduce below zero */
 	if (cost < 0) cost = 0;
@@ -2225,8 +2545,24 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Loop over choices */
+			for (i = 0; i < num; i++)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+			}
+		}
+
 		/* Format message */
-		sprintf(msg, "%s pays %d.\n", p_ptr->name, num);
+		sprintf(msg, "%s pays %d for %s.\n", p_ptr->name, num,
+		        c_ptr->d_ptr->name);
 
 		/* Send message */
 		message_add(g, msg);
@@ -2254,6 +2590,9 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 	/* Track lowest hand size */
 	if (i < p_ptr->low_hand) p_ptr->low_hand = i;
 
+	/* Get list of develop powers */
+	n = get_powers(g, who, PHASE_DEVELOP, w_list);
+
 	/* Loop over develop powers */
 	for (i = 0; i < n; i++)
 	{
@@ -2280,6 +2619,25 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 			/* Check for fake card returned */
 			if (list[0] == -1) continue;
 
+			/* Private message */
+			if (g->p[who].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s saves %s.\n", p_ptr->name,
+				        g->deck[list[0]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
+			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+
 			/* Move saved card */
 			move_card(g, list[0], who, WHERE_SAVED);
 		}
@@ -2300,6 +2658,7 @@ static void pay_devel(game *g, int who, int cost)
 	player *p_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char msg[1024];
 	int list[MAX_DECK], special[MAX_DECK], g_list[MAX_DECK];
 	int i, n = 0, num_special = 0, num_goods = 0;
 
@@ -2355,7 +2714,21 @@ static void pay_devel(game *g, int who, int cost)
 	}
 
 	/* Do not ask for payment if not needed or allowed */
-	if (cost == 0 && !num_special) return;
+	if (cost == 0 && !num_special)
+	{
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s pays 0 for %s.\n",
+			        p_ptr->name, g->deck[p_ptr->placing].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
+		}
+
+		return;
+	}
 
 	/* Ask player to decide how to pay */
 	ask_player(g, who, CHOICE_PAYMENT, list, &n, special, &num_special,
@@ -2377,8 +2750,8 @@ void develop_action(game *g, int who, int placing)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char* name;
 	int i, n, cost;
-	char msg[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -2414,16 +2787,8 @@ void develop_action(game *g, int who, int placing)
 	/* Have player pay cost */
 	pay_devel(g, who, cost);
 
-	/* Message */
-	if (!g->simulation)
-	{
-		/* Format message */
-		sprintf(msg, "%s develops %s.\n", p_ptr->name,
-		        c_ptr->d_ptr->name);
-
-		/* Send message */
-		message_add(g, msg);
-	}
+	/* Check for aborted game */
+	if (g->game_over) return;
 
 	/* Loop over powers */
 	for (i = 0; i < n; i++)
@@ -2431,11 +2796,14 @@ void develop_action(game *g, int who, int placing)
 		/* Get power pointer */
 		o_ptr = w_list[i].o_ptr;
 
+		/* Get name of card with power */
+		name = g->deck[w_list[i].c_idx].d_ptr->name;
+
 		/* Check for "draw after developing" power */
 		if (o_ptr->code & P2_DRAW_AFTER)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 		}
 
 		/* Check for "earn prestige after Rebel" power */
@@ -2445,7 +2813,7 @@ void develop_action(game *g, int who, int placing)
 			if (c_ptr->d_ptr->flags & FLAG_REBEL)
 			{
 				/* Reward prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -2456,7 +2824,7 @@ void develop_action(game *g, int who, int placing)
 			if (c_ptr->d_ptr->cost == 6)
 			{
 				/* Reward prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -2464,7 +2832,7 @@ void develop_action(game *g, int who, int placing)
 		if (o_ptr->code & P2_PRESTIGE)
 		{
 			/* Reward prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, name);
 		}
 	}
 }
@@ -2541,6 +2909,8 @@ void phase_develop(game *g)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char *name;
+	char msg[1024];
 	int list[MAX_DECK];
 	int i, j, x, n, reduce, max, explore;
 	int asked[MAX_PLAYER];
@@ -2566,11 +2936,14 @@ void phase_develop(game *g)
 			/* Get power pointer */
 			o_ptr = w_list[j].o_ptr;
 
+			/* Get name of card with power */
+			name = g->deck[w_list[j].c_idx].d_ptr->name;
+
 			/* Check for draw */
 			if (o_ptr->code & P2_DRAW)
 			{
 				/* Draw cards */
-				draw_cards(g, i, o_ptr->value);
+				draw_cards(g, i, o_ptr->value, name);
 
 				/* Done */
 				continue;
@@ -2580,7 +2953,7 @@ void phase_develop(game *g)
 			if (o_ptr->code & P2_EXPLORE)
 			{
 				/* Draw cards */
-				draw_cards(g, i, o_ptr->value);
+				draw_cards(g, i, o_ptr->value, name);
 
 				/* Discard one later */
 				explore++;
@@ -2595,6 +2968,20 @@ void phase_develop(game *g)
 		{
 			/* Ask player to discard one per explore */
 			player_discard(g, i, explore);
+
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %d card%s.\n", g->p[i].name,
+				        explore, PLURAL(explore));
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -2668,7 +3055,7 @@ void phase_develop(game *g)
 		/* Compute hand size */
 		max = count_player_area(g, i, WHERE_HAND) + p_ptr->fake_hand -
 		      p_ptr->fake_discards;
-	       
+
 		/* Check for empty hand */
 		if (g->simulation && !max) continue;
 
@@ -2724,7 +3111,21 @@ void phase_develop(game *g)
 		p_ptr = &g->p[i];
 
 		/* Skip players who were not asked */
-		if (!asked[i]) continue;
+		if (!asked[i])
+		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a development.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
+			continue;
+		}
 
 		/* Get player's answer about placement */
 		p_ptr->placing = extract_choice(g, i, CHOICE_PLACE, list, &n,
@@ -2742,7 +3143,30 @@ void phase_develop(game *g)
 		{
 			/* Mark player as skipping development */
 			p_ptr->skip_develop = 1;
+
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a development.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
 			continue;
+		}
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s places %s.\n", p_ptr->name,
+			        g->deck[p_ptr->placing].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
 		}
 
 		/* Clear skip flags */
@@ -2802,8 +3226,9 @@ void phase_develop(game *g)
 
 /*
  * Return player's military strength against the given world.
+ * Includes cost of world if defending.
  */
-static int strength_against(game *g, int who, int world, int defend)
+int strength_against(game *g, int who, int world, int attack, int defend)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -2837,7 +3262,7 @@ static int strength_against(game *g, int who, int world, int defend)
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
+			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY) ||
 			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
 			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
 			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
@@ -2870,6 +3295,39 @@ static int strength_against(game *g, int who, int world, int defend)
 		}
 	}
 
+	/* Check for attack used */
+	if (attack >= 0)
+	{
+		/* Get attack card */
+		c_ptr = &g->deck[attack];
+
+		/* Loop over powers */
+		for (i = 0; i < c_ptr->d_ptr->num_power; ++i)
+		{
+			/* Get power */
+			o_ptr = &c_ptr->d_ptr->powers[i];
+
+			/* Skip non-Settle powers */
+			if (o_ptr->phase != PHASE_SETTLE) continue;
+
+			/* Check for "takeover imperium" power */
+			if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
+			{
+				/* Add bonus military */
+				military += o_ptr->value *
+				         count_active_flags(g, who, FLAG_REBEL |
+				                                    FLAG_MILITARY);
+			}
+		}
+	}
+
+	/* Check for defense */
+	if (defend)
+	{
+		/* Add cost of world */
+		military += c_ptr->d_ptr->cost;
+	}
+
 	/* Add in bonus temporary military strength */
 	military += p_ptr->bonus_military;
 
@@ -2881,7 +3339,7 @@ static int strength_against(game *g, int who, int world, int defend)
  * Return the amount of military strength that applies only to the first
  * given world, but not the second.
  */
-static int strength_first(game *g, int who, int w1, int w2)
+int strength_first(game *g, int who, int w1, int w2)
 {
 	card *c_ptr1, *c_ptr2;
 	power_where w_list[100];
@@ -3017,7 +3475,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 		if (o_ptr->code & P3_REDUCE)
 		{
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good != GOOD_NOVELTY)||
+			if (((o_ptr->code & P3_NOVELTY)&&good != GOOD_NOVELTY) ||
 			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
 			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
 			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
@@ -3131,7 +3589,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 				/* Cannot pay for alien production world */
 				if (good == GOOD_ALIEN) continue;
 			}
-			
+
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
 			    !(c_ptr->d_ptr->flags & FLAG_REBEL))
@@ -3208,8 +3666,8 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 	/* Apply bonus military, if any */
 	military += mil_bonus;
 
-	/* Add owner's military strength to defense on takeovers */
-	if (takeover) defense += strength_against(g, c_ptr->owner, world, 1);
+	/* Compute owner's military strength for defense on takeovers */
+	if (takeover) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Check for military world and sufficient strength */
 	if (conquer && military + hand_military >= defense) return 1;
@@ -3261,6 +3719,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	card *c_ptr, *t_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char *name;
 	int conquer, pay_military = 0, military, cost, good;
 	int hand_military = 0, conquer_peaceful = 0;
 	int discard_zero = 0, takeover = 0;
@@ -3313,6 +3772,9 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 		{
 			/* Get power pointer */
 			o_ptr = &c_ptr->d_ptr->powers[j];
+
+			/* Get name of card with power */
+			name = c_ptr->d_ptr->name;
 
 			/* Skip non-settle phase power */
 			if (o_ptr->phase != PHASE_SETTLE) continue;
@@ -3485,7 +3947,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 		if (o_ptr->code & P3_REDUCE)
 		{
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good != GOOD_NOVELTY)||
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY)||
 			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
 			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
 			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
@@ -3509,7 +3971,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
+			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY)||
 			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
 			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
 			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
@@ -3602,6 +4064,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	int g_list[MAX_DECK], num_goods;
 	int goods_needed[6];
 	int i, j, n;
+	char* name;
 	char msg[1024];
 
 	/* Get player pointer */
@@ -3747,7 +4210,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 					    !takeover)
 					{
 						/* Award prestige */
-						gain_prestige(g, who, 2);
+						gain_prestige(g, who, 2, c_ptr->d_ptr->name);
 					}
 				}
 
@@ -3795,6 +4258,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 				/* Remember discount for later settles */
 				p_ptr->bonus_reduce += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Genes good to "
+					        "reduce cost.\n", p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 			}
 
 			/* Check for consume to increase military */
@@ -3811,6 +4285,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 				/* Remember bonus for later */
 				p_ptr->bonus_military += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Rare good for "
+					        "extra military.\n", p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 
 				/* Need one more rare good */
 				goods_needed[GOOD_RARE]++;
@@ -3830,6 +4315,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 				/* Remember bonus for later */
 				p_ptr->bonus_military += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards an Alien good for "
+					        "extra military.\n", p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 
 				/* Need one more alien good */
 				goods_needed[GOOD_ALIEN]++;
@@ -3855,8 +4351,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s spends prestige for "
-						"extra military.\n",
-						p_ptr->name);
+						"extra military.\n", p_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -3918,6 +4413,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Get power pointer */
 		o_ptr = w_list[i].o_ptr;
 
+		/* Get name of card with power */
+		name = g->deck[w_list[i].c_idx].d_ptr->name;
+
 		/* Check for reduce cost power */
 		if (o_ptr->code & P3_REDUCE)
 		{
@@ -3946,7 +4444,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
+			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY) ||
 			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
 			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
 			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
@@ -3977,7 +4475,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		if (pay_military && (o_ptr->code & P3_PAY_PRESTIGE))
 		{
 			/* Gain prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, name);
 		}
 	}
 
@@ -4103,15 +4601,52 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		}
 	}
 
+	/* Track military spent */
+	if (conquer && !pay_military)
+		p_ptr->military_spent += t_ptr->d_ptr->cost;
+
+	/* Loop over cards chosen as payment */
+	for (i = 0; i < num; i++)
+	{
+		/* Check for fake card passed in as payment */
+		if (list[i] < 0)
+		{
+			/* Add to count */
+			p_ptr->fake_discards++;
+			continue;
+		}
+
+		/* Private message */
+		if (!g->simulation && g->p[who].control->private_message)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n", p_ptr->name,
+			        g->deck[list[i]].d_ptr->name);
+
+			/* Send message */
+			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+		}
+
+		/* Discard */
+		move_card(g, list[i], -1, WHERE_DISCARD);
+	}
+
+	/* Count player hand size */
+	i = count_player_area(g, who, WHERE_HAND) + p_ptr->fake_hand -
+	    p_ptr->fake_discards;
+
+	/* Track lowest hand size */
+	if (i < p_ptr->low_hand) p_ptr->low_hand = i;
+
 	/* Message */
 	if (!g->simulation)
 	{
-		/* Check for takeover attempt and payment for extra strength */
+		/* Check for takeover attempt and payment for extra military */
 		if (takeover && hand_military > 0)
 		{
 			/* Format message */
-			sprintf(msg, "%s pays %d for extra strength.\n",
-				p_ptr->name, num);
+			sprintf(msg, "%s pays %d for extra military.\n",
+			        p_ptr->name, num);
 		}
 
 		/* Otherwise no message for takeover attempt */
@@ -4140,6 +4675,17 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Check for payment */
 		else
 		{
+			/* Check for extra military activated */
+			if (hand_military)
+			{
+				/* Format message */
+				sprintf(msg, "%s pays %d for extra military.\n",
+				        p_ptr->name, hand_military);
+
+				/* Send message */
+				message_add(g, msg);
+			}
+
 			/* Format message */
 			sprintf(msg, "%s pays %d for %s.\n", p_ptr->name, num,
 				t_ptr->d_ptr->name);
@@ -4148,32 +4694,6 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Send message */
 		if (strlen(msg)) message_add(g, msg);
 	}
-
-	/* Track military spent */
-	if (conquer && !pay_military)
-		p_ptr->military_spent += t_ptr->d_ptr->cost;
-
-	/* Loop over cards chosen as payment */
-	for (i = 0; i < num; i++)
-	{
-		/* Check for fake card passed in as payment */
-		if (list[i] < 0)
-		{
-			/* Add to count */
-			p_ptr->fake_discards++;
-			continue;
-		}
-
-		/* Discard */
-		move_card(g, list[i], -1, WHERE_DISCARD);
-	}
-
-	/* Count player hand size */
-	i = count_player_area(g, who, WHERE_HAND) + p_ptr->fake_hand -
-	    p_ptr->fake_discards;
-
-	/* Track lowest hand size */
-	if (i < p_ptr->low_hand) p_ptr->low_hand = i;
 
 	/* Loop over settle powers */
 	for (i = 0; i < n; i++)
@@ -4204,6 +4724,25 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			/* Check for fake card returned */
 			if (list[0] == -1) continue;
 
+			/* Private message */
+			if (g->p[who].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s saves %s.\n", p_ptr->name,
+				        g->deck[list[0]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
+			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+
 			/* Move card to saved area */
 			move_card(g, list[0], who, WHERE_SAVED);
 		}
@@ -4229,7 +4768,8 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 	power_where w_list[100];
 	power *o_ptr;
 	int list[MAX_DECK], special[MAX_DECK], g_list[MAX_DECK];
-	int conquer, good, military, cost, takeover, flags;
+	int conquer, good, military, cost, takeover;
+	uint64_t flags;
 	int n = 0, num_special = 0;
 	int i;
 	char msg[1024];
@@ -4244,7 +4784,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 	takeover = (c_ptr->owner != who);
 
 	/* Set flag if world is conquerable */
-	conquer = c_ptr->d_ptr->flags & FLAG_MILITARY;
+	conquer = (c_ptr->d_ptr->flags & FLAG_MILITARY) > 0;
 
 	/* Get good type of world to be settled (if any) */
 	good = c_ptr->d_ptr->good_type;
@@ -4321,7 +4861,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 				/* Cannot pay for alien production world */
 				if (good == GOOD_ALIEN) continue;
 			}
-				
+
 			/* Check for against Rebels only */
 			if (o_ptr->code & P3_AGAINST_REBEL)
 			{
@@ -4476,6 +5016,7 @@ int takeover_callback(game *g, int special, int world)
 {
 	card *c_ptr;
 	power *o_ptr;
+	char msg[1024];
 	int i, owner, rebel;
 
 	/* Get world being targetted */
@@ -4548,6 +5089,17 @@ int takeover_callback(game *g, int special, int world)
 			/* Spend prestige */
 			spend_prestige(g, c_ptr->owner, 1);
 
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s spends 1 prestige on %s.\n",
+				        g->p[c_ptr->owner].name, c_ptr->d_ptr->name);
+
+				/* Send message */
+				message_add(g, msg);
+			}
+
 			/* Always successful */
 			return 1;
 		}
@@ -4578,10 +5130,10 @@ static int settle_declared_takeover(game *g, int who)
 }
 
 /*
- * Check if a player can takeover opponent's cards, and if so, ask
- * player which card to declare an attempt on.
+ * Check if a player can takeover opponent's cards, and if desired,
+ * ask player which card to declare an attempt on.
  */
-int settle_check_takeover(game *g, int who, int no_ask)
+int settle_check_takeover(game *g, int who, card *extra, int no_ask)
 {
 	player *p_ptr;
 	card *c_ptr;
@@ -4700,8 +5252,7 @@ int settle_check_takeover(game *g, int who, int no_ask)
 			all_vuln = 1;
 
 			/* Get bonus to military */
-			bonus = 2 * count_active_flags(g, who, FLAG_REBEL |
-						       FLAG_MILITARY);
+			bonus = 2 * count_active_flags(g, who, FLAG_REBEL | FLAG_MILITARY);
 		}
 
 		/* Check for military power */
@@ -4784,13 +5335,24 @@ int settle_check_takeover(game *g, int who, int no_ask)
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Check for card used for extra placement */
+		if (extra)
+		{
+			/* Format message */
+			sprintf(msg, "%s uses %s to attempt to take over a world.\n",
+			        p_ptr->name, extra->d_ptr->name);
+
+			/* Add message */
+			message_add(g, msg);
+		}
+
 		/* Format message */
 		sprintf(msg, "%s uses %s to attempt takeover of %s.\n",
 		        p_ptr->name, c_ptr->d_ptr->name,
 		        g->deck[target].d_ptr->name);
 
 		/* Send message */
-		message_add(g, msg);
+		message_add_formatted(g, msg, FORMAT_TAKEOVER);
 	}
 
 	/* Discard card used, if needed */
@@ -4865,8 +5427,8 @@ int upgrade_chosen(game *g, int who, int replacement, int old)
 	if (!g->simulation)
 	{
 		/* Format message */
-		sprintf(msg, "%s replaces %s with %s.\n", p_ptr->name,
-		        c_ptr->d_ptr->name, b_ptr->d_ptr->name);
+		sprintf(msg, "%s uses Terraforming Engineers to replace %s with %s.\n",
+		        p_ptr->name, c_ptr->d_ptr->name, b_ptr->d_ptr->name);
 
 		/* Send message */
 		message_add(g, msg);
@@ -4915,7 +5477,7 @@ int upgrade_chosen(game *g, int who, int replacement, int old)
 	place_card(g, who, replacement);
 
 	/* Award prestige for upgrade */
-	gain_prestige(g, who, 1);
+	gain_prestige(g, who, 1, "Terraforming Engineers");
 
 	/* Success */
 	return 1;
@@ -5083,12 +5645,15 @@ static int upgrade_world(game *g, int who)
 /*
  * Award player bonus cards for successfully placing a world.
  */
-static void settle_bonus(game *g, int who, int world, int takeover)
+static void settle_bonus(game *g, int who, int world, int takeover,
+                         int simulated)
 {
 	player *p_ptr;
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
+	char *name;
+	char msg[1024];
 	int i, n, explore = 0;
 
 	/* Get player pointer */
@@ -5111,7 +5676,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 	if (player_chose(g, who, g->cur_action) && !p_ptr->phase_bonus_used)
 	{
 		/* Draw card */
-		draw_card(g, who);
+		draw_card(g, who, "his Settle bonus");
 
 		/* Mark bonus as used */
 		p_ptr->phase_bonus_used = 1;
@@ -5123,11 +5688,14 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 		/* Get power pointer */
 		o_ptr = w_list[i].o_ptr;
 
+		/* Get name of card with power */
+		name = g->deck[w_list[i].c_idx].d_ptr->name;
+
 		/* Check for draw power */
 		if (o_ptr->code & P3_DRAW_AFTER)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 		}
 
 		/* Check for prestige after rebel power */
@@ -5138,7 +5706,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 			    (c_ptr->d_ptr->flags & FLAG_MILITARY))
 			{
 				/* Award prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -5150,7 +5718,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 			    !(c_ptr->d_ptr->flags & FLAG_WINDFALL))
 			{
 				/* Award prestige */
-				gain_prestige(g, who, o_ptr->value);
+				gain_prestige(g, who, o_ptr->value, name);
 			}
 		}
 
@@ -5158,7 +5726,7 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 		if (o_ptr->code & P3_EXPLORE_AFTER)
 		{
 			/* Draw given number of cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 
 			/* Count cards to discard later */
 			explore++;
@@ -5178,10 +5746,21 @@ static void settle_bonus(game *g, int who, int world, int takeover)
 	}
 
 	/* Check for need to discard */
-	if (explore)
+	if (explore && !simulated)
 	{
 		/* Have player discard */
 		player_discard(g, who, explore);
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %d card%s.\n", g->p[who].name,
+			        explore, PLURAL(explore));
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 	}
 }
 
@@ -5234,7 +5813,10 @@ static void flip_world(game *g, int who)
 		place_card(g, who, which);
 
 		/* Give bonuses */
-		settle_bonus(g, who, which, 0);
+		settle_bonus(g, who, which, 0, 0);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 
 		/* Message */
 		if (!g->simulation)
@@ -5353,7 +5935,14 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 	if (g->game_over) return;
 
 	/* Check for placed world */
-	if (world != -1 && !takeover) settle_bonus(g, who, world, 0);
+	if (world != -1 && !takeover)
+	{
+		/* Award bonuses for settling */
+		settle_bonus(g, who, world, 0, 0);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
+	}
 
 	/* Check for need to discard special card */
 	if (o_ptr && (o_ptr->code & P3_DISCARD))
@@ -5366,7 +5955,7 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 		{
 			/* Format message */
 			sprintf(msg, "%s discards %s.\n", p_ptr->name,
-				c_ptr->d_ptr->name);
+			        c_ptr->d_ptr->name);
 
 			/* Send message */
 			message_add(g, msg);
@@ -5388,6 +5977,7 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 	int list[MAX_DECK];
 	int mil_spent, mil_spent_spec, mil_bonus;
 	int x, n;
+	char msg[1024];
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -5442,11 +6032,14 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask for takeover declaration if possible */
-			if (settle_check_takeover(g, who, 0))
+			if (settle_check_takeover(g, who, c_ptr, 0))
 			{
 				/* Act on declaration */
 				settle_finish(g, who, -1, 0, c_idx, 0);
 			}
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 		else
 		{
@@ -5501,6 +6094,20 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 		/* Check for choice made */
 		if (p_ptr->placing != -1)
 		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Get card used to place world */
+				c_ptr = &g->deck[c_idx];
+
+				/* Format message */
+				sprintf(msg, "%s uses %s to place an additional world.\n",
+				        p_ptr->name, c_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+			}
+
 			/* Place card */
 			place_card(g, who, p_ptr->placing);
 
@@ -5568,6 +6175,20 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 		/* Check for choice made */
 		if (p_ptr->placing != -1)
 		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Get card used to place world */
+				c_ptr = &g->deck[c_idx];
+
+				/* Format message */
+				sprintf(msg, "%s uses %s to place an additional world.\n",
+				        p_ptr->name, c_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+			}
+
 			/* Place card */
 			place_card(g, who, p_ptr->placing);
 
@@ -5584,6 +6205,9 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 			/* Pay for world and collect bonuses */
 			settle_finish(g, who, p_ptr->placing, 1, c_idx,
 			              -mil_bonus);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 	}
 
@@ -5635,6 +6259,20 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 		{
 			/* Place card */
 			place_card(g, who, p_ptr->placing);
+
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Get card used to place world */
+				c_ptr = &g->deck[c_idx];
+
+				/* Format message */
+				sprintf(msg, "%s uses %s to place an additional world.\n",
+				        p_ptr->name, c_ptr->d_ptr->name);
+
+				/* Add message */
+				message_add(g, msg);
+			}
 
 			/* Award bonuses for settling */
 			settle_finish(g, who, p_ptr->placing, 0, c_idx, 0);
@@ -5700,7 +6338,7 @@ static int settle_action(game *g, int who, int world)
 		if (world != -1 && (o_ptr->code & P3_PLACE_TWO))
 		{
 			/* Check for possible takeover */
-			if (settle_check_takeover(g, who, 1))
+			if (settle_check_takeover(g, who, c_ptr, 1))
 			{
 				/* Add power to list */
 				cidx[num] = w_ptr->c_idx;
@@ -5894,6 +6532,12 @@ static int settle_action(game *g, int who, int world)
 	/* Use chosen power */
 	settle_chosen(g, who, world, cidx[0], oidx[0]);
 
+	/* Check for aborted game */
+	if (g->game_over) return 0;
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
+
 	/* Successfully used power */
 	return 1;
 }
@@ -5955,7 +6599,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg, "%s discards %s.\n",
+					sprintf(msg, "%s discards %s for extra military.\n",
 					        p_ptr->name,
 					        c_ptr->d_ptr->name);
 
@@ -6007,6 +6651,17 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 
 				/* Remember bonus for later */
 				p_ptr->bonus_military += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Rare good for "
+					        "extra military.\n", p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
 			}
 
 			/* Check for prestige to increase military */
@@ -6052,8 +6707,23 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 	/* Message */
 	if (!g->simulation && num > 0)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Loop over choices */
+			for (i = 0; i < num; i++)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+			}
+		}
+
 		/* Format message */
-		sprintf(msg, "%s pays %d for extra strength.\n",
+		sprintf(msg, "%s pays %d for extra military.\n",
 			p_ptr->name, num);
 
 		/* Send message */
@@ -6194,7 +6864,7 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 				if (o_ptr->value > amt)
 				{
 					/* Remove used flag */
-					c_ptr->misc &= ~(1 << 
+					c_ptr->misc &= ~(1 <<
 					                 (MISC_USED_SHIFT + i));
 
 					/* Done looking */
@@ -6203,7 +6873,7 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 			}
 		}
 	}
-	
+
 	/* Get settle powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
 
@@ -6328,16 +6998,18 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 /*
  * Resolve a takeover.
  */
-static int resolve_takeover(game *g, int who, int world, int special,
-                            int defeated)
+int resolve_takeover(game *g, int who, int world, int special,
+                     int defeated, int simulated)
 {
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr = NULL;
+	char *name;
 	int defense = 0;
 	int prestige = 0;
+	char prestige_reason[1024];
 	char msg[1024];
-	int bonus = 0, attack = 0;
+	int attack = 0;
 	int i, x;
 
 	/* Get player pointer */
@@ -6352,18 +7024,16 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		/* Get power pointer */
 		o_ptr = &c_ptr->d_ptr->powers[i];
 
+		/* Get name of card with power */
+		name = c_ptr->d_ptr->name;
+
 		/* Skip non-Settle powers */
 		if (o_ptr->phase != PHASE_SETTLE) continue;
 
 		/* Check for "takeover imperium" power */
 		if (o_ptr->code & P3_TAKEOVER_IMPERIUM)
 		{
-			/* Add bonus military to attacker */
-			bonus += o_ptr->value *
-			         count_active_flags(g, who, FLAG_REBEL |
-			                                    FLAG_MILITARY);
-
-			/* Done looking */
+			/* Found takeover power */
 			break;
 		}
 
@@ -6372,6 +7042,10 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		{
 			/* Remember prestige award */
 			prestige += o_ptr->value;
+
+			/* Remember card name */
+			strcpy(prestige_reason, name);
+
 			break;
 		}
 
@@ -6379,7 +7053,14 @@ static int resolve_takeover(game *g, int who, int world, int special,
 		if (o_ptr->code & (P3_TAKEOVER_REBEL | P3_TAKEOVER_MILITARY))
 		{
 			/* Destruction awards prestige */
-			if (o_ptr->code & P3_DESTROY) prestige += 2;
+			if (o_ptr->code & P3_DESTROY)
+			{
+				/* Add prestige */
+				prestige += 2;
+
+				/* Remember card name */
+				strcpy(prestige_reason, name);
+			}
 
 			/* Found takeover power */
 			break;
@@ -6395,35 +7076,81 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Takeover fails */
 		defeated = 1;
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "Takeover of %s is defeated because the world has been moved.\n",
+			              c_ptr->d_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
+		}
 	}
 
 	/* Compute current owner's defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, 1);
-
-	/* Add world's defense */
-	defense += c_ptr->d_ptr->cost;
+	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Compute total attack strength */
-	if (!defeated) attack = bonus + strength_against(g, who, world, 0);
+	if (!defeated) attack = strength_against(g, who, world, special, 0);
+
+	/* Message */
+	if (!g->simulation && !defeated)
+	{
+		/* Format attack message */
+		sprintf(msg, "%s attacks %s with %d military.\n",
+		             g->p[who].name,
+		             c_ptr->d_ptr->name,
+		             attack);
+
+		/* Send attack message */
+		message_add(g, msg);
+	}
 
 	/* Check for successful takeover */
-	if (!defeated && attack >= defense)
+	if (!defeated && attack >= defense && !simulated)
 	{
 		/* Ask defender for any extra defense to spend */
 		defend_takeover(g, c_ptr->owner, world, who, attack - defense);
+
+		/* Check for aborted game */
+		if (g->game_over) return 0;
 	}
 
 	/* Recompute defense */
-	if (!defeated) defense = strength_against(g, c_ptr->owner, world, 1);
-
-	/* Add world's defense */
-	defense += c_ptr->d_ptr->cost;
+	if (!defeated) defense = strength_against(g, c_ptr->owner, world, -1, 1);
 
 	/* Check for non-military target */
 	if (!(c_ptr->d_ptr->flags & FLAG_MILITARY))
 	{
+		/* Check for previously awarded prestige */
+		if (prestige)
+		{
+			/* Append card name */
+			strcat(prestige_reason, " and Imperium Invasion Fleet");
+		}
+		else
+		{
+			/* Remember card name */
+			strcpy(prestige_reason, "Imperium Invasion Fleet");
+		}
+
 		/* XXX Increase prestige award */
 		prestige += 2;
+	}
+
+	/* Message */
+	if (!g->simulation && !defeated)
+	{
+		/* Format defense message */
+		sprintf(msg, "%s defends %s with %d military.\n",
+		        g->p[c_ptr->owner].name,
+		        c_ptr->d_ptr->name,
+		        defense);
+
+		/* Send defense message */
+		message_add(g, msg);
 	}
 
 	/* Check for insufficient attack strength */
@@ -6437,7 +7164,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			        c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
 		}
 
 		/* Failure */
@@ -6445,7 +7172,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Award prestige for success */
-	if (prestige) gain_prestige(g, who, prestige);
+	if (prestige) gain_prestige(g, who, prestige, prestige_reason);
 
 	/* Check for destruction instead of normal takeover */
 	if (o_ptr->code & P3_DESTROY)
@@ -6458,14 +7185,17 @@ static int resolve_takeover(game *g, int who, int world, int special,
 				c_ptr->d_ptr->name);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, FORMAT_TAKEOVER);
 		}
 
 		/* Discard card */
 		move_card(g, world, -1, WHERE_DISCARD);
 
 		/* Award settle bonus */
-		settle_bonus(g, who, world, 1);
+		settle_bonus(g, who, world, 1, simulated);
+
+		/* Check for aborted game */
+		if (g->game_over) return 0;
 
 		/* Check for cards saved underneath world */
 		if (c_ptr->d_ptr->flags & FLAG_START_SAVE)
@@ -6520,7 +7250,7 @@ static int resolve_takeover(game *g, int who, int world, int special,
 			c_ptr->d_ptr->name);
 
 		/* Send message */
-		message_add(g, msg);
+		message_add_formatted(g, msg, FORMAT_TAKEOVER);
 	}
 
 	/* Check for good on world */
@@ -6560,7 +7290,10 @@ static int resolve_takeover(game *g, int who, int world, int special,
 	}
 
 	/* Award settle bonus */
-	settle_bonus(g, who, world, 1);
+	settle_bonus(g, who, world, 1, simulated);
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
 
 	/* Successful takeover */
 	return 1;
@@ -6649,12 +7382,11 @@ void resolve_takeovers(game *g)
 			{
 				/* Format message */
 				sprintf(msg, "%s spends prestige to defeat "
-					     "takeover of %s.\n",
-					p_ptr->name,
-					g->deck[list[0]].d_ptr->name);
+				        "takeover of %s.\n",
+				        p_ptr->name, g->deck[list[0]].d_ptr->name);
 
 				/* Send message */
-				message_add(g, msg);
+				message_add_formatted(g, msg, FORMAT_TAKEOVER);
 			}
 		}
 	}
@@ -6666,7 +7398,8 @@ void resolve_takeovers(game *g)
 		if (!resolve_takeover(g, g->takeover_who[i],
 		                         g->takeover_target[i],
 		                         g->takeover_power[i],
-					 g->takeover_defeated[i]))
+		                         g->takeover_defeated[i],
+		                         0))
 		{
 			/* Fail future declarations if one fails */
 			for (j = i + 1; j < g->num_takeover; j++)
@@ -6676,6 +7409,19 @@ void resolve_takeovers(game *g)
 				{
 					/* Defeat takeover */
 					g->takeover_defeated[j] = 1;
+
+					/* Message */
+					if (!g->simulation)
+					{
+						/* Format message */
+						sprintf(msg, "Takeover of %s is defeated because "
+						        "takeover of %s failed.\n",
+						        g->deck[list[j]].d_ptr->name,
+						        g->deck[list[i]].d_ptr->name);
+
+						/* Send message */
+						message_add_formatted(g, msg, FORMAT_TAKEOVER);
+					}
 				}
 			}
 		}
@@ -6692,6 +7438,7 @@ void phase_settle(game *g)
 {
 	player *p_ptr;
 	card *c_ptr;
+	char msg[1024];
 	int list[MAX_DECK];
 	int i, x, n;
 	int asked[MAX_PLAYER];
@@ -6800,7 +7547,21 @@ void phase_settle(game *g)
 		p_ptr = &g->p[i];
 
 		/* Skip players who were not asked */
-		if (!asked[i]) continue;
+		if (!asked[i])
+		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a world.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
+			continue;
+		}
 
 		/* Get player's world to place */
 		p_ptr->placing = extract_choice(g, i, CHOICE_PLACE, list, &n,
@@ -6816,9 +7577,31 @@ void phase_settle(game *g)
 		/* Skip players who are not placing anything */
 		if (p_ptr->placing == -1)
 		{
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s does not place a world.\n",
+				        p_ptr->name);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
 			/* Mark player as skipped settle */
 			p_ptr->skip_settle = 1;
 			continue;
+		}
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s places %s.\n", p_ptr->name,
+			        g->deck[p_ptr->placing].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
 		}
 
 		/* Clear skip settle flag */
@@ -6856,7 +7639,10 @@ void phase_settle(game *g)
 		if (p_ptr->placing == -1)
 		{
 			/* Ask player for takeover choice instead */
-			settle_check_takeover(g, i, 0);
+			settle_check_takeover(g, i, NULL, 0);
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 		}
 
 		/* Handle choice */
@@ -6865,12 +7651,18 @@ void phase_settle(game *g)
 		/* Use extra settle powers */
 		settle_extra(g, i, p_ptr->placing);
 
+		/* Check for aborted game */
+		if (g->game_over) return;
+
 		/* Clear placing choice */
 		p_ptr->placing = -1;
 	}
 
 	/* Resolve takeovers */
 	resolve_takeovers(g);
+
+	/* Check for aborted game */
+	if (g->game_over) return;
 
 	/* Clear any temp flags on cards */
 	clear_temp(g);
@@ -6961,52 +7753,11 @@ static int first_good(game *g, int who, int which)
 	return -1;
 }
 
-/*
- * Called when player has chosen which good to trade.
- */
-void trade_chosen(game *g, int who, int which, int no_bonus)
+int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus)
 {
-	player *p_ptr;
-	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int i, n, type, value;
-	char msg[1024];
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
-
-	/* Get card pointer */
-	c_ptr = &g->deck[which];
-
-	/* Move good card to discard */
-	move_card(g, first_good(g, who, which), -1, WHERE_DISCARD);
-
-	/* Uncover production card */
-	c_ptr->num_goods--;
-
-	/* Get good type */
-	type = c_ptr->d_ptr->good_type;
-
-	/* Check for "any" type */
-	if (type == GOOD_ANY)
-	{
-		/* Ask player what kind this is */
-		type = ask_player(g, who, CHOICE_OORT_KIND, NULL, NULL, NULL,
-		                  NULL, 0, 0, 0);
-
-		/* Check for aborted game */
-		if (g->game_over) return;
-
-		/* Set kind */
-		g->oort_kind = type;
-
-		/* Check goal loss */
-		check_goal_loss(g, who, GOAL_MOST_BLUE_BROWN);
-
-		/* Reset kind to any */
-		g->oort_kind = GOOD_ANY;
-	}
+	int i, n, value;
 
 	/* Value is equal to type */
 	value = type;
@@ -7046,9 +7797,6 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 			value += count_active_flags(g, who, FLAG_CHROMO);
 		}
 	}
-	
-	/* Get card pointer */
-	c_ptr = &g->deck[which];
 
 	/* Loop over powers on card holding good */
 	for (i = 0; i < c_ptr->d_ptr->num_power; i++)
@@ -7070,6 +7818,70 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 	/* Check for prestige trade chosen */
 	if (player_chose(g, who, ACT_PRESTIGE | ACT_CONSUME_TRADE)) value += 3;
 
+	/* Return computed value */
+	return value;
+}
+
+
+/*
+ * Called when player has chosen which good to trade.
+ */
+void trade_chosen(game *g, int who, int which, int no_bonus)
+{
+	player *p_ptr;
+	card *c_ptr;
+	int type, value;
+	char msg[1024];
+
+	/* Get player pointer */
+	p_ptr = &g->p[who];
+
+	/* Get card pointer */
+	c_ptr = &g->deck[which];
+
+	/* Move good card to discard */
+	move_card(g, first_good(g, who, which), -1, WHERE_DISCARD);
+
+	/* Uncover production card */
+	c_ptr->num_goods--;
+
+	/* Get good type */
+	type = c_ptr->d_ptr->good_type;
+
+	/* Check for "any" type */
+	if (type == GOOD_ANY)
+	{
+		/* Ask player what kind this is */
+		type = ask_player(g, who, CHOICE_OORT_KIND, NULL, NULL, NULL,
+		                  NULL, 0, 0, 0);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
+
+		/* Set kind */
+		g->oort_kind = type;
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
+			        "kind to %s.\n", p_ptr->name, good_printable[type]);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
+
+		/* Check goal loss */
+		check_goal_loss(g, who, GOAL_MOST_BLUE_BROWN);
+
+		/* Reset kind to any */
+		g->oort_kind = GOOD_ANY;
+	}
+
+	/* Compute trade value */
+	value = trade_value(g, who, c_ptr, type, no_bonus);
+
 	/* Message */
 	if (!g->simulation)
 	{
@@ -7082,7 +7894,7 @@ void trade_chosen(game *g, int who, int which, int no_bonus)
 	}
 
 	/* Draw cards */
-	draw_cards(g, who, value);
+	draw_cards(g, who, value, NULL);
 
 	/* Count reward */
 	p_ptr->phase_cards += value;
@@ -7161,9 +7973,10 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char *name;
 	int i, types[6], num_types, times, vp, vp_mult;
 	char msg[1024];
-	
+
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
@@ -7172,6 +7985,9 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 
 	/* Get power pointer */
 	o_ptr = &c_ptr->d_ptr->powers[o_idx];
+
+	/* Get name of card with power */
+	name = g->deck[c_idx].d_ptr->name;
 
 	/* Check for consume phase power used */
 	if (o_ptr->phase == PHASE_CONSUME)
@@ -7273,7 +8089,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 
 		if (!c_ptr->num_goods)
 		{
-			printf("Passed card without good!\n");
+			display_error("Passed card without good!\n");
 			exit(1);
 		}
 
@@ -7288,8 +8104,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		{
 			/* Format message */
 			sprintf(msg, "%s consumes good from %s using %s.\n",
-			        p_ptr->name, c_ptr->d_ptr->name,
-			        g->deck[c_idx].d_ptr->name);
+			        p_ptr->name, c_ptr->d_ptr->name, name);
 
 			/* Send message */
 			message_add(g, msg);
@@ -7353,7 +8168,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_CARD)
 		{
 			/* Award cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, NULL);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value;
@@ -7363,7 +8178,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_2_CARD)
 		{
 			/* Award cards */
-			draw_cards(g, who, o_ptr->value * 2);
+			draw_cards(g, who, o_ptr->value * 2, NULL);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value * 2;
@@ -7373,7 +8188,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_3_CARD)
 		{
 			/* Award cards */
-			draw_cards(g, who, o_ptr->value * 3);
+			draw_cards(g, who, o_ptr->value * 3, NULL);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value * 3;
@@ -7383,7 +8198,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 		if (o_ptr->code & P4_GET_PRESTIGE)
 		{
 			/* Award prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, NULL);
 
 			/* Count reward */
 			p_ptr->phase_prestige += o_ptr->value;
@@ -7405,7 +8220,14 @@ static void draw_lucky(game *g, int who)
 	int cost, which;
 
 	/* Do not bother in simulated games */
-	if (g->simulation) return;
+	if (g->simulation)
+	{
+		/* Consmue random number */
+		which = game_rand(g);
+
+		/* Done */
+		return;
+	}
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -7536,10 +8358,15 @@ static void ante_card(game *g, int who)
 		{
 			/* Take top card */
 			drawn[i] = first_draw(g);
-		}
 
-		/* Get random (or campaign) draw */
-		drawn[i] = campaign_draw(g, who);
+			/* Consume random number */
+			x = game_rand(g);
+		}
+		else
+		{
+			/* Get random (or campaign) draw */
+			drawn[i] = campaign_draw(g, who);
+		}
 
 		/* Check for failure */
 		if (drawn[i] == -1) return;
@@ -7658,7 +8485,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 		prestige_bonus.times = 2;
 
 		/* Use bonus name */
-		power_name = "Prestige Trade bonus";
+		power_name = "his Prestige Trade bonus";
 
 		/* Use fake power */
 		o_ptr = &prestige_bonus;
@@ -7690,9 +8517,24 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 	/* Message */
 	if (!g->simulation)
 	{
+		/* Private message */
+		if (g->p[who].control->private_message)
+		{
+			/* Loop over choices */
+			for (i = 0; i < n; i++)
+			{
+				/* Format message */
+				sprintf(msg, "%s discards %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
+			}
+		}
+
 		/* Format message */
 		sprintf(msg, "%s consumes %d card%s from hand using %s.\n",
-		        p_ptr->name, n, n != 1 ? "s" : "", power_name);
+		        p_ptr->name, n, PLURAL(n), power_name);
 
 		/* Send message */
 		message_add(g, msg);
@@ -7719,12 +8561,12 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 			/* Count reward */
 			p_ptr->phase_vp += o_ptr->value;
 		}
-		
+
 		/* Give card rewards */
 		if (o_ptr->code & P4_GET_CARD)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, power_name);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value;
@@ -7734,7 +8576,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 		if (o_ptr->code & P4_GET_PRESTIGE)
 		{
 			/* Award prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, power_name);
 
 			/* Count reward */
 			p_ptr->phase_prestige += o_ptr->value;
@@ -7811,7 +8653,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P4_GET_CARD)
 	{
 		/* Award cards */
-		draw_cards(g, who, o_ptr->value);
+		draw_cards(g, who, o_ptr->value, NULL);
 
 		/* Remember reward */
 		p_ptr->phase_cards += o_ptr->value;
@@ -7860,6 +8702,8 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char msg[1024];
+	char *name;
 	int i, x, min, max, vp, vp_mult;
 	int types[6], num_types = 0;
 	int good, g_list[MAX_DECK], num_goods = 0;
@@ -7884,6 +8728,9 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	/* Get card of chosen power */
 	c_ptr = &g->deck[c_idx];
 
+	/* Get name of card with power */
+	name = c_ptr->d_ptr->name;
+
 	/* Mark power as used */
 	c_ptr->misc |= 1 << (MISC_USED_SHIFT + o_idx);
 
@@ -7904,7 +8751,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P4_DRAW)
 	{
 		/* Draw cards */
-		draw_cards(g, who, o_ptr->value);
+		draw_cards(g, who, o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += o_ptr->value;
@@ -7957,14 +8804,27 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 			vp_mult = 3;
 		}
 
+		/* Multiply vp */
+		vp *= vp_mult;
+
 		/* Award VPs */
-		p_ptr->vp += vp * vp_mult;
+		p_ptr->vp += vp;
 
 		/* Remove from pool */
-		g->vp_pool -= vp * vp_mult;
+		g->vp_pool -= vp;
 
 		/* Count reward */
-		p_ptr->phase_vp += vp * vp_mult;
+		p_ptr->phase_vp += vp;
+
+		/* Check for simulation */
+		if (!g->simulation)
+		{
+			sprintf(msg, "%s receives %d VP%s from %s.\n",
+			        g->p[who].name, vp, PLURAL(vp), name);
+
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 
 		/* Done */
 		return;
@@ -8013,7 +8873,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 
 		/* Check for specific good type needed */
 		if (good != GOOD_ANY &&
-		   (((o_ptr->code & P4_CONSUME_NOVELTY)&&good != GOOD_NOVELTY)||
+		   (((o_ptr->code & P4_CONSUME_NOVELTY)&&good != GOOD_NOVELTY) ||
 		    ((o_ptr->code & P4_CONSUME_RARE) && good != GOOD_RARE) ||
 		    ((o_ptr->code & P4_CONSUME_GENE) && good != GOOD_GENE) ||
 		    ((o_ptr->code & P4_CONSUME_ALIEN) && good != GOOD_ALIEN)))
@@ -8029,8 +8889,12 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 			continue;
 		}
 
-		/* Add good (world) to list */
-		g_list[num_goods++] = x;
+		/* Loop over goods on world */
+		for (i = 0; i < c_ptr->num_goods; i++)
+		{
+			/* Add good (world) to list */
+			g_list[num_goods++] = x;
+		}
 	}
 
 	/* Count number of types */
@@ -8158,10 +9022,10 @@ int consume_action(game *g, int who)
 		if (!c_ptr->num_goods) continue;
 
 		/* Count good */
-		goods++;
+		goods += c_ptr->num_goods;;
 
 		/* Count good type */
-		types[c_ptr->d_ptr->good_type]++;
+		types[c_ptr->d_ptr->good_type] += c_ptr->num_goods;
 	}
 
 	/* Count number of types */
@@ -8326,6 +9190,9 @@ int consume_action(game *g, int who)
 	/* Use chosen power */
 	consume_chosen(g, who, cidx[0], oidx[0]);
 
+	/* Check for aborted game */
+	if (g->game_over) return 0;
+
 	/* Successfully used power */
 	return 1;
 }
@@ -8349,9 +9216,12 @@ void consume_player(game *g, int who)
 	{
 		/* First trade a good */
 		trade_action(g, who, 0, 1);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 
-	/* Use consume powers until none are usable */
+	/* Use consume powers until none are usable, or game is aborted */
 	while (consume_action(g, who));
 }
 
@@ -8383,8 +9253,11 @@ void phase_consume(game *g)
 	{
 		/* Perform trade (if needed) then consume actions */
 		consume_player(g, i);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
-	
+
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
@@ -8397,13 +9270,13 @@ void phase_consume(game *g)
 		{
 			/* Begin message */
 			sprintf(msg, "%s receives ", p_ptr->name);
-			
+
 			/* Check for cards received */
 			if (p_ptr->phase_cards)
 			{
 				/* Create card string */
 				sprintf(text, "%d card%s ", p_ptr->phase_cards,
-				        p_ptr->phase_cards > 1 ? "s" : "");
+				        PLURAL(p_ptr->phase_cards));
 
 				/* Add text to message */
 				strcat(msg, text);
@@ -8420,7 +9293,8 @@ void phase_consume(game *g)
 			if (p_ptr->phase_vp)
 			{
 				/* Create VP string */
-				sprintf(text, "%d VP ", p_ptr->phase_vp);
+				sprintf(text, "%d VP%s ", p_ptr->phase_vp,
+				        PLURAL(p_ptr->phase_vp));
 
 				/* Add text to message */
 				strcat(msg, text);
@@ -8478,6 +9352,7 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr, produce_bonus;
+	char *name;
 	int i, kind;
 	char msg[1024];
 
@@ -8536,6 +9411,18 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 			/* Set kind */
 			g->oort_kind = kind;
 
+			/* Message */
+			if (!g->simulation)
+			{
+				/* Format message */
+				sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
+				        "kind to %s.\n",
+				        p_ptr->name, good_printable[kind]);
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_VERBOSE);
+			}
+
 			/* Check goal loss */
 			check_goal_loss(g, who, GOAL_MOST_BLUE_BROWN);
 
@@ -8561,6 +9448,9 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 		/* Get power pointer */
 		o_ptr = &c_ptr->d_ptr->powers[i];
 
+		/* Get name of card with power */
+		name = c_ptr->d_ptr->name;
+
 		/* Skip non-produce powers */
 		if (o_ptr->phase != PHASE_PRODUCE) continue;
 
@@ -8568,7 +9458,7 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 		if (o_ptr->code & P5_DRAW_IF)
 		{
 			/* Draw cards */
-			draw_cards(g, who, o_ptr->value);
+			draw_cards(g, who, o_ptr->value, name);
 
 			/* Count reward */
 			p_ptr->phase_cards += o_ptr->value;
@@ -8578,7 +9468,7 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 		if (o_ptr->code & P5_PRESTIGE_IF)
 		{
 			/* Gain prestige */
-			gain_prestige(g, who, o_ptr->value);
+			gain_prestige(g, who, o_ptr->value, name);
 
 			/* Count reward */
 			p_ptr->phase_prestige += o_ptr->value;
@@ -8757,6 +9647,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
+	char *name;
 	int i, x, count, produced[6];
 	int list[MAX_DECK];
 	char msg[1024];
@@ -8787,7 +9678,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		else
 		{
 			/* Draw 3 cards */
-			draw_cards(g, who, 3);
+			draw_cards(g, who, 3, "his Prestige Produce bonus");
 
 			/* Count reward */
 			p_ptr->phase_cards += 3;
@@ -8799,6 +9690,9 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 
 	/* Mark power used */
 	c_ptr->misc |= 1 << (MISC_USED_SHIFT + o_idx);
+
+	/* Get name of card with power */
+	name = c_ptr->d_ptr->name;
 
 	/* Check for regular produce */
 	if (o_ptr->code == P5_PRODUCE)
@@ -8824,7 +9718,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW)
 	{
 		/* Draw cards */
-		draw_cards(g, who, o_ptr->value);
+		draw_cards(g, who, o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += o_ptr->value;
@@ -8854,7 +9748,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -8870,7 +9764,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = count_active_flags(g, who, FLAG_MILITARY);
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -8902,7 +9796,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -8937,7 +9831,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -8953,7 +9847,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = count_active_flags(g, who, FLAG_IMPERIUM);
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -8969,7 +9863,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = count_active_flags(g, who, FLAG_CHROMO);
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -9001,7 +9895,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Draw cards */
-		draw_cards(g, who, count * o_ptr->value);
+		draw_cards(g, who, count * o_ptr->value, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count * o_ptr->value;
@@ -9029,7 +9923,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Award prestige */
-		gain_prestige(g, who, o_ptr->value);
+		gain_prestige(g, who, o_ptr->value, name);
 
 		/* Track rewards */
 		p_ptr->phase_prestige += o_ptr->value;
@@ -9049,6 +9943,18 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		{
 			/* Move card */
 			move_card(g, list[i], who, WHERE_HAND);
+
+			/* Private message */
+			if (g->p[who].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s takes %s.\n", p_ptr->name,
+				        g->deck[list[i]].d_ptr->name);
+
+				/* Send message */
+				g->p[who].control->private_message(g, who, msg,
+				                                   FORMAT_DISCARD);
+			}
 		}
 
 		/* Message */
@@ -9056,7 +9962,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		{
 			/* Format message */
 			sprintf(msg, "%s takes %d card%s from under %s.\n",
-			        p_ptr->name, count, count != 1 ? "s" : "",
+			        p_ptr->name, count, PLURAL(count),
 			        g->deck[c_idx].d_ptr->name);
 
 			/* Send message */
@@ -9115,7 +10021,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_NOVELTY)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_NOVELTY]);
+		draw_cards(g, who, produced[GOOD_NOVELTY], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_NOVELTY];
@@ -9128,7 +10034,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_RARE)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_RARE]);
+		draw_cards(g, who, produced[GOOD_RARE], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_RARE];
@@ -9141,7 +10047,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_GENE)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_GENE]);
+		draw_cards(g, who, produced[GOOD_GENE], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_GENE];
@@ -9154,7 +10060,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P5_DRAW_EACH_ALIEN)
 	{
 		/* Award cards */
-		draw_cards(g, who, produced[GOOD_ALIEN]);
+		draw_cards(g, who, produced[GOOD_ALIEN], name);
 
 		/* Count reward */
 		p_ptr->phase_cards += produced[GOOD_ALIEN];
@@ -9177,7 +10083,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		}
 
 		/* Award cards */
-		draw_cards(g, who, count);
+		draw_cards(g, who, count, name);
 
 		/* Count reward */
 		p_ptr->phase_cards += count;
@@ -9283,7 +10189,7 @@ int produce_action(game *g, int who)
 				   P5_DRAW_REBEL_MILITARY |
 				   P5_DRAW_IMPERIUM |
 				   P5_DRAW_CHROMO |
-		                   P5_DRAW_5_DEV |
+				   P5_DRAW_5_DEV |
 				   P5_PRESTIGE_MOST_CHROMO |
 				   P5_TAKE_SAVED))
 		{
@@ -9313,6 +10219,9 @@ int produce_action(game *g, int who)
 		{
 			/* Use power immediately */
 			produce_chosen(g, who, w_ptr->c_idx, w_ptr->o_idx);
+
+			/* Check for aborted game */
+			if (g->game_over) return 0;
 			continue;
 		}
 
@@ -9354,6 +10263,11 @@ int produce_action(game *g, int who)
 	{
 		/* Use bonus immediately */
 		produce_chosen(g, who, -1, -1);
+
+		/* Check for aborted game */
+		if (g->game_over) return 0;
+
+		/* Done */
 		return 1;
 	}
 
@@ -9363,6 +10277,11 @@ int produce_action(game *g, int who)
 	{
 		/* Use bonus immediately */
 		produce_chosen(g, who, -2, -1);
+
+		/* Check for aborted game */
+		if (g->game_over) return 0;
+
+		/* Done */
 		return 1;
 	}
 
@@ -9372,6 +10291,11 @@ int produce_action(game *g, int who)
 	{
 		/* Use bonus */
 		produce_chosen(g, who, -3, -1);
+
+		/* Check for aborted game */
+		if (g->game_over) return 0;
+
+		/* Done */
 		return 1;
 	}
 
@@ -9386,6 +10310,11 @@ int produce_action(game *g, int who)
 		{
 			/* Use power */
 			produce_chosen(g, who, cidx[i], oidx[i]);
+
+			/* Check for aborted game */
+			if (g->game_over) return 0;
+
+			/* Done */
 			return 1;
 		}
 	}
@@ -9403,6 +10332,9 @@ int produce_action(game *g, int who)
 		{
 			/* Use power */
 			produce_chosen(g, who, cidx[i], oidx[i]);
+
+			/* Check for aborted game */
+			if (g->game_over) return 0;
 		}
 
 		/* Done */
@@ -9422,6 +10354,9 @@ int produce_action(game *g, int who)
 
 	/* Use chosen power */
 	produce_chosen(g, who, cidx[0], oidx[0]);
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
 
 	/* Successfully used power */
 	return 1;
@@ -9588,7 +10523,8 @@ void phase_produce_end(game *g)
 				    o_ptr->code & P5_DRAW_MOST_NOVELTY)
 				{
 					/* Draw cards */
-					draw_cards(g, i, o_ptr->value);
+					draw_cards(g, i, o_ptr->value,
+					           g->deck[w_list[k].c_idx].d_ptr->name);
 
 					/* Count reward */
 					p_ptr->phase_cards += o_ptr->value;
@@ -9599,7 +10535,8 @@ void phase_produce_end(game *g)
 				    o_ptr->code & P5_DRAW_MOST_RARE)
 				{
 					/* Draw cards */
-					draw_cards(g, i, o_ptr->value);
+					draw_cards(g, i, o_ptr->value,
+					           g->deck[w_list[k].c_idx].d_ptr->name);
 
 					/* Count reward */
 					p_ptr->phase_cards += o_ptr->value;
@@ -9610,7 +10547,8 @@ void phase_produce_end(game *g)
 				    o_ptr->code & P5_DRAW_MOST_GENE)
 				{
 					/* Draw cards */
-					draw_cards(g, i, o_ptr->value);
+					draw_cards(g, i, o_ptr->value,
+					           g->deck[w_list[k].c_idx].d_ptr->name);
 
 					/* Count reward */
 					p_ptr->phase_cards += o_ptr->value;
@@ -9654,7 +10592,8 @@ void phase_produce_end(game *g)
 			if (o_ptr->code & P5_DRAW_MOST_PRODUCED)
 			{
 				/* Draw cards */
-				draw_cards(g, i, o_ptr->value);
+				draw_cards(g, i, o_ptr->value,
+				           g->deck[w_list[j].c_idx].d_ptr->name);
 
 				/* Count reward */
 				p_ptr->phase_cards += o_ptr->value;
@@ -9709,7 +10648,7 @@ void phase_produce(game *g)
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
 	{
-		/* Hanele player's produce phase */
+		/* Handle player's produce phase */
 		produce_player(g, i);
 	}
 
@@ -9728,13 +10667,13 @@ void phase_produce(game *g)
 		{
 			/* Begin message */
 			sprintf(msg, "%s receives ", p_ptr->name);
-			
+
 			/* Check for cards received */
 			if (p_ptr->phase_cards)
 			{
 				/* Create card string */
 				sprintf(text, "%d card%s ", p_ptr->phase_cards,
-				        p_ptr->phase_cards > 1 ? "s" : "");
+				        PLURAL(p_ptr->phase_cards));
 
 				/* Add text to message */
 				strcat(msg, text);
@@ -9783,7 +10722,7 @@ void phase_discard(game *g)
 {
 	player *p_ptr;
 	card *c_ptr;
-	int taken = 0, discarding[MAX_PLAYER];
+	int taken = 0, message = 0, discarding[MAX_PLAYER];
 	int i, j, n, list[MAX_DECK], target;
 	char msg[1024];
 
@@ -9850,14 +10789,13 @@ void phase_discard(game *g)
 		p_ptr->end_discard = n - target;
 
 		/* Message */
-		if (!g->simulation)
+		if (!g->simulation && !message)
 		{
-			/* Format message */
-			sprintf(msg, "%s discards %d at end of turn.\n",
-			        p_ptr->name, n - target);
+			/* Send formatted message */
+			message_add_formatted(g, "--- End of round ---\n", FORMAT_PHASE);
 
-			/* Send message */
-			message_add(g, msg);
+			/* Remember message is sent */
+			message = 1;
 		}
 
 		/* Check for opponent's turn in simulated game */
@@ -9892,9 +10830,20 @@ void phase_discard(game *g)
 
 		/* Get discard choice */
 		extract_choice(g, i, CHOICE_DISCARD, list, &n, NULL, NULL);
-		
+
 		/* Make discards */
 		discard_callback(g, i, list, n);
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %d card%s at end of round.\n",
+			        g->p[i].name, n, PLURAL(n));
+
+			/* Send message */
+			message_add(g, msg);
+		}
 	}
 
 	/* Loop over players */
@@ -9937,6 +10886,18 @@ void phase_discard(game *g)
 				if (c_ptr->start_owner == c_ptr->owner)
 					continue;
 
+				/* Check for simulation */
+				if (g->simulation && g->p[i].control->private_message)
+				{
+					/* Format message */
+					sprintf(msg, "%s takes %s.\n",
+					        g->p[i].name, c_ptr->d_ptr->name);
+
+					/* Send private message */
+					g->p[i].control->private_message(g, i, msg,
+					                                 FORMAT_DRAW);
+				}
+
 				/* Take card */
 				move_card(g, j, i, WHERE_HAND);
 
@@ -9956,8 +10917,7 @@ void phase_discard(game *g)
 				{
 					/* Format message */
 					sprintf(msg, "%s takes %d discard%s.\n",
-					        g->p[i].name, taken,
-						(taken == 1) ? "" : "s");
+					        g->p[i].name, taken, PLURAL(taken));
 
 					/* Send message */
 					message_add(g, msg);
@@ -9975,6 +10935,16 @@ int goal_minimum(int goal)
 	/* Switch on goal type */
 	switch (goal)
 	{
+		/* One-dimensional first goals */
+		case GOAL_FIRST_5_VP: return 5;
+		case GOAL_FIRST_4_TYPES: return 4;
+		case GOAL_FIRST_3_ALIEN: return 3;
+		case GOAL_FIRST_PHASE_POWER: return 6;
+		case GOAL_FIRST_3_UPLIFT: return 3;
+		case GOAL_FIRST_4_GOODS: return 4;
+		case GOAL_FIRST_8_ACTIVE: return 8;
+
+		/* Most goals */
 		case GOAL_MOST_MILITARY: return 6;
 		case GOAL_MOST_BLUE_BROWN: return 3;
 		case GOAL_MOST_DEVEL: return 4;
@@ -9985,8 +10955,8 @@ int goal_minimum(int goal)
 		case GOAL_MOST_CONSUME: return 3;
 	}
 
-	/* XXX */
-	return -1;
+	/* Other goals are binary */
+	return 1;
 }
 
 /*
@@ -10012,8 +10982,8 @@ static int check_goal_player(game *g, int goal, int who)
 		/* First to 5 VP chips */
 		case GOAL_FIRST_5_VP:
 
-			/* Check for 5 VP */
-			return p_ptr->vp >= 5;
+			/* Return VP count */
+			return p_ptr->vp;
 
 		/* First to 4 good types */
 		case GOAL_FIRST_4_TYPES:
@@ -10044,17 +11014,14 @@ static int check_goal_player(game *g, int goal, int who)
 				if (good[i]) count++;
 			}
 
-			/* Check for all four types */
-			return count >= 4;
+			/* Return number of types */
+			return count;
 
 		/* First to three Alien cards */
 		case GOAL_FIRST_3_ALIEN:
 
-			/* Count ALIEN flags */
-			count = count_active_flags(g, who, FLAG_ALIEN);
-
-			/* Check for three alien cards */
-			return count >= 3;
+			/* Count number of Alien cards */
+			return count_active_flags(g, who, FLAG_ALIEN);
 
 		/* First to discard at end of turn */
 		case GOAL_FIRST_DISCARD:
@@ -10105,8 +11072,8 @@ static int check_goal_player(game *g, int goal, int who)
 				if (phase[i]) count++;
 			}
 
-			/* Check for all 6 phases */
-			return count == 6;
+			/* Return number of phases with powers */
+			return count;
 
 		/* First to have a six-cost development */
 		case GOAL_FIRST_SIX_DEVEL:
@@ -10136,11 +11103,8 @@ static int check_goal_player(game *g, int goal, int who)
 		/* First to three Uplift cards */
 		case GOAL_FIRST_3_UPLIFT:
 
-			/* Count UPLIFT flags */
-			count = count_active_flags(g, who, FLAG_UPLIFT);
-
-			/* Check for three Uplift cards */
-			return count >= 3;
+			/* Count number of Uplift cards */
+			return count_active_flags(g, who, FLAG_UPLIFT);
 
 		/* First to 4 goods */
 		case GOAL_FIRST_4_GOODS:
@@ -10161,14 +11125,14 @@ static int check_goal_player(game *g, int goal, int who)
 				if (c_ptr->num_goods) count++;
 			}
 
-			/* Check for four goods */
-			return count >= 4;
+			/* Return number of goods */
+			return count;
 
 		/* First to 8 active cards */
 		case GOAL_FIRST_8_ACTIVE:
 
-			/* Check for 8 cards */
-			return count_player_area(g, who, WHERE_ACTIVE) >= 8;
+			/* Count number of cards */
+			return count_player_area(g, who, WHERE_ACTIVE);
 
 		/* First to have negative military or takeover power */
 		case GOAL_FIRST_NEG_MILITARY:
@@ -10268,7 +11232,7 @@ static int check_goal_player(game *g, int goal, int who)
 					/* Count world */
 					count++;
 				}
-				
+
 				/* Check for "any" kind */
 				if (c_ptr->d_ptr->good_type == GOOD_ANY &&
 				    (g->oort_kind == GOOD_ANY ||
@@ -10426,6 +11390,19 @@ static int check_goal_player(game *g, int goal, int who)
 }
 
 /*
+ * Printable good names (which start at cost/value 2).
+ */
+char *good_printable[MAX_GOOD] =
+{
+	"",
+	"Any",
+	"Novelty",
+	"Rare",
+	"Genes",
+	"Alien",
+};
+
+/*
  * Goal names.
  */
 char *goal_name[MAX_GOAL] =
@@ -10508,7 +11485,7 @@ void check_goal_loss(game *g, int who, int goal)
 			        goal_name[goal]);
 
 			/* Send message */
-			message_add(g, msg);
+			message_add_formatted(g, msg, FORMAT_GOAL);
 		}
 	}
 }
@@ -10537,9 +11514,9 @@ void check_goals(game *g)
 		{
 			/* End of turn only */
 			case GOAL_FIRST_DISCARD:
-			
+
 				/* Only check at end of turn */
-				if (g->cur_action != -1) continue;
+				if (g->cur_action != ACT_ROUND_END) continue;
 				break;
 
 			/* Develop phase only */
@@ -10578,7 +11555,7 @@ void check_goals(game *g)
 
 				/* Only check after round start/consume */
 				if (g->cur_action != ACT_CONSUME_TRADE &&
-				    g->cur_action != -1)
+				    g->cur_action != ACT_ROUND_START)
 					continue;
 				break;
 
@@ -10602,8 +11579,14 @@ void check_goals(game *g)
 			/* Get player pointer */
 			p_ptr = &g->p[j];
 
+			/* Get player's progress */
+			count[j] = check_goal_player(g, i, j);
+
+			/* Save progress */
+			g->p[j].goal_progress[i] = count[j];
+
 			/* Check for player meeting requirement */
-			if (check_goal_player(g, i, j))
+			if (count[j] >= goal_minimum(i))
 			{
 				/* Claim goal */
 				p_ptr->goal_claimed[i] = 1;
@@ -10619,7 +11602,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -10714,7 +11697,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -10765,7 +11748,7 @@ void check_goals(game *g)
 					        p_ptr->name, goal_name[i]);
 
 					/* Send message */
-					message_add(g, msg);
+					message_add_formatted(g, msg, FORMAT_GOAL);
 				}
 			}
 		}
@@ -10871,6 +11854,7 @@ static void rotate_players(game *g)
  */
 int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 {
+	char msg[1024];
 	player *p_ptr = &g->p[who];
 
 	/* Ensure exactly one start world chosen */
@@ -10884,6 +11868,18 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 
 	/* Discard chosen cards */
 	discard_callback(g, who, list, n);
+
+	/* Message */
+	if (!g->simulation && p_ptr->control->private_message)
+	{
+		/* Format message */
+		sprintf(msg, "%s discards the start world %s.\n",
+		        p_ptr->name,
+		        g->deck[special[1]].d_ptr->name);
+
+		/* Send message */
+		p_ptr->control->private_message(g, who, msg, FORMAT_DISCARD);
+	}
 
 	/* Place start card */
 	place_card(g, who, special[0]);
@@ -10901,6 +11897,7 @@ void start_chosen(game *g)
 	card *c_ptr;
 	int hand[MAX_DECK], discarding[MAX_PLAYER];
 	int i, j, n;
+	char msg[1024];
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -10951,7 +11948,7 @@ void start_chosen(game *g)
 
 		/* Get discard choice */
 		extract_choice(g, i, CHOICE_DISCARD, hand, &n, NULL, NULL);
-		
+
 		/* Make discards */
 		discard_callback(g, i, hand, n);
 	}
@@ -10984,6 +11981,25 @@ void start_chosen(game *g)
 			/* Check for fake card returned */
 			if (hand[0] == -1) continue;
 
+			/* Private message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s saves %s.\n", p_ptr->name,
+				        g->deck[hand[0]].d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg,
+				                                 FORMAT_DISCARD);
+			}
+
+			/* Format message */
+			sprintf(msg, "%s saves 1 card under Galactic Scavengers.\n",
+			        p_ptr->name);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+
 			/* Move card to saved area */
 			move_card(g, hand[0], i, WHERE_SAVED);
 		}
@@ -10998,12 +12014,76 @@ void begin_game(game *g)
 	player *p_ptr;
 	card *c_ptr;
 	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
-	int start_picks[MAX_PLAYER][2];
+	int start_picks[MAX_PLAYER][2], original_start_picks[MAX_PLAYER][2];
 	int hand[MAX_DECK];
 	int i, j, n, ns;
 	int lowest = MAX_DECK, low_i = -1;
 	int num_start = 0, num_start_red = 0, num_start_blue = 0;
 	char msg[1024];
+
+	/* Format message */
+	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n", exp_names[g->expanded]);
+
+	/* Send message */
+	message_add(g, msg);
+
+	/* Check for campaign game */
+	if (g->camp)
+	{
+		/* Format campaign message */
+		sprintf(msg, "Campaign: %s.\n", g->camp->name);
+
+		/* Send message */
+		message_add(g, msg);
+	}
+
+	/* Format num players and advanced message */
+	if (!g->advanced)
+	{
+		sprintf(msg, "%s.\n", player_labels[g->num_players - 2]);
+	}
+	else
+	{
+		sprintf(msg, "%s, advanced game.\n", player_labels[g->num_players - 2]);
+	}
+
+	/* Send message */
+	message_add(g, msg);
+
+	/* Check for expansion with goals */
+	if (g->expanded > 0 && g->expanded < 4)
+	{
+		/* Check for disabled goals */
+		if (g->goal_disabled)
+		{
+			/* Send message */
+			message_add(g, "Goals disabled.\n");
+		}
+		else
+		{
+			/* Send message */
+			message_add_formatted(g, "Goals enabled.\n", FORMAT_GOAL);
+		}
+	}
+
+	/* Check for expansion with takeovers */
+	if (g->expanded > 1 && g->expanded < 4)
+	{
+		/* Check for disabled takeovers */
+		if (g->takeover_disabled)
+		{
+			/* Send message */
+			message_add(g, "Takeovers disabled.\n");
+		}
+		else
+		{
+			/* Send message */
+			message_add_formatted(g, "Takeovers enabled.\n", FORMAT_TAKEOVER);
+		}
+	}
+
+	/* Send start of game message */
+	message_add_formatted(g, "=== Start of game ===\n", FORMAT_EM);
 
 	/* Loop over cards in deck */
 	for (i = 0; i < g->deck_size; i++)
@@ -11060,6 +12140,10 @@ void begin_game(game *g)
 			/* Collapse list */
 			start_blue[n] = start_blue[--num_start_blue];
 
+			/* Remember original picks */
+			original_start_picks[i][0] = start_picks[i][0];
+			original_start_picks[i][1] = start_picks[i][1];
+
 			/* Get card pointer to first start choice */
 			c_ptr = &g->deck[start_picks[i][0]];
 
@@ -11070,6 +12154,18 @@ void begin_game(game *g)
 			/* Card is known to player */
 			c_ptr->misc |= (1 << i);
 
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+				        g->p[i].name,
+				        c_ptr->d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
+
 			/* Get card pointer to second start choice */
 			c_ptr = &g->deck[start_picks[i][1]];
 
@@ -11079,6 +12175,18 @@ void begin_game(game *g)
 
 			/* Card is known to player */
 			c_ptr->misc |= (1 << i);
+
+			/* Message */
+			if (g->p[i].control->private_message)
+			{
+				/* Format message */
+				sprintf(msg, "%s draws the start world %s.\n",
+				        g->p[i].name,
+				        c_ptr->d_ptr->name);
+
+				/* Send message */
+				g->p[i].control->private_message(g, i, msg, FORMAT_DRAW);
+			}
 		}
 
 		/* Loop over players again */
@@ -11088,7 +12196,7 @@ void begin_game(game *g)
 			p_ptr = &g->p[i];
 
 			/* Give player six cards */
-			draw_cards(g, i, 6);
+			draw_cards(g, i, 6, NULL);
 
 			/* Set low hand size */
 			p_ptr->low_hand = 6;
@@ -11102,7 +12210,7 @@ void begin_game(game *g)
 
 			/* Reset list of cards in hand */
 			n = 0;
-			
+
 			/* Loop over cards */
 			for (j = 0; j < g->deck_size; j++)
 			{
@@ -11142,6 +12250,13 @@ void begin_game(game *g)
 			/* Get answer */
 			extract_choice(g, i, CHOICE_START, hand, &n,
 			               start_picks[i], &ns);
+
+			/* XXX Check for selecting second start world */
+			if (original_start_picks[i][0] != start_picks[i][0])
+			{
+				/* Remember other world */
+				start_picks[i][1] = original_start_picks[i][0];
+			}
 
 			/* Apply choice */
 			start_callback(g, i, hand, n, start_picks[i], ns);
@@ -11208,7 +12323,7 @@ void begin_game(game *g)
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Give player six cards */
-			draw_cards(g, i, 6);
+			draw_cards(g, i, 6, NULL);
 
 			/* Set low hand size */
 			g->p[i].low_hand = 6;
@@ -11247,11 +12362,18 @@ void begin_game(game *g)
 	/* Start worlds are chosen */
 	start_chosen(g);
 
+
 	/* Check for aborted game */
 	if (g->game_over) return;
 
 	/* Rotate players until player 0 holds lowest start world */
 	for (i = 0; i < low_i; i++) rotate_players(g);
+
+	/* Format message */
+	sprintf(msg, "%s is the first player.\n", g->p[0].name);
+
+	/* Send message */
+	message_add_formatted(g, msg, FORMAT_VERBOSE);
 
 	/* Check for "draw extra" campaign flag */
 	if (g->camp && (g->camp->flags & CAMP_DRAW_EXTRA))
@@ -11260,7 +12382,13 @@ void begin_game(game *g)
 		for (i = 0; i < g->num_players; i++)
 		{
 			/* Draw one card */
-			draw_card(g, i);
+			int j = draw_card(g, i, NULL);
+
+			/* Format message */
+			sprintf(msg, "%s is given %s.\n", g->p[i].name, g->deck[j].d_ptr->name);
+
+			/* Send message */
+			message_add(g, msg);
 		}
 	}
 
@@ -11270,16 +12398,16 @@ void begin_game(game *g)
 	/* XXX Pretend settle phase to set goal progress properly */
 	g->cur_action = ACT_SETTLE;
 	check_goals(g);
-	g->cur_action = -1;
+	g->cur_action = ACT_ROUND_START;
 
-	/* First game round */
-	g->round = 1;
+	/* Game is starting */
+	g->round = 0;
 }
 
 /*
  * Action names.
  */
-static char *actname[19] =
+char *actname[MAX_ACTION * 2 - 1] =
 {
 	"Search",
 	"Explore +5",
@@ -11300,6 +12428,24 @@ static char *actname[19] =
 	"Prestige Consume-Trade",
 	"Prestige Consume-x2",
 	"Prestige Produce",
+};
+
+/*
+ * Plain action names.
+ */
+char *plain_actname[MAX_ACTION + 1] =
+{
+	"Search",
+	"Explore",
+	"Explore",
+	"Develop",
+	"Second develop",
+	"Settle",
+	"Second settle",
+	"Consume",
+	"Consume",
+	"Produce",
+	"End of round",
 };
 
 /*
@@ -11398,21 +12544,11 @@ int game_round(game *g)
 	int i, j, target, act[2];
 	char msg[1024], last;
 
-	/* Assume no phases will be executed */
-	for (i = 0; i < MAX_ACTION; i++) g->action_selected[i] = 0;
+	/* Increment round counter */
+	g->round++;
 
-	/* Clear action choices */
-	for (i = 0; i < g->num_players; i++)
-	{
-		/* Clear both choices */
-		g->p[i].action[0] = g->p[i].action[1] = -1;
-
-		/* Set low hand size */
-		g->p[i].low_hand = count_player_area(g, i, WHERE_HAND);
-	}
-
-	/* Clear current action */
-	g->cur_action = -1;
+	/* Set current phase to start of round */
+	g->cur_action = ACT_ROUND_START;
 
 	/* Check for aborted game */
 	if (g->game_over) return 0;
@@ -11421,10 +12557,10 @@ int game_round(game *g)
 	if (!g->simulation)
 	{
 		/* Format message */
-		sprintf(msg, "--- Round %d begins ---\n", g->round);
+		sprintf(msg, "=== Round %d begins ===\n", g->round);
 
-		/* Send messag e*/
-		message_add(g, msg);
+		/* Send message */
+		message_add_formatted(g, msg, FORMAT_EM);
 	}
 
 	/* Award prestige bonuses */
@@ -11482,8 +12618,16 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 
 		/* Check for real advanced game */
@@ -11494,8 +12638,17 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE ||
+			    p_ptr->action[1] == ACT_SEARCH || p_ptr->action[1] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 	}
 
@@ -11538,8 +12691,16 @@ int game_round(game *g)
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
 				action_name(p_ptr->action[0]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 
 		/* Check for real game */
@@ -11550,8 +12711,17 @@ int game_round(game *g)
 			        action_name(p_ptr->action[0]),
 			        action_name(p_ptr->action[1]));
 
-			/* Send message */
-			message_add(g, msg);
+			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE ||
+			    p_ptr->action[1] == ACT_SEARCH || p_ptr->action[1] & ACT_PRESTIGE)
+			{
+				/* Send colored message */
+				message_add_formatted(g, msg, FORMAT_PRESTIGE);
+			}
+			else
+			{
+				/* Send non-colored message */
+				message_add(g, msg);
+			}
 		}
 	}
 
@@ -11566,6 +12736,16 @@ int game_round(game *g)
 
 		/* Skip unchosen phases */
 		if (!g->action_selected[i]) continue;
+
+		/* Check for real game */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "--- %s phase ---\n", plain_actname[i]);
+
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_PHASE);
+		}
 
 		/* Handle phase */
 		switch (i)
@@ -11583,7 +12763,7 @@ int game_round(game *g)
 				/* Run explore phase */
 				phase_explore(g);
 				break;
-			
+
 			/* Develop */
 			case ACT_DEVELOP:
 			case ACT_DEVELOP2:
@@ -11591,7 +12771,7 @@ int game_round(game *g)
 				/* Run develop phase */
 				phase_develop(g);
 				break;
-			
+
 			/* Settle */
 			case ACT_SETTLE:
 			case ACT_SETTLE2:
@@ -11599,14 +12779,14 @@ int game_round(game *g)
 				/* Run settle phase */
 				phase_settle(g);
 				break;
-			
+
 			/* Consume */
 			case ACT_CONSUME_TRADE:
 
 				/* Run consume phase */
 				phase_consume(g);
 				break;
-			
+
 			/* Produce */
 			case ACT_PRODUCE:
 
@@ -11619,11 +12799,15 @@ int game_round(game *g)
 		if (g->game_over) return 0;
 	}
 
-	/* Clear current action */
-	g->cur_action = -1;
+	/* Set current phase to end of round */
+	g->cur_action = ACT_ROUND_END;
 
 	/* Handle discard phase */
 	phase_discard(g);
+
+
+	/* Check for aborted game */
+	if (g->game_over) return 0;
 
 	/* Clear temp flags */
 	clear_temp(g);
@@ -11658,11 +12842,21 @@ int game_round(game *g)
 		g->p[i].prev_action[1] = g->p[i].action[1];
 	}
 
-	/* Increment round counter */
-	g->round++;
-
 	/* Check for too many rounds */
-	if (g->round > 30) g->game_over = 1;
+	if (g->round >= 30) g->game_over = 1;
+
+	/* Clear phases */
+	for (i = 0; i < MAX_ACTION; i++) g->action_selected[i] = 0;
+
+	/* Clear action choices */
+	for (i = 0; i < g->num_players; i++)
+	{
+		/* Clear both choices */
+		g->p[i].action[0] = g->p[i].action[1] = -1;
+
+		/* Set low hand size */
+		g->p[i].low_hand = count_player_area(g, i, WHERE_HAND);
+	}
 
 	/* Check for finished game */
 	if (g->game_over) return 0;
@@ -11721,7 +12915,7 @@ int total_military(game *g, int who)
 			}
 		}
 	}
-	
+
 	/* Return amount of military */
 	return amt;
 }
@@ -11732,7 +12926,8 @@ int total_military(game *g, int who)
 static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 {
 	power *o_ptr;
-	int i, type = v_ptr->type;
+	int i;
+	uint64_t type = v_ptr->type;
 
 	/* Switch on bonus type */
 	switch (type)
@@ -12100,6 +13295,9 @@ static void score_game_player(game *g, int who)
 	card *c_ptr;
 	int i, x, count;
 
+	/* Reset goal vp */
+	p_ptr->goal_vp = 0;
+
 	/* Start with VP chips */
 	p_ptr->end_vp = p_ptr->vp;
 
@@ -12189,6 +13387,9 @@ void score_game(game *g)
 		/* Skip cards that don't have "any" good type */
 		if (c_ptr->d_ptr->good_type != GOOD_ANY) continue;
 
+		/* Skip the card if it is not active */
+		if (c_ptr->where != WHERE_ACTIVE) break;
+
 		/* Remember owner of card */
 		oort_owner = c_ptr->owner;
 	}
@@ -12228,6 +13429,12 @@ void score_game(game *g)
 				{
 					/* Remember best score */
 					b_s = sim.p[i].end_vp;
+
+					/* Remember best selection of kind */
+					g->best_oort_kind = j;
+
+					/* Remember goal score */
+					g->p[i].goal_vp = sim.p[i].goal_vp;
 				}
 			}
 
@@ -12248,11 +13455,35 @@ void score_game(game *g)
 void declare_winner(game *g)
 {
 	player *p_ptr;
-	int i, t, b_s = -1, b_t = -1;
+	card *c_ptr;
+	int i, oort_owner = -1, th, tg, b_s = -1, b_t = -1, num_b_s = 0;
 	char msg[1024];
+
+	/* Check for simulation */
+	if (!g->simulation)
+	{
+		/* Send end of game message */
+		message_add_formatted(g, "=== End of game ===\n", FORMAT_EM);
+	}
 
 	/* Score game */
 	score_game(g);
+
+	/* Loop over cards in deck */
+	for (i = 0; i < g->deck_size; i++)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[i];
+
+		/* Skip cards that don't have "any" good type */
+		if (c_ptr->d_ptr->good_type != GOOD_ANY) continue;
+
+		/* Skip the card if it is not active */
+		if (c_ptr->where != WHERE_ACTIVE) break;
+
+		/* Remember owner of card */
+		oort_owner = c_ptr->owner;
+	}
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -12262,6 +13493,18 @@ void declare_winner(game *g)
 
 		/* Check for bigger score */
 		if (p_ptr->end_vp > b_s) b_s = p_ptr->end_vp;
+
+		/* Check for real game and owner of "any" good type */
+		if (!g->simulation && i == oort_owner)
+		{
+			/* Format message */
+			sprintf(msg, "%s changes Alien Oort Cloud Refinery's "
+			        "kind to %s.\n",
+			        p_ptr->name, good_printable[g->best_oort_kind]);
+
+			/* Send message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 	}
 
 	/* Loop over players */
@@ -12273,12 +13516,15 @@ void declare_winner(game *g)
 		/* Skip players who do not have best score */
 		if (p_ptr->end_vp < b_s) continue;
 
+		/* Add one to number of players with best score */
+		++num_b_s;
+
 		/* Get tiebreaker */
-		t = count_player_area(g, i, WHERE_HAND) +
-		    count_player_area(g, i, WHERE_GOOD);
+		th = count_player_area(g, i, WHERE_HAND) +
+		     count_player_area(g, i, WHERE_GOOD);
 
 		/* Track biggest tiebreaker */
-		if (t > b_t) b_t = t;
+		if (th > b_t) b_t = th;
 	}
 
 	/* Loop over players */
@@ -12286,29 +13532,77 @@ void declare_winner(game *g)
 	{
 		/* Get player pointer */
 		p_ptr = &g->p[i];
-
-		/* Skip players who do not have best score */
-		if (p_ptr->end_vp < b_s) continue;
-
-		/* Get tiebreaker */
-		t = count_player_area(g, i, WHERE_HAND) +
-		    count_player_area(g, i, WHERE_GOOD);
-
-		/* Skip players who do not have best tiebreaker */
-		if (t < b_t) continue;
-
-		/* Set winner flag */
-		p_ptr->winner = 1;
 
 		/* Check for simulation */
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s wins with %d.\n", g->p[i].name,
-			                                   g->p[i].end_vp);
+			sprintf(msg, "%s ends with %d VP%s.\n", g->p[i].name,
+			        g->p[i].end_vp, PLURAL(g->p[i].end_vp));
 
 			/* Send message */
 			message_add(g, msg);
+		}
+
+		/* Skip players who do not have best score */
+		if (p_ptr->end_vp < b_s) continue;
+
+		/* Get tiebreaker (hand cards) */
+		th = count_player_area(g, i, WHERE_HAND);
+
+		/* Get tiebreaker (goods) */
+		tg = count_player_area(g, i, WHERE_GOOD);
+
+		/* Check for simulation */
+		if (!g->simulation && num_b_s > 1)
+		{
+			/* Format message */
+			sprintf(msg, "%s has %d card%s in hand and %d good%s "
+			        "on worlds.\n", g->p[i].name,
+			        th, PLURAL(th), tg, PLURAL(tg));
+
+			/* Send message */
+			message_add(g, msg);
+		}
+
+		/* Skip players who do not have best tiebreaker */
+		if (th + tg < b_t) continue;
+
+		/* Set winner flag */
+		p_ptr->winner = 1;
+	}
+
+	/* Check for simulation */
+	if (!g->simulation)
+	{
+		/* Loop over players */
+		for (i = 0; i < g->num_players; i++)
+		{
+			/* Get player pointer */
+			p_ptr = &g->p[i];
+
+			/* Check for winner */
+			if (p_ptr->winner)
+			{
+				/* Check for tie breaker needed */
+				if (num_b_s > 1)
+				{
+					/* Format message */
+					sprintf(msg, "%s wins with %d VP%s "
+					        "and %d as tie breaker.\n",
+					        g->p[i].name, g->p[i].end_vp,
+					        PLURAL(g->p[i].end_vp), b_t);
+				}
+				else
+				{
+					/* Format message */
+					sprintf(msg, "%s wins with %d VP%s.\n", g->p[i].name,
+							g->p[i].end_vp, PLURAL(g->p[i].end_vp));
+				}
+
+				/* Send message */
+				message_add_formatted(g, msg, FORMAT_EM);
+			}
 		}
 	}
 }

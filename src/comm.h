@@ -1,18 +1,19 @@
 #ifdef WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <io.h>
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 #endif
 
 #include <stdarg.h>
 #include <sys/types.h>
 #include <errno.h>
 #include <time.h>
-#include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
 
@@ -51,6 +52,7 @@
 #define MSG_WAITING           47
 #define MSG_SEAT              48
 #define MSG_GAMECHAT          49
+#define MSG_LOG_FORMAT        50
 
 #define MSG_CHOOSE            60
 #define MSG_PREPARE           61
