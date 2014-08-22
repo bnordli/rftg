@@ -571,7 +571,6 @@ static void handle_status_meta(char *ptr, int size)
 {
 	char name[1024];
 	int i;
-	char *start = ptr;
 
 	/* Read basic game parameters */
 	real_game.num_players = get_integer(&ptr);
@@ -629,7 +628,6 @@ static void handle_status_player(char *ptr, int size)
 {
 	player *p_ptr;
 	int x;
-	char *start = ptr;
 
 	/* Get player index */
 	x = get_integer(&ptr);
@@ -680,7 +678,6 @@ static void handle_status_card(char *ptr, int size)
 	card *c_ptr;
 	int x;
 	int owner, where, start_owner, start_where;
-	char *start = ptr;
 
 	/* Read card index */
 	x = get_integer(&ptr);

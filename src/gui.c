@@ -5095,7 +5095,7 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 		d_ptr->specific[GOOD_NOVELTY] || d_ptr->specific[GOOD_RARE] ||
 		d_ptr->specific[GOOD_GENE] || d_ptr->specific[GOOD_ALIEN] ||
 		d_ptr->non_alien_mil_card || d_ptr->rebel_mil_card ||
-        d_ptr->chromo_mil_card || d_ptr->alien_mil_card ||
+	    d_ptr->chromo_mil_card || d_ptr->alien_mil_card ||
 		d_ptr->conquer_settle_0 || d_ptr->conquer_settle_2;
 }
 

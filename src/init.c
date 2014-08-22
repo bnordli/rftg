@@ -995,7 +995,7 @@ void init_game(game *g)
 	/* No game round yet */
 	g->round = 0;
 
-	/* No phase or turn */
+	/* Start of game */
 	g->cur_action = ACT_GAME_START;
 	g->turn = 0;
 
