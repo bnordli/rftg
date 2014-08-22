@@ -42,7 +42,7 @@ static int read_game(game *g, FILE* fff)
 	if (strcmp(version, VERSION) > 0) return -1;
 
 	/* Check for too old version */
-	if (strcmp(version, "0.9.3") < 0) return -1;
+	if (strcmp(version, "0.9.4") < 0) return -1;
 
 	/* Read random seed information */
 	fscanf(fff, "%u\n", &g->start_seed);

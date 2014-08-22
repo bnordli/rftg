@@ -7001,7 +7001,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 					/* Format text */
 					p += sprintf(p, "%s%s",
 					             conjunction ? " or " : "", cost_card);
-					
+
 					/* Check for any cards */
 					if (cost > 0)
 					{
@@ -10768,7 +10768,7 @@ static void read_prefs(void)
 	opt.export_cards = g_key_file_get_boolean(pref_file, "gui",
 	                                          "export_cards", NULL);
 
-	/* Check for auto_export key present (since 0.8.1l) */
+	/* Check for auto_export key present (since 0.9.4) */
 	if (g_key_file_has_key(pref_file, "gui", "auto_export", NULL))
 	{
 		opt.auto_export = g_key_file_get_boolean(pref_file, "gui",
