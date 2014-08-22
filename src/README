@@ -1,9 +1,18 @@
 This is a program to play Race for the Galaxy against AI players.  Rules
 for the game and expansions can be found at:
 
-http://www.riograndegames.com/uploads/Game/Game_240_gameRules.pdf
-http://www.riograndegames.com/uploads/Game/Game_253_gameRules.pdf
-http://www.riograndegames.com/uploads/Game/Game_301_gameRules.pdf
+http://riograndegames.com/getFile.php?id=273
+http://riograndegames.com/getFile.php?id=293
+http://riograndegames.com/getFile.php?id=393
+http://riograndegames.com/getFile.php?id=506
+http://riograndegames.com/getFile.php?id=1813
+
+
+AUTHORS
+
+This program was created by Keldon Jones <keldon@keldon.net>.  Many
+useful improvements, especially to the GUI, were made by B. Nordli
+<BGG user borgemik>.
 
 COMPILATION
 
@@ -15,6 +24,8 @@ RUNNING
 Run with "./rftg".  You may specify number of players, expansion level,
 etc with some command line options:
 
+	-n <name>      -- Set the name of the human player
+	-s <savegame>  -- Load a savegame when starting the program
 	-r <num>       -- A seed to pick when initializing the random pool
 	-p <num>       -- Number of players (including yourself)
 	-a             -- Play a two-player advanced game
@@ -24,6 +35,8 @@ etc with some command line options:
 				2: Rebel vs Imperium
 				3: The Brink of War
 				4: Alien Artifacts
+	-g, -nog       -- Enable or disable goals
+	-t, -not       -- Enable or disable takeovers
 
 You may also change these setting once the game is running with the
 "Select Parameters" option under the Game menu.
@@ -46,6 +59,32 @@ When you are satisfied, click the "Done" button at the far right of the
 prompt area.  This button will not be clickable if your current
 selection is not legal.
 
+You can right-click a card to select all other cards (for example, when
+Exploring).
+
+KEYBOARD SHORTCUTS
+
+        F1:            Explore: +5
+        Shift+F1:      Explore: +1, +1
+        F2:            Develop
+        Shift+F2:      Second Develop (in advanced game)
+        F3:            Settle
+        Shift+F3:      Second Settle (in advanced game)
+        F4:            Consume-Trade
+        Shift+F4:      Consume-x2
+        F5:            Produce
+        F6:            Search (The Brink of War)
+        F7:            Prestige action (The Brink of War)
+
+        F1-F9 and Shift+F1-Shift+F9:
+                       Activate selectable cards in tableaux and hand
+        F12/Shift+F12:
+                       Select/deselect all selectable cards in hand
+
+        Shift+Enter:   'Done' button
+        Shift+Up/Down: Change selection in drop down
+        F12:           Open selection drop down
+
 BUGS
 
 If you encounter a bug, especially an error in the rules implementation,
@@ -53,8 +92,8 @@ please report it to keldon@keldon.net .
 
 LEGAL
 
-The source code is my own creation and is placed under the GPL.  For
-details, see the file COPYING.
+The source code is copyrighted and is placed under the GPL.  For details,
+see the file COPYING.
 
 The original game of Race for the Galaxy was designed by Tom Lehmann and
 published by Rio Grande Games.  Permission to distribute the card and

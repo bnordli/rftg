@@ -8502,7 +8502,14 @@ static void draw_lucky(game *g, int who)
 	int cost, which;
 
 	/* Do not bother in simulated games */
-	if (g->simulation) return;
+	if (g->simulation)
+	{
+		/* Consume random number */
+		which = game_rand(g);
+
+		/* Done */
+		return;
+	}
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -8636,11 +8643,15 @@ static void ante_card(game *g, int who)
 		{
 			/* Take top card */
 			drawn[i] = first_draw(g);
-		}
 
-		/* Get random (or campaign) draw */
-		/* TODO: Only when not simulated? */
-		drawn[i] = campaign_draw(g, who);
+			/* Consume random number */
+			x = game_rand(g);
+		}
+		else
+		{
+			/* Get random (or campaign) draw */
+			drawn[i] = campaign_draw(g, who);
+		}
 
 		/* Check for failure */
 		if (drawn[i] == -1) return;
@@ -9197,8 +9208,12 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 			continue;
 		}
 
-		/* Add good (world) to list */
-		g_list[num_goods++] = x;
+		/* Loop over goods on world */
+		for (i = 0; i < c_ptr->num_goods; i++)
+		{
+			/* Add good (world) to list */
+			g_list[num_goods++] = x;
+		}
 	}
 
 	/* Count number of types */
@@ -9326,10 +9341,10 @@ int consume_action(game *g, int who)
 		if (!c_ptr->num_goods) continue;
 
 		/* Count good */
-		goods++;
+		goods += c_ptr->num_goods;;
 
 		/* Count good type */
-		types[c_ptr->d_ptr->good_type]++;
+		types[c_ptr->d_ptr->good_type] += c_ptr->num_goods;
 	}
 
 	/* Count number of types */

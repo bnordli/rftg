@@ -425,6 +425,7 @@ static void message_read(char *data)
 
 		/* Unneeded message types */
 		case MSG_LOG:
+		case MSG_LOG_FORMAT:
 		case MSG_CHAT:
 		case MSG_GAMECHAT:
 		case MSG_WAITING:

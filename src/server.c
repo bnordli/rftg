@@ -911,7 +911,7 @@ static void export_log(FILE *fff, int gid)
 	MYSQL_RES *res;
 	MYSQL_ROW row;
 	char query[1024];
-	char msg[1024], name[1024], *ptr;
+	char name[1024];
 
 	/* Create lookup query */
 	sprintf(query, "SELECT message, format, user "
@@ -927,9 +927,6 @@ static void export_log(FILE *fff, int gid)
 	/* Loop over rows returned */
 	while ((row = mysql_fetch_row(res)))
 	{
-		/* Reset message */
-		ptr = msg;
-
 		/* Check for chat message */
 		if (!strcmp(row[1], FORMAT_CHAT))
 		{
@@ -1577,7 +1574,6 @@ void message_add(game *g, char *txt)
  */
 void message_add_formatted(game *g, char *txt, char *tag)
 {
-	/* TODO: This should become a separate message in a new version */
 	char msg[1024], *ptr = msg;
 
 	/* Check for no tag */
@@ -1592,12 +1588,12 @@ void message_add_formatted(game *g, char *txt, char *tag)
 	db_save_message(g->session_id, -1, txt, tag);
 
 	/* Create log message */
-	start_msg(&ptr, MSG_LOG);
+	start_msg(&ptr, MSG_LOG_FORMAT);
 
 	/* Add text of message */
 	put_string(txt, &ptr);
 
-	/* Add format of message (since 0.9.3m) */
+	/* Add format of message */
 	put_string(tag, &ptr);
 
 	/* Finish message */
@@ -1751,7 +1747,7 @@ static void update_meta(int sid)
 		put_string(s_ptr->g.p[i].name, &ptr);
 	}
 
-	/* Loop over players again (since 0.9.3m) */
+	/* Loop over players again */
 	for (i = 0; i < s_ptr->num_users; i++)
 	{
 		/* Add ai flag to message */
@@ -1972,7 +1968,7 @@ static void update_status_one(int sid, int who)
 			put_integer(p_ptr->bonus_military, &ptr);
 			put_integer(p_ptr->bonus_reduce, &ptr);
 
-			/* Add whether player has prestige on the tile (since 0.9.3m) */
+			/* Add whether player has prestige on the tile */
 			put_integer(p_ptr->prestige_turn, &ptr);
 
 			/* Finish message */
@@ -2187,7 +2183,6 @@ static void ask_client(int sid, int who)
 {
 	session *s_ptr = &s_list[sid];
 	game *g = &s_ptr->g;
-	conn *c_ptr;
 	choice *o_ptr;
 	int cid;
 	char msg[1024], *ptr = msg;
@@ -2211,9 +2206,6 @@ static void ask_client(int sid, int who)
 
 	/* Check for no player */
 	if (cid < 0) return;
-
-	/* Get connection pointer */
-	c_ptr = &c_list[cid];
 
 	/* Check for choice already received */
 	if (g->p[who].choice_size > g->p[who].choice_pos)
@@ -3280,10 +3272,11 @@ static void handle_login(int cid, char *ptr)
 	server_log("Login attempt from %s (%s)", user, c_list[cid].version);
 
 	/* Check for too old version */
-	if (strcmp(version, "0.9.3") < 0)
+	if (strcmp(version, "0.9.4") < 0)
 	{
 		/* Send denied message */
-		send_msgf(cid, MSG_DENIED, "s", "Client version too old");
+		send_msgf(cid, MSG_DENIED, "s",
+		          "Client version too old (need 0.9.4 or later)");
 
 		/* Log message */
 		server_log("Denied (too old)");

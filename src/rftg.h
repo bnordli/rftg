@@ -28,7 +28,7 @@
 #endif
 
 #ifndef VERSION
-#define VERSION "0.9.3"
+#define VERSION "0.9.4"
 #endif
 
 #ifndef RELEASE

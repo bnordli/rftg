@@ -52,6 +52,7 @@
 #define MSG_WAITING           47
 #define MSG_SEAT              48
 #define MSG_GAMECHAT          49
+#define MSG_LOG_FORMAT        50
 
 #define MSG_CHOOSE            60
 #define MSG_PREPARE           61

@@ -1076,6 +1076,29 @@ static void load_image_bundle(void)
 }
 
 /*
+ * Load one image.
+ */
+static void load_one_image(char *base_fn, GdkPixbuf **pixbuf)
+{
+	char *dirs[] = { RFTGDIR "/image/", "image/", "", NULL };
+	char fn[1024];
+	int i;
+
+	/* Loop over directories */
+	for (i = 0; dirs[i]; i++)
+	{
+		/* Construct filename */
+		sprintf(fn, "%s%s", dirs[i], base_fn);
+
+		/* Attempt to load image */
+		*pixbuf = gdk_pixbuf_new_from_file(fn, NULL);
+
+		/* Check for success */
+		if (*pixbuf) return;
+	}
+}
+
+/*
  * Load pixbufs with card images.
  */
 static int load_images(void)
@@ -1084,36 +1107,26 @@ static int load_images(void)
 	char fn[1024], msg[1024];
 
 	/* Load card back image */
-	card_back = gdk_pixbuf_new_from_file(RFTGDIR "/image/cardback.jpg", NULL);
+	load_one_image("cardback.jpg", &card_back);
 
 	/* Loop over designs */
 	for (i = 0; i < num_design; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/card%03d.jpg", i);
+		sprintf(fn, "card%03d.jpg", i);
 
 		/* Load image */
-		image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-		/* Check for error */
-		if (!image_cache[i])
-		{
-			/* Try current folder */
-			sprintf(fn, "image/card%03d.jpg", i);
-
-			/* Load image */
-			image_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-		}
+		load_one_image(fn, &image_cache[i]);
 	}
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/goal%02d.jpg", i);
+		sprintf(fn, "goal%02d.jpg", i);
 
 		/* Load image */
-		goal_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+		load_one_image(fn, &goal_cache[i]);
 	}
 
 	/* Loop over icons */
@@ -1123,30 +1136,10 @@ static int load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/icon%02d.png", i);
+		sprintf(fn, "icon%02d.png", i);
 
 		/* Load image */
-		icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-		/* Check for error */
-		if (!icon_cache[i])
-		{
-			/* Try base folder */
-			sprintf(fn, RFTGDIR "/icon%03d.png", i);
-
-			/* Load image */
-			icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-
-			/* Check for error */
-			if (!icon_cache[i])
-			{
-				/* Try current folder */
-				sprintf(fn, "icon%03d.png", i);
-
-				/* Load image */
-				icon_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
-			}
-		}
+		load_one_image(fn, &icon_cache[i]);
 	}
 
 	/* Loop over actions */
@@ -1156,10 +1149,10 @@ static int load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, RFTGDIR "/image/action%02d.jpg", i);
+		sprintf(fn, "action%02d.jpg", i);
 
 		/* Load image */
-		action_cache[i] = gdk_pixbuf_new_from_file(fn, NULL);
+		load_one_image(fn, &action_cache[i]);
 	}
 
 	/* Try to load rest of image data from bundle */
@@ -1180,7 +1173,8 @@ static int load_images(void)
 		if (!image_cache[i])
 		{
 			/* Format error message */
-			sprintf(msg, "Error: Could not load card image %3d!\n", i);
+			sprintf(msg, "Error: Could not load card image %3d!\n",
+			        i);
 
 			/* Error */
 			display_error(msg);
@@ -1195,7 +1189,8 @@ static int load_images(void)
 		if (!goal_cache[i])
 		{
 			/* Format error message */
-			sprintf(msg, "Error: Could not load goal image %2d!\n", i);
+			sprintf(msg, "Error: Could not load goal image %2d!\n",
+			        i);
 
 			/* Error */
 			display_error(msg);
@@ -1213,7 +1208,8 @@ static int load_images(void)
 		if (!icon_cache[i])
 		{
 			/* Format error message */
-			sprintf(msg, "Error: Could not load icon image %2d!\n", i);
+			sprintf(msg, "Error: Could not load icon image %2d!\n",
+			        i);
 
 			/* Error */
 			display_error(msg);
@@ -1231,7 +1227,9 @@ static int load_images(void)
 		if (!action_cache[i])
 		{
 			/* Format error message */
-			sprintf(msg, "Error: Could not load action card image %2d!\n", i);
+			sprintf(msg,
+			       "Error: Could not load action card image %2d!\n",
+			       i);
 
 			/* Error */
 			display_error(msg);
@@ -4739,9 +4737,10 @@ void redraw_phase(void)
 	GtkWidget *image;
 
 	/* Recompute size */
-	if (real_game.advanced && opt.log_width < 7 * size)
+	if (real_game.advanced && opt.log_width && opt.log_width < 7 * size)
 		size = opt.log_width / 7;
-	else if (!real_game.advanced && opt.log_width < 5 * size)
+	else if (!real_game.advanced && opt.log_width &&
+	         opt.log_width < 5 * size)
 		size = opt.log_width / 5;
 
 	/* First destroy all pre-existing widgets */

@@ -2557,83 +2557,6 @@ static double eval_game(game *g, int who)
 }
 
 /*
- * Evaluate our hand.
- *
- * This should be called when considering what to discard.
- */
-static double eval_hand(game *g, int who)
-{
-	game sim;
-	player *p_ptr;
-	card *c_ptr;
-	int x, num_scores = 1;
-	int hand, max;
-	double score;
-
-	/* Get score for placing nothing */
-	score = eval_game(g, who);
-
-	/* Do nothing if game ends this round */
-	if (g->game_over) return score;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
-
-	/* XXX Add a few cards in hand to pay with */
-	p_ptr->fake_hand += 3;
-
-	/* Get hand size */
-	hand = count_player_area(g, who, WHERE_HAND) + p_ptr->fake_hand -
-	       p_ptr->fake_discards;
-
-	/* Compute maximum cost of developments */
-	max = hand + develop_discount(g, who) - 1;
-
-	/* Start at first card in hand */
-	x = p_ptr->head[WHERE_HAND];
-
-	/* Loop over cards in hand */
-	for ( ; x != -1; x = g->deck[x].next)
-	{
-		/* Get card pointer */
-		c_ptr = &g->deck[x];
-
-		/* Check for development */
-		if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
-		{
-			/* Check for too expensive */
-			if (c_ptr->d_ptr->cost > max) continue;
-		}
-		else
-		{
-			/* Check for unplayable */
-			if (!settle_legal(g, who, x, 0, 0, 0, 0)) continue;
-		}
-
-		/* Simulate game */
-		simulate_game(&sim, g, who);
-
-		/* Place card */
-		place_card(&sim, who, x);
-
-		/* XXX Restore hand size to previous */
-		sim.p[who].fake_hand -= 3;
-
-		/* Evaluate game */
-		score += eval_game(&sim, who);
-
-		/* Count scores */
-		num_scores++;
-	}
-
-	/* XXX Return hand size to normal */
-	p_ptr->fake_hand -= 3;
-
-	/* Return average score */
-	return score / num_scores;
-}
-
-/*
  * Perform a training iteration on the eval network.
  */
 static void perform_training(game *g, int who, double *desired)
@@ -4712,11 +4635,6 @@ static void ai_choose_discard(game *g, int who, int list[], int *num,
 	{
 		/* Copy card */
 		list[i] = discards[i];
-
-#if 0
-		if (!strcmp(g->p[who].name, "Player 0"))
-			printf("Discarding: %s\n", g->deck[list[i]].d_ptr->name);
-#endif
 	}
 
 	/* Set number of chosen cards */
@@ -6202,10 +6120,6 @@ static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
 			{
 				/* Select card */
 				list[n++] = list[i];
-
-#if 0
-				if (!strcmp(g->p[who].name, "Player 0")) printf("Pay: %s\n", g->deck[list[i]].d_ptr->name);
-#endif
 			}
 		}
 	}
