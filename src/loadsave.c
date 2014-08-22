@@ -493,7 +493,7 @@ static void export_locations(FILE *fff, game *g, int who,
 		/* Write card name and location tag */
 		fprintf(fff,
 		        "    <Card id=\"%d\"%s location=\"%s\">%s</Card>\n",
-				c_ptr->d_ptr->index, owner, location,
+		        c_ptr->d_ptr->index, owner, location,
 		        xml_escape(c_ptr->d_ptr->name));
 	}
 }
