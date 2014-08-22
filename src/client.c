@@ -580,6 +580,9 @@ static void handle_status_meta(char *ptr, int size)
 	real_game.goal_disabled = get_integer(&ptr);
 	real_game.takeover_disabled = get_integer(&ptr);
 
+	/* Clear campaign */
+	real_game.camp = NULL;
+
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
 
@@ -603,24 +606,11 @@ static void handle_status_meta(char *ptr, int size)
 		real_game.p[i].name = strdup(name);
 	}
 
-	/* Check for ai information (since 0.9.2m) */
-	if (size > ptr - start)
+	/* Loop over players */
+	for (i = 0; i < real_game.num_players; i++)
 	{
-		/* Loop over players */
-		for (i = 0; i < real_game.num_players; i++)
-		{
-			/* Copy ai flag */
-			real_game.p[i].ai = get_integer(&ptr);
-		}
-	}
-	else
-	{
-		/* Loop over players */
-		for (i = 0; i < real_game.num_players; i++)
-		{
-			/* Assume no ai */
-			real_game.p[i].ai = 0;
-		}
+		/* Copy ai flag */
+		real_game.p[i].ai = get_integer(&ptr);
 	}
 
 	/* Redraw status areas */
@@ -674,12 +664,8 @@ static void handle_status_player(char *ptr, int size)
 	p_ptr->bonus_military = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 
-	/* Check for prestige on the tile information (since 0.9.2m) */
-	if (size > ptr - start)
-	{
-		/* Copy prestige information */
-		p_ptr->prestige_turn = get_integer(&ptr);
-	}
+	/* Copy prestige information */
+	p_ptr->prestige_turn = get_integer(&ptr);
 
 	/* Redraw status information later */
 	status_updated = 1;
@@ -1421,21 +1407,21 @@ static gboolean message_read(gpointer data)
 			/* Read message */
 			get_string(text, &ptr);
 
-			/* Check for additional format string */
-			/* TODO: This should become a separate message in a new version */
-			if (size > strlen(text) + 1 + 8)
-			{
-				/* Read format tag */
-				get_string(format, &ptr);
+			/* Add message to log */
+			message_add(&real_game, text);
+			break;
 
-				/* Add formatted message to log */
-				message_add_formatted(&real_game, text, format);
-			}
-			else
-			{
-				/* Add message to log */
-				message_add(&real_game, text);
-			}
+		/* Formatted game log message */
+		case MSG_LOG_FORMAT:
+
+			/* Read message */
+			get_string(text, &ptr);
+
+			/* Read format tag */
+			get_string(format, &ptr);
+
+			/* Add formatted message to log */
+			message_add_formatted(&real_game, text, format);
 			break;
 
 		/* Received in-game chat message */
@@ -2177,7 +2163,6 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
-		/* RELEASE since 0.9.2m */
 		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
 		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
