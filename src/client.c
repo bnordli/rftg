@@ -2431,7 +2431,7 @@ static int next_exp;
  */
 static void update_sensitivity()
 {
-	int i, max_p;
+	int max_p;
 
 	/* Set goal disabled checkbox sensitivity */
 	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0 && next_exp < 4);
@@ -2597,7 +2597,7 @@ void create_dialog(GtkButton *button, gpointer data)
 		if (opt.expanded == i)
 		{
 			/* Set button active */
-			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio[i], TRUE);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio[i]), TRUE);
 
 			/* Remember current expansion */
 			next_exp = i;
