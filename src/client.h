@@ -79,6 +79,9 @@ typedef struct options
 	/* Server port */
 	int server_port;
 
+	/* Previous server names */
+	GtkListStore *servers;
+
 	/* Username to connect as */
 	char *username;
 
