@@ -338,16 +338,14 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	GtkTreeIter game_iter, parent_iter;
 	int owned, minp, maxp, user = 1, self, nump;
 
-	/* Check for ability to join game */
-	gtk_widget_set_sensitive(join_button, client_sid == -1);
-
 	/* Check for ability to create game */
 	gtk_widget_set_sensitive(create_button, client_sid == -1);
 
 	/* Check for ability to leave game */
 	gtk_widget_set_sensitive(leave_button, client_sid != -1);
 
-	/* Assume no ability to start game or kick player */
+	/* Assume no ability to start, join, kick or add ai */
+	gtk_widget_set_sensitive(join_button, FALSE);
 	gtk_widget_set_sensitive(start_button, FALSE);
 	gtk_widget_set_sensitive(kick_button, FALSE);
 	gtk_widget_set_sensitive(addai_button, FALSE);
@@ -392,6 +390,9 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 	/* Get current number of players */
 	nump = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(game_list),
 	                                      &parent_iter);
+
+	/* Check for ability to join game */
+	gtk_widget_set_sensitive(join_button, client_sid == -1 && nump < maxp);
 
 	/* Check for ability to start game */
 	gtk_widget_set_sensitive(start_button, owned && nump >= minp);
