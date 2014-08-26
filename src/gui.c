@@ -6892,7 +6892,7 @@ static void compute_forced_choice(int list[], int num,
  */
 void gui_choose_pay(game *g, int who, int which, int list[], int *num,
                     int special[], int *num_special, int mil_only,
-                    int mil_bonus)
+                    int mil_bonus_or_takeover_power)
 {
 	card *c_ptr;
 	displayed *i_ptr;
@@ -6944,8 +6944,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 		{
 			/* Compute strength difference */
 			military =
-				strength_against(g, who, which,
-				                 g->takeover_power[g->num_takeover - 1], 0) -
+				strength_against(g, who, which, mil_bonus_or_takeover_power, 0) -
 				strength_against(g, c_ptr->owner, which, -1, 1);
 
 			/* Check for ahead in strength */
@@ -6974,7 +6973,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 		else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 		{
 			/* Compute payment */
-			military_world_payment(g, who, which, mil_only, mil_bonus,
+			military_world_payment(g, who, which, mil_only, mil_bonus_or_takeover_power,
 			                       &status_player[who].discount,
 			                       &military, &cost, &cost_card);
 
@@ -7126,12 +7125,12 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	action_restrict = RESTRICT_PAY;
 	action_payment_which = which;
 	action_payment_mil = mil_only;
-	action_payment_bonus = mil_bonus;
+	action_payment_bonus = mil_bonus_or_takeover_power;
 
 	/* Find any forced and illegal choices */
 	compute_forced_choice(list, *num, special, *num_special,
 	                      &special_forced, &special_legal,
-	                      &forced_hand, mil_bonus);
+	                      &forced_hand, mil_bonus_or_takeover_power);
 
 	/* Check for no automatic selection */
 	if (!opt.auto_select)

@@ -5293,7 +5293,7 @@ int takeover_callback(game *g, int special, int world)
  *
  * Otherwise return -1.
  */
-static int settle_declared_takeover(game *g, int who)
+static int settle_declared_takeover(game *g, int who, int *power)
 {
 	int i;
 
@@ -5301,7 +5301,14 @@ static int settle_declared_takeover(game *g, int who)
 	for (i = g->num_takeover - 1; i >= 0; i--)
 	{
 		/* Check for player */
-		if (g->takeover_who[i] == who) return g->takeover_target[i];
+		if (g->takeover_who[i] == who)
+		{
+			/* Set used power */
+			*power = g->takeover_power[i];
+
+			/* Return target */
+			return g->takeover_target[i];
+		}
 	}
 
 	/* No takeover attempts */
@@ -6041,7 +6048,7 @@ static void flip_world(game *g, int who)
  * The second half of the Settle Phase -- paying for chosen worlds.
  */
 void settle_finish(game *g, int who, int world, int mil_only, int special,
-                   int mil_bonus)
+                   int mil_bonus_or_takeover_power)
 {
 	player *p_ptr;
 	card *c_ptr = NULL;
@@ -6057,7 +6064,7 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 	if (world == -1)
 	{
 		/* Check for declared takeover */
-		world = settle_declared_takeover(g, who);
+		world = settle_declared_takeover(g, who, &mil_bonus_or_takeover_power);
 
 		/* Check for takeover declared */
 		if (world != -1) takeover = 1;
@@ -6093,7 +6100,7 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 		if (!o_ptr || !(o_ptr->code & P3_PLACE_ZERO))
 		{
 			/* Ask user for payment */
-			pay_settle(g, who, world, mil_only, mil_bonus);
+			pay_settle(g, who, world, mil_only, mil_bonus_or_takeover_power);
 		}
 		else
 		{
@@ -6497,7 +6504,7 @@ static int settle_action(game *g, int who, int world)
 	power *o_ptr;
 	int i, x, n, num = 0;
 	int mil_spent, mil_spent_spec, mil_bonus;
-	int handsize;
+	int takeover_power, handsize;
 	int cidx[MAX_DECK], oidx[MAX_DECK];
 
 	/* Get player pointer */
@@ -6511,7 +6518,7 @@ static int settle_action(game *g, int who, int world)
 	if (world == -1)
 	{
 		/* Check for declared takeover */
-		world = settle_declared_takeover(g, who);
+		world = settle_declared_takeover(g, who, &takeover_power);
 	}
 
 	/* Get settle powers */
