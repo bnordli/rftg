@@ -11908,7 +11908,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Create frame around buttons */
-	exp_frame = gtk_frame_new("Choose expansion level");
+	exp_frame = gtk_frame_new("Expansion level");
 
 	/* Pack radio button box into frame */
 	gtk_container_add(GTK_CONTAINER(exp_frame), exp_box);
@@ -11953,7 +11953,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Create frame around buttons */
-	player_frame = gtk_frame_new("Choose number of players");
+	player_frame = gtk_frame_new("Number of players");
 
 	/* Pack radio button box into frame */
 	gtk_container_add(GTK_CONTAINER(player_frame), player_box);
