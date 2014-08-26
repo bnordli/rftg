@@ -941,9 +941,6 @@ void start_prestige(game *g)
 			draw_card(g, i, NULL);
 		}
 
-		/* Refresh the deck if it became empty */
-		refresh_draw_if_empty(g);
-
 		/* Clear prestige earned this turn mark */
 		p_ptr->prestige_turn = 0;
 	}
@@ -8166,14 +8163,14 @@ void trade_action(game *g, int who, int no_bonus, int phase_bonus)
 /*
  * Summarize rewards for a player and send message to game log.
  */
-static void log_rewards(game *g int who, int cards, int vps, int prestige,
+static void log_rewards(game *g, int who, int cards, int vps, int prestige,
                         char *adj, char *reason, char *tag)
 {
 	player *p_ptr = &g->p[who];
 	char msg[1024], text[1024];
 
 	/* Do nothing if no rewards */
-	if (!card && !vps && !prestige) return;
+	if (!cards && !vps && !prestige) return;
 
 	/* Begin message */
 	sprintf(msg, "%s receives ", p_ptr->name);
@@ -8202,7 +8199,7 @@ static void log_rewards(game *g int who, int cards, int vps, int prestige,
 		sprintf(text, "%d VP%s ", vps, PLURAL(vps));
 
 		/* Add text to message */
-		strcat(msg, text),
+		strcat(msg, text);
 
 		/* Check for more rewards */
 		if (prestige)
@@ -8223,7 +8220,7 @@ static void log_rewards(game *g int who, int cards, int vps, int prestige,
 	}
 
 	/* Add conclusion */
-	sprint(text, "%s %s.\n", adj, reason);
+	sprintf(text, "%s %s.\n", adj, reason);
 
 	/* Add text to message */
 	strcat(msg, text);
@@ -9005,8 +9002,8 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	if (!g->simulation)
 	{
 		/* Log rewards */
-		log_rewards(g, who, cards, vps, prestige,
-		            "from", power_name, FORMAT_VERBOSE);
+		log_rewards(g, who, cards, vps, 0,
+		            "from", c_ptr->d_ptr->name, FORMAT_VERBOSE);
 	}
 
 	/* Check for any cards awarded */
