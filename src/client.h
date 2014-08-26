@@ -15,6 +15,27 @@
 #define RESTART_CURRENT    12
 
 /*
+ * Column ids of lobby game list.
+ */
+#define COL_ID               0
+#define COL_DESC_NAME        1
+#define COL_CREATOR_OFFLINE  2
+#define COL_PASSWORD         3
+#define COL_MIN_PLAYERS      4
+#define COL_MAX_PLAYERS      5
+#define COL_PLAYERS_STR      6
+#define COL_EXPANSION        7
+#define COL_EXPANSION_STR    8
+#define COL_ADVANCED         9
+#define COL_DISABLE_GOAL     10
+#define COL_DISABLE_TO       11
+#define COL_NO_TIMEOUT       12
+#define COL_SELF             13
+#define COL_CHECK_VISIBLE    14
+#define COL_WEIGHT           15
+#define MAX_COLUMN           16
+
+/*
  * User options.
  */
 typedef struct options
