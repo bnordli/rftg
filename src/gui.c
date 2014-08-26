@@ -14920,7 +14920,7 @@ int main(int argc, char *argv[])
 	chat_hbox = gtk_hbox_new(FALSE, 5);
 
 	/* Create list of online users */
-	user_list = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_INT);
+	user_list = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_INT, G_TYPE_INT);
 
 	/* Create view for chat users */
 	users_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(user_list));
@@ -14934,7 +14934,7 @@ int main(int argc, char *argv[])
 	/* Create columns for user list */
 	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(users_view),
 	                                            -1, "Users online", render,
-	                                            "text", 0, NULL);
+	                                            "text", 0, "weight", 2, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(users_view), 0);
 	gtk_tree_view_column_set_sort_column_id(tree_view_column, 0);
 

@@ -156,7 +156,7 @@ static gboolean delete_user(GtkTreeModel *model, GtkTreePath *path,
 	char *ptr;
 
 	/* Get first column */
-	gtk_tree_model_get(model, iter, COL_ID, &ptr, -1);
+	gtk_tree_model_get(model, iter, 0, &ptr, -1);
 
 	/* Check for match */
 	if (!strcmp(ptr, (char *)data))
@@ -424,7 +424,7 @@ static void handle_open_game(char *ptr)
 		gtk_tree_store_append(game_list, &list_iter, NULL);
 
 		/* Set ID in game tree */
-		gtk_tree_store_set(game_list, &list_iter, 0, x, -1);
+		gtk_tree_store_set(game_list, &list_iter, COL_ID, x, -1);
 
 		/* Remember game is new */
 		new_game = TRUE;
@@ -434,13 +434,13 @@ static void handle_open_game(char *ptr)
 	get_string(buf, &ptr);
 
 	/* Set description */
-	gtk_tree_store_set(game_list, &list_iter, 1, buf, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_DESC_NAME, buf, -1);
 
 	/* Read creator username */
 	get_string(buf, &ptr);
 
 	/* Set creator */
-	gtk_tree_store_set(game_list, &list_iter, 2, buf, -1);
+	gtk_tree_store_set(game_list, &list_iter, COL_CREATOR_OFFLINE, buf, -1);
 
 	/* Read password required */
 	x = get_integer(&ptr);
@@ -1205,7 +1205,7 @@ static gboolean message_read(gpointer data)
 	GtkTextMark *end_mark;
 	GtkTextBuffer *chat_buffer;
 	GtkWidget *dialog;
-	int x;
+	int x, y;
 
 	/* Read message type and size */
 	type = get_integer(&ptr);
@@ -1311,6 +1311,20 @@ static gboolean message_read(gpointer data)
 			/* Get in-game status */
 			x = get_integer(&ptr);
 
+			/* Check for self flag (since 0.9.4p) */
+			if (size > strlen(username) + 1 + 4 + 8)
+			{
+				/* Get self flag */
+				y = get_integer(&ptr);
+			}
+
+			/* Fall back */
+			else
+			{
+				/* Set self is same as most recent username */
+				y = !strcmp(username, opt.username);
+			}
+
 			/* Remove any matching users from list */
 			gtk_tree_model_foreach(GTK_TREE_MODEL(user_list),
 			                       delete_user, username);
@@ -1318,9 +1332,9 @@ static gboolean message_read(gpointer data)
 			/* Add row to list */
 			gtk_list_store_append(user_list, &list_iter);
 
-			/* Set name and status */
+			/* Set name, status and weight */
 			gtk_list_store_set(user_list, &list_iter,
-			                   0, username, 1, x, -1);
+			                   0, username, 1, x, 2, 400 + 400 * y, -1);
 			break;
 
 		/* A player has left */
