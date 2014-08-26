@@ -1195,7 +1195,7 @@ static void perform_debug_moves(game *g, int who)
 				/* Add message */
 				message_add_formatted(g, msg, FORMAT_DEBUG);
 
-				/* Remember to rotate players on step */
+				/* Remember to rotate players one step */
 				++g->debug_rotate;
 				break;
 
