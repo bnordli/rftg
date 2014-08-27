@@ -11825,8 +11825,10 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 {
 	GtkWidget *dialog;
 	GtkWidget *radio = NULL;
-	GtkWidget *exp_box, *player_box, *name_box, *seed_box, *seed_value_box;
-	GtkWidget *exp_frame, *player_frame, *seed_frame;
+	GtkWidget *exp_box, *player_box, *name_box;
+	GtkWidget *options_box, *seed_box, *seed_value_box;
+	GtkWidget *exp_frame, *player_frame;
+	GtkWidget *options_frame, *seed_frame;
 	GtkWidget *name_label, *seed_label;
 	int i;
 
@@ -11961,6 +11963,9 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Add frame to dialog box */
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), player_frame);
 
+	/* Create vbox to hold options widgets */
+	options_box = gtk_vbox_new(FALSE, 0);
+
 	/* Create check box for two-player advanced game */
 	advanced_check = gtk_check_button_new_with_label("Two-player advanced");
 
@@ -11968,9 +11973,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(advanced_check),
 	                             opt.advanced);
 
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  advanced_check);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
 
 #if 0
 	/* Create check box for promo start worlds */
@@ -11979,8 +11983,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	/* Set checkbox status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(promo_check), opt.promo);
 
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), promo_check);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), promo_check);
 #endif
 
 	/* Create check box for disabled goals */
@@ -11990,9 +11994,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_goal_check),
 	                             opt.disable_goal);
 
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_goal_check);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), disable_goal_check);
 
 	/* Create check box for disabled takeovers */
 	disable_takeover_check =
@@ -12002,9 +12005,17 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_takeover_check),
 	                             opt.disable_takeover);
 
-	/* Add checkbox to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
-	                  disable_takeover_check);
+	/* Add checkbox to options box */
+	gtk_container_add(GTK_CONTAINER(options_box), disable_takeover_check);
+
+	/* Create frame around buttons */
+	options_frame = gtk_frame_new("Game options");
+
+	/* Add options box to options frame */
+	gtk_container_add(GTK_CONTAINER(options_frame), options_box);
+
+	/* Add frame to dialog box */
+	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), options_frame);
 
 	/* Create vbox to hold seed specification widgets */
 	seed_box = gtk_vbox_new(FALSE, 0);
