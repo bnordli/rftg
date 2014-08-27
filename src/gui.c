@@ -10784,8 +10784,18 @@ static void read_prefs(void)
 		                                         "save_log", NULL);
 	}
 
-	opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
-	                                         "colored_log", NULL);
+	/* Check for colored_log key present */
+	if (g_key_file_has_key(pref_file, "gui", "colored_log", NULL))
+	{
+		opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
+		                                         "colored_log", NULL);
+	}
+	else
+	{
+		/* Use colored log as default */
+		opt.colored_log = TRUE;
+	}
+
 	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
 	                                        "verbose_log", NULL);
 	opt.draw_log = g_key_file_get_boolean(pref_file, "gui",
