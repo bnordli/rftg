@@ -10771,7 +10771,7 @@ static void read_prefs(void)
 	opt.export_cards = g_key_file_get_boolean(pref_file, "gui",
 	                                          "export_cards", NULL);
 
-	/* Check for auto_export key present (since 0.9.4) */
+	/* Check for auto_export key present */
 	if (g_key_file_has_key(pref_file, "gui", "auto_export", NULL))
 	{
 		opt.auto_export = g_key_file_get_boolean(pref_file, "gui",
@@ -12907,7 +12907,9 @@ static void render_player(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 	int i;
 
 	/* Get player number from model */
-	gtk_tree_model_get(model, iter, DEBUG_COL_OWNER, &i, -1);
+	gtk_tree_model_get(model, iter,
+	                   DEBUG_COL_OWNER, &i,
+	                   -1);
 
 	/* Check for no player */
 	if (i < 0)
@@ -12936,7 +12938,9 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 	int i;
 
 	/* Get location from model */
-	gtk_tree_model_get(model, iter, DEBUG_COL_LOCATION, &i, -1);
+	gtk_tree_model_get(model, iter,
+	                   DEBUG_COL_LOCATION, &i,
+	                   -1);
 
 	/* Set name string */
 	name = (i < 0 || i > 8) ? "Unknown" : location_names[i];
@@ -12979,7 +12983,8 @@ static void player_changed(GtkCellRendererCombo *cell, char *path_str,
 
 	/* Save the new value */
 	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter,
-		DEBUG_COL_CARD_ID, &new_value, -1);
+	                   DEBUG_COL_CARD_ID, &new_value,
+	                   -1);
 }
 
 /*
@@ -12996,7 +13001,8 @@ static void where_changed(GtkCellRendererCombo *cell, char *path_str,
 
 	/* Save the new value */
 	gtk_tree_model_get(GTK_TREE_MODEL(data), new_iter,
-		DEBUG_COL_CARD_ID, &new_value, -1);
+	                   DEBUG_COL_CARD_ID, &new_value,
+	                   -1);
 }
 
 /*
@@ -13065,7 +13071,8 @@ static int debug_update_card(GtkTreeModel *model, GtkTreePath *path,
 	gtk_tree_model_get(model, iter,
 	                   DEBUG_COL_CARD_ID, &c,
 	                   DEBUG_COL_OWNER, &owner,
-	                   DEBUG_COL_LOCATION, &where, -1);
+	                   DEBUG_COL_LOCATION, &where,
+	                   -1);
 
 	/* Get card */
 	c_ptr = &real_game.deck[c];
