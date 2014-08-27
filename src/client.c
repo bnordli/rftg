@@ -155,8 +155,8 @@ static gboolean delete_user(GtkTreeModel *model, GtkTreePath *path,
 {
 	char *ptr;
 
-	/* Get first column */
-	gtk_tree_model_get(model, iter, 0, &ptr, -1);
+	/* Get user name */
+	gtk_tree_model_get(model, iter, PLAYER_COL_USERNAME, &ptr, -1);
 
 	/* Check for match */
 	if (!strcmp(ptr, (char *)data))
@@ -188,7 +188,7 @@ static gboolean delete_game(GtkTreeModel *model, GtkTreePath *path,
 	int y;
 
 	/* Get first column */
-	gtk_tree_model_get(model, iter, COL_ID, &y, -1);
+	gtk_tree_model_get(model, iter, GAME_COL_ID, &y, -1);
 
 	/* Check for match */
 	if (x == y)
@@ -282,7 +282,8 @@ static int find_game_iter(int id, GtkTreeIter *iter)
 	while (1)
 	{
 		/* Get first column */
-		gtk_tree_model_get(GTK_TREE_MODEL(game_list), iter, COL_ID, &x, -1);
+		gtk_tree_model_get(GTK_TREE_MODEL(game_list), iter,
+		                   GAME_COL_ID, &x, -1);
 
 		/* Check for match */
 		if (x == id) return 1;
@@ -315,7 +316,8 @@ static int find_game_player(GtkTreeIter *parent, GtkTreeIter *child, int who)
 	while (1)
 	{
 		/* Get player index column */
-		gtk_tree_model_get(GTK_TREE_MODEL(game_list), child, COL_ID, &x, -1);
+		gtk_tree_model_get(GTK_TREE_MODEL(game_list), child,
+		                   GAME_COL_ID, &x, -1);
 
 		/* Check for match */
 		if (x == who) return 1;
@@ -376,15 +378,16 @@ void game_view_changed(GtkTreeView *view, gpointer data)
 
 	/* Get game information */
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
-	                   COL_MIN_PLAYERS, &minp, COL_MAX_PLAYERS, &maxp,
-	                   COL_SELF, &owned, -1);
+	                   GAME_COL_MIN_PLAYERS, &minp,
+	                   GAME_COL_MAX_PLAYERS, &maxp,
+	                   GAME_COL_SELF, &owned, -1);
 
 	/* Check for user */
 	if (user)
 	{
 		/* Check whether cursor is on ourself */
 		gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter,
-		                   COL_SELF, &self, -1);
+		                   GAME_COL_SELF, &self, -1);
 	}
 
 	/* Get current number of players */
@@ -412,6 +415,7 @@ static void handle_open_game(char *ptr)
 {
 	int x, y, new_game = FALSE;
 	char buf[1024];
+	char *cmp_key;
 	GtkTreeIter list_iter;
 
 	/* Read session ID */
@@ -424,7 +428,7 @@ static void handle_open_game(char *ptr)
 		gtk_tree_store_append(game_list, &list_iter, NULL);
 
 		/* Set ID in game tree */
-		gtk_tree_store_set(game_list, &list_iter, COL_ID, x, -1);
+		gtk_tree_store_set(game_list, &list_iter, GAME_COL_ID, x, -1);
 
 		/* Remember game is new */
 		new_game = TRUE;
@@ -433,20 +437,36 @@ static void handle_open_game(char *ptr)
 	/* Read description */
 	get_string(buf, &ptr);
 
+	/* Create compare key */
+	cmp_key = create_cmp_key(buf);
+
 	/* Set description */
-	gtk_tree_store_set(game_list, &list_iter, COL_DESC_NAME, buf, -1);
+	gtk_tree_store_set(game_list, &list_iter,
+	                   GAME_COL_DESC_NAME, buf,
+	                   GAME_COL_DESC_NAME_CMP, cmp_key, -1);
+
+	/* Destroy compare key */
+	g_free(cmp_key);
 
 	/* Read creator username */
 	get_string(buf, &ptr);
 
+	/* Create compare key */
+	cmp_key = create_cmp_key(buf);
+
 	/* Set creator */
-	gtk_tree_store_set(game_list, &list_iter, COL_CREATOR_OFFLINE, buf, -1);
+	gtk_tree_store_set(game_list, &list_iter,
+	                   GAME_COL_CREATOR_OFFLINE, buf,
+	                   GAME_COL_CREATOR_CMP, cmp_key, -1);
+
+	/* Destroy compare key */
+	g_free(cmp_key);
 
 	/* Read password required */
 	x = get_integer(&ptr);
 
 	/* Set game state */
-	gtk_tree_store_set(game_list, &list_iter, COL_PASSWORD, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_PASSWORD, x, -1);
 
 	/* Read min/max number of players */
 	x = get_integer(&ptr);
@@ -465,44 +485,45 @@ static void handle_open_game(char *ptr)
 	}
 
 	/* Set number of players */
-	gtk_tree_store_set(game_list, &list_iter, COL_PLAYERS_STR, buf,
-	                   COL_MIN_PLAYERS, x, COL_MAX_PLAYERS, y, -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_PLAYERS_STR, buf,
+	                   GAME_COL_MIN_PLAYERS, x, GAME_COL_MAX_PLAYERS, y, -1);
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
 
 	/* Set expansion */
-	gtk_tree_store_set(game_list, &list_iter, COL_EXPANSION, x,
-	                   COL_EXPANSION_STR, exp_abbr[x], -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_EXPANSION, x,
+	                   GAME_COL_EXPANSION_STR, exp_abbr[x], -1);
 
 	/* Read two-player advanced option */
 	x = get_integer(&ptr);
 
 	/* Set advanced option */
-	gtk_tree_store_set(game_list, &list_iter, COL_ADVANCED, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_ADVANCED, x, -1);
 
 	/* Read disable options */
 	x = get_integer(&ptr);
 	y = get_integer(&ptr);
 
 	/* Set disable options */
-	gtk_tree_store_set(game_list, &list_iter, COL_DISABLE_GOAL, x,
-	                   COL_DISABLE_TO, y, -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_DISABLE_GOAL, x,
+	                   GAME_COL_DISABLE_TO, y, -1);
 
 	/* Read game speed option */
 	x = get_integer(&ptr);
 
 	/* Set speed option */
-	gtk_tree_store_set(game_list, &list_iter, COL_NO_TIMEOUT, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_NO_TIMEOUT, x, -1);
 
 	/* Read owner flag */
 	x = get_integer(&ptr);
 
 	/* Set owner information */
-	gtk_tree_store_set(game_list, &list_iter, COL_SELF, x, -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_SELF, x, -1);
 
 	/* Set weight of text */
-	gtk_tree_store_set(game_list, &list_iter, COL_WEIGHT, 400 + 400 * x, -1);
+	gtk_tree_store_set(game_list, &list_iter,
+	                   GAME_COL_WEIGHT, 400 + 400 * x, -1);
 
 	/* Check for owner */
 	if (x && new_game)
@@ -515,11 +536,11 @@ static void handle_open_game(char *ptr)
 	}
 
 	/* Make checkboxes visible */
-	gtk_tree_store_set(game_list, &list_iter, COL_CHECK_VISIBLE, 1, -1);
+	gtk_tree_store_set(game_list, &list_iter, GAME_COL_CHECK_VISIBLE, 1, -1);
 
 	/* Sort game list by session ID */
-	gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(game_list), 0,
-	                                     GTK_SORT_ASCENDING);
+	gtk_tree_sortable_set_sort_column_id(
+		GTK_TREE_SORTABLE(game_list), GAME_COL_ID, GTK_SORT_ASCENDING);
 
 	/* Reset button state */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
@@ -532,6 +553,7 @@ static void handle_game_player(char *ptr)
 {
 	int x, y;
 	char buf[1024];
+	char *cmp_key;
 	GtkTreeIter list_iter, child_iter;
 
 	/* Read session ID */
@@ -570,10 +592,18 @@ static void handle_game_player(char *ptr)
 	}
 
 	/* Set player number */
-	gtk_tree_store_set(game_list, &child_iter, COL_ID, y, -1);
+	gtk_tree_store_set(game_list, &child_iter, GAME_COL_ID, y, -1);
+
+	/* Create compare key */
+	cmp_key = create_cmp_key(buf);
 
 	/* Set username */
-	gtk_tree_store_set(game_list, &child_iter, COL_DESC_NAME, buf, -1);
+	gtk_tree_store_set(game_list, &child_iter,
+	                   GAME_COL_DESC_NAME, buf,
+	                   GAME_COL_DESC_NAME_CMP, cmp_key, -1);
+
+	/* Destroy compare key */
+	g_free(cmp_key);
 
 	/* Get online status */
 	x = get_integer(&ptr);
@@ -581,20 +611,29 @@ static void handle_game_player(char *ptr)
 	/* Create online string */
 	strcpy(buf, x ? "" : "(offline)");
 
+	/* Create compare key */
+	cmp_key = create_cmp_key(buf);
+
 	/* Set online status */
-	gtk_tree_store_set(game_list, &child_iter, COL_CREATOR_OFFLINE, buf, -1);
+	gtk_tree_store_set(game_list, &child_iter,
+	                   GAME_COL_CREATOR_OFFLINE, buf,
+	                   GAME_COL_CREATOR_CMP, cmp_key, -1);
+
+	/* Destroy compare key */
+	g_free(cmp_key);
 
 	/* Get self flag */
 	x = get_integer(&ptr);
 
 	/* Store note of self */
-	gtk_tree_store_set(game_list, &child_iter, COL_SELF, x, -1);
+	gtk_tree_store_set(game_list, &child_iter, GAME_COL_SELF, x, -1);
 
 	/* Set weight */
-	gtk_tree_store_set(game_list, &child_iter, COL_WEIGHT, 400 + 400 * x, -1);
+	gtk_tree_store_set(game_list, &child_iter,
+	                   GAME_COL_WEIGHT, 400 + 400 * x, -1);
 
 	/* Make checkboxes invisible on this row */
-	gtk_tree_store_set(game_list, &child_iter, COL_CHECK_VISIBLE, 0, -1);
+	gtk_tree_store_set(game_list, &child_iter, GAME_COL_CHECK_VISIBLE, 0, -1);
 
 	/* Reset button state */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
@@ -1200,6 +1239,7 @@ static gboolean message_read(gpointer data)
 	char *ptr = data;
 	int type, size;
 	char text[1024], format[1024], username[1024];
+	char *cmp_key;
 	GtkTreeIter list_iter;
 	GtkTextIter end_iter;
 	GtkTextMark *end_mark;
@@ -1332,9 +1372,18 @@ static gboolean message_read(gpointer data)
 			/* Add row to list */
 			gtk_list_store_append(user_list, &list_iter);
 
+			/* Get a compare key */
+			cmp_key = create_cmp_key(username);
+
 			/* Set name, status and weight */
 			gtk_list_store_set(user_list, &list_iter,
-			                   0, username, 1, x, 2, 400 + 400 * y, -1);
+				PLAYER_COL_USERNAME, username,
+				PLAYER_COL_IN_GAME, x,
+				PLAYER_COL_USERNAME_CMP, cmp_key,
+				PLAYER_COL_WEIGHT, 400 + 400 * y, -1);
+
+			/* Destroy compare key */
+			g_free(cmp_key);
 			break;
 
 		/* A player has left */
@@ -2890,8 +2939,9 @@ void join_game(GtkButton *button, gpointer data)
 	}
 
 	/* Get session ID of game to join */
-	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter, COL_ID, &x,
-	                   COL_PASSWORD, &pass_needed, -1);
+	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
+	                   GAME_COL_ID, &x,
+	                   GAME_COL_PASSWORD, &pass_needed, -1);
 
 	/* Check for password required */
 	if (pass_needed)
@@ -2990,11 +3040,11 @@ void kick_player(GtkButton *button, gpointer data)
 
 	/* Get session ID of game */
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &parent_iter,
-	                   COL_ID, &x, -1);
+	                   GAME_COL_ID, &x, -1);
 
 	/* Get name of user to kick */
 	gtk_tree_model_get(GTK_TREE_MODEL(game_list), &game_iter,
-	                   COL_DESC_NAME, &buf, COL_SELF, &self, -1);
+	                   GAME_COL_DESC_NAME, &buf, GAME_COL_SELF, &self, -1);
 
 	/* Check for self selected */
 	if (self) return;

@@ -17,23 +17,43 @@
 /*
  * Column ids of lobby game list.
  */
-#define COL_ID               0
-#define COL_DESC_NAME        1
-#define COL_CREATOR_OFFLINE  2
-#define COL_PASSWORD         3
-#define COL_MIN_PLAYERS      4
-#define COL_MAX_PLAYERS      5
-#define COL_PLAYERS_STR      6
-#define COL_EXPANSION        7
-#define COL_EXPANSION_STR    8
-#define COL_ADVANCED         9
-#define COL_DISABLE_GOAL     10
-#define COL_DISABLE_TO       11
-#define COL_NO_TIMEOUT       12
-#define COL_SELF             13
-#define COL_CHECK_VISIBLE    14
-#define COL_WEIGHT           15
-#define MAX_COLUMN           16
+#define GAME_COL_ID                0
+#define GAME_COL_DESC_NAME         1
+#define GAME_COL_DESC_NAME_CMP     2
+#define GAME_COL_CREATOR_OFFLINE   3
+#define GAME_COL_CREATOR_CMP       4
+#define GAME_COL_PASSWORD          5
+#define GAME_COL_MIN_PLAYERS       6
+#define GAME_COL_MAX_PLAYERS       7
+#define GAME_COL_PLAYERS_STR       8
+#define GAME_COL_EXPANSION         9
+#define GAME_COL_EXPANSION_STR    10
+#define GAME_COL_ADVANCED         11
+#define GAME_COL_DISABLE_GOAL     12
+#define GAME_COL_DISABLE_TO       13
+#define GAME_COL_NO_TIMEOUT       14
+#define GAME_COL_SELF             15
+#define GAME_COL_CHECK_VISIBLE    16
+#define GAME_COL_WEIGHT           17
+#define GAME_MAX_COLUMN           18
+
+/*
+ * Column ids of lobby player list.
+ */
+#define PLAYER_COL_USERNAME        0
+#define PLAYER_COL_USERNAME_CMP    1
+#define PLAYER_COL_IN_GAME         2
+#define PLAYER_COL_WEIGHT          3
+#define PLAYER_MAX_COLUMN          4
+
+/*
+ * Column ids of debug cards list.
+ */
+#define DEBUG_COL_CARD_ID          0
+#define DEBUG_COL_CARD_NAME        1
+#define DEBUG_COL_OWNER            2
+#define DEBUG_COL_LOCATION         3
+#define DEBUG_MAX_COLUMN           4
 
 /*
  * User options.
@@ -180,6 +200,7 @@ extern char server_version[30];
 extern int debug_server;
 extern int waiting_player[MAX_PLAYER];
 
+extern char *create_cmp_key(char *str);
 extern void save_prefs(void);
 extern void reset_cards(game *g, int color_hand, int color_table);
 extern void reset_status(game *g, int who);
