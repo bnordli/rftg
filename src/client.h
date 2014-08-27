@@ -138,6 +138,9 @@ typedef struct options
 	/* Game password when creating */
 	char *game_pass;
 
+	/* No timeouts in online game */
+	int no_timeout;
+
 	/* Number of players in multiplayer */
 	int multi_min;
 	int multi_max;
