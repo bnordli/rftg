@@ -5106,7 +5106,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 {
 	card *c_ptr;
 	power *o_ptr;
-	int x, i, hand_size, hand_military = 0, rare_goods;
+	int x, i, hand_size, hand_military = 0, rare_goods, alien_goods;
 
 	/* Start strengths at 0 */
 	memset(m_ptr, 0, sizeof(mil_strength));
@@ -5122,6 +5122,9 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 
 	/* Count number of rare goods */
 	rare_goods = get_goods(g, who, NULL, GOOD_RARE);
+
+	/* Count number of alien goods */
+	alien_goods = get_goods(g, who, NULL, GOOD_ALIEN);
 
 	/* Loop over cards */
 	for ( ; x != -1; x = g->deck[x].start_next)
@@ -5193,11 +5196,18 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 			if ((o_ptr->code & P3_CONSUME_PRESTIGE) && g->p[who].prestige)
 				m_ptr->max_bonus += o_ptr->value;
 
-			/* Check for good for military */
+			/* Check for rare good for military */
 			if ((o_ptr->code & P3_CONSUME_RARE) && rare_goods)
 			{
 				m_ptr->max_bonus += o_ptr->value;
 				--rare_goods;
+			}
+
+			/* Check for alien good for military */
+			if ((o_ptr->code & P3_CONSUME_ALIEN) && alien_goods)
+			{
+				m_ptr->max_bonus += o_ptr->value;
+				--alien_goods;
 			}
 
 			/* Check for strength against rebels */
@@ -7005,7 +7015,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 					if (cost > 0)
 					{
 						/* Add cost */
-						p += sprintf(p, "+%d card%s", cost, PLURAL(cost));
+						p += sprintf(p, " + %d card%s", cost, PLURAL(cost));
 					}
 
 					/* Check for non-Alien world */
