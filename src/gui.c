@@ -262,7 +262,10 @@ typedef struct discounts
 	int specific[6];
 
 	/* May discard to place at zero cost */
-	card *zero[3];
+	card *zero[2];
+
+	/* May discard to place at additional world at zero cost */
+	card *extra_zero;
 
 	/* Card to pay for non-Alien military worlds */
 	card *non_alien_mil_card;
@@ -324,6 +327,9 @@ typedef struct mil_strength
 
 	/* Name of attack imperium TO power */
 	char imp_card[64];
+
+	/* May place with leftover military */
+	int leftover;
 
 	/* Imperium world played */
 	int imperium;
@@ -3093,7 +3099,7 @@ static char *get_discount_tooltip(discounts *discount)
 	}
 
 	/* Loop over all possible "discard to place at 0 cost" */
-	for (i = 0; i < 3; ++i)
+	for (i = 0; i < 2; ++i)
 	{
 		/* Add discard to zero */
 		if (discount->zero[i])
@@ -3102,6 +3108,18 @@ static char *get_discount_tooltip(discounts *discount)
 			sprintf(text, "\nMay discard %s to place\n"
 			        "  a non-military world at 0 cost",
 			        discount->zero[i]->d_ptr->name);
+			strcat(msg, text);
+		}
+	}
+
+	/* Check for "discard to place additional world at 0 cost" */
+	if (discount->extra_zero)
+	{
+		/* Create text */
+		{
+			sprintf(text, "\nMay discard %s to place\n"
+			        "  an additional non-military world at 0 cost",
+			        discount->extra_zero->d_ptr->name);
 			strcat(msg, text);
 		}
 	}
@@ -3207,6 +3225,13 @@ static char *get_military_tooltip(mil_strength *military)
 		sprintf(text, "\nAdditional potential temporary military: %+d",
 		        military->max_bonus);
 		strcat(msg, text);
+	}
+
+	/* Check for leftover power */
+	if (military->leftover)
+	{
+		/* Create text */
+		strcat(msg, "\nMay place an additional world with leftover military");
 	}
 
 	/* Check for active imperium card */
@@ -3753,11 +3778,14 @@ static char *card_settle_tooltip(game *g, int who, int special,
 	           !strcmp(g->deck[special].d_ptr->name, "Rebel Sneak Attack");
 
 	/* XXX Check for zero cost */
-	zero_cost = special >= 0 &&
-	            !strcmp(g->deck[special].d_ptr->name, "Terraforming Project");
-
+	if (special >= 0 &&
+	    !strcmp(g->deck[special].d_ptr->name, "Terraforming Project"))
+	{
+		/* No cost to place */
+		p += sprintf(p, "Cost to place: 0\n");
+	}
 	/* Check for military world */
-	if (c_ptr->d_ptr->flags & FLAG_MILITARY)
+	else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
 		/* XXX Check for using extra military */
 		if (special >= 0 &&
@@ -3817,7 +3845,7 @@ static char *card_settle_tooltip(game *g, int who, int special,
 			}
 		}
 	}
-	else if (!zero_cost)
+	else
 	{
 		/* Compute peaceful payment */
 		peaceful_world_payment(g, who, which, mil_only, d_ptr, &cost,
@@ -4993,6 +5021,10 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 		if (o_ptr->code == (P3_DISCARD | P3_REDUCE_ZERO))
 			d_ptr->zero[zero_idx++] = c_ptr;
 
+		/* Check for additional discard for 0 */
+		if (o_ptr->code == (P3_DISCARD | P3_PLACE_ZERO))
+			d_ptr->extra_zero = c_ptr;
+
 		/* Check discard to reduce and available goods */
 		if (o_ptr->code == (P3_CONSUME_GENE | P3_REDUCE) && gene_goods > 0)
 		{
@@ -5104,7 +5136,8 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 
 	/* Check for any modifiers */
 	d_ptr->has_data =
-		d_ptr->base || d_ptr->bonus || d_ptr->max_bonus || d_ptr->zero[0] ||
+		d_ptr->base || d_ptr->bonus || d_ptr->max_bonus ||
+		d_ptr->zero[0] || d_ptr->extra_zero ||
 		d_ptr->specific[GOOD_NOVELTY] || d_ptr->specific[GOOD_RARE] ||
 		d_ptr->specific[GOOD_GENE] || d_ptr->specific[GOOD_ALIEN] ||
 		d_ptr->non_alien_mil_card || d_ptr->rebel_mil_card ||
@@ -5191,6 +5224,13 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 				}
 			}
 
+			/* Check for place with leftover military */
+			if (o_ptr->code & P3_PLACE_LEFTOVER)
+			{
+				/* Set place with leftover flag */
+				m_ptr->leftover = 1;
+			}
+
 			/* Skip used powers */
 			if (c_ptr->misc & (1 << (MISC_USED_SHIFT + i))) continue;
 
@@ -5266,8 +5306,8 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 	m_ptr->has_data = m_ptr->base || m_ptr->bonus || m_ptr->rebel ||
 		m_ptr->specific[GOOD_NOVELTY] || m_ptr->specific[GOOD_RARE] ||
 		m_ptr->specific[GOOD_GENE] || m_ptr->specific[GOOD_ALIEN] ||
-		m_ptr->defense || m_ptr->attack_imperium || m_ptr->imperium ||
-		m_ptr->military_rebel || m_ptr->max_bonus;
+		m_ptr->defense || m_ptr->attack_imperium || m_ptr->leftover ||
+		m_ptr->imperium || m_ptr->military_rebel || m_ptr->max_bonus;
 }
 
 /*
