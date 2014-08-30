@@ -3607,11 +3607,11 @@ static void military_world_payment(game *g, int who, int which,
 	/* Reset cost and pay-for-military */
 	pay_for_mil = *cost = -1;
 
-	/* Check for no pay-for-military available */
-	if (mil_only) return;
-
 	/* Clear pay-for-military-card */
 	*cost_card = NULL;
+
+	/* Check for no pay-for-military available */
+	if (mil_only) return;
 
 	/* Check for pay for non-Alien military worlds */
 	if (d_ptr->non_alien_mil_card &&
