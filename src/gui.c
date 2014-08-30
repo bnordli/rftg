@@ -3623,7 +3623,7 @@ static void military_world_payment(game *g, int who, int which,
 		*cost_card = d_ptr->chromo_mil_card->d_ptr->name;
 	}
 
-	/* Check for pay for Rebel military worlds */
+	/* Check for pay for Alien military worlds */
 	if (d_ptr->alien_mil_card &&
 	    c_ptr->d_ptr->good_type == GOOD_ALIEN &&
 	    d_ptr->alien_mil_bonus > pay_for_mil)
@@ -5066,6 +5066,19 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 					/* Remember card and bonus value */
 					d_ptr->chromo_mil_card = c_ptr;
 					d_ptr->chromo_mil_bonus = o_ptr->value;
+				}
+			}
+
+			/* Check for Alien power */
+			if (o_ptr->code & P3_ALIEN)
+			{
+				/* Check for better bonus */
+				if (!d_ptr->alien_mil_card ||
+					o_ptr->value > d_ptr->alien_mil_bonus)
+				{
+					/* Remember card and bonus value */
+					d_ptr->alien_mil_card = c_ptr;
+					d_ptr->alien_mil_bonus = o_ptr->value;
 				}
 			}
 		}
