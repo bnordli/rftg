@@ -3892,7 +3892,7 @@ static char *card_settle_tooltip(game *g, int who, int special,
 			{
 				/* Format text */
 				p += sprintf(p, "No extra military needed to place\n"
-				             "if using %s\n", cost_card);
+				             "  if using %s\n", cost_card);
 			}
 
 			/* Check for extra military achievable */
@@ -7097,17 +7097,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 				         d_ptr->zero[0])
 				{
 					/* Format text */
-					p += sprintf(p, "%s%s+%d card%s",
-					             conjunction ? " or " : "",
-					             cost_card, cost, PLURAL(cost));
-				}
-
-				/* Check for reduce to 0 */
-				// TODO: Exclude d_ptr->zero for Alien worlds
-				else if (d_ptr->zero[0])
-				{
-					/* Format text */
-					p += sprintf(p, "%s%s+%s",
+					p += sprintf(p, "%s%s + %s",
 					             conjunction ? " or " : "",
 					             cost_card, d_ptr->zero[0]->d_ptr->name);
 
@@ -7154,7 +7144,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 				if (conquer_discount_mil)
 				{
 					/* Format text */
-					p += sprintf(p, "+%d military", conquer_discount_mil);
+					p += sprintf(p, " + %d military", conquer_discount_mil);
 				}
 
 				/* Remember conjunction */
@@ -7172,7 +7162,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 				if (conquer_mil)
 				{
 					/* Format text */
-					p += sprintf(p, "+%d military", conquer_mil);
+					p += sprintf(p, " + %d military", conquer_mil);
 				}
 			}
 
