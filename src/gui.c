@@ -6887,8 +6887,7 @@ static void compute_forced_choice(int list[], int num,
                                   long *special_forced, long *special_legal,
                                   int *forced_hand, int mil_bonus)
 {
-	game sim;
-	int i, j, num_choice;
+	int i, num_choice, need;
 	int special_choice[MAX_DECK];
 	long special_set;
 
@@ -6897,52 +6896,41 @@ static void compute_forced_choice(int list[], int num,
 	*special_legal = 0;
 	*forced_hand = TRUE;
 
-	/* Loop over all reasonable hand payments */
-	for (i = 0; i <= num && i < 20; ++i)
+	/* Loop over all sets of special cards */
+	for (special_set = 0; special_set < (1 << num_special); ++special_set)
 	{
-		/* Loop over all sets of special cards */
-		for (special_set = 0; special_set < (1 << num_special); ++special_set)
+		/* Clear number of special cards used */
+		num_choice = 0;
+
+		/* Loop over special cards */
+		for (i = 0; i < num_special; ++i)
 		{
-			/* Clear number of special cards used */
-			num_choice = 0;
-
-			/* Loop over special cards */
-			for (j = 0; j < num_special; ++j)
+			/* Check for this special card selected */
+			if (special_set & (1 << i))
 			{
-				/* Check for this special card selected */
-				if (special_set & (1 << j))
-				{
-					/* Add card */
-					special_choice[num_choice++] = special[j];
-				}
-			}
-
-			/* Copy game */
-			sim = real_game;
-
-			/* Set simulation flag */
-			sim.simulation = 1;
-
-			/* Loop over players */
-			for (j = 0; j < sim.num_players; j++)
-			{
-				/* Have AI make any pending decisions for this player */
-				sim.p[j].control = &ai_func;
-			}
-
-			/* Try to make payment */
-			if (payment_callback(&sim, player_us, action_payment_which,
-			                     list, i, special_choice, num_choice,
-			                     action_payment_mil, mil_bonus))
-			{
-				/* Check for legal without all hand cards */
-				if (i != num) *forced_hand = FALSE;
-
-				/* Update mask */
-				*special_forced &= special_set;
-				*special_legal |= special_set;
+				/* Add card */
+				special_choice[num_choice++] = special[i];
 			}
 		}
+
+		/* Try to make payment */
+		need = needed_callback(&real_game, player_us,
+		                       action_payment_which,
+		                       special_choice, num_choice,
+		                       action_payment_mil, mil_bonus);
+
+		/* Check for illegal */
+		if (need < 0) continue;
+
+		/* Check for more cards required than available */
+		if (need > num) continue;
+
+		/* Check for legal without all hand cards */
+		if (need < num) *forced_hand = FALSE;
+
+		/* Update masks */
+		*special_forced &= special_set;
+		*special_legal |= special_set;
 	}
 }
 
