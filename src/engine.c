@@ -2034,7 +2034,7 @@ void phase_search(game *g)
 				{
 					/* Format message */
 					sprintf(msg, "%s reveals %s (match).\n",
-							p_ptr->name, c_ptr->d_ptr->name);
+					        p_ptr->name, c_ptr->d_ptr->name);
 
 					/* Send formatted message */
 					message_add_formatted(g, msg, FORMAT_PRESTIGE);
@@ -2043,7 +2043,7 @@ void phase_search(game *g)
 				{
 					/* Format message */
 					sprintf(msg, "%s reveals %s (no match).\n",
-							p_ptr->name, c_ptr->d_ptr->name);
+					        p_ptr->name, c_ptr->d_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -2087,7 +2087,7 @@ void phase_search(game *g)
 						/* Format message */
 						sprintf(msg,
 						        "%s declines %s.\n",
-							p_ptr->name,
+						        p_ptr->name,
 						        c_ptr->d_ptr->name);
 
 						/* Send message */

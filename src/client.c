@@ -453,7 +453,8 @@ static void handle_open_game(char *ptr)
 	/* Set description */
 	gtk_tree_store_set(game_list, &list_iter,
 	                   GAME_COL_DESC_NAME, buf,
-	                   GAME_COL_DESC_NAME_CMP, cmp_key, -1);
+	                   GAME_COL_DESC_NAME_CMP, cmp_key,
+	                   -1);
 
 	/* Destroy compare key */
 	g_free(cmp_key);
@@ -467,7 +468,8 @@ static void handle_open_game(char *ptr)
 	/* Set creator */
 	gtk_tree_store_set(game_list, &list_iter,
 	                   GAME_COL_CREATOR_OFFLINE, buf,
-	                   GAME_COL_CREATOR_CMP, cmp_key, -1);
+	                   GAME_COL_CREATOR_CMP, cmp_key,
+	                   -1);
 
 	/* Destroy compare key */
 	g_free(cmp_key);
