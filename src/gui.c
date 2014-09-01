@@ -3615,7 +3615,7 @@ static void military_world_payment(game *g, int who, int which,
 
 	/* Check for pay for non-Alien military worlds */
 	if (d_ptr->non_alien_mil_card &&
-		c_ptr->d_ptr->good_type != GOOD_ALIEN)
+	    c_ptr->d_ptr->good_type != GOOD_ALIEN)
 	{
 		/* Remember reduction */
 		pay_for_mil = d_ptr->non_alien_mil_bonus;
@@ -3627,7 +3627,7 @@ static void military_world_payment(game *g, int who, int which,
 	/* Check for pay for Rebel military worlds */
 	if (d_ptr->rebel_mil_card &&
 	    (c_ptr->d_ptr->flags & FLAG_REBEL) &&
-		d_ptr->rebel_mil_bonus > pay_for_mil)
+	    d_ptr->rebel_mil_bonus > pay_for_mil)
 	{
 		/* Remember reduction */
 		pay_for_mil = d_ptr->rebel_mil_bonus;
@@ -3877,7 +3877,7 @@ static char *card_settle_tooltip(game *g, int who, int special,
 			{
 				/* Format text */
 				p += sprintf(p, "Extra military needed to place\n"
-					"  if using %s: %+d\n", cost_card, conquer_mil);
+				             "  if using %s: %+d\n", cost_card, conquer_mil);
 			}
 		}
 
@@ -5067,7 +5067,7 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 			{
 				/* Check for better bonus */
 				if (!d_ptr->non_alien_mil_card ||
-					o_ptr->value > d_ptr->non_alien_mil_bonus)
+				    o_ptr->value > d_ptr->non_alien_mil_bonus)
 				{
 					/* Remember card and bonus value */
 					d_ptr->non_alien_mil_card = c_ptr;
@@ -5080,7 +5080,7 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 			{
 				/* Check for better bonus */
 				if (!d_ptr->rebel_mil_card ||
-					o_ptr->value > d_ptr->rebel_mil_bonus)
+				    o_ptr->value > d_ptr->rebel_mil_bonus)
 				{
 					/* Remember card and bonus value */
 					d_ptr->rebel_mil_card = c_ptr;
@@ -5106,7 +5106,7 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 			{
 				/* Check for better bonus */
 				if (!d_ptr->alien_mil_card ||
-					o_ptr->value > d_ptr->alien_mil_bonus)
+				    o_ptr->value > d_ptr->alien_mil_bonus)
 				{
 					/* Remember card and bonus value */
 					d_ptr->alien_mil_card = c_ptr;
@@ -5141,7 +5141,7 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 		d_ptr->specific[GOOD_NOVELTY] || d_ptr->specific[GOOD_RARE] ||
 		d_ptr->specific[GOOD_GENE] || d_ptr->specific[GOOD_ALIEN] ||
 		d_ptr->non_alien_mil_card || d_ptr->rebel_mil_card ||
-	    d_ptr->chromo_mil_card || d_ptr->alien_mil_card ||
+		d_ptr->chromo_mil_card || d_ptr->alien_mil_card ||
 		d_ptr->conquer_settle_0 || d_ptr->conquer_settle_2;
 }
 
