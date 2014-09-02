@@ -6972,190 +6972,194 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	p = buf;
 
 	/* Create prompt */
-	p += sprintf(p, "Choose payment for %s ", c_ptr->d_ptr->name);
+	p += sprintf(p, "Choose payment for %s", c_ptr->d_ptr->name);
 
-	/* Check for development */
-	if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
+	/* Check for cost enabled */
+	if (opt.cost_in_hand)
 	{
-		/* Compute cost */
-		cost = devel_cost(g, who, which);
-
-		/* Create prompt */
-		p += sprintf(p, "(%d card%s)", cost, PLURAL(cost));
-	}
-
-	/* Check for world */
-	else if (c_ptr->d_ptr->type == TYPE_WORLD)
-	{
-		/* Find hand size */
-		num_hand = count_player_area(g, who, WHERE_HAND);
-
-		/* Check for takeover */
-		if (c_ptr->owner != who)
+		/* Check for development */
+		if (c_ptr->d_ptr->type == TYPE_DEVELOPMENT)
 		{
-			/* Compute strength difference */
-			military =
-				strength_against(g, who, which, mil_bonus_or_takeover_power, 0) -
-				strength_against(g, c_ptr->owner, which, -1, 1);
+			/* Compute cost */
+			cost = devel_cost(g, who, which);
 
-			/* Check for ahead in strength */
-			if (military > 0)
-			{
-				/* Format text */
-				p += sprintf(p, "(currently %d military ahead)", military);
-			}
-
-			/* Check for equal strength */
-			else if (military == 0)
-			{
-				/* Format text */
-				p += sprintf(p, "(currently equal strength)");
-			}
-
-			/* Behind in strength */
-			else
-			{
-				/* Format text */
-				p += sprintf(p, "(currently %d military behind)", -military);
-			}
+			/* Create prompt */
+			p += sprintf(p, " (%d card%s)", cost, PLURAL(cost));
 		}
 
-		/* Check for military world */
-		else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
+		/* Check for world */
+		else if (c_ptr->d_ptr->type == TYPE_WORLD)
 		{
-			/* Compute payment */
-			military_world_payment(g, who, which, mil_only, mil_bonus_or_takeover_power,
-			                       &status_player[who].discount,
-			                       &military, &cost, &cost_card);
+			/* Find hand size */
+			num_hand = count_player_area(g, who, WHERE_HAND);
 
-			/* Format text */
-			p += sprintf(p, "(");
-
-			/* Reset conjunction */
-			conjunction = FALSE;
-
-			/* Check for achievable temporary military */
-			if (military <= m_ptr->max_bonus)
+			/* Check for takeover */
+			if (c_ptr->owner != who)
 			{
-				/* Format text */
-				p += sprintf(p, "%d military", military);
-				conjunction = TRUE;
-			}
+				/* Compute strength difference */
+				military =
+					strength_against(g, who, which, mil_bonus_or_takeover_power, 0) -
+					strength_against(g, c_ptr->owner, which, -1, 1);
 
-			/* Check for any pay-for-military power */
-			if (cost_card)
-			{
-				/* Check for enough cards in hand for payment */
-				if (cost <= num_hand + d_ptr->max_bonus)
+				/* Check for ahead in strength */
+				if (military > 0)
 				{
 					/* Format text */
-					p += sprintf(p, "%s%s",
-					             conjunction ? " or " : "", cost_card);
+					p += sprintf(p, " (currently %d military ahead)", military);
+				}
 
-					/* Check for any cards */
-					if (cost > 0)
+				/* Check for equal strength */
+				else if (military == 0)
+				{
+					/* Format text */
+					p += sprintf(p, " (currently equal strength)");
+				}
+
+				/* Behind in strength */
+				else
+				{
+					/* Format text */
+					p += sprintf(p, " (currently %d military behind)", -military);
+				}
+			}
+
+			/* Check for military world */
+			else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
+			{
+				/* Compute payment */
+				military_world_payment(g, who, which, mil_only, mil_bonus_or_takeover_power,
+				                       &status_player[who].discount,
+				                       &military, &cost, &cost_card);
+
+				/* Format text */
+				p += sprintf(p, " (");
+
+				/* Reset conjunction */
+				conjunction = FALSE;
+
+				/* Check for achievable temporary military */
+				if (military <= m_ptr->max_bonus)
+				{
+					/* Format text */
+					p += sprintf(p, "%d military", military);
+					conjunction = TRUE;
+				}
+
+				/* Check for any pay-for-military power */
+				if (cost_card)
+				{
+					/* Check for enough cards in hand for payment */
+					if (cost <= num_hand + d_ptr->max_bonus)
 					{
-						/* Add cost */
-						p += sprintf(p, " + %d card%s", cost, PLURAL(cost));
+						/* Format text */
+						p += sprintf(p, "%s%s",
+						             conjunction ? " or " : "", cost_card);
+
+						/* Check for any cards */
+						if (cost > 0)
+						{
+							/* Add cost */
+							p += sprintf(p, " + %d card%s", cost, PLURAL(cost));
+						}
+
+						/* Check for non-Alien world */
+						if (c_ptr->d_ptr->good_type != GOOD_ALIEN)
+						{
+							/* Check for reduce to 0 */
+							if (d_ptr->zero[0])
+							{
+								/* Format text */
+								p += sprintf(p, "/%s",
+								             d_ptr->zero[0]->d_ptr->name);
+							}
+
+							/* Check for yet another reduce to 0 */
+							if (d_ptr->zero[1])
+							{
+								/* Format text */
+								p += sprintf(p, "/%s",
+								             d_ptr->zero[1]->d_ptr->name);
+							}
+						}
 					}
 
-					/* Check for non-Alien world */
-					if (c_ptr->d_ptr->good_type != GOOD_ALIEN)
+					/* Check for applicable reduce to 0 */
+					else if (c_ptr->d_ptr->good_type != GOOD_ALIEN &&
+					         d_ptr->zero[0])
 					{
-						/* Check for reduce to 0 */
-						if (d_ptr->zero[0])
-						{
-							/* Format text */
-							p += sprintf(p, "/%s",
-							             d_ptr->zero[0]->d_ptr->name);
-						}
+						/* Format text */
+						p += sprintf(p, "%s%s + %s",
+						             conjunction ? " or " : "",
+						             cost_card, d_ptr->zero[0]->d_ptr->name);
 
 						/* Check for yet another reduce to 0 */
 						if (d_ptr->zero[1])
 						{
 							/* Format text */
-							p += sprintf(p, "/%s",
-							             d_ptr->zero[1]->d_ptr->name);
+							p += sprintf(p, "/%s", d_ptr->zero[1]->d_ptr->name);
 						}
 					}
 				}
 
-				/* Check for applicable reduce to 0 */
-				else if (c_ptr->d_ptr->good_type != GOOD_ALIEN &&
-				         d_ptr->zero[0])
+				/* Format text */
+				p += sprintf(p, ")");
+			}
+			else
+			{
+				/* Compute payment */
+				peaceful_world_payment(g, who, which, mil_only,
+				                       &status_player[who].discount,
+				                       &cost, &conquer_mil, &conquer_discount_mil);
+
+				/* Format text */
+				p += sprintf(p, " (");
+				conjunction = FALSE;
+
+				/* Check for cost available */
+				if (0 <= cost && cost <= num_hand + d_ptr->max_bonus)
 				{
 					/* Format text */
-					p += sprintf(p, "%s%s + %s",
-					             conjunction ? " or " : "",
-					             cost_card, d_ptr->zero[0]->d_ptr->name);
+					p += sprintf(p, "%d card%s", cost, PLURAL(cost));
+					conjunction = TRUE;
+				}
 
-					/* Check for yet another reduce to 0 */
-					if (d_ptr->zero[1])
+				/* Check for achievable conquer with discount */
+				if (0 <= conquer_discount_mil &&
+					conquer_discount_mil <= m_ptr->max_bonus)
+				{
+					/* Format text */
+					p += sprintf(p, "%s%s", conjunction ? " or " : "",
+					             d_ptr->conquer_settle_2->d_ptr->name);
+
+					/* Check for any military needed */
+					if (conquer_discount_mil)
 					{
 						/* Format text */
-						p += sprintf(p, "/%s", d_ptr->zero[1]->d_ptr->name);
+						p += sprintf(p, " + %d military", conquer_discount_mil);
+					}
+
+					/* Remember conjunction */
+					conjunction = TRUE;
+				}
+
+				/* Check for achievable conquer without discount */
+				if (0 <= conquer_mil && conquer_mil <= m_ptr->max_bonus)
+				{
+					/* Format text */
+					p += sprintf(p, "%s%s", conjunction ? " or " : "",
+					             d_ptr->conquer_settle_0->d_ptr->name);
+
+					/* Check for any military needed */
+					if (conquer_mil)
+					{
+						/* Format text */
+						p += sprintf(p, " + %d military", conquer_mil);
 					}
 				}
-			}
 
-			/* Format text */
-			p += sprintf(p, ")");
-		}
-		else
-		{
-			/* Compute payment */
-			peaceful_world_payment(g, who, which, mil_only,
-			                       &status_player[who].discount,
-			                       &cost, &conquer_mil, &conquer_discount_mil);
-
-			/* Format text */
-			p += sprintf(p, "(");
-			conjunction = FALSE;
-
-			/* Check for cost available */
-			if (0 <= cost && cost <= num_hand + d_ptr->max_bonus)
-			{
 				/* Format text */
-				p += sprintf(p, "%d card%s", cost, PLURAL(cost));
-				conjunction = TRUE;
+				p += sprintf(p, ")");
 			}
-
-			/* Check for achievable conquer with discount */
-			if (0 <= conquer_discount_mil &&
-			    conquer_discount_mil <= m_ptr->max_bonus)
-			{
-				/* Format text */
-				p += sprintf(p, "%s%s", conjunction ? " or " : "",
-				             d_ptr->conquer_settle_2->d_ptr->name);
-
-				/* Check for any military needed */
-				if (conquer_discount_mil)
-				{
-					/* Format text */
-					p += sprintf(p, " + %d military", conquer_discount_mil);
-				}
-
-				/* Remember conjunction */
-				conjunction = TRUE;
-			}
-
-			/* Check for achievable conquer without discount */
-			if (0 <= conquer_mil && conquer_mil <= m_ptr->max_bonus)
-			{
-				/* Format text */
-				p += sprintf(p, "%s%s", conjunction ? " or " : "",
-				             d_ptr->conquer_settle_0->d_ptr->name);
-
-				/* Check for any military needed */
-				if (conquer_mil)
-				{
-					/* Format text */
-					p += sprintf(p, " + %d military", conquer_mil);
-				}
-			}
-
-			/* Format text */
-			p += sprintf(p, ")");
 		}
 	}
 
