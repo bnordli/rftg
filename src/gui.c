@@ -647,9 +647,9 @@ void message_add_formatted(game *g, char *msg, char *tag)
 	if (!strcmp(tag, FORMAT_DISCARD) && !opt.discard_log) return;
 
 	/* Check for emphasized message formatting */
-	if (strcmp(tag, FORMAT_EM) && !opt.colored_log)
+	if (strcmp(tag, FORMAT_EM) && opt.disable_colored_log)
 	{
-		/* Skip coloring when colored log is off */
+		/* Skip coloring when colored log is disabled */
 		message_add(g, msg);
 		return;
 	}
@@ -10829,18 +10829,8 @@ static void read_prefs(void)
 		                                         "save_log", NULL);
 	}
 
-	/* Check for colored_log key present */
-	if (g_key_file_has_key(pref_file, "gui", "colored_log", NULL))
-	{
-		opt.colored_log = g_key_file_get_boolean(pref_file, "gui",
-		                                         "colored_log", NULL);
-	}
-	else
-	{
-		/* Use colored log as default */
-		opt.colored_log = TRUE;
-	}
-
+	opt.disable_colored_log = g_key_file_get_boolean(pref_file, "gui",
+	                                                 "disable_colored_log", NULL);
 	opt.verbose_log = g_key_file_get_boolean(pref_file, "gui",
 	                                        "verbose_log", NULL);
 	opt.draw_log = g_key_file_get_boolean(pref_file, "gui",
@@ -11026,8 +11016,8 @@ void save_prefs(void)
 	                       opt.export_cards);
 	g_key_file_set_boolean(pref_file, "gui", "auto_export",
 	                       opt.auto_export);
-	g_key_file_set_boolean(pref_file, "gui", "colored_log",
-	                       opt.colored_log);
+	g_key_file_set_boolean(pref_file, "gui", "disable_colored_log",
+	                       opt.disable_colored_log);
 	g_key_file_set_boolean(pref_file, "gui", "verbose_log",
 	                       opt.verbose_log);
 	g_key_file_set_boolean(pref_file, "gui", "draw_log",
@@ -12653,7 +12643,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(colored_log_button),
-	                             opt.colored_log);
+	                             !opt.disable_colored_log);
 
 	/* Pack button into box */
 	gtk_box_pack_start(GTK_BOX(log_box), colored_log_button, FALSE, TRUE, 0);
@@ -12709,8 +12699,8 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		/* Set colored log option */
-		opt.colored_log =
-		 gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
+		opt.disable_colored_log =
+		 !gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(colored_log_button));
 
 		/* Set verbose log option */
 		opt.verbose_log =
@@ -12729,7 +12719,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 		/* Restart main loop if not online and log options changed */
 		if (client_state == CS_DISCONN &&
-		    (opt.colored_log != old_options.colored_log ||
+		    (opt.disable_colored_log != old_options.disable_colored_log ||
 		     opt.verbose_log != old_options.verbose_log ||
 		     opt.draw_log != old_options.draw_log ||
 		     opt.discard_log != old_options.discard_log ||

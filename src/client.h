@@ -157,8 +157,8 @@ typedef struct options
 	/* Export game at end of game */
 	int auto_export;
 
-	/* Colored log */
-	int colored_log;
+	/* Colored log disabled */
+	int disable_colored_log;
 
 	/* Verbose log */
 	int verbose_log;
