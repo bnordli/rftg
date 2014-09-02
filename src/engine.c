@@ -2146,6 +2146,10 @@ void phase_search(game *g)
 				move_card(g, j, -1, WHERE_DISCARD);
 			}
 		}
+
+		/* Check for just-emptied draw pile */
+		/* TODO, game breaking change */
+		/* if (draw_empty(g)) refresh_draw(g); */
 	}
 
 	/* Clear any temp flags on cards */
