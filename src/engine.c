@@ -9636,6 +9636,17 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 	/* Get card pointer */
 	c_ptr = &g->deck[which];
 
+	/* Message */
+	if (!g->simulation)
+	{
+		/* Format message */
+		sprintf(msg, "%s produces on %s.\n", p_ptr->name,
+		        c_ptr->d_ptr->name);
+
+		/* Send message */
+		message_add(g, msg);
+	}
+
 	/* Add good to card */
 	add_good(g, which);
 
@@ -9703,17 +9714,6 @@ void produce_world(game *g, int who, int which, int c_idx, int o_idx)
 			/* Reset kind to any */
 			g->oort_kind = GOOD_ANY;
 		}
-	}
-
-	/* Message */
-	if (!g->simulation)
-	{
-		/* Format message */
-		sprintf(msg, "%s produces on %s.\n", p_ptr->name,
-		        c_ptr->d_ptr->name);
-
-		/* Send message */
-		message_add(g, msg);
 	}
 
 	/* Loop over card's powers */
