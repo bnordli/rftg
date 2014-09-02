@@ -2270,7 +2270,7 @@ void phase_explore(game *g)
 		}
 
 		/* Draw cards */
-		draw_cards(g, i, draw, NULL);
+		draw_cards(g, i, draw, "Explore");
 
 		/* Remember cards drawn */
 		drawn[i] = draw;
