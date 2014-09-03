@@ -14150,6 +14150,16 @@ int main(int argc, char *argv[])
 			/* Set file name */
 			fname = argv[++i];
 		}
+
+		/* Check for campaign name */
+		else if (!strcmp(argv[i], "-c"))
+		{
+			/* Set campaign name */
+			opt.campaign_name = argv[++i];
+
+			/* Start new game */
+			restart_loop = RESTART_NEW;
+		}
 	}
 
 	/* Apply options */

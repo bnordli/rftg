@@ -37,6 +37,7 @@ etc with some command line options:
 				4: Alien Artifacts
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
+	-c <name>      -- Play a campaign with the given name
 
 You may also change these setting once the game is running with the
 "Select Parameters" option under the Game menu.
