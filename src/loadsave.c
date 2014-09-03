@@ -72,20 +72,11 @@ static int read_game(game *g, FILE* fff)
 	}
 	else
 	{
-		/* Loop over campaigns */
-		for (i = 0; i < num_campaign; i++)
-		{
-			/* Check for match */
-			if (!strcmp(camp_library[i].name, buf))
-			{
-				/* Set campaign */
-				g->camp = &camp_library[i];
-				break;
-			}
-		}
+		/* Get campaign */
+		g->camp = find_campaign(buf);
 
-		/* Check for no match */
-		if (i == num_campaign) return -1;
+		/* Check for no campaign found */
+		if (!g->camp) return -1;
 	}
 
 	/* Clear other options */

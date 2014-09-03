@@ -1078,6 +1078,7 @@ extern void auto_export(void);
 extern int game_rand(game *g);
 extern int read_cards(char *suggestion);
 extern void read_campaign(void);
+extern campaign *find_campaign(char *name);
 extern void apply_campaign(game *g);
 extern void init_game(game *g);
 extern int simple_rand(unsigned int *seed);

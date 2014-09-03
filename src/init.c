@@ -938,6 +938,28 @@ static void init_campaign(game *g)
 }
 
 /*
+ * Find a campaign, or return NULL if campaign is unknown.
+ */
+campaign *find_campaign(char *campaign_name)
+{
+	int i;
+
+	/* Loop over available campaigns */
+	for (i = 0; i < num_campaign; i++)
+	{
+		/* Check for match */
+		if (!strcmp(campaign_name, camp_library[i].name))
+		{
+			/* Return campaign */
+			return &camp_library[i];
+		}
+	}
+
+	/* Return no match. */
+	return NULL;
+}
+
+/*
  * Apply campaign options to game.
  */
 void apply_campaign(game *g)
