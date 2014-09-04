@@ -11677,7 +11677,7 @@ static void update_sensitivity()
 		/* Clear expansion radio sensitivities */
 		for (i = 0; exp_names[i]; ++i)
 		{
-			gtk_widget_set_sensitive(expansion_radio[i], FALSE);
+			gtk_widget_set_sensitive(expansion_radio[i], i == camp->expanded);
 		}
 
 		/* Set player button active */
@@ -11687,7 +11687,7 @@ static void update_sensitivity()
 		/* Clear player radio sensitivities */
 		for (i = 0; player_labels[i]; ++i)
 		{
-			gtk_widget_set_sensitive(num_players_radio[i], FALSE);
+			gtk_widget_set_sensitive(num_players_radio[i], i == camp->num_players - 2);
 		}
 
 		/* Set advanced checkbox value */
