@@ -1124,7 +1124,7 @@ extern int takeover_callback(game *g, int special, int world);
 extern int settle_check_takeover(game *g, int who, card *extra, int no_ask);
 extern int upgrade_chosen(game *g, int who, int replacement, int old);
 extern void settle_finish(game *g, int who, int world, int mil_only,
-			  int special, int mil_bonus);
+			  int special, int mil_bonus_or_takeover_power);
 extern void settle_extra(game *g, int who, int world);
 extern int defend_callback(game *g, int who, int deficit, int list[], int num,
                            int special[], int num_special);
