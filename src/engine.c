@@ -8985,6 +8985,9 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	/* Count VP rewards */
 	if (o_ptr->code & P4_GET_VP)
 	{
+		/* Base multiplier */
+		vp_mult = 1;
+
 		/* Base reward */
 		vps = o_ptr->value;
 
