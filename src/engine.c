@@ -8546,7 +8546,7 @@ static void draw_lucky(game *g, int who)
 		message_add(g, msg);
 
 		/* Format message */
-		sprintf(msg, "%s draws %s (cost %d).\n", p_ptr->name,
+		sprintf(msg, "%s flips %s (cost %d).\n", p_ptr->name,
 		                                         c_ptr->d_ptr->name,
 		                                         c_ptr->d_ptr->cost);
 
@@ -8566,6 +8566,17 @@ static void draw_lucky(game *g, int who)
 		/* Make card known to player */
 		c_ptr->misc &= ~MISC_KNOWN_MASK;
 		c_ptr->misc |= 1 << who;
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s keeps %s.\n", p_ptr->name,
+			                               c_ptr->d_ptr->name);
+
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 	}
 	else
 	{
@@ -8574,6 +8585,17 @@ static void draw_lucky(game *g, int who)
 
 		/* Make card known to everyone */
 		c_ptr->misc |= MISC_KNOWN_MASK;
+
+		/* Message */
+		if (!g->simulation)
+		{
+			/* Format message */
+			sprintf(msg, "%s discards %s.\n", p_ptr->name,
+			                                  c_ptr->d_ptr->name);
+
+			/* Add message */
+			message_add_formatted(g, msg, FORMAT_VERBOSE);
+		}
 	}
 }
 
