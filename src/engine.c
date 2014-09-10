@@ -12154,9 +12154,6 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 	/* Check for 2 cards discarded */
 	if (n != 2) return 0;
 
-	/* Discard chosen cards */
-	discard_callback(g, who, list, n);
-
 	/* Message */
 	if (!g->simulation && p_ptr->control->private_message)
 	{
@@ -12168,6 +12165,9 @@ int start_callback(game *g, int who, int list[], int n, int special[], int ns)
 		/* Send message */
 		p_ptr->control->private_message(g, who, msg, FORMAT_DISCARD);
 	}
+
+	/* Discard chosen cards */
+	discard_callback(g, who, list, n);
 
 	/* Place start card */
 	place_card(g, who, special[0]);
