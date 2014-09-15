@@ -3068,7 +3068,7 @@ static char *get_discount_tooltip(discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nMay discard %s to place\n"
-			        "  a non-military world at 0 cost",
+			        "  a non-military non-Alien world at 0 cost",
 			        discount->zero[i]->d_ptr->name);
 			strcat(msg, text);
 		}
@@ -3080,7 +3080,7 @@ static char *get_discount_tooltip(discounts *discount)
 		/* Create text */
 		{
 			sprintf(text, "\nMay discard %s to place\n"
-			        "  an additional non-military world at 0 cost",
+			        "  an additional non-military non-Alien world at 0 cost",
 			        discount->extra_zero->d_ptr->name);
 			strcat(msg, text);
 		}
@@ -3818,6 +3818,23 @@ static char *card_settle_tooltip(game *g, int who, int special,
 		{
 			/* Format text */
 			p += sprintf(p, "Cost to place: %d\n", cost);
+		}
+
+		/* Check for place at 0 cost */
+		if (c_ptr->d_ptr->good_type != GOOD_ALIEN &&
+		    d_ptr->zero[0])
+		{
+			/* Format text */
+			p += sprintf(p, "Cost to place if using %s: 0\n",
+			             d_ptr->zero[0]->d_ptr->name);
+
+			/* Check for another place at 0 cost */
+			if (d_ptr->zero[1])
+			{
+				/* Format text */
+				p += sprintf(p, "Cost to place if using %s: 0\n",
+				             d_ptr->zero[1]->d_ptr->name);
+			}
 		}
 
 		/* Check for conquer without discounts */
@@ -7082,6 +7099,23 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 					/* Format text */
 					p += sprintf(p, "%d card%s", cost, PLURAL(cost));
 					conjunction = TRUE;
+				}
+
+				/* Check for reduce to 0 */
+				if (c_ptr->d_ptr->good_type != GOOD_ALIEN && d_ptr->zero[0])
+				{
+					/* Format text */
+					p += sprintf(p, "%s%s", conjunction ? " or " : "",
+					             d_ptr->zero[0]->d_ptr->name);
+					conjunction = TRUE;
+
+					/* Check for another reduce to 0 */
+					if (d_ptr->zero[1])
+					{
+						/* Format text */
+						p += sprintf(p, " or %s",
+						             d_ptr->zero[1]->d_ptr->name);
+					}
 				}
 
 				/* Check for achievable conquer with discount */
