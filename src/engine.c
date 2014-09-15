@@ -1720,7 +1720,7 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
-	/* Get card pointer */
+	/* Get discarded card pointer */
 	c_ptr = &g->deck[discard];
 
 	/* Move card to discard */
@@ -1739,8 +1739,12 @@ void discard_produce_chosen(game *g, int who, int world, int discard,
 			g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 		}
 
+		/* Get world pointer */
+		c_ptr = &g->deck[world];
+
 		/* Format message */
-		sprintf(msg, "%s discards to produce.\n", p_ptr->name);
+		sprintf(msg, "%s discards to produce on %s.\n", p_ptr->name,
+		        c_ptr->d_ptr->name);
 
 		/* Send message */
 		message_add(g, msg);
