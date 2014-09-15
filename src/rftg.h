@@ -1096,7 +1096,8 @@ extern void clear_temp(game *g);
 extern void gain_prestige(game *g, int who, int amt, char *reason);
 extern void spend_prestige(game *g, int who, int amt);
 extern void check_prestige(game *g);
-extern int get_goods(game *g, int who, int goods[], int type);
+extern int has_good(game *g, int who, int type);
+extern int count_goods(game *g, int who, int type);
 extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
 extern int get_powers(game *g, int who, int phase, power_where *w_list);
@@ -1135,8 +1136,10 @@ extern void phase_settle(game *g);
 extern int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus);
 extern void trade_chosen(game *g, int who, int which, int no_bonus);
 extern void trade_action(game *g, int who, int no_bonus, int phase_bonus);
-extern int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[],
-                       int num);
+extern int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
+                       int g_list[], int num);
+extern int good_chosen(game *g, int who, int c_idx, int o_idx, int min, int max,
+                       int g_list[], int num);
 extern int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
                                int list[], int n);
 extern void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx);

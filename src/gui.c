@@ -1391,9 +1391,8 @@ static gboolean action_check_payment(void)
  */
 static gboolean action_check_goods(void)
 {
-	game sim;
 	displayed *i_ptr;
-	int i, n = 0, multi = -1;
+	int i, n = 0;
 	int list[MAX_DECK];
 
 	/* Loop over cards on table */
@@ -1405,40 +1404,13 @@ static gboolean action_check_goods(void)
 		/* Skip unselected */
 		if (!i_ptr->selected) continue;
 
-		/* Check for multiple goods */
-		if (i_ptr->num_goods > 1) multi = i;
-
 		/* Add to regular list */
 		list[n++] = i_ptr->index;
 	}
 
-	/* Check for too few and more available */
-	if (n < action_min && multi >= 0)
-	{
-		/* Get displayed card pointer */
-		i_ptr = &table[player_us][multi];
-
-		/* Check for not enough available */
-		if (n + i_ptr->num_goods - 1 < action_min) return 0;
-
-		/* Add more until enough */
-		while (n < action_min) list[n++] = i_ptr->index;
-	}
-
-	/* Check for too few */
-	if (n < action_min) return 0;
-
-	/* Check for too many */
-	if (n > action_max) return 0;
-
-	/* Copy game */
-	sim = real_game;
-
-	/* Set simulation flag */
-	sim.simulation = 1;
-
 	/* Try to make payment */
-	return good_chosen(&sim, player_us, action_cidx, action_oidx, list, n);
+	return goods_legal(&real_game, player_us, action_cidx, action_oidx,
+	                   action_min, action_max, list, n);
 }
 
 /*
@@ -3728,7 +3700,7 @@ static char *card_settle_tooltip(game *g, int who, int special,
 	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
 	int num_hand, which, mil_only, mil_needed;
-	int conquer_mil, conquer_discount_mil, cost, zero_cost;
+	int conquer_mil, conquer_discount_mil, cost;
 	int mil_bonus = 0, placed;
 
 	/* Get discounts */
@@ -4990,7 +4962,7 @@ static void compute_discounts(game *g, int who, discounts *d_ptr)
 	}
 
 	/* Count number of gene goods */
-	gene_goods = get_goods(g, who, NULL, GOOD_GENE);
+	gene_goods = count_goods(g, who, GOOD_GENE);
 
 	/* Get settle phase powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -5157,10 +5129,10 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 	x = g->p[who].start_head[WHERE_ACTIVE];
 
 	/* Count number of rare goods */
-	rare_goods = get_goods(g, who, NULL, GOOD_RARE);
+	rare_goods = count_goods(g, who, GOOD_RARE);
 
 	/* Count number of alien goods */
-	alien_goods = get_goods(g, who, NULL, GOOD_ALIEN);
+	alien_goods = count_goods(g, who, GOOD_ALIEN);
 
 	/* Loop over cards */
 	for ( ; x != -1; x = g->deck[x].start_next)
@@ -6924,7 +6896,6 @@ static void compute_forced_choice(int list[], int num,
 	}
 }
 
-
 /*
  * Choose method of payment for a placed card.
  *
@@ -8577,6 +8548,46 @@ void gui_choose_consume_hand(game *g, int who, int c_idx, int o_idx, int list[],
 }
 
 /*
+ * Find if there are any forced choices for goods.
+ */
+static void compute_forced_goods(int goods[], int num, long *forced)
+{
+	int i, num_choice;
+	int goods_choice[MAX_DECK];
+	long goods_set;
+
+	/* Clear forced variables */
+	*forced = ~0;
+
+	/* Loop over all sets of goods */
+	for (goods_set = 0; goods_set < (1 << num); ++goods_set)
+	{
+		/* Clear number of goods used */
+		num_choice = 0;
+
+		/* Loop over goods */
+		for (i = 0; i < num; ++i)
+		{
+			/* Check for this good selected */
+			if (goods_set & (1 << i))
+			{
+				/* Add card */
+				goods_choice[num_choice++] = goods[i];
+			}
+		}
+
+		/* Check for legal choice */
+		if (goods_legal(&real_game, player_us, action_cidx,
+		                action_oidx, action_min, action_max,
+		                goods_choice, num_choice))
+		{
+			/* Update mask */
+			*forced &= goods_set;
+		}
+	}
+}
+
+/*
  * Choose good(s) to consume.
  */
 void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
@@ -8585,8 +8596,8 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	card *c_ptr;
 	char buf[1024];
 	displayed *i_ptr;
-	int i, j, n = 0, multi = -1;
-	int forced = opt.auto_select && min == max && min == *num;
+	int i, j, n = 0;
+	long forced = 0;
 
 	/* Get pointer to card holding consume power */
 	c_ptr = &real_game.deck[c_idx];
@@ -8605,8 +8616,12 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	action_cidx = c_idx;
 	action_oidx = o_idx;
 
-	/* (De)activate action button */
-	gtk_widget_set_sensitive(action_button, min == 0 || forced);
+	/* Check for automatic selection */
+	if (opt.auto_select)
+	{
+		/* Find any forced choices */
+		compute_forced_goods(goods, *num, &forced);
+	}
 
 	/* Reset displayed cards */
 	reset_cards(g, TRUE, FALSE);
@@ -8630,13 +8645,13 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 				i_ptr->push = 1;
 
 				/* Check for forced choice */
-				if (forced) i_ptr->selected = TRUE;
-
-				/* Check for multiple goods */
-				if (i_ptr->num_goods > 1) multi = j;
+				if (forced & (1 << i)) i_ptr->selected = TRUE;
 			}
 		}
 	}
+
+	/* (De)activate action button */
+	gtk_widget_set_sensitive(action_button, action_check_goods());
 
 	/* Redraw everything */
 	redraw_everything();
@@ -8656,16 +8671,6 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 			/* Add to list */
 			goods[n++] = i_ptr->index;
 		}
-	}
-
-	/* Check for not enough goods */
-	if (n < min)
-	{
-		/* Get displayed card pointer */
-		i_ptr = &table[player_us][multi];
-
-		/* Add enough goods */
-		while (n < min) goods[n++] = i_ptr->index;
 	}
 
 	/* Set number of goods chosen */

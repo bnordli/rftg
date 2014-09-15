@@ -1446,12 +1446,12 @@ static int get_player_area(game *g, int who, int list[MAX_DECK], int where)
 }
 
 /*
- * Return a list of cards holding the given type of good.
+ * Returns whether the player has any good of the given type.
  */
-int get_goods(game *g, int who, int goods[], int type)
+int has_good(game *g, int who, int type)
 {
 	card *c_ptr;
-	int i, x, n = 0;
+	int x, n = 0;
 
 	/* Start at first active card */
 	x = g->p[who].head[WHERE_ACTIVE];
@@ -1472,15 +1472,75 @@ int get_goods(game *g, int who, int goods[], int type)
 		/* Skip cards that are newly-placed */
 		if (c_ptr->misc & MISC_UNPAID) continue;
 
-		/* Add goods */
-		for (i = 0; i < c_ptr->num_goods; i++)
-		{
-			/* Add card to list */
-			if (goods) goods[n] = x;
+		/* Good found */
+		return 1;
+	}
 
-			/* Increase number of goods */
-			++n;
-		}
+	/* No goods */
+	return 0;
+}
+
+/*
+ * Return the number of goods held by a player.
+ */
+int count_goods(game *g, int who, int type)
+{
+	card *c_ptr;
+	int x, n = 0;
+
+	/* Start at first active card */
+	x = g->p[who].head[WHERE_ACTIVE];
+
+	/* Loop over cards */
+	for ( ; x != -1; x = g->deck[x].next)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[x];
+
+		/* Skip cards with wrong good type */
+		if (c_ptr->d_ptr->good_type != GOOD_ANY &&
+		    c_ptr->d_ptr->good_type != type) continue;
+
+		/* Skip cards that are newly-placed */
+		if (c_ptr->misc & MISC_UNPAID) continue;
+
+		/* Increase number of goods */
+		n += c_ptr->num_goods;
+	}
+
+	/* Return number found */
+	return n;
+}
+
+/*
+ * Return a list of cards holding the given type of good.
+ */
+int get_goods(game *g, int who, int goods[], int type)
+{
+	card *c_ptr;
+	int x, n = 0;
+
+	/* Start at first active card */
+	x = g->p[who].head[WHERE_ACTIVE];
+
+	/* Loop over cards */
+	for ( ; x != -1; x = g->deck[x].next)
+	{
+		/* Get card pointer */
+		c_ptr = &g->deck[x];
+
+		/* Skip cards without goods */
+		if (!c_ptr->num_goods) continue;
+
+		/* Skip cards with wrong good type */
+		if (c_ptr->d_ptr->good_type != GOOD_ANY &&
+		    c_ptr->d_ptr->good_type != type) continue;
+
+		/* Skip cards that are newly-placed */
+		if (c_ptr->misc & MISC_UNPAID) continue;
+
+		/* Add card to list */
+		goods[n++] = x;
 	}
 
 	/* Return number found */
@@ -2703,7 +2763,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 		{
 			/* Ask player to consume good */
 			ask_player(g, who, CHOICE_GOOD, g_list, &num_goods,
-				   consume_special, &num_consume_special,
+			           consume_special, &num_consume_special,
 			           1, 1, 0);
 
 			/* Check for aborted game */
@@ -2712,7 +2772,7 @@ int devel_callback(game *g, int who, int which, int list[], int num,
 
 		/* Consume chosen good */
 		good_chosen(g, who, consume_special[0], consume_special[1],
-		            g_list, 1);
+		            1, 1, g_list, 1);
 	}
 
 	/* Message */
@@ -2836,8 +2896,8 @@ static void pay_devel(game *g, int who, int cost)
 	power_where w_list[100];
 	power *o_ptr;
 	char msg[1024];
-	int list[MAX_DECK], special[MAX_DECK], g_list[MAX_DECK];
-	int i, n = 0, num_special = 0, num_goods = 0;
+	int list[MAX_DECK], special[MAX_DECK];
+	int i, n = 0, num_special = 0;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -2861,11 +2921,8 @@ static void pay_devel(game *g, int who, int cost)
 		/* Check for consume good to reduce cost */
 		if (o_ptr->code & P2_CONSUME_RARE)
 		{
-			/* Get list of cards with Rare goods */
-			num_goods = get_goods(g, who, g_list, GOOD_RARE);
-
 			/* Add card to special if goods available */
-			if (num_goods)
+			if (has_good(g, who, GOOD_RARE))
 			{
 				/* Add to special list */
 				special[num_special++] = w_list[i].c_idx;
@@ -3021,7 +3078,6 @@ int develop_discount(game *g, int who)
 {
 	power_where w_list[100];
 	power *o_ptr;
-	int g_list[MAX_DECK], num_goods;
 	int reduce = 0;
 	int i, n;
 
@@ -3063,11 +3119,8 @@ int develop_discount(game *g, int who)
 		/* Check for consume Rare to reduce */
 		if (o_ptr->code & P2_CONSUME_RARE)
 		{
-			/* Get Rare goods */
-			num_goods = get_goods(g, who, g_list, GOOD_RARE);
-
 			/* Apply reduction if possible */
-			if (num_goods) reduce += o_ptr->value;
+			if (has_good(g, who, GOOD_RARE)) reduce += o_ptr->value;
 		}
 	}
 
@@ -3583,14 +3636,13 @@ int strength_first(game *g, int who, int w1, int w2)
  * Return true if the given player can settle the given world.
  */
 int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
-		 int peace_zero, int takeover)
+                 int peace_zero, int takeover)
 {
 	player *p_ptr;
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int goods[MAX_DECK];
-	int gene_used = 0, rare_used = 0;
+	int gene_used = 0, rare_used = 0, alien_used = 0;
 	int i, n, cost, defense, military, conquer, good, pay_military;
 	int pay_cost, pay_discount;
 	int conquer_peaceful, conquer_bonus;
@@ -3668,8 +3720,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 				gene_used++;
 
 				/* Check for sufficent genes goods avaliable */
-				if (get_goods(g, who, goods, GOOD_GENE) <
-				       gene_used)
+				if (count_goods(g, who, GOOD_GENE) < gene_used)
 				{
 					/* Skip power */
 					continue;
@@ -3706,7 +3757,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 
 			/* Check for consumption required */
 			if ((o_ptr->code & P3_CONSUME_RARE) &&
-			    get_goods(g, who, goods, GOOD_RARE) > rare_used)
+			    count_goods(g, who, GOOD_RARE) > rare_used)
 			{
 				/* Mark one good as used */
 				rare_used++;
@@ -3718,8 +3769,11 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 
 			/* Check for consumption required */
 			if ((o_ptr->code & P3_CONSUME_ALIEN) &&
-			    get_goods(g, who, goods, GOOD_ALIEN) > 0)
+			    count_goods(g, who, GOOD_ALIEN) > alien_used)
 			{
+				/* Mark one good as used */
+				alien_used++;
+
 				/* Add value to military */
 				military += o_ptr->value;
 				continue;
@@ -3901,7 +3955,6 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	int hand_military = 0, conquer_peaceful = 0;
 	int discard_zero = 0, takeover = 0;
 	int consume_reduce = 0, consume_military = 0;
-	int g_list[MAX_DECK];
 	int goods_needed[6];
 	int i, j, n;
 
@@ -4108,7 +4161,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 		if (!goods_needed[i]) continue;
 
 		/* Check for insufficient goods */
-		if (get_goods(g, who, g_list, i) < goods_needed[i]) return -1;
+		if (count_goods(g, who, i) < goods_needed[i]) return -1;
 	}
 
 	/* Check for prestige settle */
@@ -4578,7 +4631,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		if (!goods_needed[i]) continue;
 
 		/* Check for insufficient goods */
-		if (get_goods(g, who, g_list, i) < goods_needed[i]) return 0;
+		if (count_goods(g, who, i) < goods_needed[i]) return 0;
 	}
 
 	/* Check for prestige settle */
@@ -4731,7 +4784,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Get good list */
 				num_goods = get_goods(g, who, g_list,
-						      GOOD_GENE);
+				                      GOOD_GENE);
 			}
 
 			/* Check for needing rare good */
@@ -4739,7 +4792,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Get good list */
 				num_goods = get_goods(g, who, g_list,
-						      GOOD_RARE);
+				                      GOOD_RARE);
 			}
 
 			/* Check for needing alien good */
@@ -4747,7 +4800,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Get good list */
 				num_goods = get_goods(g, who, g_list,
-						      GOOD_ALIEN);
+				                      GOOD_ALIEN);
 			}
 
 			else
@@ -4766,15 +4819,16 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Ask player to choose good to discard */
 				ask_player(g, who, CHOICE_GOOD, g_list,
-					   &num_goods, consume_special,
-					   &num_consume_special, 1, 1, 0);
+				           &num_goods, consume_special,
+				           &num_consume_special, 1, 1, 0);
 
 				/* Check for aborted game */
 				if (g->game_over) return 0;
 			}
 
 			/* Discard chosen good */
-			good_chosen(g, who, special[i], j, g_list, num_goods);
+			good_chosen(g, who, special[i], j,
+			            1, 1, g_list, num_goods);
 		}
 	}
 
@@ -4948,7 +5002,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int list[MAX_DECK], special[MAX_DECK], g_list[MAX_DECK];
+	int list[MAX_DECK], special[MAX_DECK];
 	int conquer, good, military, cost, takeover;
 	uint64_t flags;
 	int n = 0, num_special = 0;
@@ -5092,7 +5146,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 		/* Check for consume gene */
 		if ((o_ptr->code & P3_CONSUME_GENE) &&
-		    get_goods(g, who, g_list, GOOD_GENE) > 0)
+		    has_good(g, who, GOOD_GENE))
 		{
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
@@ -5100,7 +5154,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 		/* Check for consume rare */
 		if ((o_ptr->code & P3_CONSUME_RARE) &&
-		    get_goods(g, who, g_list, GOOD_RARE) > 0)
+		    has_good(g, who, GOOD_RARE))
 		{
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
@@ -5108,7 +5162,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 		/* Check for consume alien */
 		if ((o_ptr->code & P3_CONSUME_ALIEN) &&
-		    get_goods(g, who, g_list, GOOD_ALIEN) > 0)
+		    has_good(g, who, GOOD_ALIEN))
 		{
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
@@ -5176,7 +5230,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 	/* Have player decide how to pay */
 	ask_player(g, who, CHOICE_PAYMENT, list, &n, special, &num_special,
-		   world, mil_only, mil_bonus);
+	           world, mil_only, mil_bonus);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
@@ -7000,7 +7054,8 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 			}
 
 			/* Discard chosen good */
-			good_chosen(g, who, special[i], j, g_list, num_goods);
+			good_chosen(g, who, special[i], j,
+			            1, 1, g_list, num_goods);
 		}
 	}
 
@@ -7022,7 +7077,6 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 	power_where w_list[100];
 	power *o_ptr;
 	int list[MAX_DECK], special[MAX_DECK];
-	int goods[MAX_DECK];
 	int n = 0, num_special = 0;
 	int max = 0, hand_military = 0, hand_size;
 	int i, x, amt;
@@ -7117,8 +7171,8 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 		/* Check for consume Rare good for military */
 		if (o_ptr->code & P3_CONSUME_RARE)
 		{
-			/* Check for sufficient Rare goods */
-			if (!get_goods(g, who, goods, GOOD_RARE))
+			/* Check for no Rare goods */
+			if (!has_good(g, who, GOOD_RARE))
 			{
 				/* Skip power */
 				continue;
@@ -7134,8 +7188,8 @@ static void defend_takeover(game *g, int who, int world, int attacker,
 		/* Check for consume Alien good for military */
 		if (o_ptr->code & P3_CONSUME_ALIEN)
 		{
-			/* Check for sufficient Alien goods */
-			if (!get_goods(g, who, goods, GOOD_ALIEN))
+			/* Check for no Alien goods */
+			if (!has_good(g, who, GOOD_ALIEN))
 			{
 				/* Skip power */
 				continue;
@@ -8239,28 +8293,44 @@ static void log_rewards(game *g, int who, int cards, int vps, int prestige,
 }
 
 /*
- * Called when a player has chosen goods to consume.
+ * Check whether the given choice of goods is legal
  */
-int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
+int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
+                int g_list[], int num)
 {
-	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
-	char *name;
-	int i, types[6], num_types, times, vp_mult, vps, cards, prestige;
-	char msg[1024];
+	int i, num_saved = num, types[6], num_types, goods_left;
 
-	/* Get player pointer */
-	p_ptr = &g->p[who];
+	/* Loop over chosen goods */
+	for (i = 0; i < num_saved; ++i)
+	{
+		/* Check for multiple goods */
+		if (g->deck[g_list[i]].num_goods > 1)
+		{
+			/* Save number of goods */
+			goods_left = g->deck[g_list[i]].num_goods;
+
+			/* Add more goods until enough */
+			while (num < min && goods_left)
+			{
+				g_list[num++] = g_list[i];
+				--goods_left;
+			}
+		}
+	}
+
+	/* Check for too few */
+	if (num < min) return 0;
+
+	/* Check for too many */
+	if (num > max) return 0;
 
 	/* Get pointer to card holding power used */
 	c_ptr = &g->deck[c_idx];
 
 	/* Get power pointer */
 	o_ptr = &c_ptr->d_ptr->powers[o_idx];
-
-	/* Get name of card with power */
-	name = g->deck[c_idx].d_ptr->name;
 
 	/* Check for consume phase power used */
 	if (o_ptr->phase == PHASE_CONSUME)
@@ -8351,6 +8421,59 @@ int good_chosen(game *g, int who, int c_idx, int o_idx, int g_list[], int num)
 
 			/* Check for duplicate types */
 			if (num_types < num) return 0;
+		}
+	}
+
+	/* Choice is legal */
+	return 1;
+}
+
+
+/*
+ * Called when a player has chosen goods to consume.
+ */
+int good_chosen(game *g, int who, int c_idx, int o_idx,
+                int min, int max, int g_list[], int num)
+{
+	player *p_ptr;
+	card *c_ptr;
+	power *o_ptr;
+	char *name;
+	int i, num_saved = num, goods_left;
+	int times, vp_mult, vps, cards, prestige;
+	char msg[1024];
+
+	/* Get player pointer */
+	p_ptr = &g->p[who];
+
+	/* Get pointer to card holding power used */
+	c_ptr = &g->deck[c_idx];
+
+	/* Get power pointer */
+	o_ptr = &c_ptr->d_ptr->powers[o_idx];
+
+	/* Get name of card with power */
+	name = g->deck[c_idx].d_ptr->name;
+
+	/* Check for illegal payment */
+	if (!goods_legal(g, who, c_idx, o_idx, min, max, g_list, num))
+		return 0;
+
+	/* Loop over chosen goods */
+	for (i = 0; i < num_saved; ++i)
+	{
+		/* Check for multiple goods */
+		if (g->deck[g_list[i]].num_goods > 1)
+		{
+			/* Save number of goods */
+			goods_left = g->deck[g_list[i]].num_goods;
+
+			/* Add more goods until enough */
+			while (num < min && goods_left)
+			{
+				g_list[num++] = g_list[i];
+				--goods_left;
+			}
 		}
 	}
 
@@ -9072,7 +9195,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	char *name;
 	int i, x, min, max, vp, vp_mult;
 	int types[6], num_types = 0;
-	int good, g_list[MAX_DECK], num_goods = 0;
+	int good, g_list[MAX_DECK], n = 0, num_goods = 0;
 	int special[MAX_DECK], num_special = 2;
 
 	/* Get player pointer */
@@ -9239,12 +9362,11 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 			continue;
 		}
 
-		/* Loop over goods on world */
-		for (i = 0; i < c_ptr->num_goods; i++)
-		{
-			/* Add good (world) to list */
-			g_list[num_goods++] = x;
-		}
+		/* Add good (world) to list */
+		g_list[n++] = x;
+
+		/* Count goods */
+		num_goods += c_ptr->num_goods;
 	}
 
 	/* Count number of types */
@@ -9327,14 +9449,15 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	special[1] = o_idx;
 
 	/* Ask player which good(s) to consume */
-	ask_player(g, who, CHOICE_GOOD, g_list, &num_goods,
+	ask_player(g, who, CHOICE_GOOD, g_list, &n,
 	           special, &num_special, min, max, 0);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
 
 	/* Consume chosen good(s) */
-	good_chosen(g, who, c_idx, o_idx, g_list, num_goods);
+	good_chosen(g, who, c_idx, o_idx,
+	            min, max, g_list, n);
 }
 
 /*
