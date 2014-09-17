@@ -1143,7 +1143,7 @@ static void replay_messages(int gid, int cid)
 		else
 		{
 			/* Create log message */
-			start_msg(&ptr, MSG_LOG);
+			start_msg(&ptr, MSG_LOG_FORMAT);
 
 			/* Add text of message */
 			put_string(row[0], &ptr);
@@ -2749,13 +2749,17 @@ void server_private_message(game *g, int who, char *txt, char *tag)
 	if (cid < 0) return;
 
 	/* Create log message */
-	start_msg(&ptr, MSG_LOG);
+	start_msg(&ptr, tag ? MSG_LOG_FORMAT : MSG_LOG);
 
 	/* Add text of message */
 	put_string(txt, &ptr);
 
-	/* Add format of message */
-	put_string(tag, &ptr);
+	/* Check for formatted message */
+	if (tag)
+	{
+		/* Add format of message */
+		put_string(tag, &ptr);
+	}
 
 	/* Finish message */
 	finish_msg(msg, ptr);
