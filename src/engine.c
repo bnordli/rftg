@@ -6281,6 +6281,9 @@ void settle_chosen(game *g, int who, int first, int c_idx, int o_idx)
 		/* Check for no choice */
 		if (p_ptr->placing == -1)
 		{
+			/* Get card used to place world */
+			c_ptr = &g->deck[c_idx];
+
 			/* Ask for takeover declaration if possible */
 			if (settle_check_takeover(g, who, c_ptr, 0))
 			{
@@ -6596,6 +6599,9 @@ static int settle_action(game *g, int who, int world)
 		/* Check for place second world power */
 		if (world != -1 && (o_ptr->code & P3_PLACE_TWO))
 		{
+			/* Get card used to place world */
+			c_ptr = &g->deck[world];
+
 			/* Check for possible takeover */
 			if (settle_check_takeover(g, who, c_ptr, 1))
 			{
