@@ -1451,7 +1451,7 @@ static int get_player_area(game *g, int who, int list[MAX_DECK], int where)
 int has_good(game *g, int who, int type)
 {
 	card *c_ptr;
-	int x, n = 0;
+	int x;
 
 	/* Start at first active card */
 	x = g->p[who].head[WHERE_ACTIVE];
@@ -2984,15 +2984,11 @@ static void pay_devel(game *g, int who, int cost)
  */
 void develop_action(game *g, int who, int placing)
 {
-	player *p_ptr;
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
 	char* name;
 	int i, n, cost;
-
-	/* Get player pointer */
-	p_ptr = &g->p[who];
 
 	/* Get card placed */
 	c_ptr = &g->deck[placing];
@@ -3954,7 +3950,6 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	card *c_ptr, *t_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	char *name;
 	int conquer, pay_military = 0, military, cost, good;
 	int hand_military = 0, conquer_peaceful = 0;
 	int discard_zero = 0, takeover = 0;
@@ -4006,9 +4001,6 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 		{
 			/* Get power pointer */
 			o_ptr = &c_ptr->d_ptr->powers[j];
-
-			/* Get name of card with power */
-			name = c_ptr->d_ptr->name;
 
 			/* Skip non-settle phase power */
 			if (o_ptr->phase != PHASE_SETTLE) continue;
