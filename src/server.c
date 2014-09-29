@@ -4604,6 +4604,8 @@ int main(int argc, char *argv[])
 	time_t last_housekeep = 0;
 	int port = 16309;
 	char *db = "rftg";
+	char *db_user = "rftg";
+	char *db_pw = NULL;
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
@@ -4616,6 +4618,8 @@ int main(int argc, char *argv[])
 			printf("Arguments:\n");
 			printf("  -p     Port number to listen to. Default: 16309\n");
 			printf("  -d     MySQL database name. Default: \"rftg\"\n");
+			printf("  -u     MySQL database user. Default: \"rftg\"\n");
+			printf("  -pw    MySQL database password. Default: [none]\n");
 			printf("  -t     Client timeout in seconds. 0 means do not kick players. Default: 60\n");
 			printf("  -k     Timeout to replace players with A.I. in ticks (%d seconds).\n", tick_size);
 			printf("            0 means do not replace players. Default: 30\n");
@@ -4642,6 +4646,20 @@ int main(int argc, char *argv[])
 		{
 			/* Set database name */
 			db = argv[++i];
+		}
+
+		/* Check for database user */
+		if (!strcmp(argv[i], "-u"))
+		{
+			/* Set database user */
+			db_user = argv[++i];
+		}
+
+		/* Check for database password */
+		if (!strcmp(argv[i], "-pw"))
+		{
+			/* Set database password */
+			db_pw = argv[++i];
 		}
 
 		/* Check for timeout settings */
@@ -4714,7 +4732,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Attempt to connect to database server */
-	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, db, 0, NULL, 0))
+	if (!mysql_real_connect(mysql, NULL, db_user, db_pw, db, 0, NULL, 0))
 	{
 		/* Print error and exit */
 		server_log("Database connection: %s", mysql_error(mysql));
