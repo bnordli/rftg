@@ -961,7 +961,7 @@ static int db_load_game(int gid)
 	g.goal_disabled = strtol(row[2], NULL, 0);
 	g.takeover_disabled = strtol(row[3], NULL, 0);
 	g.promo = 0;
-	g.campaign_disabled = 1;
+	g.camp = NULL;
 
 	/* Free results */
 	mysql_free_result(res);
@@ -1186,6 +1186,8 @@ int main(int argc, char *argv[])
 	int i, j;
 	my_bool reconnect = 1;
 	char *db = "rftg";
+	char *db_user = "rftg";
+	char *db_pw = NULL;
 	char buf[1024];
 
 	/* Parse arguments */
@@ -1200,6 +1202,8 @@ int main(int argc, char *argv[])
 			printf("  -gs    Game id to start replay from\n");
 			printf("  -ge    Game id to end replay at\n");
 			printf("  -d     MySQL database name. Default: \"rftg\"\n");
+			printf("  -u     MySQL database user. Default: \"rftg\"\n");
+			printf("  -pw    MySQL database password. Default: [none]\n");
 			printf("  -e     Folder to put exported games. Default: \".\"\n");
 			printf("  -s     Server name (to be used in exports). Default: [none]\n");
 			printf("  -ss    XSLT style sheets for exported complete games. Default: [none]\n");
@@ -1230,6 +1234,20 @@ int main(int argc, char *argv[])
 		{
 			/* Set database name */
 			db = argv[++i];
+		}
+
+		/* Check for database user */
+		if (!strcmp(argv[i], "-u"))
+		{
+			/* Set database user */
+			db_user = argv[++i];
+		}
+
+		/* Check for database password */
+		if (!strcmp(argv[i], "-pw"))
+		{
+			/* Set database password */
+			db_pw = argv[++i];
 		}
 
 		/* Check for server name */
@@ -1309,7 +1327,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Attempt to connect to database server */
-	if (!mysql_real_connect(mysql, NULL, "rftg", NULL, db, 0, NULL, 0))
+	if (!mysql_real_connect(mysql, NULL, db_user, db_pw, db, 0, NULL, 0))
 	{
 		/* Print error and exit */
 		printf("Database connection: %s", mysql_error(mysql));
