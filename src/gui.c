@@ -11166,15 +11166,15 @@ void update_menu_items()
 		{
 			/* Activate the resign menu item */
 			gtk_widget_set_sensitive(resign_item, TRUE);
+			gtk_widget_set_sensitive(export_item, TRUE);
 
 			/* Check if client is making a choice */
 			/* XXX Suppressing a bug where a dialog becomes unresponsive */
 			/* when receiving MSG_CHOOSE from server. This bug affects */
-			/* resign_item too, but this is deliberately left active. */
+			/* resign and export too, but they are deliberately left active. */
 			if (making_choice)
 			{
 				/* Activate items */
-				gtk_widget_set_sensitive(export_item, TRUE);
 				gtk_widget_set_sensitive(option_item, TRUE);
 				gtk_widget_set_sensitive(advanced_item, TRUE);
 				gtk_widget_set_sensitive(debug_card_item, debug_server &&
@@ -11196,7 +11196,6 @@ void update_menu_items()
 			else
 			{
 				/* Deactivate items */
-				gtk_widget_set_sensitive(export_item, FALSE);
 				gtk_widget_set_sensitive(option_item, FALSE);
 				gtk_widget_set_sensitive(advanced_item, FALSE);
 				gtk_widget_set_sensitive(debug_card_item, FALSE);
