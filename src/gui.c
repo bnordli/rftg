@@ -11815,8 +11815,7 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 	gtk_window_set_default_size(GTK_WINDOW(dialog), 480, -1);
 
 	/* Set window title */
-	gtk_window_set_title(GTK_WINDOW(dialog),
-	                     "Race for the Galaxy " VERSION);
+	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Set spacing */
 	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 5);
