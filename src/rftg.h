@@ -32,7 +32,7 @@
 #endif
 
 #ifndef RELEASE
-#define RELEASE VERSION "p"
+#define RELEASE VERSION "q"
 #endif
 
 #include <stdio.h>
