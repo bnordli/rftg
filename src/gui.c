@@ -10806,6 +10806,12 @@ static void read_prefs(void)
 		opt.player_name[50] = '\0';
 	}
 
+	/* Check empty campaign name */
+	if (!opt.campaign_name)
+	{
+		opt.campaign_name = "";
+	}
+
 	/* Read GUI options */
 	opt.hide_card = g_key_file_get_integer(pref_file, "gui",
 	                                       "full_reduced", NULL);
