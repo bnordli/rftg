@@ -10806,12 +10806,6 @@ static void read_prefs(void)
 		opt.player_name[50] = '\0';
 	}
 
-	/* Check empty campaign name */
-	if (!opt.campaign_name)
-	{
-		opt.campaign_name = "";
-	}
-
 	/* Read GUI options */
 	opt.hide_card = g_key_file_get_integer(pref_file, "gui",
 	                                       "full_reduced", NULL);
@@ -11698,12 +11692,12 @@ static void update_sensitivity()
 	int i;
 	campaign *camp;
 
-	/* Check for campaign */
-	if (strcmp(next_campaign, ""))
-	{
-		/* Find campaign */
-		camp = find_campaign(next_campaign);
+	/* Find campaign */
+	camp = find_campaign(next_campaign);
 
+	/* Check for campaign */
+	if (camp)
+	{
 		/* Set expansion button active */
 		gtk_toggle_button_set_active(
 			GTK_TOGGLE_BUTTON(expansion_radio[camp->expanded]), TRUE);
@@ -12283,7 +12277,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), options_frame);
 
 	/* Create campaign label */
-	campaign_label = gtk_label_new(strcmp(opt.campaign_name, "") ? opt.campaign_name : "None");
+	campaign_label = gtk_label_new((opt.campaign_name && strcmp(opt.campaign_name, "")) ? opt.campaign_name : "None");
 
 	/* Remember campaign */
 	next_campaign = opt.campaign_name;

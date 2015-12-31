@@ -944,6 +944,12 @@ campaign *find_campaign(char *campaign_name)
 {
 	int i;
 
+	/* Check for no campaign set */
+	if (!campaign_name)
+	{
+		return NULL;
+	}
+
 	/* Loop over available campaigns */
 	for (i = 0; i < num_campaign; i++)
 	{
