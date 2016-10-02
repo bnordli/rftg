@@ -11,9 +11,9 @@ Direct link to the Race for the Galaxy AI source:
   http://keldon.net/rftg/rftg-0.9.4.tar.bz2
 
 Link to the main page of this patch:
-  http://dl.dropbox.com/u/7379896/rftg/index.html
+  https://github.com/bnordli/rftg/wiki
 Direct link to the source code of this patch:
-  http://dl.dropbox.com/u/7379896/rftg/rftg-0.9.4q-source.zip
+  https://github.com/bnordli/rftg/tree/0.9.4q
 
 INSTRUCTIONS
 
@@ -22,12 +22,3 @@ Copy these files into your rftg installation directory:
  rftg9q.exe:  The program itself
 
 Start the patch by running rftg9q.exe.
-
-BONUS
-
-If you download these two files, and put them in your installation
-folder (overwriting what's already there), loading times will be
-drastically reduced:
-
-  http://dl.dropbox.com/u/7379896/rftg/libgdk_pixbuf-2.0-0.dll
-  http://dl.dropbox.com/u/7379896/rftg/libpng12-0.dll

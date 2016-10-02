@@ -4632,7 +4632,7 @@ int main(int argc, char *argv[])
 			printf("  -debug Accept debug card messages.\n");
 			printf("  -h     Print this usage text and exit.\n\n");
 			printf("For more information, see the following web sites:\n");
-			printf("  http://keldon.net/rftg\n  http://dl.dropbox.com/u/7379896/rftg/index.html\n");
+			printf("  http://keldon.net/rftg\n  https://github.com/bnordli/rftg/wiki\n");
 			exit(1);
 		}
 
