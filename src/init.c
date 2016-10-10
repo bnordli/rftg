@@ -291,6 +291,18 @@ static char *vp_name[] =
 };
 
 /*
+ * Lists of expansions following a given expansion, in any arc
+ */
+static int succ_in_arc[MAX_EXPANSION][MAX_EXPANSION+1] =
+{
+	{0, 1, 2, 3, 4, -1},
+	{1, 2, 3, -1},
+	{2, 3, -1},
+	{3, -1},
+	{4, -1}
+};
+
+/*
  * Lookup a power code.
  */
 static uint64_t lookup_power(char *ptr, int phase)
@@ -324,7 +336,7 @@ int read_cards(char *suggestion)
 	design *d_ptr = NULL;
 	power *o_ptr;
 	vp_bonus *v_ptr;
-	int i, phase;
+	int i, phase, exp, x, *s_ptr;
 	uint64_t code;
 
 	/* Open card database */
@@ -414,13 +426,26 @@ int read_cards(char *suggestion)
 				/* Get first count string */
 				ptr = strtok(buf + 2, ":");
 
-				/* Loop over number of expansions */
-				for (i = 0; i < MAX_EXPANSION; i++)
+				/* Loop over expansions */
+				while (ptr)
 				{
-					/* Set count */
-					d_ptr->expand[i] = (int8_t) strtol(ptr, NULL, 0);
+					/* Get expansion the card appears in */
+					exp = (int8_t) strtol(ptr, NULL, 0);
 
-					/* Read next count */
+					/* Get count */
+					ptr = strtok(NULL, "@");
+					if (ptr)
+						x = (int8_t) strtol(ptr, NULL, 0);
+					else
+						x = 0;
+
+					/* Add count to all following games in the arc */
+					for (s_ptr = succ_in_arc[exp]; *s_ptr != -1; s_ptr++)
+					{
+						d_ptr->expand[*s_ptr] += x;
+					}
+
+					/* Read next expansion */
 					ptr = strtok(NULL, ":");
 				}
 
