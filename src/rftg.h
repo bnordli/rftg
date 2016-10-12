@@ -195,6 +195,7 @@
 
 #define FLAG_XENO            (1ULL << 22)
 #define FLAG_ANTI_XENO       (1ULL << 23)
+#define FLAG_PEACEFUL        (1ULL << 24)
 
 /*
  * Good types (and cost).
