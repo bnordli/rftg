@@ -2330,6 +2330,14 @@ void phase_explore(game *g)
 			/* Skip powers that do not have extra draw */
 			if (!(o_ptr->code & P1_DRAW)) continue;
 
+			/* Add value special case : draw per rebel military */
+			if (o_ptr->code & P1_PER_REBEL_MILITARY)
+			{
+				draw += o_ptr->value * count_active_flags(g, i,
+						(FLAG_REBEL | FLAG_MILITARY));
+				continue;
+			}
+
 			/* Add value */
 			draw += o_ptr->value;
 		}
@@ -2350,8 +2358,10 @@ void phase_explore(game *g)
 		/* Assume we keep one card */
 		keep = 1;
 
-		/* Assume player has no "discard any" power */
-		discard_any = 0;
+		/* Assume player has no "discard any" power, unless the expansion is XI,
+		 * in which case "discard any" power always applies
+		 */
+		discard_any = g->expanded == 5 ? 1 : 0;
 
 		/* Check for chosen "+1 keep" explore */
 		if (player_chose(g, i, ACT_EXPLORE_1_1)) keep += 1;
