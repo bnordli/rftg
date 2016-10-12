@@ -74,6 +74,8 @@ static char *flag_name[] =
 	"EXTRA_SURVEY",
 	"NO_PRODUCE",
 	"DISCARD_PRODUCE",
+	"XENO",
+	"ANTI_XENO",
 	NULL
 };
 
@@ -108,6 +110,7 @@ static char *power_name[6][64] =
 		"DISCARD_ANY",
 		"DISCARD_PRESTIGE",
 		"ORB_MOVEMENT",
+		"PER_REBEL_MILITARY",
 		NULL,
 	},
 
@@ -171,6 +174,14 @@ static char *power_name[6][64] =
 		"PREVENT_TAKEOVER",
 		"UPGRADE_WORLD",
 		"FLIP_ZERO",
+		"XENO",
+		"XENO_DEFENSE",
+		"DISCARD_HAND",
+		"PER_IMPERIUM",
+		"PER_REBEL_MILITARY",
+		"PER_PEACEFUL",
+		"CONSUME_NOVELTY",
+		"CONSUME_ANY",
 		NULL,
 	},
 
@@ -242,6 +253,11 @@ static char *power_name[6][64] =
 		"DRAW_5_DEV",
 		"TAKE_SAVED",
 		"SHIFT_RARE",
+		"REPAIR",
+		"DRAW_EVERY_TWO",
+		"DRAW_WORLD_RARE",
+		"DRAW_XENO_MILITARY",
+		"DRAW_TWO_MILITARY",
 		NULL,
 	}
 };
@@ -287,6 +303,10 @@ static char *vp_name[] =
 	"ALIEN_SCIENCE",
 	"ALIEN_UPLIFT",
 	"NAME",
+	"ANTI_XENO_FLAG",
+	"ANTI_XENO_WORLD",
+	"ANTI_XENO_DEVEL",
+	"XENO_MILITARY",
 	NULL
 };
 
@@ -295,11 +315,12 @@ static char *vp_name[] =
  */
 static int succ_in_arc[MAX_EXPANSION][MAX_EXPANSION+1] =
 {
-	{0, 1, 2, 3, 4, -1},
+	{0, 1, 2, 3, 4, 5, -1},
 	{1, 2, 3, -1},
 	{2, 3, -1},
 	{3, -1},
-	{4, -1}
+	{4, -1},
+	{5, -1}
 };
 
 /*

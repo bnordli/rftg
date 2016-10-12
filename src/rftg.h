@@ -61,17 +61,17 @@
 /*
  * Maximum number of expansion levels.
  */
-#define MAX_EXPANSION 5
+#define MAX_EXPANSION 6
 
 /*
  * Number of available card designs slots.
  */
-#define AVAILABLE_DESIGN 256
+#define AVAILABLE_DESIGN 280
 
 /*
  * Number of original card designs.
  */
-#define MAX_DESIGN 236
+#define MAX_DESIGN 280
 
 /*
  * Number of cards in the deck.
@@ -193,6 +193,8 @@
 #define FLAG_NO_PRODUCE      0x100000
 #define FLAG_DISCARD_PRODUCE 0x200000
 
+#define FLAG_XENO            0x400000
+#define FLAG_ANTI_XENO       0x800000
 
 /*
  * Good types (and cost).
@@ -271,6 +273,8 @@
 
 #define P1_ORB_MOVEMENT       (1ULL << 4)
 
+#define P1_PER_REBEL_MILITARY (1ULL << 5)
+
 
 /* Phase two -- Develop */
 #define P2_DRAW               (1ULL << 0)
@@ -348,9 +352,19 @@
 #define P3_UPGRADE_WORLD      (1ULL << 41)
 #define P3_FLIP_ZERO          (1ULL << 42)
 
+#define P3_XENO               (1ULL << 43)
+#define P3_XENO_DEFENSE       (1ULL << 44)
+#define P3_DISCARD_HAND       (1ULL << 45)
+#define P3_PER_IMPERIUM       (1ULL << 46)
+#define P3_PER_REBEL_MILITARY (1ULL << 47)
+#define P3_PER_PEACEFUL       (1ULL << 48)
+#define P3_CONSUME_NOVELTY    (1ULL << 49)
+#define P3_CONSUME_ANY        (1ULL << 50)
+
 /* Mask of takeover powers */
 #define P3_TAKEOVER_MASK (P3_TAKEOVER_REBEL | P3_TAKEOVER_IMPERIUM | \
                           P3_TAKEOVER_MILITARY | P3_PRESTIGE_TAKEOVER)
+
 
 /* Phase four -- Consume */
 #define P4_TRADE_ANY          (1ULL << 0)
@@ -441,6 +455,12 @@
 #define P5_TAKE_SAVED           (1ULL << 28)
 #define P5_SHIFT_RARE           (1ULL << 29)
 
+#define P5_REPAIR               (1ULL << 30)
+#define P5_DRAW_EVERY_TWO       (1ULL << 31)
+#define P5_DRAW_WORLD_RARE      (1ULL << 32)
+#define P5_DRAW_XENO_MILITARY   (1ULL << 33)
+#define P5_DRAW_TWO_MILITARY    (1ULL << 34)
+
 
 /*
  * Special victory point flags.
@@ -491,6 +511,11 @@
 #define VP_ALIEN_UPLIFT         34
 
 #define VP_NAME                 35
+
+#define VP_ANTI_XENO_FLAG       36
+#define VP_ANTI_XENO_WORLD      37
+#define VP_ANTI_XENO_DEVEL      38
+#define VP_XENO_MILITARY        39
 
 
 /*

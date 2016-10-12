@@ -32,6 +32,7 @@ char *exp_names[MAX_EXPANSION + 1] =
 	"Rebel vs Imperium",
 	"The Brink of War",
 	"Alien Artifacts",
+	"Xeno Invasion",
 	NULL
 };
 
