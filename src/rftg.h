@@ -195,6 +195,7 @@
 
 #define FLAG_XENO            0x400000
 #define FLAG_ANTI_XENO       0x800000
+#define FLAG_PEACEFUL        0x1000000
 
 /*
  * Good types (and cost).

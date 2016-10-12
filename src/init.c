@@ -625,6 +625,20 @@ int read_cards(char *suggestion)
 		}
 	}
 
+	/* Attribute peaceful world flag */
+	for (i = 0; i < num_design; i++)
+	{
+		/* design pointer */
+		d_ptr = &library[i];
+
+		/* check for type world */
+		if (d_ptr->type != TYPE_WORLD)
+			continue;
+
+		/* if world is not military, it is peaceful */
+		if (!(d_ptr->flags & FLAG_MILITARY))
+			d_ptr->flags |= FLAG_PEACEFUL;
+	}
 	/* Close card design file */
 	fclose(fff);
 
