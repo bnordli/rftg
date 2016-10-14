@@ -13641,6 +13641,20 @@ int total_military(game *g, int who)
 			amt += count_active_flags(g, who, FLAG_CHROMO);
 		}
 
+		/* Check for non-specific military per imperium flag */
+		if (o_ptr->code == (P3_EXTRA_MILITARY | P3_PER_IMPERIUM))
+		{
+			/* Add to military */
+			amt += count_active_flags(g, who, FLAG_IMPERIUM);
+		}
+
+		/* Check for non-specific military per rebel military world */
+		if (o_ptr->code == (P3_EXTRA_MILITARY | P3_PER_REBEL_MILITARY))
+		{
+			/* Add to military */
+			amt += count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
+		}
+
 		/* Check for only if Imperium card active */
 		if (o_ptr->code == (P3_EXTRA_MILITARY | P3_IF_IMPERIUM))
 		{
