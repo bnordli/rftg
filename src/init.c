@@ -1201,6 +1201,9 @@ void init_game(game *g)
 		/* Player has no bonus military accrued */
 		p_ptr->bonus_military = 0;
 
+		/* Player has no Xeno specific bonus military accrued */
+		p_ptr->bonus_military_xeno = 0;
+
 		/* Player has no bonus settle discount */
 		p_ptr->bonus_reduce = 0;
 

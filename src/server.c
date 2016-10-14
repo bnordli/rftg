@@ -1882,6 +1882,7 @@ static int player_changed(player *p_ptr, player *q_ptr)
 	/* Check for change in temporary phase bonuses */
 	if (p_ptr->phase_bonus_used != q_ptr->phase_bonus_used) return 1;
 	if (p_ptr->bonus_military != q_ptr->bonus_military) return 1;
+	if (p_ptr->bonus_military_xeno != q_ptr->bonus_military_xeno) return 1;
 	if (p_ptr->bonus_reduce != q_ptr->bonus_reduce) return 1;
 
 	/* Loop over goals */
@@ -1968,6 +1969,9 @@ static void update_status_one(int sid, int who)
 			/* Add player's temporary phase bonuses */
 			put_integer(p_ptr->phase_bonus_used, &ptr);
 			put_integer(p_ptr->bonus_military, &ptr);
+			/* Xeno military bonus transmitted only for XI games */
+			if (s_ptr->g.expanded == 5)
+				put_integer(p_ptr->bonus_military_xeno, &ptr);
 			put_integer(p_ptr->bonus_reduce, &ptr);
 
 			/* Add whether player has prestige on the tile */

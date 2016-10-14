@@ -991,6 +991,9 @@ void clear_temp(game *g)
 		/* Clear bonus military */
 		p_ptr->bonus_military = 0;
 
+		/* Clear bonus military */
+		p_ptr->bonus_military_xeno = 0;
+
 		/* Clear bonus settle cost reduction */
 		p_ptr->bonus_reduce = 0;
 
@@ -3523,6 +3526,27 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 				military += o_ptr->value;
 				continue;
 			}
+
+			/* Check for against xeno */
+			if ((o_ptr->code & P3_XENO) &&
+			    (c_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* if power requires payment, skip power */
+				if (o_ptr->code & P3_CONSUME_ALIEN) continue;
+
+				/* Check for per peaceful military */
+				if (o_ptr->code & P3_PER_PEACEFUL)
+				{
+					military += count_active_flags(g, who, FLAG_PEACEFUL);
+				}
+				/* Add military power */
+				else
+				{
+					military += o_ptr->value;
+				}
+				/* Process next power */
+				continue;
+			}
 		}
 
 		/* Check for takeover defense */
@@ -3573,6 +3597,12 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 
 	/* Add in bonus temporary military strength */
 	military += p_ptr->bonus_military;
+
+	/* Add in bonus temporary military strength against Xeno*/
+	if (c_ptr->d_ptr->flags & FLAG_XENO)
+	{
+	    military += p_ptr->bonus_military_xeno;
+	}
 
 	/* Return total military for this world */
 	return military;
@@ -3659,6 +3689,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 	int i, n, cost, defense, military, conquer, good, pay_military;
 	int pay_cost, pay_discount;
 	int conquer_peaceful, conquer_bonus;
+	int xeno_world;
 	int hand_military, hand_size;
 
 	/* Get player pointer */
@@ -3678,6 +3709,9 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 
 	/* Get good type of world to be settled (if any) */
 	good = c_ptr->d_ptr->good_type;
+
+	/* Check for Xeno world */
+	xeno_world = c_ptr->d_ptr->flags & FLAG_XENO;
 
 	/* Start with basic military strength */
 	military = total_military(g, who);
@@ -3779,6 +3813,13 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 				continue;
 			}
 
+			/* Check for Xeno specific military */
+			if ((o_ptr->code & P3_XENO) && !xeno_world)
+			{
+				/* Skip power */
+				continue;
+			}
+
 			/* military power applies, check for payment availability */
 
 			/* Note: the following code is based on the assumption that a given
@@ -3852,6 +3893,13 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 			*/
 
 			/* The military power can be paid, take its value into account */
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+			}
+			/* Add military power */
+			else
 			{
 				military += o_ptr->value;
 			}
@@ -3947,6 +3995,9 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 	/* Apply bonus military accrued earlier in the phase */
 	military += p_ptr->bonus_military;
 
+	/* Apply bonus military against Xeno accrued earlier in the phase */
+	if (xeno_world) military += p_ptr->bonus_military_xeno;
+
 	/* Apply bonus military, if any */
 	military += mil_bonus;
 
@@ -4033,6 +4084,9 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 
 	/* Add bonuses from earlier in the phase */
 	military += p_ptr->bonus_military + mil_bonus;
+
+	/* Add Xeno specific bonuses from earlier in the phase */
+	if (t_ptr->d_ptr->flags & FLAG_XENO) military += p_ptr->bonus_military_xeno;
 
 	/* Reduce cost by bonus reductions from earlier in the phase */
 	cost -= p_ptr->bonus_reduce;
@@ -4178,8 +4232,20 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				/* Ask for goods to consume later */
 				consume_military++;
 
-				/* Add extra military */
-				military += o_ptr->value;
+				/* Check Xeno specific military */
+				if (o_ptr->code & P3_XENO)
+				{
+					if (t_ptr->d_ptr->flags & FLAG_XENO)
+					{
+						/* Add extra military */
+						military += o_ptr->value;
+					}
+				}
+				else
+				{
+					/* Add extra military */
+					military += o_ptr->value;
+				}
 
 				/* Need one more alien good */
 				goods_needed[GOOD_ALIEN]++;
@@ -4289,8 +4355,23 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				continue;
 			}
 
+			/* Check for against Xeno */
+			if ((o_ptr->code & P3_XENO) &&
+			    !(t_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* Skip power */
+				continue;
+			}
+
 			/* Military power does not require payment and applies */
 			/* Add value to military */
+
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+			}
+			else
 			{
 				military += o_ptr->value;
 			}
@@ -4396,6 +4477,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 	/* Add bonuses from earlier in the phase */
 	military += p_ptr->bonus_military + mil_bonus;
+
+	/* Add Xeno specific bonuses from earlier in the phase */
+	if (t_ptr->d_ptr->flags & FLAG_XENO) military += p_ptr->bonus_military_xeno;
 
 	/* Reduce cost by bonus reductions from earlier in the phase */
 	cost -= p_ptr->bonus_reduce;
@@ -4646,11 +4730,25 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Ask for goods to consume later */
 				consume_military++;
 
-				/* Add extra military */
-				military += o_ptr->value;
+				if (o_ptr->code & P3_XENO)
+				{
+					if (t_ptr->d_ptr->flags & FLAG_XENO)
+					{
+						/* Add extra military */
+						military += o_ptr->value;
+					}
 
-				/* Remember bonus for later */
-				p_ptr->bonus_military += o_ptr->value;
+					/* Remember bonus for later */
+					p_ptr->bonus_military_xeno += o_ptr->value;
+				}
+				else
+				{
+					/* Add extra military */
+					military += o_ptr->value;
+
+					/* Remember bonus for later */
+					p_ptr->bonus_military += o_ptr->value;
+				}
 
 				/* Message */
 				if (!g->simulation)
@@ -4806,8 +4904,23 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				continue;
 			}
 
+			/* Check for against Xeno */
+			if ((o_ptr->code & P3_XENO) &&
+			    !(t_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* Skip power */
+				continue;
+			}
+
 			/* Military power does not require payment and applies */
 			/* Add value to military */
+
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+			}
+			else
 			{
 				military += o_ptr->value;
 			}
@@ -5193,6 +5306,13 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 				continue;
 			}
 
+			/* Check for against Xeno */
+			if ((o_ptr->code & P3_XENO) && !(c_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* Skip power */
+				continue;
+			}
+
 			/* If power needs payement add to special */
 			/* Check for discard for extra military */
 			if (o_ptr->code & P3_DISCARD)
@@ -5240,6 +5360,13 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 			/* At this point, we have a military power that applies to world */
 			/* and does not require payment. We can increase the military */
+
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+				continue;
+			}
 
 			/* Default case */
 			military += o_ptr->value;
