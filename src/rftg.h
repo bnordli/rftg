@@ -366,6 +366,10 @@
 #define P3_TAKEOVER_MASK (P3_TAKEOVER_REBEL | P3_TAKEOVER_IMPERIUM | \
                           P3_TAKEOVER_MILITARY | P3_PRESTIGE_TAKEOVER)
 
+/* Mask of general military power */
+#define P3_CONDITIONAL_MILITARY (P3_NOVELTY | P3_RARE | P3_GENE | P3_ALIEN | \
+        P3_DISCARD | P3_AGAINST_REBEL | P3_CONSUME_NOVELTY | P3_CONSUME_RARE | \
+        P3_CONSUME_ALIEN | P3_CONSUME_PRESTIGE | P3_XENO)
 
 /* Phase four -- Consume */
 #define P4_TRADE_ANY          (1ULL << 0)
