@@ -3908,8 +3908,8 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 			continue;
 		}
 
-		/* Check for able to pay for military worlds */
-		if (o_ptr->code & P3_PAY_MILITARY)
+		/* Check for able to pay for military worlds, only for non Xeno world*/
+		if (!xeno_world && o_ptr->code & P3_PAY_MILITARY)
 		{
 			/* Check for alien flag */
 			if (o_ptr->code & P3_ALIEN)
@@ -4119,6 +4119,9 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				/* Don't use multiple pay abilities at once */
 				if (pay_military) return -1;
 
+				/* Check for non-Xeno world */
+				if (t_ptr->d_ptr->flags & FLAG_XENO) return -1;
+
 				/* Check for correct alien-ness */
 				if (((o_ptr->code & P3_ALIEN) &&
 				     good != GOOD_ALIEN)) return -1;
@@ -4126,6 +4129,14 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				/* Check for correct alien-ness */
 				if (!(o_ptr->code & P3_ALIEN) &&
 				    good == GOOD_ALIEN) return -1;
+
+				/* Check for correct chromo */
+				if ((o_ptr->code & P3_AGAINST_CHROMO) &&
+				    !(t_ptr->d_ptr->flags & FLAG_CHROMO)) return -1;
+
+				/* Check for correct rebel */
+				if ((o_ptr->code & P3_AGAINST_REBEL) &&
+				    !(t_ptr->d_ptr->flags & FLAG_REBEL)) return -1;
 
 				/* Mark ability */
 				pay_military = 1;
@@ -4513,6 +4524,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Don't use multiple pay abilities at once */
 				if (pay_military) return 0;
 
+				/* Check for non-Xeno world */
+				if (t_ptr->d_ptr->flags & FLAG_XENO) return 0;
+
 				/* Check for correct alien-ness */
 				if ((o_ptr->code & P3_ALIEN) &&
 				    good != GOOD_ALIEN) return 0;
@@ -4520,6 +4534,14 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Check for correct alien-ness */
 				if (!(o_ptr->code & P3_ALIEN) &&
 				    good == GOOD_ALIEN) return 0;
+
+				/* Check for correct chromo */
+				if ((o_ptr->code & P3_AGAINST_CHROMO) &&
+				    !(t_ptr->d_ptr->flags & FLAG_CHROMO)) return 0;
+
+				/* Check for correct rebel */
+				if ((o_ptr->code & P3_AGAINST_REBEL) &&
+				    !(t_ptr->d_ptr->flags & FLAG_REBEL)) return 0;
 
 				/* Mark ability */
 				pay_military = 1;
@@ -5393,6 +5415,12 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		if (!takeover && !mil_only && conquer &&
 		    (o_ptr->code & P3_PAY_MILITARY))
 		{
+			/* Check for Xeno flag */
+			if (c_ptr->d_ptr->flags & FLAG_XENO)
+			{
+				/* Cannot pay for world */
+				continue;
+			}
 			/* Check for alien flag */
 			if (o_ptr->code & P3_ALIEN)
 			{
