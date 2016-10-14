@@ -3655,7 +3655,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int gene_used = 0, rare_used = 0, alien_used = 0;
+	int novelty_used = 0, rare_used = 0, gene_used = 0, alien_used = 0;
 	int i, n, cost, defense, military, conquer, good, pay_military;
 	int pay_cost, pay_discount;
 	int conquer_peaceful, conquer_bonus;
@@ -3790,6 +3790,21 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 			 * postpone this implementation because it is not needed for the
 			 * time being.
 			 */
+
+			/* Check for consumption required */
+			if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				if (count_goods(g, who, GOOD_NOVELTY) > novelty_used)
+				{
+					/* Mark one good as used */
+					novelty_used++;
+				}
+				else
+				{
+					/* Skip power */
+					continue;
+				}
+			}
 
 			/* Check for consumption required */
 			if (o_ptr->code & P3_CONSUME_RARE)
@@ -4133,6 +4148,19 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 			}
 
 			/* Check for consume to increase military */
+			if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				/* Ask for goods to consume later */
+				consume_military++;
+
+				/* Add extra military */
+				military += o_ptr->value;
+
+				/* Need one more novelty good */
+				goods_needed[GOOD_NOVELTY]++;
+			}
+
+			/* Check for consume to increase military */
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Ask for goods to consume later */
@@ -4235,6 +4263,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
 
 			/* Skip powers that require good consumption */
+			if (o_ptr->code & P3_CONSUME_NOVELTY) continue;
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
@@ -4553,6 +4582,36 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			}
 
 			/* Check for consume to increase military */
+			if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				/* Mark power as used */
+				c_ptr->misc |= 1 << (MISC_USED_SHIFT + j);
+
+				/* Ask for goods to consume later */
+				consume_military++;
+
+				/* Add extra military */
+				military += o_ptr->value;
+
+				/* Remember bonus for later */
+				p_ptr->bonus_military += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Novelty good for "
+					        "extra military.\n", p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
+
+				/* Need one more novelty good */
+				goods_needed[GOOD_NOVELTY]++;
+			}
+
+			/* Check for consume to increase military */
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Mark power as used */
@@ -4724,6 +4783,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
 
 			/* Skip powers that require good consumption */
+			if (o_ptr->code & P3_CONSUME_NOVELTY) continue;
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
@@ -4852,6 +4912,14 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Get good list */
 				num_goods = get_goods(g, who, g_list,
 				                      GOOD_GENE);
+			}
+
+			/* Check for needing novelty good */
+			else if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				/* Get good list */
+				num_goods = get_goods(g, who, g_list,
+									GOOD_NOVELTY);
 			}
 
 			/* Check for needing rare good */
@@ -5144,6 +5212,15 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 			/* Check for prestige for military */
 			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
 					p_ptr->prestige > 0)
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for consume novelty */
+			if ((o_ptr->code & P3_CONSUME_NOVELTY) &&
+					has_good(g, who, GOOD_NOVELTY))
 			{
 				/* Add to special list */
 				special[num_special++] = w_list[i].c_idx;
