@@ -828,6 +828,9 @@ typedef struct player
 	/* Bonus military accrued so far this phase */
 	int8_t bonus_military;
 
+	/* Bonus military against Xeno accrued so far this phase */
+	int8_t bonus_military_xeno;
+
 	/* Bonus settle discount accrued so far this phase */
 	int8_t bonus_reduce;
 
