@@ -3757,66 +3757,91 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
+			/* Skip generic powers taken into account in total_military */
+			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
+
+			/* Check for specificity */
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY)||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
-				continue;
-			}
-
-			/* Check for consumption required */
-			if ((o_ptr->code & P3_CONSUME_RARE) &&
-			    count_goods(g, who, GOOD_RARE) > rare_used)
-			{
-				/* Mark one good as used */
-				rare_used++;
-
-				/* Add value to military */
-				military += o_ptr->value;
-				continue;
-			}
-
-			/* Check for consumption required */
-			if ((o_ptr->code & P3_CONSUME_ALIEN) &&
-			    count_goods(g, who, GOOD_ALIEN) > alien_used)
-			{
-				/* Mark one good as used */
-				alien_used++;
-
-				/* Add value to military */
-				military += o_ptr->value;
-				continue;
-			}
-
-			/* Check for prestige required */
-			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
-			    p_ptr->prestige > 0)
-			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (c_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(c_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
-			/* Check for discard needed */
-			if (o_ptr->code & P3_DISCARD)
+			/* military power applies, check for payment availability */
+
+			/* Note: the following code is based on the assumption that a given
+			 * good provide a fixed amount of possible extra-military and can
+			 * only be used by a single type of consume power This is only true
+			 * because for expansions providing good of type ANY, there is only
+			 * one type of consume for extra-military.  The general case would
+			 * require to compute the best affectation of good for military. We
+			 * postpone this implementation because it is not needed for the
+			 * time being.
+			 */
+			
+			/* Check for consumption required */
+			if (o_ptr->code & P3_CONSUME_RARE)
 			{
-				/* Assume card will be used */
-				military += o_ptr->value;
+				if (count_goods(g, who, GOOD_RARE) > rare_used)
+				{
+					/* Mark one good as used */
+					rare_used++;
+				}
+				else
+				{
+					/* Cannot pay for this power, skip it */
+					continue;
+				}
+			}
+
+			/* Check for consumption required */
+			if (o_ptr->code & P3_CONSUME_ALIEN)
+			{
+				if (count_goods(g, who, GOOD_ALIEN) > alien_used)
+				{
+					/* Mark one good as used */
+					alien_used++;
+				}
+				else
+				{
+					/* Cannot pay for this power, skip it */
+					continue;
+				}
+			}
+
+			/* Check for prestige required */
+			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
+			    p_ptr->prestige == 0)
+			{
+				/* Skip power */
 				continue;
 			}
+
+			/* Check for discard needed is not necessary, since it can */
+			/* always be paid by discarding */
+			/* if (o_ptr->code & P3_DISCARD)
+			{
+			}
+			*/
+
+			/* The military power can be paid, take its value into account */
+			{
+				military += o_ptr->value;
+			}
+			/* power taken into account, go to next power */
+			continue;
 		}
 
 		/* Check for able to pay for military worlds */
@@ -4205,29 +4230,42 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
+			/* Skip generic powers taken into account in total_military */
+			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
+
 			/* Skip powers that require good consumption */
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
+			/* Skip powers that require discarding an active card */
+			if (o_ptr->code & P3_DISCARD) continue;
+
+			/* Check for specificity */
+
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY)||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY)||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (t_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(t_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
+
+			/* Military power does not require payment and applies */
+			/* Add value to military */
+			{
+				military += o_ptr->value;
+			}
+			continue;
 		}
 
 		/* Discount when using pay for military */
@@ -4678,29 +4716,42 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
+			/* Skip generic powers taken into account in total_military */
+			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
+
 			/* Skip powers that require good consumption */
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
+			/* Skip powers that require discarding an active card */
+			if (o_ptr->code & P3_DISCARD) continue;
+
+			/* Check for specificity */
+
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY) ||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY) ||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (t_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(t_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
+
+			/* Military power does not require payment and applies */
+			/* Add value to military */
+			{
+				military += o_ptr->value;
+			}
+			continue;
 		}
 
 		/* Discount when using pay for military */
@@ -4828,8 +4879,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Ask player to choose good to discard */
 				ask_player(g, who, CHOICE_GOOD, g_list,
-				           &num_goods, consume_special,
-				           &num_consume_special, 1, 1, 0);
+							&num_goods, consume_special,
+							&num_consume_special, 1, 1, 0);
 
 				/* Check for aborted game */
 				if (g->game_over) return 0;
@@ -5054,37 +5105,72 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
-			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			/* If specificity is not satisfied, ignore power */
+
+			/* Specific good check */
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY) ||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (c_ptr->d_ptr->flags & FLAG_REBEL))
+				!(c_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
+
+			/* If power needs payement add to special */
+			/* Check for discard for extra military */
+			if (o_ptr->code & P3_DISCARD)
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for prestige for military */
+			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
+					p_ptr->prestige > 0)
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for consume rare */
+			if ((o_ptr->code & P3_CONSUME_RARE) &&
+					has_good(g, who, GOOD_RARE))
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for consume alien */
+			if ((o_ptr->code & P3_CONSUME_ALIEN) &&
+					has_good(g, who, GOOD_ALIEN))
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* At this point, we have a military power that applies to world */
+			/* and does not require payment. We can increase the military */
+
+			/* Default case */
+			military += o_ptr->value;
 		}
 
 		/* Check for discard to reduce cost */
 		if (!takeover && (good != GOOD_ALIEN) &&
 		    (o_ptr->code & P3_REDUCE_ZERO))
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
-
-		/* Check for discard for extra military */
-		if (o_ptr->code == (P3_DISCARD | P3_EXTRA_MILITARY))
 		{
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
@@ -5137,6 +5223,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		{
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
+			continue;
 		}
 
 		/* Check for conquer peaceful world */
@@ -5156,30 +5243,6 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		/* Check for consume gene */
 		if ((o_ptr->code & P3_CONSUME_GENE) &&
 		    has_good(g, who, GOOD_GENE))
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
-
-		/* Check for consume rare */
-		if ((o_ptr->code & P3_CONSUME_RARE) &&
-		    has_good(g, who, GOOD_RARE))
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
-
-		/* Check for consume alien */
-		if ((o_ptr->code & P3_CONSUME_ALIEN) &&
-		    has_good(g, who, GOOD_ALIEN))
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
-
-		/* Check for prestige for military */
-		if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
-		    p_ptr->prestige > 0)
 		{
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
