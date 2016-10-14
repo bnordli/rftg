@@ -310,11 +310,20 @@ typedef struct mil_strength
 	/* Current temporary military */
 	int bonus;
 
+	/* Current temporary military against xeno*/
+	int bonus_xeno;
+
 	/* Maximum additional temporary military */
 	int max_bonus;
 
+	/* Maximum additional temporary military against xeno */
+	int max_bonus_xeno;
+
 	/* Additional military against rebel worlds */
 	int rebel;
+
+	/* Additional military against xeno worlds */
+	int xeno;
 
 	/* Additional specific military */
 	int specific[6];
@@ -3144,11 +3153,28 @@ static char *get_military_tooltip(mil_strength *military)
 		strcat(msg, text);
 	}
 
+	/* Add temporary military against Xeno */
+	if (military->bonus_xeno)
+	{
+		/* Create text */
+		sprintf(text, "\nActivated temporary military against Xeno: %+d",
+		        military->bonus_xeno);
+		strcat(msg, text);
+	}
+
 	/* Add rebel strength */
 	if (military->rebel)
 	{
 		/* Create rebel text */
 		sprintf(text, "\nAdditional Rebel strength: %+d", military->rebel);
+		strcat(msg, text);
+	}
+
+	/* Add Xeno strength */
+	if (military->xeno)
+	{
+		/* Create rebel text */
+		sprintf(text, "\nAdditional Xeno strength: %+d", military->xeno);
 		strcat(msg, text);
 	}
 
@@ -3188,6 +3214,14 @@ static char *get_military_tooltip(mil_strength *military)
 		/* Create text */
 		sprintf(text, "\nAdditional potential temporary military: %+d",
 		        military->max_bonus);
+		strcat(msg, text);
+	}
+
+	/* Add maximum temporary military against Xeno */
+	if (military->max_bonus_xeno)
+	{
+		/* Create text */
+		sprintf(text, "\nAdditional potential temporary military against Xeno: %+d", military->max_bonus_xeno);
 		strcat(msg, text);
 	}
 
@@ -5133,7 +5167,8 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 {
 	card *c_ptr;
 	power *o_ptr;
-	int x, i, hand_size, hand_military = 0, rare_goods, alien_goods;
+	int x, i, hand_size, hand_military = 0;
+	int novelty_goods, rare_goods, alien_goods;
 
 	/* Start strengths at 0 */
 	memset(m_ptr, 0, sizeof(mil_strength));
@@ -5144,8 +5179,14 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 	/* Set bonus military */
 	m_ptr->bonus = g->p[who].bonus_military;
 
+	/* Set bonus military against Xeno */
+	m_ptr->bonus_xeno = g->p[who].bonus_military_xeno;
+
 	/* Get first active card */
 	x = g->p[who].start_head[WHERE_ACTIVE];
+
+	/* Count number of novelty goods */
+	novelty_goods = count_goods(g, who, GOOD_NOVELTY);
 
 	/* Count number of rare goods */
 	rare_goods = count_goods(g, who, GOOD_RARE);
@@ -5230,6 +5271,13 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 			if ((o_ptr->code & P3_CONSUME_PRESTIGE) && g->p[who].prestige)
 				m_ptr->max_bonus += o_ptr->value;
 
+			/* Check for novelty good for military */
+			if ((o_ptr->code & P3_CONSUME_NOVELTY) && novelty_goods)
+			{
+				m_ptr->max_bonus += o_ptr->value;
+				--novelty_goods;
+			}
+
 			/* Check for rare good for military */
 			if ((o_ptr->code & P3_CONSUME_RARE) && rare_goods)
 			{
@@ -5238,15 +5286,48 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 			}
 
 			/* Check for alien good for military */
-			if ((o_ptr->code & P3_CONSUME_ALIEN) && alien_goods)
+			if (o_ptr->code & P3_CONSUME_ALIEN)
 			{
-				m_ptr->max_bonus += o_ptr->value;
+				/* If no alien good available, skip power
+				 * this is necessary to avoid counting this power in the
+				 * (no-consume) military against Xeno test below
+				 */
+				if (!alien_goods) continue;
+
+				/* Assumption: there is only one type of
+				 * EXTRA_MILITARY | CONSUME_ALIEN possible, either Xeno
+				 * specific, or not
+				 */
+				if (o_ptr->code & P3_XENO)
+				    m_ptr->max_bonus_xeno += o_ptr->value;
+				else
+					m_ptr->max_bonus += o_ptr->value;
 				--alien_goods;
+
+				/* Go to next power, to avoid counting twice the Xeno
+				 * specific power
+				 */
+				continue;
 			}
 
 			/* Check for strength against rebels */
 			if (o_ptr->code & P3_AGAINST_REBEL)
 				m_ptr->rebel += o_ptr->value;
+
+			/* Check for strength against Xeno */
+			if (o_ptr->code & P3_XENO)
+			{
+				/* Check for per peaceful military */
+				if (o_ptr->code & P3_PER_PEACEFUL)
+				{
+					m_ptr->xeno += count_active_flags(g, who, FLAG_PEACEFUL);
+				}
+				/* Add military power */
+				else
+				{
+					m_ptr->xeno += o_ptr->value;
+				}
+			}
 
 			/* Check for strength against Novelty worlds */
 			if (o_ptr->code & P3_NOVELTY)
@@ -5284,11 +5365,13 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 		count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
 
 	/* Check for any modifiers */
-	m_ptr->has_data = m_ptr->base || m_ptr->bonus || m_ptr->rebel ||
+	m_ptr->has_data = m_ptr->base || m_ptr->bonus || m_ptr->bonus_xeno ||
+		m_ptr->rebel || m_ptr->xeno ||
 		m_ptr->specific[GOOD_NOVELTY] || m_ptr->specific[GOOD_RARE] ||
 		m_ptr->specific[GOOD_GENE] || m_ptr->specific[GOOD_ALIEN] ||
 		m_ptr->defense || m_ptr->attack_imperium || m_ptr->leftover ||
-		m_ptr->imperium || m_ptr->military_rebel || m_ptr->max_bonus;
+		m_ptr->imperium || m_ptr->military_rebel || m_ptr->max_bonus ||
+		m_ptr->max_bonus_xeno;
 }
 
 /*
