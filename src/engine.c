@@ -14109,6 +14109,30 @@ static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 
 			/* Check for correct name */
 			return !strcmp(v_ptr->name, d_ptr->name);
+
+		/* Anti-Xeno flag */
+		case VP_ANTI_XENO_FLAG:
+
+			/* Check for flag */
+			return d_ptr->flags & FLAG_ANTI_XENO;
+
+		case VP_ANTI_XENO_WORLD:
+
+			/* Check for flag */
+			return d_ptr->type == TYPE_WORLD && d_ptr->flags & FLAG_ANTI_XENO;
+
+		case VP_ANTI_XENO_DEVEL:
+
+			/* Check for flag */
+			return d_ptr->type == TYPE_DEVELOPMENT &&
+			       d_ptr->flags & FLAG_ANTI_XENO;
+
+		case VP_XENO_MILITARY:
+
+			/* Check for flag */
+			return d_ptr->type == TYPE_WORLD &&
+			        (d_ptr->flags & FLAG_XENO) &&
+			        (d_ptr->flags & FLAG_MILITARY);
 	}
 
 	/* Other types never match */
