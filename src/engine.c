@@ -10557,6 +10557,36 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		return;
 	}
 
+	/* Check for draw per rare world */
+	if (o_ptr->code & P5_DRAW_WORLD_RARE)
+	{
+		/* Assume no rare worlds */
+		count = 0;
+
+		/* Start at first active card */
+		x = p_ptr->head[WHERE_ACTIVE];
+
+		/* Loop over cards */
+		for ( ; x != -1; x = g->deck[x].next)
+		{
+			/* Get card pointer */
+			c_ptr = &g->deck[x];
+
+			/* Check for rare world */
+			if (c_ptr->d_ptr->good_type == GOOD_RARE ||
+			    c_ptr->d_ptr->good_type == GOOD_ANY) count++;
+		}
+
+		/* Draw cards */
+		draw_cards(g, who, count * o_ptr->value, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
+		/* Done */
+		return;
+	}
+
 	/* Check for draw per gene world */
 	if (o_ptr->code & P5_DRAW_WORLD_GENE)
 	{
@@ -10592,6 +10622,22 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	{
 		/* Count military worlds */
 		count = count_active_flags(g, who, FLAG_MILITARY);
+
+		/* Draw cards */
+		draw_cards(g, who, count * o_ptr->value, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
+		/* Done */
+		return;
+	}
+
+	/* Check for draw per two military world */
+	if (o_ptr->code & P5_DRAW_TWO_MILITARY)
+	{
+		/* Count military worlds */
+		count = count_active_flags(g, who, FLAG_MILITARY) / 2;
 
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value, name);
@@ -10659,6 +10705,22 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 			/* Check for rebel world */
 			if (c_ptr->d_ptr->flags & FLAG_REBEL) count++;
 		}
+
+		/* Draw cards */
+		draw_cards(g, who, count * o_ptr->value, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
+		/* Done */
+		return;
+	}
+
+	/* Check for draw per Xeno military world */
+	if (o_ptr->code & P5_DRAW_XENO_MILITARY)
+	{
+		/* Count number of Xeno military worlds */
+		count = count_active_flags(g, who, FLAG_MILITARY | FLAG_XENO);
 
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value, name);
@@ -10921,6 +10983,29 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		/* Done */
 		return;
 	}
+
+	/* Check for draw per every two good produced */
+	if (o_ptr->code & P5_DRAW_EVERY_TWO)
+	{
+		/* Start count at zero */
+		count = 0;
+
+		/* Count types */
+		for (i = 0; i < 6; i++)
+		{
+			/* Check for this type produced */
+			count += produced[i];
+		}
+
+		/* Award cards */
+		draw_cards(g, who, count / 2, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count / 2;
+
+		/* Done */
+		return;
+	}
 }
 
 /*
@@ -11021,7 +11106,10 @@ int produce_action(game *g, int who)
 				   P5_DRAW_CHROMO |
 				   P5_DRAW_5_DEV |
 				   P5_PRESTIGE_MOST_CHROMO |
-				   P5_TAKE_SAVED))
+				   P5_TAKE_SAVED |
+				   P5_DRAW_WORLD_RARE |
+				   P5_DRAW_XENO_MILITARY |
+				   P5_DRAW_TWO_MILITARY))
 		{
 			/* Use power immediately */
 			produce_chosen(g, who, w_ptr->c_idx, w_ptr->o_idx);
@@ -11075,7 +11163,8 @@ int produce_action(game *g, int who)
 				   P5_DRAW_EACH_RARE |
 				   P5_DRAW_EACH_GENE |
 				   P5_DRAW_EACH_ALIEN |
-				   P5_DRAW_DIFFERENT))
+				   P5_DRAW_DIFFERENT |
+				   P5_DRAW_EVERY_TWO))
 		{
 			/* Add power to list */
 			cidx[num] = w_list[i].c_idx;
