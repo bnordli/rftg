@@ -8089,7 +8089,7 @@ static int score_consume(power *o_ptr)
 		if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
 
 		/* Check for card awarded */
-		if (o_ptr->code & P4_GET_CARD) card += o_ptr->value;
+		if (o_ptr->code & P4_GET_CARD) card += 1;
 
 		/* Check for prestige awarded */
 		if (o_ptr->code & P4_GET_PRESTIGE) prestige += o_ptr->value;
@@ -8117,7 +8117,7 @@ static int score_consume(power *o_ptr)
 		if (o_ptr->code & P4_GET_VP) score += o_ptr->value * 2;
 
 		/* Check for cards awarded */
-		if (o_ptr->code & P4_GET_CARD) score += o_ptr->value;
+		if (o_ptr->code & P4_GET_3_CARD) score += 3;
 
 		/* Return score */
 		return score;
@@ -8133,11 +8133,11 @@ static int score_consume(power *o_ptr)
 	if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
 
 	/* Check for card awarded */
-	if (o_ptr->code & P4_GET_CARD) card += o_ptr->value;
+	if (o_ptr->code & P4_GET_CARD) card += 1;
 
 	/* Check for cards awarded */
-	if (o_ptr->code & P4_GET_2_CARD) card += o_ptr->value * 2;
-	if (o_ptr->code & P4_GET_3_CARD) card += o_ptr->value * 3;
+	if (o_ptr->code & P4_GET_2_CARD) card += 2;
+	if (o_ptr->code & P4_GET_3_CARD) card += 3;
 
 	/* Check for prestige awarded */
 	if (o_ptr->code & P4_GET_PRESTIGE) prestige += o_ptr->value;
@@ -8245,7 +8245,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	power *o_ptr, prestige_bonus;
 	pow_loc l_list[MAX_DECK];
 	char buf[1024], *name, buf2[1024];
-	int i;
+	int i, cards;
 
 	/* Activate action button */
 	gtk_widget_set_sensitive(action_button, TRUE);
@@ -8397,41 +8397,14 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 			}
 
 			/* Check for cards */
-			if (o_ptr->code & P4_GET_CARD)
+			cards = count_card_reward(o_ptr);
+			if (cards > 0)
 			{
 				/* Create card reward string */
-				sprintf(buf2, "%d card%s", o_ptr->value, PLURAL(o_ptr->value));
+				sprintf(buf2, "%d card%s", cards, PLURAL(cards));
 
 				/* Add to string */
 				strcat(buf, buf2);
-
-				/* Check for other reward as well */
-				if (o_ptr->code & (P4_GET_VP | P4_GET_PRESTIGE))
-				{
-					/* Add "and" */
-					strcat(buf, " and ");
-				}
-			}
-
-			/* Check for extra cards */
-			if (o_ptr->code & P4_GET_2_CARD)
-			{
-				/* Create card reward string */
-				strcat(buf, "2 cards");
-
-				/* Check for other reward as well */
-				if (o_ptr->code & (P4_GET_VP | P4_GET_PRESTIGE))
-				{
-					/* Add "and" */
-					strcat(buf, " and ");
-				}
-			}
-
-			/* Check for extra cards */
-			if (o_ptr->code & P4_GET_3_CARD)
-			{
-				/* Create card reward string */
-				strcat(buf, "3 cards");
 
 				/* Check for other reward as well */
 				if (o_ptr->code & (P4_GET_VP | P4_GET_PRESTIGE))

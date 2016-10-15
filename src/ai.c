@@ -6842,11 +6842,11 @@ static int score_consume(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
 
 	/* Check for card awarded */
-	if (o_ptr->code & P4_GET_CARD) card += o_ptr->value;
+	if (o_ptr->code & P4_GET_CARD) card += 1;
 
 	/* Check for cards awarded */
-	if (o_ptr->code & P4_GET_2_CARD) card += o_ptr->value * 2;
-	if (o_ptr->code & P4_GET_3_CARD) card += o_ptr->value * 3;
+	if (o_ptr->code & P4_GET_2_CARD) card += 2;
+	if (o_ptr->code & P4_GET_3_CARD) card += 3;
 
 	/* Assume trade will earn 4 cards */
 	if (o_ptr->code & P4_TRADE_ACTION) card += 4;
