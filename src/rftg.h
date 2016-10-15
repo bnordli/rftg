@@ -1179,6 +1179,7 @@ extern int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
                        int g_list[], int num);
 extern int good_chosen(game *g, int who, int c_idx, int o_idx, int min, int max,
                        int g_list[], int num);
+extern int count_consume_constraints(power *o_ptr);
 extern int count_card_reward(power *o_ptr);
 extern int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
                                int list[], int n);
