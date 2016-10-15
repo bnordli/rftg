@@ -9105,6 +9105,7 @@ static int score_produce(power *o_ptr)
 	if (o_ptr->code & P5_DRAW_EACH_GENE) score = -6;
 	if (o_ptr->code & P5_DRAW_EACH_ALIEN) score = -8;
 	if (o_ptr->code & P5_DRAW_DIFFERENT) score = -10;
+	if (o_ptr->code & P5_DRAW_EVERY_TWO) score = -12;
 
 	/* Return score */
 	return score;
@@ -9236,6 +9237,11 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		{
 			/* Make string */
 			sprintf(buf, "Draw per kind produced");
+		}
+		else if (o_ptr->code & P5_DRAW_EVERY_TWO)
+		{
+			/* Make string */
+			sprintf(buf, "Draw per 2 goods produced");
 		}
 
 		/* Check for discard required */
