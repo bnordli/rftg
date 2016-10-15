@@ -8625,7 +8625,9 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 {
 	card *c_ptr;
 	power *o_ptr;
-	int i, num_saved = num, types[6], num_types, goods_left;
+	int i, num_saved = num, types[6], required_any, num_types, goods_left;
+	int good_type;
+	uint64_t cons;
 
 	/* Loop over chosen goods */
 	for (i = 0; i < num_saved; ++i)
@@ -8665,6 +8667,39 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		{
 			/* Check for not two */
 			if (num != 2) return 0;
+
+			/* If there is more than 1 constraint, check everyone is satified */
+			if (count_consume_constraints(o_ptr) > 1)
+			{
+				/* Assume no GOOD_ANY required */
+				required_any = 0;
+
+				/* Clear type counts */
+				for (i = 0; i < 6; i++) types[i] = 0;
+
+				/* Loop over goods */
+				for (i = 0; i < num; i++)
+				{
+					/* Get card pointer */
+					c_ptr = &g->deck[g_list[i]];
+
+					/* Count good type */
+					types[c_ptr->d_ptr->good_type]++;
+				}
+
+				/* Count number of GOOD_ANY required */
+				for (cons = P4_CONSUME_NOVELTY, good_type = GOOD_NOVELTY;
+				     cons <= P4_CONSUME_ALIEN &&
+				     required_any <= types[GOOD_ANY];
+				     cons <<= 1, good_type++)
+				{
+					if ((o_ptr->code & cons) && types[good_type] == 0)
+						required_any++;
+				}
+
+				/* Check the constraints are satisfied */
+				if (required_any > types[GOOD_ANY]) return 0;
+			}
 		}
 
 		/* Check for needing three */
@@ -8753,6 +8788,23 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 	return 1;
 }
 
+/*
+ * Count the number of P4_CONSUME_X constraints of the given power
+ */
+int count_consume_constraints(power *o_ptr)
+{
+	int num_constraints = 0;
+	uint64_t cons;
+	for (cons = P4_CONSUME_ANY; cons <= P4_CONSUME_ALIEN; cons <<= 1)
+	{
+		if (o_ptr->code & cons) num_constraints++;
+	}
+	return num_constraints;
+}
+
+/*
+ * Count the number of cards attributed by the given consume power
+ */
 int count_card_reward(power *o_ptr)
 {
 	int card = 0;
@@ -9653,12 +9705,16 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		/* Count good type */
 		types[good]++;
 
-		/* Check for specific good type needed */
-		if (good != GOOD_ANY &&
-		   (((o_ptr->code & P4_CONSUME_NOVELTY)&&good != GOOD_NOVELTY) ||
-		    ((o_ptr->code & P4_CONSUME_RARE) && good != GOOD_RARE) ||
-		    ((o_ptr->code & P4_CONSUME_GENE) && good != GOOD_GENE) ||
-		    ((o_ptr->code & P4_CONSUME_ALIEN) && good != GOOD_ALIEN)))
+		/* Check the good is consumable by the power */
+		if (!((good == GOOD_ANY) ||
+			(o_ptr->code & P4_CONSUME_ANY) ||
+			(o_ptr->code & P4_CONSUME_3_DIFF) ||
+			(o_ptr->code & P4_CONSUME_N_DIFF) ||
+			(o_ptr->code & P4_CONSUME_ALL) ||
+			((o_ptr->code & P4_CONSUME_NOVELTY) && good == GOOD_NOVELTY) ||
+			((o_ptr->code & P4_CONSUME_RARE) && good == GOOD_RARE) ||
+			((o_ptr->code & P4_CONSUME_GENE) && good == GOOD_GENE) ||
+			((o_ptr->code & P4_CONSUME_ALIEN) && good == GOOD_ALIEN)))
 		{
 			/* Skip good */
 			continue;
@@ -9781,8 +9837,9 @@ int consume_action(game *g, int who)
 	power_where w_list[100], *w_ptr;
 	power *o_ptr;
 	int cidx[MAX_DECK], oidx[MAX_DECK];
-	int goods = 0, types[6], num_types = 0;
-	int i, x, need, n, num = 0;
+	int goods = 0, types[6], num_types = 0, num_constraints = 0;
+	int i, x, need, n, num = 0, required_any, good_type;
+	uint64_t cons;
 	int optional = 1;
 
 	/* Get player pointer */
@@ -9831,12 +9888,62 @@ int consume_action(game *g, int who)
 		/* Assume only one good needed */
 		need = 1;
 
-		/* Check for need two */
-		if (o_ptr->code & P4_CONSUME_TWO) need = 2;
-
 		/* Check for good on this world needed */
 		if ((o_ptr->code & P4_CONSUME_THIS) &&
 		    (!c_ptr->num_goods)) continue;
+
+		/* Check for need two */
+		if (o_ptr->code & P4_CONSUME_TWO)
+		{
+			need = 2;
+
+			/* Count number of constraints */
+			num_constraints = count_consume_constraints(o_ptr);
+
+			/* Cannot have more than two constraints */
+			if (num_constraints > 2)
+			{
+				/* Error */
+				display_error("Consume two power has more than two constraints!\n");
+				exit(1);
+			}
+
+			/* If there is more than one constraint, check every constraint
+			   can be satisfied */
+			if (num_constraints == 2)
+			{
+				required_any = 0;
+				for (cons = P4_CONSUME_NOVELTY, good_type = GOOD_NOVELTY;
+				     cons <= P4_CONSUME_ALIEN &&
+				     required_any <= types[GOOD_ANY];
+				     cons <<= 1, good_type++)
+				{
+					if ((o_ptr->code & cons) && types[good_type] == 0)
+						required_any++;
+				}
+
+				/* If not any good to satisfy all constraints skip power */
+				if (required_any > types[GOOD_ANY]) continue;
+
+				/* If consume any constraint, check number of good */
+				if (!(o_ptr->code & P4_CONSUME_ANY) || goods >= 2)
+				{
+					/* Add power to list */
+					cidx[num] = w_ptr->c_idx;
+					oidx[num] = w_ptr->o_idx;
+					num++;
+
+					/* Not optional */
+					optional = 0;
+				}
+
+				/* Process next power, either because this one was added, or
+				 * does not apply
+				 */
+				continue;
+			}
+			/* Else use previous code */
+		}
 
 		/* Check for regular consume powers */
 		if (((o_ptr->code & P4_CONSUME_ANY) && goods >= need) ||
