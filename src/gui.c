@@ -8268,7 +8268,8 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	power *o_ptr, prestige_bonus;
 	pow_loc l_list[MAX_DECK];
 	char buf[1024], *name, buf2[1024];
-	int i, cards;
+	int i, cards, nb_found = 0, gt;
+	uint64_t cons;
 
 	/* Activate action button */
 	gtk_widget_set_sensitive(action_button, TRUE);
@@ -8406,7 +8407,24 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 			else if (o_ptr->code & P4_CONSUME_TWO)
 			{
 				/* Start string */
-				sprintf(buf, "Consume two %sgoods for ", name);
+				if (count_consume_constraints(o_ptr) > 1)
+				{
+					nb_found = 0;
+					sprintf(buf, "Consume two goods (");
+					for (cons = P4_CONSUME_ANY, gt = GOOD_ANY;
+							gt < MAX_GOOD && nb_found < 2;
+							cons <<= 1, gt++)
+					{
+						if (o_ptr->code & cons)
+						{
+							if (nb_found == 1) strcat(buf, " and ");
+							strcat(buf, good_printable[gt]);
+							nb_found++;
+						}
+					}
+					strcat(buf, ") for ");
+				}
+				else sprintf(buf, "Consume two %sgoods for ", name);
 			}
 			else if (o_ptr->code & P4_CONSUME_PRESTIGE)
 			{
