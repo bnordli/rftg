@@ -8753,6 +8753,14 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 	return 1;
 }
 
+int count_card_reward(power *o_ptr)
+{
+	int card = 0;
+	if (o_ptr->code & P4_GET_CARD) card += 1;
+	if (o_ptr->code & P4_GET_2_CARD) card += 2;
+	if (o_ptr->code & P4_GET_3_CARD) card += 3;
+	return card;
+}
 
 /*
  * Called when a player has chosen goods to consume.
@@ -8875,26 +8883,10 @@ int good_chosen(game *g, int who, int c_idx, int o_idx,
 		vps = o_ptr->value * times * vp_mult;
 	}
 
-	/* Check for card award */
-	if (o_ptr->code & P4_GET_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value * times;
-	}
-
-	/* XXX Check for multiple card award */
-	if (o_ptr->code & P4_GET_2_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value * 2 * times;
-	}
-
-	/* XXX Check for multiple card award */
-	if (o_ptr->code & P4_GET_3_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value * 3 * times;
-	}
+	/* Determine amount of card award
+	 * Note: the card award is not affected by the power value
+	 */
+	cards = count_card_reward(o_ptr) * times;
 
 	/* Check for prestige award */
 	if (o_ptr->code & P4_GET_PRESTIGE)
@@ -9323,12 +9315,8 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 			vps += o_ptr->value;
 		}
 
-		/* Count card rewards */
-		if (o_ptr->code & P4_GET_CARD)
-		{
-			/* Remember cards */
-			cards += o_ptr->value;
-		}
+		/* Count card reward */
+		cards += count_card_reward(o_ptr);
 
 		/* Count prestige rewards */
 		if (o_ptr->code & P4_GET_PRESTIGE)
@@ -9446,11 +9434,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	cards = vps = 0;
 
 	/* Count card reward */
-	if (o_ptr->code & P4_GET_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value;
-	}
+	cards += count_card_reward(o_ptr);
 
 	/* Count VP rewards */
 	if (o_ptr->code & P4_GET_VP)
