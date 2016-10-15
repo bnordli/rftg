@@ -401,6 +401,10 @@
 
 #define P4_CONSUME_PRESTIGE   (1ULL << 20)
 
+/* Contrary to other consume rewards (e.g., vp, prestige), where the value of
+ * the power indicates the amount gained by using the power, the number of
+ * drawn cards is encoded in the power flag.
+ */
 #define P4_GET_CARD           (1ULL << 21)
 #define P4_GET_2_CARD         (1ULL << 22)
 #define P4_GET_3_CARD         (1ULL << 23)
@@ -1175,6 +1179,7 @@ extern int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
                        int g_list[], int num);
 extern int good_chosen(game *g, int who, int c_idx, int o_idx, int min, int max,
                        int g_list[], int num);
+extern int count_card_reward(power *o_ptr);
 extern int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
                                int list[], int n);
 extern void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx);
