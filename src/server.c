@@ -3627,14 +3627,14 @@ static void handle_create(int cid, char *ptr)
 
 	/* Validate expansion level */
 	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
-	if (s_ptr->expanded > 4) s_ptr->expanded = 4;
+	if (s_ptr->expanded > 5) s_ptr->expanded = 5;
 
 	/* Compute maximum number of players allowed */
 	maxp = s_ptr->expanded + 4;
 	if (maxp > 6) maxp = 6;
 
-	/* Maximum of 5 players for Alien Artifacts */
-	if (s_ptr->expanded == 4 && maxp > 5) maxp = 5;
+	/* Maximum of 5 players for Alien Artifacts and Xeno Invasion */
+	if (s_ptr->expanded >= 4 && maxp > 5) maxp = 5;
 
 	/* Validate number of players */
 	if (s_ptr->min_player < 2) s_ptr->min_player = 2;
@@ -3645,8 +3645,8 @@ static void handle_create(int cid, char *ptr)
 		s_ptr->min_player = s_ptr->max_player;
 
 	/* Validate disabled flags */
-	if (s_ptr->expanded < 1 || s_ptr->expanded == 4) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2 || s_ptr->expanded == 4) s_ptr->disable_takeover = 0;
+	if (s_ptr->expanded < 1 || s_ptr->expanded >= 4) s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < 2 || s_ptr->expanded >= 4) s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */
 	s_ptr->gid = db_new_game(sid);
