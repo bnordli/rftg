@@ -26,10 +26,10 @@ do
 		factor=1
 	fi
 	promo=''
-	if [ `expr $i % 2` = 1 ]
-	then
-		promo=-o
-	fi
+#	if [ `expr $i % 2` = 1 ]
+#	then
+#		promo=-o
+#	fi
 	advopt=''
 	if [ "$advanced" = a ]
 	then
