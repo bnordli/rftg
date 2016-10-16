@@ -28,11 +28,11 @@
 #endif
 
 #ifndef VERSION
-#define VERSION "0.9.4"
+#define VERSION "0.9.5"
 #endif
 
 #ifndef RELEASE
-#define RELEASE VERSION "q"
+#define RELEASE VERSION ""
 #endif
 
 #include <stdio.h>
