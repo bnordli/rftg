@@ -4,6 +4,7 @@
  * Copyright (C) 2009-2015 Keldon Jones
  *
  * Source file modified by B. Nordli, August 2015.
+ * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13910,6 +13911,7 @@ static void about_dialog(GtkMenuItem *menu_item, gpointer data)
 "This program is written by Keldon Jones, and the source code is licensed \
 under the GNU General Public License.\n\n\
 The interface enhancement release " RELEASE " is written by B. Nordli.\n\n\
+The Xeno Invasion expansion has been added by J.-R. Reinhard.\n\n\
 Race for the Galaxy was designed by Tom Lehmann and published by Rio Grande \
 Games.  All card and other art is copyrighted by Rio Grande Games.\n\n\
 Send bug reports to keldon@keldon.net");
