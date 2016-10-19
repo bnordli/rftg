@@ -3686,7 +3686,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int gene_used = 0, rare_used = 0, alien_used = 0, novelty_used = 0;
+	int novelty_used = 0, rare_used = 0, gene_used = 0, alien_used = 0;
 	int i, n, cost, defense, military, conquer, good, pay_military;
 	int pay_cost, pay_discount;
 	int conquer_peaceful, conquer_bonus;
@@ -8611,7 +8611,8 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 {
 	card *c_ptr;
 	power *o_ptr;
-	int i, num_saved = num, types[6], required_any, num_types, goods_left, gt;
+	int i, num_saved = num, types[6], required_any, num_types, goods_left;
+	int good_type;
 	uint64_t cons;
 
 	/* Loop over chosen goods */
@@ -8654,7 +8655,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			if (num != 2) return 0;
 
 			/* If there is more than 1 constraint, check everyone is satified */
-			if (count_consume_constraints(o_ptr) >= 2)
+			if (count_consume_constraints(o_ptr) > 1)
 			{
 				/* Assume no GOOD_ANY required */
 				required_any = 0;
@@ -8672,15 +8673,17 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 					types[c_ptr->d_ptr->good_type]++;
 				}
 
-				/* Count nomber of GOOD_ANY required */
-				for (cons = P4_CONSUME_NOVELTY, gt = GOOD_NOVELTY;
-						cons <= P4_CONSUME_ALIEN &&
-						required_any <= types[GOOD_ANY];
-						cons <<= 1, gt++)
+				/* Count number of GOOD_ANY required */
+				for (cons = P4_CONSUME_NOVELTY, good_type = GOOD_NOVELTY;
+				     cons <= P4_CONSUME_ALIEN &&
+				     required_any <= types[GOOD_ANY];
+				     cons <<= 1, good_type++)
 				{
-					if ((o_ptr->code & cons) && types[gt] == 0) required_any++;
+					if ((o_ptr->code & cons) && types[good_type] == 0)
+						required_any++;
 				}
-				/* Check the constrainst are satisfied */
+
+				/* Check the constraints are satisfied */
 				if (required_any > types[GOOD_ANY]) return 0;
 			}
 		}
@@ -9829,7 +9832,7 @@ int consume_action(game *g, int who)
 	power *o_ptr;
 	int cidx[MAX_DECK], oidx[MAX_DECK];
 	int goods = 0, types[6], num_types = 0, num_constraints = 0;
-	int i, x, need, n, num = 0, required_any, gt;
+	int i, x, need, n, num = 0, required_any, good_type;
 	uint64_t cons;
 	int optional = 1;
 
@@ -9904,16 +9907,18 @@ int consume_action(game *g, int who)
 			if (num_constraints == 2)
 			{
 				required_any = 0;
-				for (cons = P4_CONSUME_NOVELTY, gt = GOOD_NOVELTY;
-						cons <= P4_CONSUME_ALIEN &&
-						required_any <= types[GOOD_ANY];
-						cons <<= 1, gt++)
+				for (cons = P4_CONSUME_NOVELTY, good_type = GOOD_NOVELTY;
+				     cons <= P4_CONSUME_ALIEN &&
+				     required_any <= types[GOOD_ANY];
+				     cons <<= 1, good_type++)
 				{
-					if ((o_ptr->code & cons) && types[gt] == 0) required_any++;
+					if ((o_ptr->code & cons) && types[good_type] == 0)
+						required_any++;
 				}
-				/* if not any good to satisfy all constraints skip power */
-				if (required_any > types[GOOD_ANY])
-					continue;
+
+				/* If not any good to satisfy all constraints skip power */
+				if (required_any > types[GOOD_ANY]) continue;
+
 				/* If consume any constraint, check number of good */
 				if (!(o_ptr->code & P4_CONSUME_ANY) || goods >= 2)
 				{
