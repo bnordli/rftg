@@ -756,8 +756,20 @@ void read_campaign(void)
 				/* Get number of players string */
 				ptr = strtok(NULL, ":");
 
-				/* Read number of players */
-				a_ptr->num_players = strtol(ptr, NULL, 0);
+				/* Read minimum number of players */
+				a_ptr->min_num_players = strtol(ptr, NULL, 0);
+
+				/* Check for player range */
+				if (ptr[1] == '-')
+				{
+					/* Read maximum number of players */
+					a_ptr->max_num_players = strtol(ptr + 2, NULL, 0);
+				}
+				else
+				{
+					/* Read number of players */
+					a_ptr->max_num_players = a_ptr->min_num_players;
+				}
 
 				/* Get advanced string */
 				ptr = strtok(NULL, ":");
@@ -958,7 +970,7 @@ static void init_campaign(game *g)
 	memset(g->camp_status, 0, sizeof(campaign_status));
 
 	/* Loop over players */
-	for (i = 0; i < MAX_PLAYER; i++)
+	for (i = 0; i < g->num_players; i++)
 	{
 		/* Loop over set aside cards for this player */
 		for (j = 0; j < g->camp->size[i]; j++)
@@ -1044,10 +1056,11 @@ void apply_campaign(game *g)
 	{
 		/* Override game options with campaign versions */
 		g->expanded = g->camp->expanded;
-		g->num_players = g->camp->num_players;
-		g->advanced = g->camp->advanced;
-		g->goal_disabled = g->camp->goal_disabled;
-		g->takeover_disabled = g->camp->takeover_disabled;
+		if (g->num_players < g->camp->min_num_players) g->num_players = g->camp->min_num_players;
+		if (g->num_players > g->camp->max_num_players) g->num_players = g->camp->max_num_players;
+		if (g->camp->advanced >= 0) g->advanced = g->camp->advanced;
+		if (g->camp->goal_disabled >= 0) g->goal_disabled = g->camp->goal_disabled;
+		if (g->camp->takeover_disabled >= 0) g->takeover_disabled = g->camp->takeover_disabled;
 	}
 }
 

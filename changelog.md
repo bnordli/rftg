@@ -16,6 +16,8 @@
 
 ### Campaigns
 
+* Support player ranges
+* Support customizable game options
 * Fix bug using Old Earth
 * Fix problems for cards with duplicate names
 * Add `DRAW_FOUR` flag (for preset start hands)

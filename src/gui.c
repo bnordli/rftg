@@ -10193,18 +10193,17 @@ static void apply_options(void)
 		real_game.random_seed = time(NULL) + games_started++;
 	}
 
+	/* Find campaign (if any) */
+	real_game.camp = find_campaign(opt.campaign_name);
+
+	/* Apply campaign options (number of players, etc) */
+	apply_campaign(&real_game);
 	/* Sanity check advanced mode */
 	if (real_game.num_players > 2)
 	{
 		/* Clear advanced mode */
 		real_game.advanced = 0;
 	}
-
-	/* Find campaign (if any) */
-	real_game.camp = find_campaign(opt.campaign_name);
-
-	/* Apply campaign options (number of players, etc) */
-	apply_campaign(&real_game);
 }
 
 /*
@@ -11744,31 +11743,93 @@ static void update_sensitivity()
 		{
 			gtk_widget_set_sensitive(expansion_radio[i], i == camp->expanded);
 		}
+	}
+	else
+	{
+		/* Set expansion radio sensitivities */
+		for (i = 0; exp_names[i]; ++i)
+		{
+			gtk_widget_set_sensitive(expansion_radio[i], TRUE);
+		}
+	}
 
-		/* Set player button active */
-		gtk_toggle_button_set_active(
-		    GTK_TOGGLE_BUTTON(num_players_radio[camp->num_players - 2]), TRUE);
+	/* Check for campaign */
+	if (camp)
+	{
+		/* Check for too low player count */
+		if (next_player < camp->min_num_players)
+		{
+			/* Cap at minimum */
+			next_player = camp->min_num_players;
+
+			/* Set minimum player button active */
+			gtk_toggle_button_set_active(
+			    GTK_TOGGLE_BUTTON(num_players_radio[camp->min_num_players - 2]), TRUE);
+		}
+
+		/* Check for too high player count */
+		if (next_player > camp->max_num_players)
+		{
+			/* Cap at maximum */
+			next_player = camp->max_num_players;
+
+			/* Set maximum player button active */
+			gtk_toggle_button_set_active(
+			    GTK_TOGGLE_BUTTON(num_players_radio[camp->max_num_players - 2]), TRUE);
+		}
 
 		/* Clear player radio sensitivities */
 		for (i = 0; player_labels[i]; ++i)
 		{
-			gtk_widget_set_sensitive(num_players_radio[i], i == camp->num_players - 2);
+			gtk_widget_set_sensitive(num_players_radio[i],
+			    i >= camp->min_num_players - 2 && i <= camp->max_num_players - 2);
 		}
+	}
+	else
+	{
+		/* Set player radio sensitivities */
+		for (i = 0; player_labels[i]; ++i)
+		{
+			gtk_widget_set_sensitive(num_players_radio[i],
+			                         i + 2 <= exp_max_player[next_exp]);
+		}
+	}
 
+	/* Check if campaign specifies advanced game */
+	if (camp && camp->advanced >= 0)
+	{
 		/* Set advanced checkbox value */
 		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(advanced_check),
 		                             camp->advanced);
 
 		/* Clear advanced checkbox sensitivity */
 		gtk_widget_set_sensitive(advanced_check, FALSE);
+	}
+	else
+	{
+		/* Set advanced checkbox sensitivity */
+		gtk_widget_set_sensitive(advanced_check, next_player == 2);
+	}
 
+	/* Check if campaign specifies goals */
+	if (camp && camp->goal_disabled >= 0)
+	{
 		/* Set goal disabled checkbox value */
 		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_goal_check),
 		                             camp->goal_disabled);
 
 		/* Clear goal disabled checkbox sensitivity */
 		gtk_widget_set_sensitive(disable_goal_check, FALSE);
+	}
+	else
+	{
+		/* Set goal disabled checkbox sensitivity */
+		gtk_widget_set_sensitive(disable_goal_check, next_exp >= EXP_TGS && next_exp <= EXP_BOW);
+	}
 
+	/* Check if campaign specifies takeovers */
+	if (camp && camp->takeover_disabled >= 0)
+	{
 		/* Set takeover disabled checkbox value */
 		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(disable_takeover_check),
 		                             camp->takeover_disabled);
@@ -11778,27 +11839,8 @@ static void update_sensitivity()
 	}
 	else
 	{
-		/* Set expansion radio sensitivities */
-		for (i = 0; exp_names[i]; ++i)
-		{
-			gtk_widget_set_sensitive(expansion_radio[i], TRUE);
-		}
-
-		/* Set player radio sensitivities */
-		for (i = 0; player_labels[i]; ++i)
-		{
-			gtk_widget_set_sensitive(num_players_radio[i],
-			                         i + 2 <= exp_max_player[next_exp]);
-		}
-
-		/* Set advanced checkbox sensitivity */
-		gtk_widget_set_sensitive(advanced_check, next_player == 2);
-
-		/* Set goal disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_goal_check, next_exp > 0 && next_exp < 4);
-
 		/* Set takeover disabled checkbox sensitivity */
-		gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1 && next_exp < 4);
+		gtk_widget_set_sensitive(disable_takeover_check, next_exp >= EXP_RVI && next_exp <= EXP_BOW);
 	}
 }
 

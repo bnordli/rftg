@@ -3,16 +3,30 @@
 # N:campaign name
 #   Names starting with --- or === function as separators and cannot be selected
 # O:expansion:num_players:advanced_game:goals_disabled:takeovers_disabled
+#   expansion:
+#       0: Base game only
+#       1: The Gathering Storm
+#       2: Rebel vs Imperium
+#       3: The Brink of War
+#       4: Alien Artifacts
+#       5: Xeno Invasion
+#   num_players:
+#       n: Exactly n players
+#     x-y: Between x and y players (inclusive)
+#   advanced_game, goals_disabled, takeovers_disabled
+#      -1: Chosen by player
+#       0: Always false
+#       1: Always true
 # D:campaign description (can span multiple lines)
 # F:flags
 #   DRAW_EXTRA | DRAW_FOUR
 # C:Card name or RANDOM
-#   stacked draw deck for each player, first card is placed in tableu
+#   Stacked draw deck for each player, first card is placed in tableu
 # C:---
-#   go to next player
+#   Go to next player
 
 N:Alien Nightmare
-O:1:2:1:0:0
+O:1:2:-1:-1:0
 D:You have a random start world versus Earth's Lost Colony with Alien
 D:Toy Shop in the starting hand.
 C:---
@@ -20,7 +34,7 @@ C:Earth's Lost Colony
 C:Alien Toy Shop
 
 N:Rebel vs Imperium
-O:2:2:1:0:0
+O:2:2:-1:-1:0
 D:Play Rebel Cantina vs Imperium Warlord
 F:DRAW_EXTRA
 C:Rebel Cantina
@@ -42,7 +56,7 @@ C:RANDOM
 C:Imperium Seat
 
 N:Imperium vs Rebel
-O:2:2:1:0:0
+O:2:2:-1:-1:0
 D:Play Imperium Warlord vs Rebel Cantina
 F:DRAW_EXTRA
 C:Imperium Warlord

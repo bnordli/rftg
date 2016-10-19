@@ -1056,8 +1056,11 @@ typedef struct campaign
 	/* Expansion level needed */
 	int expanded;
 
-	/* Number of players */
-	int num_players;
+	/* Minimum number of players */
+	int min_num_players;
+
+	/* Maximum number of players */
+	int max_num_players;
 
 	/* Game options */
 	int advanced;
