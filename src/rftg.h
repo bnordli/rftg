@@ -67,7 +67,7 @@
 /*
  * Number of available card designs slots.
  */
-#define AVAILABLE_DESIGN 280
+#define AVAILABLE_DESIGN 300
 
 /*
  * Number of original card designs.
