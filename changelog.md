@@ -6,6 +6,14 @@
 * *Alien Survey Technology* no longer scores with *Galactic Survey: SETI*
 * *Alien Oort Cloud Refinery* is now optional to use with *Diversified Economy*
 
+### GUI
+
+* Corrected card image for *Imperium War Faction*
+* *AA* indicates *Alien Artifacts* in list of online games.
+* Do not display tool tips for pay-for-military powers when using *Imperium Supply Convoy*
+* Do not display "(or pass if you want to flip a card)" when using *Imperium Supply Convoy*
+* Keyboard accelerators also for settle prompt
+
 # Changelog for 0.9.4 versions
 
 ## 0.9.4q

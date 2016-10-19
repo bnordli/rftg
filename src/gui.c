@@ -3753,7 +3753,7 @@ static char *card_settle_tooltip(game *g, int who, int special,
 	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
 	int num_hand, which, mil_only, mil_needed;
-	int conquer_mil, conquer_discount_mil, cost;
+	int conquer_mil, conquer_discount_mil, cost, supply_convoy = 0;
 	int mil_bonus = 0, placed;
 
 	/* Get discounts */
@@ -3806,6 +3806,9 @@ static char *card_settle_tooltip(game *g, int who, int special,
 		if (special >= 0 &&
 		    !strcmp(g->deck[special].d_ptr->name, "Imperium Supply Convoy"))
 		{
+			/* Save card */
+			supply_convoy = 1;
+
 			/* Look up the first world placed */
 			placed = g->p[who].head[WHERE_ACTIVE];
 
@@ -3832,31 +3835,37 @@ static char *card_settle_tooltip(game *g, int who, int special,
 			             mil_needed);
 		}
 
-		/* Check for any pay-for-military power */
-		if (cost_card && cost <= num_hand + d_ptr->max_bonus)
+		/* Check for any pay-for-military power
+		   (not compatible with Imperiun Supply Colony)
+		*/
+		if (cost_card && !supply_convoy)
 		{
-			/* Format text */
-			p += sprintf(p, "Cost to place if using %s: %d\n",
-			             cost_card, cost);
-		}
-
-		/* Check for any pay-for-military power and reduce to 0 */
-		if (cost_card && c_ptr->d_ptr->good_type != GOOD_ALIEN)
-		{
-			/* Check for reduce to zero cost */
-			if (d_ptr->zero[0])
+			/* Check for any pay-for-military power */
+			if (cost <= num_hand + d_ptr->max_bonus)
 			{
 				/* Format text */
-				p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
-				             cost_card, d_ptr->zero[0]->d_ptr->name);
+				p += sprintf(p, "Cost to place if using %s: %d\n",
+				             cost_card, cost);
 			}
 
-			/* Check for another reduce to zero cost */
-			if (d_ptr->zero[1])
+			/* Check for any pay-for-military power and reduce to 0 */
+			if (c_ptr->d_ptr->good_type != GOOD_ALIEN)
 			{
-				/* Format text */
-				p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
-				             cost_card, d_ptr->zero[1]->d_ptr->name);
+				/* Check for reduce to zero cost */
+				if (d_ptr->zero[0])
+				{
+					/* Format text */
+					p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
+					             cost_card, d_ptr->zero[0]->d_ptr->name);
+				}
+
+				/* Check for another reduce to zero cost */
+				if (d_ptr->zero[1])
+				{
+					/* Format text */
+					p += sprintf(p, "Cost to place if using %s\n  and %s: 0\n",
+					             cost_card, d_ptr->zero[1]->d_ptr->name);
+				}
 			}
 		}
 	}
@@ -6864,7 +6873,7 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 	}
 
 	/* Check for possible flip power */
-	if (phase == PHASE_SETTLE)
+	if (phase == PHASE_SETTLE && special == -1)
 	{
 		/* Get settle powers */
 		n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -7416,6 +7425,25 @@ typedef struct pow_loc
 
 } pow_loc;
 
+void add_combo_accelerators(GtkWidget *combo, int size)
+{
+	/* Add handler for keypresses */
+	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
+		GDK_F12, 0, 0);
+	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
+		GDK_Up, GDK_SHIFT_MASK, 0);
+	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
+		GDK_Down, GDK_SHIFT_MASK, 0);
+
+	/* Connect key signals */
+	g_signal_connect(G_OBJECT(combo), "key-signal",
+		G_CALLBACK(combo_open), NULL);
+	g_signal_connect(G_OBJECT(combo), "up-signal",
+		G_CALLBACK(combo_up), NULL);
+	g_signal_connect(G_OBJECT(combo), "down-signal",
+		G_CALLBACK(combo_down), GINT_TO_POINTER(size));
+}
+
 /*
  * Choose a settle power to use.
  */
@@ -7508,6 +7536,9 @@ void gui_choose_settle(game *g, int who, int cidx[], int oidx[], int *num,
 
 	/* Add combo box to action box */
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
+
+	/* Add handler for keypresses */
+	add_combo_accelerators(combo, *num + 1);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -7874,20 +7905,7 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
 	/* Add handler for keypresses */
-	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
-	                           GDK_F12, 0, 0);
-	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
-	                           GDK_Up, GDK_SHIFT_MASK, 0);
-	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
-	                           GDK_Down, GDK_SHIFT_MASK, 0);
-
-	/* Connect key signals */
-	g_signal_connect(G_OBJECT(combo), "key-signal",
-	                 G_CALLBACK(combo_open), NULL);
-	g_signal_connect(G_OBJECT(combo), "up-signal",
-	                 G_CALLBACK(combo_up), NULL);
-	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num + 1));
+	add_combo_accelerators(combo, *num + 1);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -8518,20 +8536,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
 	/* Add handler for keypresses */
-	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
-	                           GDK_F12, 0, 0);
-	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
-	                           GDK_Up, GDK_SHIFT_MASK, 0);
-	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
-	                           GDK_Down, GDK_SHIFT_MASK, 0);
-
-	/* Connect key signals */
-	g_signal_connect(G_OBJECT(combo), "key-signal",
-	                 G_CALLBACK(combo_open), NULL);
-	g_signal_connect(G_OBJECT(combo), "up-signal",
-	                 G_CALLBACK(combo_up), NULL);
-	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(*num + optional));
+	add_combo_accelerators(combo, *num + optional);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -9308,20 +9313,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
 	/* Add handler for keypresses */
-	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
-	                           GDK_F12, 0, 0);
-	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
-	                           GDK_Up, GDK_SHIFT_MASK, 0);
-	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
-	                           GDK_Down, GDK_SHIFT_MASK, 0);
-
-	/* Connect key signals */
-	g_signal_connect(G_OBJECT(combo), "key-signal",
-	                 G_CALLBACK(combo_open), NULL);
-	g_signal_connect(G_OBJECT(combo), "up-signal",
-	                 G_CALLBACK(combo_up), NULL);
-	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(num));
+	add_combo_accelerators(combo, num);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -9515,21 +9507,7 @@ int gui_choose_search_type(game *g, int who)
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
 	/* Add handler for keypresses */
-	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
-	                           GDK_F12, 0, 0);
-	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
-	                           GDK_Up, GDK_SHIFT_MASK, 0);
-	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
-	                           GDK_Down, GDK_SHIFT_MASK, 0);
-
-	/* Connect key signals */
-	g_signal_connect(G_OBJECT(combo), "key-signal",
-	                 G_CALLBACK(combo_open), NULL);
-	g_signal_connect(G_OBJECT(combo), "up-signal",
-	                 G_CALLBACK(combo_up), NULL);
-	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down),
-	                 GINT_TO_POINTER(MAX_SEARCH - real_game.takeover_disabled));
+	add_combo_accelerators(combo, MAX_SEARCH - real_game.takeover_disabled);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -9612,20 +9590,7 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
 	/* Add handler for keypresses */
-	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
-	                           GDK_F12, 0, 0);
-	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
-	                           GDK_Up, GDK_SHIFT_MASK, 0);
-	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
-	                           GDK_Down, GDK_SHIFT_MASK, 0);
-
-	/* Connect key signals */
-	g_signal_connect(G_OBJECT(combo), "key-signal",
-	                 G_CALLBACK(combo_open), NULL);
-	g_signal_connect(G_OBJECT(combo), "up-signal",
-	                 G_CALLBACK(combo_up), NULL);
-	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(2));
+	add_combo_accelerators(combo, 2);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
@@ -9686,20 +9651,7 @@ int gui_choose_oort_kind(game *g, int who)
 	gtk_box_pack_end(GTK_BOX(action_box), combo, FALSE, TRUE, 0);
 
 	/* Add handler for keypresses */
-	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
-	                           GDK_F12, 0, 0);
-	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
-	                           GDK_Up, GDK_SHIFT_MASK, 0);
-	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
-	                           GDK_Down, GDK_SHIFT_MASK, 0);
-
-	/* Connect key signals */
-	g_signal_connect(G_OBJECT(combo), "key-signal",
-	                 G_CALLBACK(combo_open), NULL);
-	g_signal_connect(G_OBJECT(combo), "up-signal",
-	                 G_CALLBACK(combo_up), NULL);
-	g_signal_connect(G_OBJECT(combo), "down-signal",
-	                 G_CALLBACK(combo_down), GINT_TO_POINTER(4));
+	add_combo_accelerators(combo, 4);
 
 	/* Show everything */
 	gtk_widget_show_all(combo);
