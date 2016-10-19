@@ -3,6 +3,7 @@
 ### Gameplay
 
 * Regular cards from *Xeno Invasion* expansion added (no invasion game)
+* *Alien Survey Technology* no longer scores with *Galactic Survey: SETI*
 
 # Changelog for 0.9.4 versions
 

@@ -13943,7 +13943,7 @@ static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 				o_ptr = &d_ptr->powers[i];
 
 				/* Check for explore power */
-				if (o_ptr->phase == PHASE_EXPLORE) return 1;
+				if (o_ptr->phase == PHASE_EXPLORE && o_ptr->code != P1_ORB_MOVEMENT) return 1;
 			}
 
 			/* No explore powers */
