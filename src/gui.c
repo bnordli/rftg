@@ -3218,7 +3218,7 @@ static char *get_military_tooltip(mil_strength *military)
 		strcat(msg, text);
 	}
 
-	/* Add maximum temporary military against xeno*/
+	/* Add maximum temporary military against Xeno */
 	if (military->max_bonus_xeno)
 	{
 		/* Create text */

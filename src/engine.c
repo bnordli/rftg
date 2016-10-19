@@ -3532,7 +3532,7 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 			if ((o_ptr->code & P3_XENO) &&
 			    (c_ptr->d_ptr->flags & FLAG_XENO))
 			{
-				/* if power requires payment, skip power */
+				/* If power requires payment, skip power */
 				if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
 				/* Check for per peaceful military */
@@ -3599,7 +3599,7 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 	/* Add in bonus temporary military strength */
 	military += p_ptr->bonus_military;
 
-	/* Add in bonus temporary military strength against Xeno*/
+	/* Add in bonus temporary military strength against Xeno */
 	if (c_ptr->d_ptr->flags & FLAG_XENO)
 	{
 	    military += p_ptr->bonus_military_xeno;
@@ -3792,7 +3792,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
-			/* Skip generic powers taken into account in total_military */
+			/* Skip powers taken into account in total_military */
 			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
 
 			/* Check for specificity */
@@ -3821,18 +3821,18 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 				continue;
 			}
 
-			/* military power applies, check for payment availability */
+			/* Military power applies, check for payment availability */
 
 			/* Note: the following code is based on the assumption that a given
-			 * good provide a fixed amount of possible extra-military and can
-			 * only be used by a single type of consume power This is only true
+			 * good provides a fixed amount of possible extra-military and can
+			 * only be used by a single type of consume power. This is only true
 			 * because for expansions providing good of type ANY, there is only
-			 * one type of consume for extra-military.  The general case would
+			 * one type of consume for extra-military. The general case would
 			 * require to compute the best affectation of good for military. We
 			 * postpone this implementation because it is not needed for the
 			 * time being.
 			 */
-			
+
 			/* Check for consumption required */
 			if (o_ptr->code & P3_CONSUME_NOVELTY)
 			{
@@ -3886,8 +3886,9 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 				continue;
 			}
 
-			/* Check for discard needed is not necessary, since it can */
-			/* always be paid by discarding */
+			/* Check for discard needed is not necessary, since it can
+			 * always be paid by discarding
+			 */
 			/* if (o_ptr->code & P3_DISCARD)
 			{
 			}
@@ -3904,7 +3905,7 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 			{
 				military += o_ptr->value;
 			}
-			/* power taken into account, go to next power */
+			/* Power taken into account, go to next power */
 			continue;
 		}
 
@@ -4221,7 +4222,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				/* Add extra military */
 				military += o_ptr->value;
 
-				/* Need one more rare good */
+				/* Need one more novelty good */
 				goods_needed[GOOD_NOVELTY]++;
 			}
 
@@ -4710,7 +4711,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 					message_add(g, msg);
 				}
 
-				/* Need one more rare good */
+				/* Need one more novelty good */
 				goods_needed[GOOD_NOVELTY]++;
 			}
 
@@ -4896,7 +4897,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
-			/* Skip generic powers taken into account in total_military */
+			/* Skip powers taken into account in total_military */
 			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
 
 			/* Skip powers that require good consumption */
@@ -5336,7 +5337,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 				continue;
 			}
 
-			/* If power needs payement add to special */
+			/* If power needs payment add to special */
 			/* Check for discard for extra military */
 			if (o_ptr->code & P3_DISCARD)
 			{
@@ -9894,7 +9895,7 @@ int consume_action(game *g, int who)
 			/* Count number of constraints */
 			num_constraints = count_consume_constraints(o_ptr);
 
-			/* cannot have more that two constraints */
+			/* Cannot have more than two constraints */
 			if (num_constraints > 2)
 			{
 				/* Error */
@@ -9936,7 +9937,7 @@ int consume_action(game *g, int who)
 				 */
 				continue;
 			}
-			/* else use previous code */
+			/* Else use previous code */
 		}
 
 		/* Check for regular consume powers */
