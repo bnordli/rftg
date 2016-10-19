@@ -1,3 +1,9 @@
+# Next version
+
+### Gameplay
+
+* *Alien Survey Technology* no longer scores with *Galactic Survey: SETI*
+
 # Changelog for 0.9.4 versions
 
 ## 0.9.4q
