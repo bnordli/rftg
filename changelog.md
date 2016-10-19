@@ -14,6 +14,15 @@
 * Do not display "(or pass if you want to flip a card)" when using *Imperium Supply Convoy*
 * Keyboard accelerators also for settle prompt
 
+### Campaigns
+
+* Fix bug using Old Earth
+* Fix problems for cards with duplicate names
+* Add `DRAW_FOUR` flag (for preset start hands)
+* Add description at top of `campaign.txt`
+* Support campaign separators (names starting with `===` or `---`)
+* Support custom cards
+
 # Changelog for 0.9.4 versions
 
 ## 0.9.4q

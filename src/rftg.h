@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2015.
+ * Source file modified by B. Nordli, October 2016.
  * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -280,7 +280,8 @@ extern int exp_max_player[MAX_EXPANSION];
 /*
  * Campaign flags.
  */
-#define CAMP_DRAW_EXTRA          0x1
+#define CAMP_DRAW_EXTRA       (1ULL << 0)
+#define CAMP_DRAW_FOUR        (1ULL << 1)
 
 
 /*

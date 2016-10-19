@@ -1,3 +1,16 @@
+# campaign.txt
+#
+# N:campaign name
+#   Names starting with --- or === function as separators and cannot be selected
+# O:expansion:num_players:advanced_game:goals_disabled:takeovers_disabled
+# D:campaign description (can span multiple lines)
+# F:flags
+#   DRAW_EXTRA | DRAW_FOUR
+# C:Card name or RANDOM
+#   stacked draw deck for each player, first card is placed in tableu
+# C:---
+#   go to next player
+
 N:Alien Nightmare
 O:1:2:1:0:0
 D:You have a random start world versus Earth's Lost Colony with Alien

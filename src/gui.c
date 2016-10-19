@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2015.
+ * Source file modified by B. Nordli, October 2016.
  * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -11810,7 +11810,7 @@ static GtkWidget *campaign_desc;
 /*
  * Selected campaign was changed.
  */
-static void campaign_changed(GtkComboBox *combo, gpointer data)
+static void campaign_changed(GtkComboBox *combo, GtkWidget *ok_button)
 {
 	int i;
 
@@ -11828,6 +11828,19 @@ static void campaign_changed(GtkComboBox *combo, gpointer data)
 		/* Set campaign description */
 		gtk_label_set_text(GTK_LABEL(campaign_desc),
 		                   camp_library[i - 1].desc);
+
+		/* Check for separator line */
+		if (strstr(camp_library[i - 1].name, "===") == camp_library[i - 1].name ||
+		    strstr(camp_library[i - 1].name, "---") == camp_library[i - 1].name)
+		{
+			/* Disable the OK button */
+			gtk_widget_set_sensitive(ok_button, FALSE);
+		}
+		else
+		{
+			/* Enable the OK button */
+			gtk_widget_set_sensitive(ok_button, TRUE);
+		}
 	}
 }
 
@@ -11836,7 +11849,7 @@ static void campaign_changed(GtkComboBox *combo, gpointer data)
  */
 static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 {
-	GtkWidget *dialog, *combo;
+	GtkWidget *dialog, *combo, *ok_button;
 	GtkWidget *frame;
 	int i;
 
@@ -11845,11 +11858,13 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Select Campaign", NULL,
-	                                     GTK_DIALOG_MODAL,
-	                                     GTK_STOCK_OK,
-	                                     GTK_RESPONSE_ACCEPT,
-	                                     GTK_STOCK_CANCEL,
-	                                     GTK_RESPONSE_REJECT, NULL);
+	                                     GTK_DIALOG_MODAL, NULL);
+
+	/* Add ok button */
+	ok_button = gtk_dialog_add_button(GTK_DIALOG(dialog), GTK_STOCK_OK, GTK_RESPONSE_ACCEPT);
+
+	/* Add cancel button */
+	gtk_dialog_add_button(GTK_DIALOG(dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_REJECT);
 
 	/* Set default width */
 	gtk_window_set_default_size(GTK_WINDOW(dialog), 480, -1);
@@ -11902,10 +11917,10 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 
 	/* Add handler */
 	g_signal_connect(G_OBJECT(combo), "changed",
-	                 G_CALLBACK(campaign_changed), NULL);
+	                 G_CALLBACK(campaign_changed), (gpointer)ok_button);
 
 	/* Initialize description label */
-	campaign_changed(GTK_COMBO_BOX(combo), NULL);
+	campaign_changed(GTK_COMBO_BOX(combo), (gpointer)dialog);
 
 	/* Show all widgets */
 	gtk_widget_show_all(dialog);

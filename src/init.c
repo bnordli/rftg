@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2015.
+ * Source file modified by B. Nordli, October 2016.
  * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -45,6 +45,7 @@ int num_campaign;
 static char *camp_flags[] =
 {
 	"DRAW_EXTRA",
+	"DRAW_FOUR",
 	NULL
 };
 
@@ -871,10 +872,11 @@ void read_campaign(void)
 				}
 
 				/* Loop over designs */
-				for (i = 0; i < MAX_DESIGN; i++)
+				for (i = 0; i < num_design; i++)
 				{
-					/* Check for name match */
-					if (!strcmp(ptr, library[i].name))
+					/* Check for name and expansion match */
+					if (!strcmp(ptr, library[i].name) &&
+					    library[i].expand[a_ptr->expanded])
 					{
 						/* Add design to campaign */
 						a_ptr->order[who][n++] =
@@ -889,7 +891,7 @@ void read_campaign(void)
 				}
 
 				/* Check for no match */
-				if (i == MAX_DESIGN)
+				if (i == num_design)
 				{
 					/* Error */
 					fprintf(stderr, "Could not find card %s!\n", ptr);

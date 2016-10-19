@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2015.
+ * Source file modified by B. Nordli, October 2016.
  * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -13009,7 +13009,7 @@ void begin_game(game *g)
 	int start[MAX_DECK], start_red[MAX_DECK], start_blue[MAX_DECK];
 	int start_picks[MAX_PLAYER][2], original_start_picks[MAX_PLAYER][2];
 	int hand[MAX_DECK];
-	int i, j, n, ns;
+	int i, j, n, ns, cards;
 	int lowest = MAX_DECK, low_i = -1;
 	int num_start = 0, num_start_red = 0, num_start_blue = 0;
 	char msg[1024];
@@ -13224,7 +13224,7 @@ void begin_game(game *g)
 
 			/* Check for non-random campaign start world */
 			if (g->camp && g->camp_status->size[i] >= 1 &&
-			    g->camp_status->index[i][0] > 0)
+			    g->camp_status->index[i][0] >= 0)
 			{
 				/* Place start world */
 				place_card(g, i, g->camp_status->index[i][0]);
@@ -13257,14 +13257,26 @@ void begin_game(game *g)
 			c_ptr->where = WHERE_DECK;
 		}
 
+		/* Check for "draw four" campaign flag */
+		if (g->camp && (g->camp->flags & CAMP_DRAW_FOUR))
+		{
+			/* Give players four cards */
+			cards = 4;
+		}
+		else
+		{
+			/* Give players six cards */
+			cards = 6;
+		}
+
 		/* Loop over players again */
 		for (i = 0; i < g->num_players; i++)
 		{
-			/* Give player six cards */
-			draw_cards(g, i, 6, NULL);
+			/* Give player cards */
+			draw_cards(g, i, cards, NULL);
 
 			/* Set low hand size */
-			g->p[i].low_hand = 6;
+			g->p[i].low_hand = cards;
 		}
 	}
 
