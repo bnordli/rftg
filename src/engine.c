@@ -8925,7 +8925,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx,
 	/* Determine amount of card award
 	 * Note: the card award is not affected by the power value
 	 */
-	cards = count_card_reward(o_ptr);
+	cards = count_card_reward(o_ptr) * times;
 
 	/* Check for prestige award */
 	if (o_ptr->code & P4_GET_PRESTIGE)
