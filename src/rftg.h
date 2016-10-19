@@ -402,9 +402,9 @@
 
 #define P4_CONSUME_PRESTIGE   (1ULL << 20)
 
-/* Contrary to other consume rewards, where value indicates the amount
- * gained by using the power, the number of drawn card is encoded in the
- * power flag
+/* Contrary to other consume rewards (e.g., vp, prestige), where the value of
+ * the power indicates the amount gained by using the power, the number of
+ * drawn cards is encoded in the power flag.
  */
 #define P4_GET_CARD           (1ULL << 21)
 #define P4_GET_2_CARD         (1ULL << 22)
