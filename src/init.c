@@ -390,7 +390,7 @@ int read_cards(char *suggestion)
 	}
 
 	/* Loop over file */
-	while (num_design < AVAILABLE_DESIGN)
+	while (1)
 	{
 		/* Read a line */
 		fgets(buf, 1024, fff);
@@ -409,6 +409,15 @@ int read_cards(char *suggestion)
 		{
 			/* New card */
 			case 'N':
+				/* Check for maximum number of design reached */
+				if (num_design == AVAILABLE_DESIGN)
+				{
+					/* Error */
+					printf("Maximum number of design slots reached!\n");
+
+					/* Exit */
+					exit(1);
+				}
 
 				/* Current design pointer */
 				d_ptr = &library[num_design];
