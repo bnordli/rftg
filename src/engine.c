@@ -4466,6 +4466,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	int i, j, n;
 	char* name;
 	char msg[1024];
+	int against_xeno;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -4754,6 +4755,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Ask for goods to consume later */
 				consume_military++;
 
+				/* Assume generic, not against Xenos  */
+				against_xeno = 0;
+
 				if (o_ptr->code & P3_XENO)
 				{
 					if (t_ptr->d_ptr->flags & FLAG_XENO)
@@ -4764,6 +4768,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 					/* Remember bonus for later */
 					p_ptr->bonus_military_xeno += o_ptr->value;
+
+					/* Remember that power applies against Xenos */
+					against_xeno = 1;
 				}
 				else
 				{
@@ -4779,7 +4786,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				{
 					/* Format message */
 					sprintf(msg, "%s discards an Alien good for "
-					        "extra military.\n", p_ptr->name);
+					        "extra military%s.\n",
+					        p_ptr->name, against_xeno ? " against Xenos" : "");
 
 					/* Send message */
 					message_add(g, msg);
