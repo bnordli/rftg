@@ -5317,7 +5317,18 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 
 			/* Check for strength against Xeno */
 			if (o_ptr->code & P3_XENO)
-				m_ptr->xeno += o_ptr->value;
+			{
+				/* Check for per peaceful military */
+				if (o_ptr->code & P3_PER_PEACEFUL)
+				{
+					m_ptr->xeno += count_active_flags(g, who, FLAG_PEACEFUL);
+				}
+				/* Add military power */
+				else
+				{
+					m_ptr->xeno += o_ptr->value;
+				}
+			}
 
 			/* Check for strength against Novelty worlds */
 			if (o_ptr->code & P3_NOVELTY)
