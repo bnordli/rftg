@@ -9355,11 +9355,7 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 		}
 
 		/* Count card reward */
-		if (o_ptr->code & P4_GET_CARD)
-		{
-			/* Remember cards */
-			cards += 1;
-		}
+		cards += count_card_reward(o_ptr);
 
 		/* Count prestige rewards */
 		if (o_ptr->code & P4_GET_PRESTIGE)
@@ -9477,11 +9473,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	cards = vps = 0;
 
 	/* Count card reward */
-	if (o_ptr->code & P4_GET_3_CARD)
-	{
-		/* Remember cards */
-		cards += 3;
-	}
+	cards += count_card_reward(o_ptr);
 
 	/* Count VP rewards */
 	if (o_ptr->code & P4_GET_VP)
@@ -10720,27 +10712,8 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	/* Check for draw per Xeno military world */
 	if (o_ptr->code & P5_DRAW_XENO_MILITARY)
 	{
-		/* Assume no Xeno military worlds */
-		count = 0;
-
-		/* Start at first active card */
-		x = p_ptr->head[WHERE_ACTIVE];
-
-		/* Loop over cards */
-		for ( ; x != -1; x = g->deck[x].next)
-		{
-			/* Get card pointer */
-			c_ptr = &g->deck[x];
-
-			/* Skip non-worlds */
-			if (c_ptr->d_ptr->type != TYPE_WORLD) continue;
-
-			/* Skip non-military worlds */
-			if (!(c_ptr->d_ptr->flags & FLAG_MILITARY)) continue;
-
-			/* Check for Xeno world */
-			if (c_ptr->d_ptr->flags & FLAG_XENO) count++;
-		}
+		/* Count number of Xeno military worlds */
+		count = count_active_flags(g, who, FLAG_MILITARY | FLAG_XENO);
 
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value, name);

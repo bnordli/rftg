@@ -8090,7 +8090,7 @@ static int score_consume(power *o_ptr)
 		if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
 
 		/* Check for card awarded */
-		if (o_ptr->code & P4_GET_CARD) card += 1;
+		card += count_card_reward(o_ptr);
 
 		/* Check for prestige awarded */
 		if (o_ptr->code & P4_GET_PRESTIGE) prestige += o_ptr->value;
@@ -8118,7 +8118,7 @@ static int score_consume(power *o_ptr)
 		if (o_ptr->code & P4_GET_VP) score += o_ptr->value * 2;
 
 		/* Check for cards awarded */
-		if (o_ptr->code & P4_GET_3_CARD) score += 3;
+		score += count_card_reward(o_ptr);
 
 		/* Return score */
 		return score;
@@ -8133,12 +8133,8 @@ static int score_consume(power *o_ptr)
 	/* Check for VP awarded */
 	if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
 
-	/* Check for card awarded */
-	if (o_ptr->code & P4_GET_CARD) card += 1;
-
 	/* Check for cards awarded */
-	if (o_ptr->code & P4_GET_2_CARD) card += 2;
-	if (o_ptr->code & P4_GET_3_CARD) card += 3;
+	card += count_card_reward(o_ptr);
 
 	/* Check for prestige awarded */
 	if (o_ptr->code & P4_GET_PRESTIGE) prestige += o_ptr->value;
