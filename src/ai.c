@@ -536,8 +536,8 @@ static int consume_ability(game *g, int who, int produce)
 	power *o_ptr;
 	power_where w_list[100];
 	int i, j, k, x, n = 0;
-	int consume_goods[6], produce_goods[6];
-	int windfall_world[6], windfall_power[6];
+	int consume_goods[MAX_GOOD], produce_goods[MAX_GOOD];
+	int windfall_world[MAX_GOOD], windfall_power[MAX_GOOD];
 	int total_goods, good_types;
 	int good, cost, progress, count = 0;
 	int hand_size, prestige_avail;
@@ -546,7 +546,7 @@ static int consume_ability(game *g, int who, int produce)
 	p_ptr = &g->p[who];
 
 	/* Clear good type arrays */
-	for (i = 0; i <= GOOD_ALIEN; i++)
+	for (i = 0; i < MAX_GOOD; i++)
 	{
 		/* Clear arrays */
 		consume_goods[i] = 0;
@@ -1942,12 +1942,12 @@ static int eval_game_player(game *g, int who, int n, int *leader)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
-	int i, x, count, good[6], explore_mix = 0, num_build = 0;
+	int i, x, count, good[MAX_GOOD], explore_mix = 0, num_build = 0;
 	int pos_military = 0, neg_military = 0;
 	int count_six = 0;
 
 	/* Clear good type array */
-	for (i = 0; i <= GOOD_ALIEN; i++)
+	for (i = 0; i < MAX_GOOD; i++)
 	{
 		/* Clear arrays */
 		good[i] = 0;
@@ -2629,10 +2629,10 @@ static int predict_action_player(game *g, int who, int n, int *leader)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
-	int i, x, good[6], count, count_dev, count_world, explore_mix = 0;
+	int i, x, good[MAX_GOOD], count, count_dev, count_world, explore_mix = 0;
 
 	/* Clear good types */
-	for (i = 0; i <= GOOD_ALIEN; i++) good[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) good[i] = 0;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];

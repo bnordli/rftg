@@ -260,7 +260,7 @@ typedef struct discounts
 	int max_bonus;
 
 	/* Additional specific discount */
-	int specific[6];
+	int specific[MAX_GOOD];
 
 	/* May discard to place at zero cost */
 	card *zero[2];
@@ -327,7 +327,7 @@ typedef struct mil_strength
 	int xeno;
 
 	/* Additional specific military */
-	int specific[6];
+	int specific[MAX_GOOD];
 
 	/* Additional extra defense during takeovers */
 	int defense;

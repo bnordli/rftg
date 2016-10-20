@@ -4060,7 +4060,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	int hand_military = 0, conquer_peaceful = 0;
 	int discard_zero = 0, takeover = 0;
 	int consume_reduce = 0, consume_military = 0;
-	int goods_needed[6];
+	int goods_needed[MAX_GOOD];
 	int i, j, n;
 
 	/* Get player pointer */
@@ -4094,7 +4094,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	cost -= p_ptr->bonus_reduce;
 
 	/* Clear number of goods needed */
-	for (i = 0; i < 6; i++) goods_needed[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) goods_needed[i] = 0;
 
 	/* Get all active settle powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -4462,7 +4462,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	int consume_reduce = 0, consume_military = 0;
 	int consume_special[2], num_consume_special;
 	int g_list[MAX_DECK], num_goods;
-	int goods_needed[6];
+	int goods_needed[MAX_GOOD];
 	int i, j, n;
 	char* name;
 	char msg[1024];
@@ -4499,7 +4499,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	cost -= p_ptr->bonus_reduce;
 
 	/* Clear number of goods needed */
-	for (i = 0; i < 6; i++) goods_needed[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) goods_needed[i] = 0;
 
 	/* Get all active settle powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -8620,7 +8620,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 {
 	card *c_ptr;
 	power *o_ptr;
-	int i, num_saved = num, types[6], required_any, num_types, goods_left;
+	int i, num_saved = num, types[MAX_GOOD], required_any, num_types, goods_left;
 	int good_type;
 	uint64_t cons;
 
@@ -8670,7 +8670,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 				required_any = 0;
 
 				/* Clear type counts */
-				for (i = 0; i < 6; i++) types[i] = 0;
+				for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 				/* Loop over goods */
 				for (i = 0; i < num; i++)
@@ -8722,7 +8722,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		if (o_ptr->code & P4_CONSUME_3_DIFF)
 		{
 			/* Clear type counts */
-			for (i = 0; i < 6; i++) types[i] = 0;
+			for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 			/* Assume zero types */
 			num_types = 0;
@@ -8738,7 +8738,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			}
 
 			/* Count good types */
-			for (i = 0; i < 6; i++)
+			for (i = 0; i < MAX_GOOD; i++)
 			{
 				/* Check for type given */
 				if (types[i]) num_types++;
@@ -8752,7 +8752,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		if (o_ptr->code & P4_CONSUME_N_DIFF)
 		{
 			/* Clear type counts */
-			for (i = 0; i < 6; i++) types[i] = 0;
+			for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 			/* Assume zero types */
 			num_types = 0;
@@ -8768,7 +8768,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			}
 
 			/* Count good types */
-			for (i = 0; i < 6; i++)
+			for (i = 0; i < MAX_GOOD; i++)
 			{
 				/* Check for type given */
 				if (types[i]) num_types++;
@@ -9550,7 +9550,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	power *o_ptr;
 	char *name;
 	int i, x, min, max, vp, vp_mult;
-	int types[6], num_types = 0;
+	int types[MAX_GOOD], num_types = 0;
 	int good, g_list[MAX_DECK], n = 0, num_goods = 0;
 	int special[MAX_DECK], num_special = 2;
 
@@ -9680,7 +9680,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Clear good type counts */
-	for (i = 0; i < 6; i++) types[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 	/* Start at first active card */
 	x = g->p[who].head[WHERE_ACTIVE];
@@ -9730,7 +9730,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Count number of types */
-	for (i = 0; i < 6; i++) if (types[i]) num_types++;
+	for (i = 0; i < MAX_GOOD; i++) if (types[i]) num_types++;
 
 	/* Compute number of goods needed */
 	if (o_ptr->code & P4_CONSUME_TWO)
@@ -9832,7 +9832,7 @@ int consume_action(game *g, int who)
 	power_where w_list[100], *w_ptr;
 	power *o_ptr;
 	int cidx[MAX_DECK], oidx[MAX_DECK];
-	int goods = 0, types[6], num_types = 0, num_constraints = 0;
+	int goods = 0, types[MAX_GOOD], num_types = 0, num_constraints = 0;
 	int i, x, need, n, num = 0, required_any, good_type;
 	uint64_t cons;
 	int optional = 1;
@@ -9841,7 +9841,7 @@ int consume_action(game *g, int who)
 	p_ptr = &g->p[who];
 
 	/* Clear good type counts */
-	for (i = 0; i < 6; i++) types[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 	/* Start at first active card */
 	x = p_ptr->head[WHERE_ACTIVE];
@@ -9863,7 +9863,7 @@ int consume_action(game *g, int who)
 	}
 
 	/* Count number of types */
-	for (i = 0; i < 6; i++) if (types[i]) num_types++;
+	for (i = 0; i < MAX_GOOD; i++) if (types[i]) num_types++;
 
 	/* Get consume powers */
 	n = get_powers(g, who, PHASE_CONSUME, w_list);
@@ -10479,7 +10479,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	card *c_ptr;
 	power *o_ptr;
 	char *name;
-	int i, x, count, produced[6];
+	int i, x, count, produced[MAX_GOOD];
 	int list[MAX_DECK];
 	char msg[1024];
 
@@ -10892,7 +10892,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Clear production counts */
-	for (i = 0; i < 6; i++) produced[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) produced[i] = 0;
 
 	/* Start at first active card */
 	x = p_ptr->head[WHERE_ACTIVE];
@@ -10969,7 +10969,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = 0;
 
 		/* Count types */
-		for (i = 0; i < 6; i++)
+		for (i = 0; i < MAX_GOOD; i++)
 		{
 			/* Check for this type produced */
 			if (produced[i]) count++;
@@ -10992,7 +10992,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = 0;
 
 		/* Count types */
-		for (i = 0; i < 6; i++)
+		for (i = 0; i < MAX_GOOD; i++)
 		{
 			/* Check for this type produced */
 			count += produced[i];
@@ -11022,7 +11022,7 @@ int produce_action(game *g, int who)
 	power_where w_list[100], *w_ptr;
 	power *o_ptr;
 	int cidx[MAX_DECK], oidx[MAX_DECK];
-	int windfall[6], windfall_any = 0;
+	int windfall[MAX_GOOD], windfall_any = 0;
 	int i, x, n, num = 0;
 	uint64_t all_codes = 0;
 
@@ -11030,7 +11030,7 @@ int produce_action(game *g, int who)
 	p_ptr = &g->p[who];
 
 	/* Clear windfall counts */
-	for (i = 0; i < 6; i++) windfall[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) windfall[i] = 0;
 
 	/* Start at first active card */
 	x = p_ptr->head[WHERE_ACTIVE];
@@ -11368,7 +11368,7 @@ void phase_produce_end(game *g)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int produced[MAX_PLAYER][6], all[MAX_PLAYER], most;
+	int produced[MAX_PLAYER][MAX_GOOD], all[MAX_PLAYER], most;
 	int i, j, k, x, n;
 
 	/* Loop over players */
@@ -11856,7 +11856,7 @@ static int check_goal_player(game *g, int goal, int who)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int good[6], phase[6], count = 0;
+	int good[MAX_GOOD], phase[6], count = 0;
 	int i, x, n;
 
 	/* Get player pointer */
@@ -11875,7 +11875,7 @@ static int check_goal_player(game *g, int goal, int who)
 		case GOAL_FIRST_4_TYPES:
 
 			/* Clear good marks */
-			for (i = 0; i < 6; i++) good[i] = 0;
+			for (i = 0; i < MAX_GOOD; i++) good[i] = 0;
 
 			/* Start at first active card */
 			x = p_ptr->head[WHERE_ACTIVE];
@@ -14148,7 +14148,7 @@ int get_score_bonus(game *g, int who, int which)
 	player *p_ptr;
 	card *c_ptr, *score;
 	vp_bonus *v_ptr;
-	int i, j, x, count = 0, types[6];
+	int i, j, x, count = 0, types[MAX_GOOD];
 	int amt = 0;
 
 	/* Get player pointer */
@@ -14187,7 +14187,7 @@ int get_score_bonus(game *g, int who, int which)
 		else if (v_ptr->type == VP_KIND_GOOD)
 		{
 			/* Clear type flags */
-			for (j = 0; j < 6; j++) types[j] = 0;
+			for (j = 0; j < MAX_GOOD; j++) types[j] = 0;
 
 			/* Start at first active card */
 			x = p_ptr->head[WHERE_ACTIVE];
