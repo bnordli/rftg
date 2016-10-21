@@ -1,0 +1,14 @@
+.deps/
+Makefile
+config.h
+config.log
+config.status
+dumpnet
+learner
+rftg
+ai_client
+server
+stamp-h1
+network/Makefile
+autom4te.cache
+netdump/
