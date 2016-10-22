@@ -1971,7 +1971,7 @@ static void update_status_one(int sid, int who)
 			put_integer(p_ptr->phase_bonus_used, &ptr);
 			put_integer(p_ptr->bonus_military, &ptr);
 			/* Xeno military bonus transmitted only for XI games */
-			if (s_ptr->g.expanded == 5)
+			if (s_ptr->g.expanded == EXP_XI)
 				put_integer(p_ptr->bonus_military_xeno, &ptr);
 			put_integer(p_ptr->bonus_reduce, &ptr);
 
@@ -3628,14 +3628,10 @@ static void handle_create(int cid, char *ptr)
 
 	/* Validate expansion level */
 	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
-	if (s_ptr->expanded > 5) s_ptr->expanded = 5;
+	if (s_ptr->expanded >= MAX_EXPANSION) s_ptr->expanded = MAX_EXPANSION - 1;
 
 	/* Compute maximum number of players allowed */
-	maxp = s_ptr->expanded + 4;
-	if (maxp > 6) maxp = 6;
-
-	/* Maximum of 5 players for Alien Artifacts and Xeno Invasion */
-	if (s_ptr->expanded >= 4 && maxp > 5) maxp = 5;
+	maxp = exp_max_player[s_ptr->expanded]; 
 
 	/* Validate number of players */
 	if (s_ptr->min_player < 2) s_ptr->min_player = 2;
@@ -3646,8 +3642,10 @@ static void handle_create(int cid, char *ptr)
 		s_ptr->min_player = s_ptr->max_player;
 
 	/* Validate disabled flags */
-	if (s_ptr->expanded < 1 || s_ptr->expanded >= 4) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2 || s_ptr->expanded >= 4) s_ptr->disable_takeover = 0;
+	if (s_ptr->expanded < EXP_TGS || s_ptr->expanded > EXP_BOW)
+		s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < EXP_RVI || s_ptr->expanded > EXP_BOW)
+		s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */
 	s_ptr->gid = db_new_game(sid);

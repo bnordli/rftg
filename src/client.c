@@ -259,12 +259,15 @@ static void clear_games_users(void)
 /*
  * Expansion name abbreviations.
  */
-static char *exp_abbr[MAX_EXPANSION] =
+static char *exp_abbr[MAX_EXPANSION + 1] =
 {
 	"Base",
 	"TGS",
 	"RvI",
-	"BoW"
+	"BoW",
+	"AA",
+	"XI",
+	"?"
 };
 
 /*
@@ -508,6 +511,9 @@ static void handle_open_game(char *ptr)
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
+
+	/* Sanitize expansion level */
+	if (x < 0 || x > MAX_EXPANSION) x = MAX_EXPANSION;
 
 	/* Set expansion */
 	gtk_tree_store_set(game_list, &list_iter,
@@ -777,7 +783,7 @@ static void handle_status_player(char *ptr, int size)
 	p_ptr->phase_bonus_used = get_integer(&ptr);
 	p_ptr->bonus_military = get_integer(&ptr);
 	/* Xeno military bonus only for XI games */
-	if (real_game.expanded == 5)
+	if (real_game.expanded == EXP_XI)
 		p_ptr->bonus_military_xeno = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 

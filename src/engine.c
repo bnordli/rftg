@@ -38,6 +38,11 @@ char *exp_names[MAX_EXPANSION + 1] =
 };
 
 /*
+ * Maximum number of players per expansion
+ */
+int exp_max_player[MAX_EXPANSION] = {4, 5, 6, 6, 5, 5};
+
+/*
  * Textual representation for number of players.
  */
 char *player_labels[MAX_PLAYER] =
@@ -150,7 +155,8 @@ int simple_rand(unsigned int *seed)
  */
 int goals_enabled(game *g)
 {
-	return g->expanded > 0 && g->expanded < 4 && !g->goal_disabled;
+	return g->expanded >= EXP_TGS && g->expanded <= EXP_BOW &&
+	       !g->goal_disabled;
 }
 
 /*
@@ -158,7 +164,8 @@ int goals_enabled(game *g)
  */
 int takeovers_enabled(game *g)
 {
-	return g->expanded > 1 && g->expanded < 4 && !g->takeover_disabled;
+	return g->expanded >= EXP_RVI && g->expanded <= EXP_BOW &&
+	       !g->takeover_disabled;
 }
 
 /*
@@ -815,7 +822,7 @@ void check_prestige(game *g)
 	int i, max = 0, num = 0;
 
 	/* Do nothing unless third expansion is present */
-	if (g->expanded != 3) return;
+	if (g->expanded != EXP_BOW) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -864,7 +871,7 @@ void start_prestige(game *g)
 	int i, max = 0, num = 0, card_bonus = -1;
 
 	/* Do nothing unless third expansion is present */
-	if (g->expanded != 3) return;
+	if (g->expanded != EXP_BOW) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -1173,7 +1180,7 @@ static void perform_debug_moves(game *g, int who)
 				l_ptr += 4;
 
 				/* Don't do anything if expansion does not have prestige */
-				if (g->expanded != 3) break;
+				if (g->expanded != EXP_BOW) break;
 
 				/* Format message */
 				sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
@@ -2365,7 +2372,7 @@ void phase_explore(game *g)
 		/* Assume player has no "discard any" power, unless the expansion is XI,
 		 * in which case "discard any" power always applies
 		 */
-		discard_any = g->expanded == 5 ? 1 : 0;
+		discard_any = g->expanded == EXP_XI ? 1 : 0;
 
 		/* Check for chosen "+1 keep" explore */
 		if (player_chose(g, i, ACT_EXPLORE_1_1)) keep += 1;
@@ -2527,7 +2534,7 @@ void place_card(game *g, int who, int which)
 	if (c_ptr->d_ptr->flags & FLAG_WINDFALL) add_good(g, which);
 
 	/* Check for third expansion */
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		/* Check for prestige from card */
 		if (c_ptr->d_ptr->flags & FLAG_PRESTIGE)
@@ -12945,7 +12952,7 @@ static void game_information(game *g)
 	message_add(g, msg);
 
 	/* Check for expansion with goals */
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		/* Check for disabled goals */
 		if (g->goal_disabled)
@@ -12961,7 +12968,7 @@ static void game_information(game *g)
 	}
 
 	/* Check for expansion with takeovers */
-	if (g->expanded > 1 && g->expanded < 4)
+	if (g->expanded >= EXP_RVI && g->expanded <= EXP_BOW)
 	{
 		/* Check for disabled takeovers */
 		if (g->takeover_disabled)
@@ -13033,7 +13040,7 @@ void begin_game(game *g)
 	}
 
 	/* Check for second (or later) expansion */
-	if ((g->expanded >= 2 || g->promo) && !g->camp)
+	if ((g->expanded >= EXP_RVI || g->promo) && !g->camp)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
