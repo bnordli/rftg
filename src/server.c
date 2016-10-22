@@ -3723,12 +3723,13 @@ static void handle_join(int cid, char *ptr)
 		send_msgf(cid, MSG_JOINNAK, "s", "Incorrect game password");
 		return;
 	}
-	/* Check for a version compatible with latest expansion */
-	if (s_list[sid].expanded == 5 && strcmp(c_list[cid].version, "0.9.5") < 0)
+	/* Check for a version compatible with Xeno Invasion expansion */
+	if (s_list[sid].expanded == EXP_XI &&
+	        strcmp(c_list[cid].version, "0.9.5") < 0)
 	{
 		/* Send denied message */
 		send_msgf(cid, MSG_JOINNAK, "s", "Client version does not support Xeno"
-				" Invasion, please upgrade"); //TODO add URL
+				" Invasion, see https://github.com/bnordli/rftg/wiki.");
 		return;
 	}
 
