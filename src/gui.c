@@ -2938,7 +2938,7 @@ static char *get_vp_tooltip(game *g, int who)
 /*
  * Create a tooltip for a discount icon.
  */
-static char *get_discount_tooltip(discounts *discount)
+static char *get_discount_tooltip(game *g, discounts *discount)
 {
 	static char msg[1024];
 	char text[1024];
@@ -2986,7 +2986,8 @@ static char *get_discount_tooltip(discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
-			        "  non-Alien military worlds: -%d",
+			        "  non-Alien%s military worlds: -%d",
+			        g->expanded == EXP_XI ? ", non-Xeno" : "",
 			        discount->non_alien_mil_bonus);
 			strcat(msg, text);
 		}
@@ -2995,7 +2996,9 @@ static char *get_discount_tooltip(discounts *discount)
 		else
 		{
 			/* Create text */
-			strcat(msg, "\nMay pay to settle a non-Alien military world");
+			sprintf(text, "\nMay pay to settle a non-Alien%s military world",
+			        g->expanded == EXP_XI ? ", non-Xeno" : "");
+			strcat(msg, text);
 		}
 	}
 
@@ -3007,7 +3010,8 @@ static char *get_discount_tooltip(discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
-			        "  Rebel military worlds: -%d",
+			        "  %sRebel military worlds: -%d",
+			        g->expanded == EXP_XI ? "non-Xeno " : "",
 			        discount->rebel_mil_bonus);
 			strcat(msg, text);
 		}
@@ -3016,7 +3020,9 @@ static char *get_discount_tooltip(discounts *discount)
 		else
 		{
 			/* Create text */
-			strcat(msg, "\nMay pay to settle a Rebel military world");
+			sprintf(text, "\nMay pay to settle a %sRebel military world",
+			        g->expanded == EXP_XI ? "non-Xeno " : "");
+			strcat(msg, text);
 		}
 	}
 
@@ -3028,7 +3034,8 @@ static char *get_discount_tooltip(discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
-			        "  military worlds with a Chromosome symbol: -%d",
+			        "  %smilitary worlds with a Chromosome symbol: -%d",
+			        g->expanded == EXP_XI ? "non-Xeno " : "",
 			        discount->chromo_mil_bonus);
 			strcat(msg, text);
 		}
@@ -3037,8 +3044,10 @@ static char *get_discount_tooltip(discounts *discount)
 		else
 		{
 			/* Create text */
-			strcat(msg, "\nMay pay to settle a military world\n"
-			       "  with a Chromosome symbol");
+			sprintf(text, "\nMay pay to settle a %smilitary world\n"
+			        "  with a Chromosome symbol",
+			        g->expanded == EXP_XI ? "non-Xeno " : "");
+			strcat(msg, text);
 		}
 	}
 
@@ -3050,7 +3059,8 @@ static char *get_discount_tooltip(discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
-			        "  Alien military worlds: -%d",
+			        "  %sAlien military worlds: -%d",
+			        g->expanded == EXP_XI ? "non-Xeno " : "",
 			        discount->alien_mil_bonus);
 			strcat(msg, text);
 		}
@@ -3059,7 +3069,9 @@ static char *get_discount_tooltip(discounts *discount)
 		else
 		{
 			/* Create text */
-			strcat(msg, "\nMay pay to settle an Alien military world");
+			sprintf(text, "\nMay pay to settle an %sAlien military world",
+			        g->expanded == EXP_XI ? "non-Xeno " : "");
+			strcat(msg, text);
 		}
 	}
 
@@ -3614,6 +3626,7 @@ static void military_world_payment(game *g, int who, int which, int mil_only,
 
 	/* Check for pay for non-Alien military worlds */
 	if (d_ptr->non_alien_mil_card &&
+	    !(c_ptr->d_ptr->flags & FLAG_XENO) &&
 	    c_ptr->d_ptr->good_type != GOOD_ALIEN)
 	{
 		/* Remember reduction */
@@ -3626,6 +3639,7 @@ static void military_world_payment(game *g, int who, int which, int mil_only,
 	/* Check for pay for Rebel military worlds */
 	if (d_ptr->rebel_mil_card &&
 	    (c_ptr->d_ptr->flags & FLAG_REBEL) &&
+	    !(c_ptr->d_ptr->flags & FLAG_XENO) &&
 	    d_ptr->rebel_mil_bonus > pay_for_mil)
 	{
 		/* Remember reduction */
@@ -3638,6 +3652,7 @@ static void military_world_payment(game *g, int who, int which, int mil_only,
 	/* Check for pay for Chromosome military worlds */
 	if (d_ptr->chromo_mil_card &&
 	    (c_ptr->d_ptr->flags & FLAG_CHROMO) &&
+	    !(c_ptr->d_ptr->flags & FLAG_XENO) &&
 	    d_ptr->chromo_mil_bonus > pay_for_mil)
 	{
 		/* Remember reduction */
@@ -3650,6 +3665,7 @@ static void military_world_payment(game *g, int who, int which, int mil_only,
 	/* Check for pay for Alien military worlds */
 	if (d_ptr->alien_mil_card &&
 	    c_ptr->d_ptr->good_type == GOOD_ALIEN &&
+	    !(c_ptr->d_ptr->flags & FLAG_XENO) &&
 	    d_ptr->alien_mil_bonus > pay_for_mil)
 	{
 		/* Remember reduction */
@@ -5560,7 +5576,7 @@ void reset_status(game *g, int who)
 
 	/* Get text of discount tooltip */
 	strcpy(status_player[who].discount_tip,
-	       get_discount_tooltip(&status_player[who].discount));
+	       get_discount_tooltip(g, &status_player[who].discount));
 
 	/* Get text of military tooltip */
 	strcpy(status_player[who].military_tip,
