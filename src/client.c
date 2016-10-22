@@ -559,9 +559,9 @@ static void handle_open_game(char *ptr)
 	{
 		/* Set the cursor at the new game */
 		gtk_tree_view_set_cursor(
-			GTK_TREE_VIEW(games_view),
-			gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
-			NULL, FALSE);
+		        GTK_TREE_VIEW(games_view),
+		        gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
+		        NULL, FALSE);
 	}
 
 	/* Make checkboxes visible */
@@ -571,7 +571,7 @@ static void handle_open_game(char *ptr)
 
 	/* Sort game list by session ID */
 	gtk_tree_sortable_set_sort_column_id(
-		GTK_TREE_SORTABLE(game_list), GAME_COL_ID, GTK_SORT_ASCENDING);
+	        GTK_TREE_SORTABLE(game_list), GAME_COL_ID, GTK_SORT_ASCENDING);
 
 	/* Reset button state */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
@@ -1420,11 +1420,11 @@ static gboolean message_read(gpointer data)
 
 			/* Set name, status and weight */
 			gtk_list_store_set(user_list, &list_iter,
-				PLAYER_COL_USERNAME, username,
-				PLAYER_COL_IN_GAME, x,
-				PLAYER_COL_USERNAME_CMP, cmp_key,
-				PLAYER_COL_WEIGHT, 400 + 400 * y,
-				-1);
+			        PLAYER_COL_USERNAME, username,
+			        PLAYER_COL_IN_GAME, x,
+			        PLAYER_COL_USERNAME_CMP, cmp_key,
+			        PLAYER_COL_WEIGHT, 400 + 400 * y,
+			        -1);
 
 			/* Destroy compare key */
 			g_free(cmp_key);
@@ -1867,18 +1867,18 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 
 		/* Create alert dialog */
 		dialog = gtk_message_dialog_new(NULL,
-					 GTK_DIALOG_DESTROY_WITH_PARENT,
-					 GTK_MESSAGE_ERROR,
-					 GTK_BUTTONS_CLOSE,
-					 "Lost connection to server");
+		                                GTK_DIALOG_DESTROY_WITH_PARENT,
+		                                GTK_MESSAGE_ERROR,
+		                                GTK_BUTTONS_CLOSE,
+		                                "Lost connection to server");
 
 		/* Show dialog */
 		gtk_widget_show_all(dialog);
 
 		/* Destroy dialog when responded to */
 		g_signal_connect_swapped(dialog, "response",
-					 G_CALLBACK(gtk_widget_destroy),
-					 dialog);
+		                         G_CALLBACK(gtk_widget_destroy),
+		                         dialog);
 
 		/* Disconnect */
 		disconnect();
@@ -2870,15 +2870,15 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Send create message to server */
 	send_msgf(server_fd, MSG_CREATE, "ssddddddd",
-	          gtk_entry_get_text(GTK_ENTRY(pass)),
-	          gtk_entry_get_text(GTK_ENTRY(desc)),
-	          (int)gtk_range_get_value(GTK_RANGE(min_player)),
-	          (int)gtk_range_get_value(GTK_RANGE(max_player)),
-	          next_exp,
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
-	          0);
+	    gtk_entry_get_text(GTK_ENTRY(pass)),
+	    gtk_entry_get_text(GTK_ENTRY(desc)),
+	    (int)gtk_range_get_value(GTK_RANGE(min_player)),
+	    (int)gtk_range_get_value(GTK_RANGE(max_player)),
+	    next_exp,
+	    gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
+	    gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
+	    gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
+	    0);
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);

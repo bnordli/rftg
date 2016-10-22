@@ -639,7 +639,7 @@ static void determine_message(game *g, int who, int type, int list[], int *nl,
 
 			/* Create prompt */
 			sprintf(msg, "Choose defense for %s (need %d extra military)",
-					g->deck[arg1].d_ptr->name, arg3 + 1);
+			        g->deck[arg1].d_ptr->name, arg3 + 1);
 			break;
 
 		/* Choose whether to prevent a takeover */
@@ -694,7 +694,7 @@ static void determine_message(game *g, int who, int type, int list[], int *nl,
 
 					/* Create prompt */
 					sprintf(msg, "Choose up to %d card%s to consume on %s",
-							i, PLURAL(i), g->deck[arg1].d_ptr->name);
+					        i, PLURAL(i), g->deck[arg1].d_ptr->name);
 				}
 			}
 			break;
@@ -704,7 +704,8 @@ static void determine_message(game *g, int who, int type, int list[], int *nl,
 
 			/* Create prompt */
 			sprintf(msg, "Choose good%s to consume on %s",
-					arg1 == 1 && arg2 == 1 ? "" : "s", g->deck[special[0]].d_ptr->name);
+			                     arg1 == 1 && arg2 == 1 ? "" :
+			                     "s", g->deck[special[0]].d_ptr->name);
 			break;
 
 		/* Choose lucky number */

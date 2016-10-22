@@ -2555,8 +2555,8 @@ static void redraw_table_area(int who, GtkWidget *area)
 			gtk_fixed_put(GTK_FIXED(area), good_box,
 			              x * width + card_w / 4,
 			              i_ptr->selected && i_ptr->push ?
-			                  y * height :
-				              y * height + card_h / 4);
+			                                 y * height :
+			                                 y * height + card_h / 4);
 
 			/* Add tooltip if available */
 			if (i_ptr->tooltip)
@@ -2584,7 +2584,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 		{
 			/* Connect "button released" signal */
 			g_signal_connect(G_OBJECT(box), "button-release-event",
-					 G_CALLBACK(card_selected), i_ptr);
+			                 G_CALLBACK(card_selected), i_ptr);
 
 			/* Check for enough accelerator keys */
 			if (key_count < MAX_ACCEL)
@@ -3596,8 +3596,8 @@ static char *card_develop_tooltip(game *g, int who, displayed *i_ptr)
 /*
  * Compute the military/cost needed for a military world.
  */
-static void military_world_payment(game *g, int who, int which,
-                                   int mil_only, int mil_bonus, discounts *d_ptr,
+static void military_world_payment(game *g, int who, int which, int mil_only,
+                                   int mil_bonus, discounts *d_ptr,
                                    int *military, int *cost, char **cost_card)
 {
 	card *c_ptr;
@@ -4237,7 +4237,7 @@ static GtkWidget *action_icon(int act, int size)
 		/* Scale prestige icon */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_PRESTIGE],
 		                              size, size,
-					      GDK_INTERP_BILINEAR);
+		                              GDK_INTERP_BILINEAR);
 
 		/* Make icon semi-transparent */
 		alpha = 200;
@@ -4432,7 +4432,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		/* Create prestige icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_PRESTIGE],
 		                              height, height,
-					      GDK_INTERP_BILINEAR);
+		                              GDK_INTERP_BILINEAR);
 
 		/* Create image from pixbuf */
 		image = gtk_image_new_from_pixbuf(buf);
@@ -4487,7 +4487,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 
 		/* Connect expose-event to draw extra text */
 		g_signal_connect_after(G_OBJECT(image), "expose-event",
-							   G_CALLBACK(draw_extra_text), ei);
+		                       G_CALLBACK(draw_extra_text), ei);
 
 		/* Destroy our copy of the icon */
 		g_object_unref(G_OBJECT(buf));
@@ -5316,7 +5316,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 				 * specific, or not
 				 */
 				if (o_ptr->code & P3_XENO)
-				    m_ptr->max_bonus_xeno += o_ptr->value;
+					m_ptr->max_bonus_xeno += o_ptr->value;
 				else
 					m_ptr->max_bonus += o_ptr->value;
 				--alien_goods;
@@ -5375,20 +5375,20 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 
 	/* Check for takeovers enabled and imperium card played */
 	m_ptr->imperium = takeovers_enabled(g) &&
-		count_active_flags(g, who, FLAG_IMPERIUM);
+	        count_active_flags(g, who, FLAG_IMPERIUM);
 
 	/* Check for takeovers enabled and rebel military world played */
 	m_ptr->military_rebel = takeovers_enabled(g) &&
-		count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
+	        count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
 
 	/* Check for any modifiers */
 	m_ptr->has_data = m_ptr->base || m_ptr->bonus || m_ptr->bonus_xeno ||
-		m_ptr->rebel || m_ptr->xeno ||
-		m_ptr->specific[GOOD_NOVELTY] || m_ptr->specific[GOOD_RARE] ||
-		m_ptr->specific[GOOD_GENE] || m_ptr->specific[GOOD_ALIEN] ||
-		m_ptr->defense || m_ptr->attack_imperium || m_ptr->leftover ||
-		m_ptr->imperium || m_ptr->military_rebel || m_ptr->max_bonus ||
-		m_ptr->max_bonus_xeno;
+	        m_ptr->rebel || m_ptr->xeno ||
+	        m_ptr->specific[GOOD_NOVELTY] || m_ptr->specific[GOOD_RARE] ||
+	        m_ptr->specific[GOOD_GENE] || m_ptr->specific[GOOD_ALIEN] ||
+	        m_ptr->defense || m_ptr->attack_imperium || m_ptr->leftover ||
+	        m_ptr->imperium || m_ptr->military_rebel || m_ptr->max_bonus ||
+	        m_ptr->max_bonus_xeno;
 }
 
 /*
@@ -5960,8 +5960,8 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		/* Check for unusable search action */
 		if (i == ACT_SEARCH && (g->expanded != 3 ||
 		                        g->p[who].prestige_action_used ||
-					(one == 2 &&
-					 g->p[who].action[0] & ACT_PRESTIGE)))
+		                        (one == 2 &&
+		                         g->p[who].action[0] & ACT_PRESTIGE)))
 		{
 			/* Clear toggle button */
 			action_toggle[i] = NULL;
@@ -6930,7 +6930,7 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 				{
 					/* Set settle tool tip */
 					i_ptr->tooltip = card_settle_tooltip(
-						g, player_us, special, i_ptr);
+					        g, player_us, special, i_ptr);
 				}
 			}
 		}
@@ -7107,7 +7107,8 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 			{
 				/* Compute payment */
-				military_world_payment(g, who, which, mil_only, mil_bonus_or_takeover_power,
+				military_world_payment(g, who, which, mil_only,
+				                       mil_bonus_or_takeover_power,
 				                       &status_player[who].discount,
 				                       &military, &cost, &cost_card);
 
@@ -7222,7 +7223,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 
 				/* Check for achievable conquer with discount */
 				if (0 <= conquer_discount_mil &&
-					conquer_discount_mil <= m_ptr->max_bonus)
+				    conquer_discount_mil <= m_ptr->max_bonus)
 				{
 					/* Format text */
 					p += sprintf(p, "%s%s", conjunction ? " or " : "",
@@ -8413,8 +8414,8 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 					nb_found = 0;
 					sprintf(buf, "Consume two goods (");
 					for (cons = P4_CONSUME_ANY, gt = GOOD_ANY;
-							gt < MAX_GOOD && nb_found < 2;
-							cons <<= 1, gt++)
+					     gt < MAX_GOOD && nb_found < 2;
+					     cons <<= 1, gt++)
 					{
 						if (o_ptr->code & cons)
 						{
@@ -11793,7 +11794,7 @@ static void update_sensitivity()
 	{
 		/* Set expansion button active */
 		gtk_toggle_button_set_active(
-			GTK_TOGGLE_BUTTON(expansion_radio[camp->expanded]), TRUE);
+		    GTK_TOGGLE_BUTTON(expansion_radio[camp->expanded]), TRUE);
 
 		/* Clear expansion radio sensitivities */
 		for (i = 0; exp_names[i]; ++i)
@@ -11803,7 +11804,7 @@ static void update_sensitivity()
 
 		/* Set player button active */
 		gtk_toggle_button_set_active(
-			GTK_TOGGLE_BUTTON(num_players_radio[camp->num_players - 2]), TRUE);
+		    GTK_TOGGLE_BUTTON(num_players_radio[camp->num_players - 2]), TRUE);
 
 		/* Clear player radio sensitivities */
 		for (i = 0; player_labels[i]; ++i)
@@ -11957,7 +11958,7 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 
 	/* Add handler */
 	g_signal_connect(G_OBJECT(combo), "changed",
-			 G_CALLBACK(campaign_changed), NULL);
+	                 G_CALLBACK(campaign_changed), NULL);
 
 	/* Initialize description label */
 	campaign_changed(GTK_COMBO_BOX(combo), NULL);
@@ -12486,7 +12487,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 #if 0
 		/* Set promo flag */
 		opt.promo = gtk_toggle_button_get_active(
-						GTK_TOGGLE_BUTTON(promo_check));
+		                GTK_TOGGLE_BUTTON(promo_check));
 #endif
 
 		/* Set goals disabled flag */
@@ -12839,7 +12840,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create toggle button for draw log */
 	draw_log_button = gtk_check_button_new_with_label(
-		"Log drawn cards");
+	                      "Log drawn cards");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(draw_log_button),
@@ -12850,7 +12851,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 
 	/* Create toggle button for discard log */
 	discard_log_button = gtk_check_button_new_with_label(
-		"Log discarded and saved cards");
+	                         "Log discarded and saved cards");
 
 	/* Set toggled status */
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(discard_log_button),
@@ -13479,7 +13480,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set the column to sort on */
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, DEBUG_COL_CARD_NAME);
+	    tree_view_column, DEBUG_COL_CARD_NAME);
 
 	/*** Second column (card owner) ***/
 
@@ -13512,8 +13513,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(list_view), 1);
 
 	/* Set the column to sort on */
-	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, DEBUG_COL_OWNER);
+	gtk_tree_view_column_set_sort_column_id(tree_view_column, DEBUG_COL_OWNER);
 
 	/*** Third column (card location) ***/
 
@@ -13546,11 +13546,11 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 
 	/* Set the column to sort on */
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, DEBUG_COL_LOCATION);
+	    tree_view_column, DEBUG_COL_LOCATION);
 
 	/* Enable interactive search on card name column */
 	gtk_tree_view_set_search_column(
-		GTK_TREE_VIEW(list_view), DEBUG_COL_CARD_NAME);
+	    GTK_TREE_VIEW(list_view), DEBUG_COL_CARD_NAME);
 
 	/* Create scrolled window for list view */
 	list_scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -13878,7 +13878,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 
 			/* Add label to table */
 			gtk_table_attach_defaults(GTK_TABLE(table), label,
-						  j + 1, j + 2, i + 1, i + 2);
+			                          j + 1, j + 2, i + 1, i + 2);
 		}
 	}
 
@@ -14602,10 +14602,10 @@ int main(int argc, char *argv[])
 	                 GINT_TO_POINTER(CHOICE_D_TAKE_VP));
 	g_signal_connect(G_OBJECT(debug_prestige_item), "activate",
 	                 G_CALLBACK(gui_debug_choice),
-					 GINT_TO_POINTER(CHOICE_D_TAKE_PRESTIGE));
+	                 GINT_TO_POINTER(CHOICE_D_TAKE_PRESTIGE));
 	g_signal_connect(G_OBJECT(debug_rotate_item), "activate",
 	                 G_CALLBACK(gui_debug_choice),
-					 GINT_TO_POINTER(CHOICE_D_ROTATE));
+	                 GINT_TO_POINTER(CHOICE_D_ROTATE));
 	g_signal_connect(G_OBJECT(debug_ai_item), "activate",
 	                 G_CALLBACK(debug_ai_dialog), NULL);
 
@@ -14804,7 +14804,7 @@ int main(int argc, char *argv[])
 
 		/* Have area negotiate new size when needed */
 		g_signal_connect(G_OBJECT(area), "size-request",
-				 G_CALLBACK(table_request), NULL);
+		                 G_CALLBACK(table_request), NULL);
 
 		/* Pack status box and table area into hbox */
 		gtk_box_pack_start(GTK_BOX(player_box[i]), area, TRUE, TRUE, 0);
@@ -14904,7 +14904,7 @@ int main(int argc, char *argv[])
 
 	/* Also attach Shift+Enter */
 	gtk_widget_add_accelerator(GTK_WIDGET(action_button), "clicked",
-		window_accel, GDK_Return, GDK_SHIFT_MASK, 0);
+	                           window_accel, GDK_Return, GDK_SHIFT_MASK, 0);
 
 	/* Set CAN_DEFAULT flag on action button */
 	GTK_WIDGET_SET_FLAGS(action_button, GTK_CAN_DEFAULT);
@@ -14946,24 +14946,24 @@ int main(int argc, char *argv[])
 
 	/* Create list of open games */
 	game_list = gtk_tree_store_new(GAME_MAX_COLUMN,
-		G_TYPE_INT,    //  0: Game id/Player number
-		G_TYPE_STRING, //  1: Description/Player name
-		G_TYPE_STRING, //  2: Description/Player name collation key
-		G_TYPE_STRING, //  3: Creator name/Offline note
-		G_TYPE_STRING, //  4: Creator name/Offline note collation key
-		G_TYPE_INT,    //  5: Password?
-		G_TYPE_INT,    //  6: Min players
-		G_TYPE_INT,    //  7: Max players
-		G_TYPE_STRING, //  8: Number of players
-		G_TYPE_INT,    //  9: Expansion id
-		G_TYPE_STRING, // 10: Expansion name
-		G_TYPE_INT,    // 11: Advanced game?
-		G_TYPE_INT,    // 12: Disable goals?
-		G_TYPE_INT,    // 13: Disable takeovers?
-		G_TYPE_INT,    // 14: Game speed
-		G_TYPE_INT,    // 15: My game/player id?
-		G_TYPE_INT,    // 16: Checkboxes visible?
-		G_TYPE_INT);   // 17: Weight of text
+	    G_TYPE_INT,    //  0: Game id/Player number
+	    G_TYPE_STRING, //  1: Description/Player name
+	    G_TYPE_STRING, //  2: Description/Player name collation key
+	    G_TYPE_STRING, //  3: Creator name/Offline note
+	    G_TYPE_STRING, //  4: Creator name/Offline note collation key
+	    G_TYPE_INT,    //  5: Password?
+	    G_TYPE_INT,    //  6: Min players
+	    G_TYPE_INT,    //  7: Max players
+	    G_TYPE_STRING, //  8: Number of players
+	    G_TYPE_INT,    //  9: Expansion id
+	    G_TYPE_STRING, // 10: Expansion name
+	    G_TYPE_INT,    // 11: Advanced game?
+	    G_TYPE_INT,    // 12: Disable goals?
+	    G_TYPE_INT,    // 13: Disable takeovers?
+	    G_TYPE_INT,    // 14: Game speed
+	    G_TYPE_INT,    // 15: My game/player id?
+	    G_TYPE_INT,    // 16: Checkboxes visible?
+	    G_TYPE_INT);   // 17: Weight of text
 
 	/* Create view for chat users */
 	games_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(game_list));
@@ -14981,74 +14981,74 @@ int main(int argc, char *argv[])
 
 	/*** First column (game description/player name) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "Game Description", description_render,
-		"text", GAME_COL_DESC_NAME, "weight", GAME_COL_WEIGHT, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "Game Description", description_render,
+	    "text", GAME_COL_DESC_NAME, "weight", GAME_COL_WEIGHT, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 0);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_DESC_NAME_CMP);
+	    tree_view_column, GAME_COL_DESC_NAME_CMP);
 
 	/* Set expand property of first column */
 	gtk_tree_view_column_set_expand(tree_view_column, TRUE);
 
 	/*** Second column (creator/offline status) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "Created By", render,
-		"text", GAME_COL_CREATOR_OFFLINE, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "Created By", render,
+	    "text", GAME_COL_CREATOR_OFFLINE, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 1);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_CREATOR_CMP);
+	    tree_view_column, GAME_COL_CREATOR_CMP);
 
 	/*** Third column (password needed checkbox) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "Password needed", toggle_render,
-		"active", GAME_COL_PASSWORD,
-		"visible", GAME_COL_CHECK_VISIBLE, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "Password needed", toggle_render,
+	    "active", GAME_COL_PASSWORD,
+	    "visible", GAME_COL_CHECK_VISIBLE, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 2);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_PASSWORD);
+	    tree_view_column, GAME_COL_PASSWORD);
 
 	/*** Fourth column (number of players) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "# Players", render,
-		"text", GAME_COL_PLAYERS_STR, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "# Players", render,
+	    "text", GAME_COL_PLAYERS_STR, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 3);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_PLAYERS_STR);
+	    tree_view_column, GAME_COL_PLAYERS_STR);
 
 	/*** Fifth column (expansion) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "Exp", render,
-		"text", GAME_COL_EXPANSION_STR, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "Exp", render,
+	    "text", GAME_COL_EXPANSION_STR, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 4);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_EXPANSION);
+	    tree_view_column, GAME_COL_EXPANSION);
 
 	/*** Sixth column (advanced game checkbox) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "2P Advanced", toggle_render,
-		"active", GAME_COL_ADVANCED,
-		"visible", GAME_COL_CHECK_VISIBLE, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "2P Advanced", toggle_render,
+	    "active", GAME_COL_ADVANCED,
+	    "visible", GAME_COL_CHECK_VISIBLE, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 5);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_ADVANCED);
+	    tree_view_column, GAME_COL_ADVANCED);
 
 	/*** Seventh column (goal disabled checkbox) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "Disable Goals", toggle_render,
-		"active", GAME_COL_DISABLE_GOAL,
-		"visible", GAME_COL_CHECK_VISIBLE, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "Disable Goals", toggle_render,
+	    "active", GAME_COL_DISABLE_GOAL,
+	    "visible", GAME_COL_CHECK_VISIBLE, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 6);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_DISABLE_GOAL);
+	    tree_view_column, GAME_COL_DISABLE_GOAL);
 
 	/*** Eight column (takeovers disabled checkbox) ***/
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(games_view), -1, "Disable Takeovers", toggle_render,
-		"active", GAME_COL_DISABLE_TO,
-		"visible", GAME_COL_CHECK_VISIBLE, NULL);
+	    GTK_TREE_VIEW(games_view), -1, "Disable Takeovers", toggle_render,
+	    "active", GAME_COL_DISABLE_TO,
+	    "visible", GAME_COL_CHECK_VISIBLE, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(games_view), 7);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, GAME_COL_DISABLE_TO);
+	    tree_view_column, GAME_COL_DISABLE_TO);
 
 	/* Connect "cursor-changed" property of game view */
 	g_signal_connect(G_OBJECT(games_view), "cursor-changed",
@@ -15205,19 +15205,19 @@ int main(int argc, char *argv[])
 
 	/* Create columns for user list */
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(users_view), -1, "Users online", render,
-		"text", PLAYER_COL_USERNAME,
-		"weight", PLAYER_COL_WEIGHT, NULL);
+	    GTK_TREE_VIEW(users_view), -1, "Users online", render,
+	    "text", PLAYER_COL_USERNAME,
+	    "weight", PLAYER_COL_WEIGHT, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(users_view), 0);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, PLAYER_COL_USERNAME_CMP);
+	    tree_view_column, PLAYER_COL_USERNAME_CMP);
 
 	gtk_tree_view_insert_column_with_attributes(
-		GTK_TREE_VIEW(users_view), -1, "In game", toggle_render,
-		"active", PLAYER_COL_IN_GAME, NULL);
+	    GTK_TREE_VIEW(users_view), -1, "In game", toggle_render,
+	    "active", PLAYER_COL_IN_GAME, NULL);
 	tree_view_column = gtk_tree_view_get_column(GTK_TREE_VIEW(users_view), 1);
 	gtk_tree_view_column_set_sort_column_id(
-		tree_view_column, PLAYER_COL_IN_GAME);
+	    tree_view_column, PLAYER_COL_IN_GAME);
 
 	/* Create scrolled window for chat users */
 	users_scroll = gtk_scrolled_window_new(NULL, NULL);

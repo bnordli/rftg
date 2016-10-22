@@ -892,9 +892,7 @@ void read_campaign(void)
 				if (i == MAX_DESIGN)
 				{
 					/* Error */
-					fprintf(stderr,
-						"Could not find card %s!\n",
-					        ptr);
+					fprintf(stderr, "Could not find card %s!\n", ptr);
 					exit(1);
 				}
 
@@ -929,9 +927,7 @@ void read_campaign(void)
 				if (i == MAX_GOAL)
 				{
 					/* Error */
-					fprintf(stderr,
-						"Could not find goal %s!\n",
-					        ptr);
+					fprintf(stderr, "Could not find goal %s!\n", ptr);
 					exit(1);
 				}
 		}
