@@ -638,14 +638,14 @@ int read_cards(char *suggestion)
 	/* Attribute peaceful world flag */
 	for (i = 0; i < num_design; i++)
 	{
-		/* design pointer */
+		/* Design pointer */
 		d_ptr = &library[i];
 
-		/* check for type world */
+		/* Check for type world */
 		if (d_ptr->type != TYPE_WORLD)
 			continue;
 
-		/* if world is not military, it is peaceful */
+		/* If world is not military, it is peaceful */
 		if (!(d_ptr->flags & FLAG_MILITARY))
 			d_ptr->flags |= FLAG_PEACEFUL;
 	}
@@ -891,9 +891,7 @@ void read_campaign(void)
 				if (i == MAX_DESIGN)
 				{
 					/* Error */
-					fprintf(stderr,
-						"Could not find card %s!\n",
-					        ptr);
+					fprintf(stderr, "Could not find card %s!\n", ptr);
 					exit(1);
 				}
 
@@ -928,9 +926,7 @@ void read_campaign(void)
 				if (i == MAX_GOAL)
 				{
 					/* Error */
-					fprintf(stderr,
-						"Could not find goal %s!\n",
-					        ptr);
+					fprintf(stderr, "Could not find goal %s!\n", ptr);
 					exit(1);
 				}
 		}

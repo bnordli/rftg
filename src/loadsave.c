@@ -554,8 +554,8 @@ int export_game(game *g, char *filename, char *style_sheet,
 
 	/* Write number of players (and advanced game) */
 	fprintf(fff, "    <Players%s>%d</Players>\n",
-		g->num_players == 2 && g->advanced ? " advanced=\"yes\"" : "",
-		g->num_players);
+	        g->num_players == 2 && g->advanced ? " advanced=\"yes\"" : "",
+	        g->num_players);
 
 	/* Write expansion */
 	fprintf(fff, "    <Expansion id=\"%d\">%s</Expansion>\n",
