@@ -2338,7 +2338,7 @@ void phase_explore(game *g)
 			if (o_ptr->code & P1_PER_REBEL_MILITARY)
 			{
 				draw += o_ptr->value * count_active_flags(g, i,
-						(FLAG_REBEL | FLAG_MILITARY));
+				                           (FLAG_REBEL | FLAG_MILITARY));
 				continue;
 			}
 
@@ -4452,7 +4452,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
  * cases where too many cards were discarded, to prevent stupid AI play.
  */
 int settle_callback(game *g, int who, int which, int list[], int num,
-		    int special[], int num_special, int mil_only, int mil_bonus)
+                    int special[], int num_special, int mil_only, int mil_bonus)
 {
 	player *p_ptr;
 	card *c_ptr, *t_ptr;
@@ -4560,9 +4560,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg, "%s uses %s.\n",
-						p_ptr->name,
-						c_ptr->d_ptr->name);
+					sprintf(msg, "%s uses %s.\n", p_ptr->name,
+					                              c_ptr->d_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -4579,9 +4578,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg, "%s discards %s.\n",
-						p_ptr->name,
-						c_ptr->d_ptr->name);
+					sprintf(msg, "%s discards %s.\n", p_ptr->name,
+					                                  c_ptr->d_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -5054,32 +5052,28 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_GENE)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_GENE);
+				num_goods = get_goods(g, who, g_list, GOOD_GENE);
 			}
 
 			/* Check for needing novelty good */
 			else if (o_ptr->code & P3_CONSUME_NOVELTY)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-									GOOD_NOVELTY);
+				num_goods = get_goods(g, who, g_list, GOOD_NOVELTY);
 			}
 
 			/* Check for needing rare good */
 			else if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_RARE);
+				num_goods = get_goods(g, who, g_list, GOOD_RARE);
 			}
 
 			/* Check for needing alien good */
 			else if (o_ptr->code & P3_CONSUME_ALIEN)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_ALIEN);
+				num_goods = get_goods(g, who, g_list, GOOD_ALIEN);
 			}
 
 			else
@@ -5098,8 +5092,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Ask player to choose good to discard */
 				ask_player(g, who, CHOICE_GOOD, g_list,
-							&num_goods, consume_special,
-							&num_consume_special, 1, 1, 0);
+				           &num_goods, consume_special,
+				           &num_consume_special, 1, 1, 0);
 
 				/* Check for aborted game */
 				if (g->game_over) return 0;
@@ -5170,16 +5164,15 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		else if (conquer && !pay_military && hand_military > 0)
 		{
 			/* Format message */
-			sprintf(msg, "%s pays %d to conquer %s.\n", p_ptr->name,
-				num, t_ptr->d_ptr->name);
+			sprintf(msg, "%s pays %d to conquer %s.\n",
+			              p_ptr->name, num, t_ptr->d_ptr->name);
 		}
 
 		/* Check for normal conquer */
 		else if (conquer && !pay_military)
 		{
 			/* Format message */
-			sprintf(msg, "%s conquers %s.\n", p_ptr->name,
-				t_ptr->d_ptr->name);
+			sprintf(msg, "%s conquers %s.\n", p_ptr->name, t_ptr->d_ptr->name);
 		}
 
 		/* Check for payment */
@@ -5190,7 +5183,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Format message */
 				sprintf(msg, "%s pays %d for extra military.\n",
-				        p_ptr->name, hand_military);
+				             p_ptr->name, hand_military);
 
 				/* Send message */
 				message_add(g, msg);
@@ -5198,7 +5191,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 			/* Format message */
 			sprintf(msg, "%s pays %d for %s.\n", p_ptr->name, num,
-				t_ptr->d_ptr->name);
+			                                     t_ptr->d_ptr->name);
 		}
 
 		/* Send message */
@@ -5225,7 +5218,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Ask player which to save */
 				ask_player(g, who, CHOICE_SAVE, list, &num,
-					   NULL, NULL, 0, 0, 0);
+				           NULL, NULL, 0, 0, 0);
 
 				/* Check for aborted game */
 				if (g->game_over) return 0;
@@ -5338,7 +5331,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-				!(c_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(c_ptr->d_ptr->flags & FLAG_REBEL))
 			{
 				/* Skip power */
 				continue;
@@ -5362,7 +5355,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 			/* Check for prestige for military */
 			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
-					p_ptr->prestige > 0)
+			    p_ptr->prestige > 0)
 			{
 				/* Add to special list */
 				special[num_special++] = w_list[i].c_idx;
@@ -5371,7 +5364,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 			/* Check for consume novelty */
 			if ((o_ptr->code & P3_CONSUME_NOVELTY) &&
-					has_good(g, who, GOOD_NOVELTY))
+			    has_good(g, who, GOOD_NOVELTY))
 			{
 				/* Add to special list */
 				special[num_special++] = w_list[i].c_idx;
@@ -5380,7 +5373,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 			/* Check for consume rare */
 			if ((o_ptr->code & P3_CONSUME_RARE) &&
-					has_good(g, who, GOOD_RARE))
+			    has_good(g, who, GOOD_RARE))
 			{
 				/* Add to special list */
 				special[num_special++] = w_list[i].c_idx;
@@ -5389,7 +5382,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 			/* Check for consume alien */
 			if ((o_ptr->code & P3_CONSUME_ALIEN) &&
-					has_good(g, who, GOOD_ALIEN))
+			    has_good(g, who, GOOD_ALIEN))
 			{
 				/* Add to special list */
 				special[num_special++] = w_list[i].c_idx;
@@ -5511,7 +5504,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		{
 			/* Format message */
 			sprintf(msg, "%s conquers %s.\n", p_ptr->name,
-				c_ptr->d_ptr->name);
+			                                  c_ptr->d_ptr->name);
 
 			/* Send message */
 			message_add(g, msg);
@@ -5597,9 +5590,9 @@ int takeover_callback(game *g, int special, int world)
 
 		/* Skip non-takeover powers */
 		if (!(o_ptr->code & (P3_TAKEOVER_REBEL |
-				     P3_TAKEOVER_IMPERIUM |
-				     P3_TAKEOVER_MILITARY |
-				     P3_TAKEOVER_PRESTIGE)))
+		                     P3_TAKEOVER_IMPERIUM |
+		                     P3_TAKEOVER_MILITARY |
+		                     P3_TAKEOVER_PRESTIGE)))
 		{
 			/* Skip power */
 			continue;
@@ -6388,8 +6381,8 @@ static void flip_world(game *g, int who)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s places %s at zero cost.\n",
-				p_ptr->name, c_ptr->d_ptr->name);
+			sprintf(msg, "%s places %s at zero cost.\n", p_ptr->name,
+			                                             c_ptr->d_ptr->name);
 
 			/* Add message */
 			message_add(g, msg);
@@ -6411,8 +6404,8 @@ static void flip_world(game *g, int who)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s takes %s into hand.\n",
-				p_ptr->name, c_ptr->d_ptr->name);
+			sprintf(msg, "%s takes %s into hand.\n", p_ptr->name,
+			                                         c_ptr->d_ptr->name);
 
 			/* Add message */
 			message_add(g, msg);
@@ -6463,9 +6456,9 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 
 			/* Check for special placement power */
 			if (o_ptr->code & (P3_PLACE_TWO |
-					   P3_PLACE_ZERO |
-					   P3_PLACE_MILITARY |
-					   P3_PLACE_LEFTOVER)) break;
+			                   P3_PLACE_ZERO |
+			                   P3_PLACE_MILITARY |
+			                   P3_PLACE_LEFTOVER)) break;
 		}
 	}
 
@@ -6488,8 +6481,7 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 			{
 				/* Format message */
 				sprintf(msg, "%s places %s at zero cost.\n",
-					p_ptr->name,
-					g->deck[world].d_ptr->name);
+				             p_ptr->name, g->deck[world].d_ptr->name);
 
 				/* Add message */
 				message_add(g, msg);
@@ -7019,8 +7011,7 @@ static int settle_action(game *g, int who, int world)
 					continue;
 
 				/* Determine amount of unreusable military */
-				mil_spent_spec = strength_first(g, who, world,
-								x);
+				mil_spent_spec = strength_first(g, who, world, x);
 
 				/* Compute military that was spent */
 				mil_bonus = mil_spent - mil_spent_spec;
@@ -7029,8 +7020,7 @@ static int settle_action(game *g, int who, int world)
 				if (mil_bonus < 0) mil_bonus = 0;
 
 				/* Skip cards that cannot be settled */
-				if (!settle_legal(g, who, x, -mil_bonus, 1, 0,
-				                  0)) continue;
+				if (!settle_legal(g, who, x, -mil_bonus, 1, 0, 0)) continue;
 
 				/* Add power to list */
 				cidx[num] = w_ptr->c_idx;
@@ -7301,8 +7291,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 		}
 
 		/* Format message */
-		sprintf(msg, "%s pays %d for extra military.\n",
-			p_ptr->name, num);
+		sprintf(msg, "%s pays %d for extra military.\n", p_ptr->name, num);
 
 		/* Send message */
 		message_add(g, msg);
@@ -7343,16 +7332,14 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_RARE);
+				num_goods = get_goods(g, who, g_list, GOOD_RARE);
 			}
 
 			/* Check for needing alien good */
 			if (o_ptr->code & P3_CONSUME_ALIEN)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_ALIEN);
+				num_goods = get_goods(g, who, g_list, GOOD_ALIEN);
 			}
 
 			/* Other powers are already included */
@@ -7757,7 +7744,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 		{
 			/* Format message */
 			sprintf(msg, "%s destroys %s.\n", p_ptr->name,
-				c_ptr->d_ptr->name);
+			        c_ptr->d_ptr->name);
 
 			/* Send message */
 			message_add_formatted(g, msg, FORMAT_TAKEOVER);
@@ -7825,7 +7812,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Format message */
 		sprintf(msg, "%s takes over %s.\n", p_ptr->name,
-			c_ptr->d_ptr->name);
+		        c_ptr->d_ptr->name);
 
 		/* Send message */
 		message_add_formatted(g, msg, FORMAT_TAKEOVER);
@@ -7936,7 +7923,7 @@ void resolve_takeovers(game *g)
 
 			/* Ask player which takeover (if any) to defeat */
 			ask_player(g, i, CHOICE_TAKEOVER_PREVENT,
-				   list, &num, special, &num, 0, 0, 0);
+			           list, &num, special, &num, 0, 0, 0);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
@@ -8952,8 +8939,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx,
 	if (!g->simulation)
 	{
 		/* Log rewards */
-		log_rewards(g, who, cards, vps, prestige,
-		            "from", name, FORMAT_VERBOSE);
+		log_rewards(g, who, cards, vps, prestige, "from", name, FORMAT_VERBOSE);
 	}
 
 	/* Check for any VPs awarded */
@@ -9014,8 +9000,7 @@ static void draw_lucky(game *g, int who)
 	p_ptr = &g->p[who];
 
 	/* Ask player to choose lucky number */
-	cost = ask_player(g, who, CHOICE_LUCKY, NULL, NULL, NULL, NULL,
-	                  0, 0, 0);
+	cost = ask_player(g, who, CHOICE_LUCKY, NULL, NULL, NULL, NULL, 0, 0, 0);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
@@ -9239,7 +9224,7 @@ static void ante_card(game *g, int who)
 	{
 		/* Format message */
 		sprintf(msg, "%s keeps %s.\n", p_ptr->name,
-			g->deck[chosen].d_ptr->name);
+		        g->deck[chosen].d_ptr->name);
 
 		/* Add message */
 		message_add(g, msg);
@@ -9708,14 +9693,14 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 
 		/* Check the good is consumable by the power */
 		if (!((good == GOOD_ANY) ||
-			(o_ptr->code & P4_CONSUME_ANY) ||
-			(o_ptr->code & P4_CONSUME_3_DIFF) ||
-			(o_ptr->code & P4_CONSUME_N_DIFF) ||
-			(o_ptr->code & P4_CONSUME_ALL) ||
-			((o_ptr->code & P4_CONSUME_NOVELTY) && good == GOOD_NOVELTY) ||
-			((o_ptr->code & P4_CONSUME_RARE) && good == GOOD_RARE) ||
-			((o_ptr->code & P4_CONSUME_GENE) && good == GOOD_GENE) ||
-			((o_ptr->code & P4_CONSUME_ALIEN) && good == GOOD_ALIEN)))
+		    (o_ptr->code & P4_CONSUME_ANY) ||
+		    (o_ptr->code & P4_CONSUME_3_DIFF) ||
+		    (o_ptr->code & P4_CONSUME_N_DIFF) ||
+		    (o_ptr->code & P4_CONSUME_ALL) ||
+		    ((o_ptr->code & P4_CONSUME_NOVELTY) && good == GOOD_NOVELTY) ||
+		    ((o_ptr->code & P4_CONSUME_RARE) && good == GOOD_RARE) ||
+		    ((o_ptr->code & P4_CONSUME_GENE) && good == GOOD_GENE) ||
+		    ((o_ptr->code & P4_CONSUME_ALIEN) && good == GOOD_ALIEN)))
 		{
 			/* Skip good */
 			continue;
@@ -10036,7 +10021,7 @@ int consume_action(game *g, int who)
 
 		/* Check for other powers */
 		if (o_ptr->code & (P4_DRAW | P4_DRAW_LUCKY | P4_VP |
-				   P4_ANTE_CARD))
+		                   P4_ANTE_CARD))
 		{
 			/* Add power to list */
 			cidx[num] = w_ptr->c_idx;
@@ -10466,8 +10451,7 @@ static void produce_windfall(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Ask player to choose world to produce */
-	ask_player(g, who, CHOICE_WINDFALL, list, &n, NULL, NULL, c_idx, o_idx,
-	           0);
+	ask_player(g, who, CHOICE_WINDFALL, list, &n, NULL, NULL, c_idx, o_idx, 0);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
@@ -10851,8 +10835,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 				        g->deck[list[i]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, who, msg,
-				                                   FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 		}
 
@@ -10875,8 +10858,8 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	/* Check for discard to produce on windfall */
 	if ((o_ptr->code & P5_DISCARD) &&
 	    (o_ptr->code & (P5_WINDFALL_ANY | P5_WINDFALL_NOVELTY |
-			   P5_WINDFALL_RARE | P5_WINDFALL_GENE |
-			   P5_WINDFALL_ALIEN)))
+	                    P5_WINDFALL_RARE | P5_WINDFALL_GENE |
+	                    P5_WINDFALL_ALIEN)))
 	{
 		/* Choose discard to produce */
 		discard_windfall(g, who, c_idx, o_idx);
@@ -10887,8 +10870,8 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 
 	/* Check for produce on windfall */
 	if (o_ptr->code & (P5_WINDFALL_ANY | P5_WINDFALL_NOVELTY |
-			   P5_WINDFALL_RARE | P5_WINDFALL_GENE |
-			   P5_WINDFALL_ALIEN))
+	                   P5_WINDFALL_RARE | P5_WINDFALL_GENE |
+	                   P5_WINDFALL_ALIEN))
 	{
 		/* Produce on a windfall world */
 		produce_windfall(g, who, c_idx, o_idx);
@@ -11106,17 +11089,17 @@ int produce_action(game *g, int who)
 
 		/* Check for other draw powers */
 		if (o_ptr->code & (P5_DRAW_WORLD_GENE |
-				   P5_DRAW_MILITARY |
-				   P5_DRAW_REBEL |
-				   P5_DRAW_REBEL_MILITARY |
-				   P5_DRAW_IMPERIUM |
-				   P5_DRAW_CHROMO |
-				   P5_DRAW_5_DEV |
-				   P5_PRESTIGE_MOST_CHROMO |
-				   P5_TAKE_SAVED |
-				   P5_DRAW_WORLD_RARE |
-				   P5_DRAW_XENO_MILITARY |
-				   P5_DRAW_TWO_MILITARY))
+		                   P5_DRAW_MILITARY |
+		                   P5_DRAW_REBEL |
+		                   P5_DRAW_REBEL_MILITARY |
+		                   P5_DRAW_IMPERIUM |
+		                   P5_DRAW_CHROMO |
+		                   P5_DRAW_5_DEV |
+		                   P5_PRESTIGE_MOST_CHROMO |
+		                   P5_TAKE_SAVED |
+		                   P5_DRAW_WORLD_RARE |
+		                   P5_DRAW_XENO_MILITARY |
+		                   P5_DRAW_TWO_MILITARY))
 		{
 			/* Use power immediately */
 			produce_chosen(g, who, w_ptr->c_idx, w_ptr->o_idx);
@@ -11161,17 +11144,17 @@ int produce_action(game *g, int who)
 
 		/* Check for useable power */
 		if (o_ptr->code & (P5_PRODUCE |
-				   P5_WINDFALL_ANY |
-				   P5_WINDFALL_NOVELTY |
-				   P5_WINDFALL_RARE |
-				   P5_WINDFALL_GENE |
-				   P5_WINDFALL_ALIEN |
-				   P5_DRAW_EACH_NOVELTY |
-				   P5_DRAW_EACH_RARE |
-				   P5_DRAW_EACH_GENE |
-				   P5_DRAW_EACH_ALIEN |
-				   P5_DRAW_DIFFERENT |
-				   P5_DRAW_EVERY_TWO))
+		                   P5_WINDFALL_ANY |
+		                   P5_WINDFALL_NOVELTY |
+		                   P5_WINDFALL_RARE |
+		                   P5_WINDFALL_GENE |
+		                   P5_WINDFALL_ALIEN |
+		                   P5_DRAW_EACH_NOVELTY |
+		                   P5_DRAW_EACH_RARE |
+		                   P5_DRAW_EACH_GENE |
+		                   P5_DRAW_EACH_ALIEN |
+		                   P5_DRAW_DIFFERENT |
+		                   P5_DRAW_EVERY_TWO))
 		{
 			/* Add power to list */
 			cidx[num] = w_list[i].c_idx;
@@ -11351,11 +11334,10 @@ void phase_produce_start(game *g)
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg,
-					"%s shifts good from %s to %s.\n",
-						p_ptr->name,
-						b_ptr->d_ptr->name,
-					g->deck[w_list[j].c_idx].d_ptr->name);
+					sprintf(msg, "%s shifts good from %s to %s.\n",
+					             p_ptr->name,
+					             b_ptr->d_ptr->name,
+					             g->deck[w_list[j].c_idx].d_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -13556,7 +13538,7 @@ int game_round(game *g)
 		{
 			/* Format message */
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
-				action_name(p_ptr->action[0]));
+			        action_name(p_ptr->action[0]));
 
 			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
 			{
@@ -13629,7 +13611,7 @@ int game_round(game *g)
 		{
 			/* Format message */
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
-				action_name(p_ptr->action[0]));
+			        action_name(p_ptr->action[0]));
 
 			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
 			{
@@ -14581,7 +14563,7 @@ void declare_winner(game *g)
 				{
 					/* Format message */
 					sprintf(msg, "%s wins with %d VP%s.\n", g->p[i].name,
-							g->p[i].end_vp, PLURAL(g->p[i].end_vp));
+					        g->p[i].end_vp, PLURAL(g->p[i].end_vp));
 				}
 
 				/* Send message */

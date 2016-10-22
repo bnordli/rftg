@@ -2229,7 +2229,7 @@ static void ask_client(int sid, int who)
 
 		/* Ask player to prepare */
 		send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
-				  g->p[who].choice_size, o_ptr->arg1, o_ptr->arg2);
+		          g->p[who].choice_size, o_ptr->arg1, o_ptr->arg2);
 
 		/* Finished */
 		return;
