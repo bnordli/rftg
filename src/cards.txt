@@ -1,8 +1,8 @@
 # cards.txt
-# 
+#
 # N:card name
 # T:type:cost:vp
-#   Type is 1: world, 2: development 
+#   Type is 1: world, 2: development
 # E@e0:n0@e1:n1[...]
 #   Number of this card introduced at each expansion level
 # G:goodtype
@@ -2044,11 +2044,11 @@ N:Uplift Descendants
 T:1:1:0
 E@5:1
 G:NOVELTY
-F:UPLIFT | CHROMO 
+F:UPLIFT | CHROMO
 P:4:CONSUME_NOVELTY | CONSUME_GENE | CONSUME_TWO | GET_VP:3:1
 P:5:PRODUCE:0:0
- 
-N:Anti-Xeno Embassy 
+
+N:Anti-Xeno Embassy
 T:1:2:1
 E@5:1
 G:NOVELTY
@@ -2262,7 +2262,7 @@ P:3:REDUCE:1:0
 P:3:PAY_MILITARY | AGAINST_CHROMO:0:0
 P:5:DISCARD | WINDFALL_GENE:0:0
 
-N:Anti-Xeno Assault Troops 
+N:Anti-Xeno Assault Troops
 T:2:3:2
 E@5:2
 F:ANTI_XENO
@@ -2327,7 +2327,7 @@ V:1:RARE_PRODUCTION:N/A
 V:1:GENE_PRODUCTION:N/A
 V:1:ALIEN_PRODUCTION:N/A
 
-N:Anti-Xeno Rebel Force 
+N:Anti-Xeno Rebel Force
 T:2:6:0
 E@5:1
 F:REBEL | ANTI_XENO
@@ -2336,7 +2336,7 @@ V:2:REBEL_MILITARY:N/A
 V:1:ANTI_XENO_FLAG:N/A
 V:1:XENO_MILITARY:N/A
 
-N:Alien Historians 
+N:Alien Historians
 T:2:6:0
 E@5:1
 F:ALIEN

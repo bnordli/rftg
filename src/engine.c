@@ -14108,12 +14108,14 @@ static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 
 			/* Check for flag */
 			return d_ptr->type == TYPE_DEVELOPMENT &&
-								d_ptr->flags & FLAG_ANTI_XENO;
+			       d_ptr->flags & FLAG_ANTI_XENO;
 
 		case VP_XENO_MILITARY:
 
 			/* Check for flag */
-			return d_ptr->type == TYPE_WORLD && d_ptr->flags & FLAG_XENO;
+			return d_ptr->type == TYPE_WORLD &&
+			        (d_ptr->flags & FLAG_XENO) &&
+			        (d_ptr->flags & FLAG_MILITARY);
 	}
 
 	/* Other types never match */

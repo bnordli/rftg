@@ -409,6 +409,7 @@ int read_cards(char *suggestion)
 		{
 			/* New card */
 			case 'N':
+
 				/* Check for maximum number of design reached */
 				if (num_design == AVAILABLE_DESIGN)
 				{
