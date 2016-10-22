@@ -1,6 +1,6 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
  * This program is free software; you can redistribute it and/or modify
@@ -165,7 +165,7 @@ void send_msgf(int fd, int type, char *fmt, ...)
 
 			/* String */
 			case 's':
-			
+
 				/* Add string to message */
 				put_string(va_arg(ap, char *), &ptr);
 				break;

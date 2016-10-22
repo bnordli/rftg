@@ -1,6 +1,6 @@
 /*
  * Race for the Galaxy AI
- * 
+ *
  * Copyright (C) 2009-2011 Keldon Jones
  *
  * This program is free software; you can redistribute it and/or modify
@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 		{
 			printf("%f ", learner.win_prob[j] - start[j]);
 		}
-		
+
 		printf("\n");
 
 		learner.input_value[i] = -1;
