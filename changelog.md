@@ -3,6 +3,7 @@
 ### Gameplay
 
 * *Alien Survey Technology* no longer scores with *Galactic Survey: SETI*
+* *Alien Oort Cloud Refinery* is now optional to use with *Diversified Economy*
 
 # Changelog for 0.9.4 versions
 
