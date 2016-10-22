@@ -2350,9 +2350,15 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
+		/* Hack: in order to be able to connect to the official keldon.net
+		 * server, which at the time being runs the 0.9.4 server, the client
+		 * poses as a 0.9.4 version client.
+		 * We do not fake the RELEASE, the new server uses this information to
+		 * determine clients allowed to join a XI session.
+		 */
 		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
-		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
+		          gtk_entry_get_text(GTK_ENTRY(pass)), COMM_VERSION, RELEASE);
 
 
 		/* Enter main loop to wait for response */
@@ -2552,7 +2558,7 @@ static GtkWidget *disable_takeover_check;
 static int next_exp;
 
 /*
- * Update button sensitivities.
+ * Update button sensitivities after next_exp is set.
  */
 static void update_sensitivity()
 {
@@ -2713,6 +2719,12 @@ void create_dialog(GtkButton *button, gpointer data)
 	/* Loop over expansion levels */
 	for (i = 0; exp_names[i]; i++)
 	{
+		/* If connected to a server older than 0.9.5, don't offer the
+		 * possibility to create a XI session
+		 */
+		if (i == EXP_XI && strcmp(server_version, "0.9.5") < 0)
+			break;
+
 		/* Create radio button */
 		radio[i] = gtk_radio_button_new_with_label_from_widget(
 		                                     GTK_RADIO_BUTTON(radio[0]),
@@ -2759,8 +2771,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	g_signal_connect(G_OBJECT(min_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(0));
 
-	/* Set default value */
-	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
+	/* Default value is set after advanced check box is created */
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 0, 1);
@@ -2777,8 +2788,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	g_signal_connect(G_OBJECT(max_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(1));
 
-	/* Set default value */
-	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
+	/* Default value is set after advanced check box is created */
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
@@ -2811,6 +2821,12 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Add checkbox to options box */
 	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
+
+	/* Set default min-player value */
+	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
+
+	/* Set default max-player value */
+	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
 
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
