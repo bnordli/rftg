@@ -8747,7 +8747,14 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			}
 
 			/* Check for not three */
-			if (num_types != 3) return 0;
+			if (num_types != 3)
+			{
+				/* When "any" type is present, power is optional. */
+				if (min != 0 || num != 0)
+				{
+					return 0;
+				}
+			}
 		}
 
 		/* Check for different types needed */
