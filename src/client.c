@@ -2558,7 +2558,7 @@ static GtkWidget *disable_takeover_check;
 static int next_exp;
 
 /*
- * Update button sensitivities.
+ * Update button sensitivities after next_exp is set.
  */
 static void update_sensitivity()
 {
@@ -2719,6 +2719,12 @@ void create_dialog(GtkButton *button, gpointer data)
 	/* Loop over expansion levels */
 	for (i = 0; exp_names[i]; i++)
 	{
+		/* If connected to a server older than 0.9.5, don't offer the
+		 * possibility to create a XI session
+		 */
+		if (i == EXP_XI && strcmp(server_version, "0.9.5") < 0)
+			break;
+
 		/* Create radio button */
 		radio[i] = gtk_radio_button_new_with_label_from_widget(
 		                                     GTK_RADIO_BUTTON(radio[0]),
