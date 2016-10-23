@@ -1085,7 +1085,7 @@ void init_game(game *g)
 	g->vp_pool = g->num_players * 12;
 
 	/* Increase size of pool in third expansion */
-	if (g->expanded == 3) g->vp_pool += 5;
+	if (g->expanded == EXP_BOW) g->vp_pool += 5;
 
 	/* No game round yet */
 	g->round = 0;
@@ -1259,19 +1259,19 @@ void init_game(game *g)
 	}
 
 	/* Add goals when expanded */
-	if (g->expanded > 0 && g->expanded < 4 && !g->goal_disabled)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW && !g->goal_disabled)
 	{
 		/* No goals available yet */
 		n = 0;
 
 		/* Use correct "first" goals */
-		if (g->expanded == 1)
+		if (g->expanded == EXP_TGS)
 		{
 			/* First expansion only */
 			j = GOAL_FIRST_5_VP;
 			k = GOAL_FIRST_SIX_DEVEL;
 		}
-		else if (g->expanded == 2)
+		else if (g->expanded == EXP_RVI)
 		{
 			/* First and second expansion */
 			j = GOAL_FIRST_5_VP;
@@ -1344,13 +1344,13 @@ void init_game(game *g)
 		n = 0;
 
 		/* Use correct "most" goals */
-		if (g->expanded == 1)
+		if (g->expanded == EXP_TGS)
 		{
 			/* First expansion only */
 			j = GOAL_MOST_MILITARY;
 			k = GOAL_MOST_PRODUCTION;
 		}
-		else if (g->expanded == 2)
+		else if (g->expanded == EXP_RVI)
 		{
 			/* First and second expansion */
 			j = GOAL_MOST_MILITARY;

@@ -124,6 +124,20 @@
  */
 #define MAX_WHERE 8
 
+/*
+ * Expansions
+ */
+#define EXP_BASE    0
+#define EXP_TGS     1
+#define EXP_RVI     2
+#define EXP_BOW     3
+#define EXP_AA      4
+#define EXP_XI      5
+
+/*
+ * Maximum number of players per expansion
+ */
+extern int exp_max_player[MAX_EXPANSION];
 
 /*
  * Round phases.
