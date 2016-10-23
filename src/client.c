@@ -2350,9 +2350,15 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
+		/* Hack: in order to be able to connect to the official keldon.net
+		 * server, which at the time being runs the 0.9.4 server, the client
+		 * poses as a 0.9.4 version client.
+		 * We do not fake the RELEASE, the new server uses this information to
+		 * determine clients allowed to join a XI session.
+		 */
 		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
-		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
+		          gtk_entry_get_text(GTK_ENTRY(pass)), COMM_VERSION, RELEASE);
 
 
 		/* Enter main loop to wait for response */
