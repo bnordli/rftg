@@ -1406,6 +1406,12 @@ static void send_session_one(int sid, int cid)
 	char name[1024];
 	int i;
 
+	/*
+	 * Do not advertise XI games to clients not supporting XI
+	 */
+	if (s_ptr->expanded == EXP_XI && strcmp(c_list[cid].version, "0.9.5"))
+		return;
+
 	/* Check for game not in waiting status */
 	if (s_ptr->state != SS_WAITING)
 	{
