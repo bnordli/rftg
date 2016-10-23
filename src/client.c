@@ -2765,8 +2765,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	g_signal_connect(G_OBJECT(min_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(0));
 
-	/* Set default value */
-	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
+	/* Default value is set after advanced check box is created */
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 0, 1);
@@ -2783,8 +2782,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	g_signal_connect(G_OBJECT(max_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(1));
 
-	/* Set default value */
-	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
+	/* Default value is set after advanced check box is created */
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
@@ -2817,6 +2815,12 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Add checkbox to options box */
 	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
+
+	/* Set default min-player value */
+	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
+
+	/* Set default max-player value */
+	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
 
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
