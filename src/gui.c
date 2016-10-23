@@ -2987,7 +2987,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
 			        "  non-Alien%s military worlds: -%d",
-			        g->expanded == 5 ? ", non-Xeno" : "",
+			        g->expanded == EXP_XI ? ", non-Xeno" : "",
 			        discount->non_alien_mil_bonus);
 			strcat(msg, text);
 		}
@@ -2997,7 +2997,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nMay pay to settle a non-Alien%s military world",
-			        g->expanded == 5 ? ", non-Xeno" : "");
+			        g->expanded == EXP_XI ? ", non-Xeno" : "");
 			strcat(msg, text);
 		}
 	}
@@ -3011,7 +3011,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
 			        "  %sRebel military worlds: -%d",
-			        g->expanded == 5 ? "non-Xeno " : "",
+			        g->expanded == EXP_XI ? "non-Xeno " : "",
 			        discount->rebel_mil_bonus);
 			strcat(msg, text);
 		}
@@ -3021,7 +3021,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nMay pay to settle a %sRebel military world",
-			        g->expanded == 5 ? "non-Xeno " : "");
+			        g->expanded == EXP_XI ? "non-Xeno " : "");
 			strcat(msg, text);
 		}
 	}
@@ -3035,7 +3035,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
 			        "  %smilitary worlds with a Chromosome symbol: -%d",
-			        g->expanded == 5 ? "non-Xeno " : "",
+			        g->expanded == EXP_XI ? "non-Xeno " : "",
 			        discount->chromo_mil_bonus);
 			strcat(msg, text);
 		}
@@ -3046,7 +3046,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 			/* Create text */
 			sprintf(text, "\nMay pay to settle a %smilitary world\n"
 			        "  with a Chromosome symbol",
-			        g->expanded == 5 ? "non-Xeno " : "");
+			        g->expanded == EXP_XI ? "non-Xeno " : "");
 			strcat(msg, text);
 		}
 	}
@@ -3060,7 +3060,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 			/* Create text */
 			sprintf(text, "\nAdditional discount when paying for\n"
 			        "  %sAlien military worlds: -%d",
-			        g->expanded == 5 ? "non-Xeno " : "",
+			        g->expanded == EXP_XI ? "non-Xeno " : "",
 			        discount->alien_mil_bonus);
 			strcat(msg, text);
 		}
@@ -3070,7 +3070,7 @@ static char *get_discount_tooltip(game *g, discounts *discount)
 		{
 			/* Create text */
 			sprintf(text, "\nMay pay to settle an %sAlien military world",
-			        g->expanded == 5 ? "non-Xeno " : "");
+			        g->expanded == EXP_XI ? "non-Xeno " : "");
 			strcat(msg, text);
 		}
 	}
@@ -3271,7 +3271,7 @@ static char *get_prestige_tooltip(game *g, int who)
 	static char msg[1024];
 
 	/* Do nothing unless third expansion is present */
-	if (g->expanded != 3) return "";
+	if (g->expanded != EXP_BOW) return "";
 
 	/* Create text */
 	sprintf(msg, "Prestige/Search action used: <b>%s</b> ",
@@ -4427,7 +4427,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 
 	/* Check for third expansion */
-	if (real_game.expanded == 3)
+	if (real_game.expanded == EXP_BOW)
 	{
 		/* Create prestige icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_PRESTIGE],
@@ -4750,7 +4750,7 @@ void redraw_status(void)
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
 	              size, display_pool, real_game.num_players * 12 +
-	                (real_game.expanded == 3 ? 5 : 0));
+	                (real_game.expanded == EXP_BOW ? 5 : 0));
 
 	/* Make VP widget */
 	pool_image = gtk_image_new_from_pixbuf(buf);
@@ -5958,7 +5958,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	for (i = 0; i < MAX_ACTION; i++)
 	{
 		/* Check for unusable search action */
-		if (i == ACT_SEARCH && (g->expanded != 3 ||
+		if (i == ACT_SEARCH && (g->expanded != EXP_BOW ||
 		                        g->p[who].prestige_action_used ||
 		                        (one == 2 &&
 		                         g->p[who].action[0] & ACT_PRESTIGE)))
@@ -6065,7 +6065,8 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	}
 
 	/* Check for usable prestige action */
-	if (real_game.expanded == 3 && !real_game.p[who].prestige_action_used &&
+	if (real_game.expanded == EXP_BOW &&
+	    !real_game.p[who].prestige_action_used &&
 	    real_game.p[who].prestige > 0 && prestige_action == -1)
 	{
 		/* Create button to toggle prestige */
@@ -6233,7 +6234,7 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 		action_toggle[i] = NULL;
 
 		/* Check for unusable search action */
-		if (i == ACT_SEARCH && (real_game.expanded != 3 ||
+		if (i == ACT_SEARCH && (real_game.expanded != EXP_BOW ||
 		                        real_game.p[who].prestige_action_used))
 		{
 			/* Skip search action */
@@ -6305,7 +6306,8 @@ void gui_choose_action(game *g, int who, int action[2], int one)
 	}
 
 	/* Check for usable prestige action */
-	if (real_game.expanded == 3 && !real_game.p[who].prestige_action_used &&
+	if (real_game.expanded == EXP_BOW &&
+	    !real_game.p[who].prestige_action_used &&
 	    real_game.p[who].prestige > 0)
 	{
 		/* Create toggle button for prestige */
@@ -10203,20 +10205,6 @@ decisions gui_func =
  */
 static void apply_options(void)
 {
-	/* Sanity check number of players in base game */
-	if (opt.expanded < 1 && opt.num_players > 4)
-	{
-		/* Reset to four players */
-		opt.num_players = 4;
-	}
-
-	/* Sanity check number of players in first or fourth expansion */
-	if ((opt.expanded < 2 || opt.expanded == 4) && opt.num_players > 5)
-	{
-		/* Reset to five players */
-		opt.num_players = 5;
-	}
-
 	/* Set name of human player */
 	real_game.human_name = opt.player_name;
 
@@ -11006,10 +10994,13 @@ static void read_prefs(void)
 	                                               "style_sheet", NULL);
 
 	/* Check range of values */
-	if (opt.num_players < 2) opt.num_players = 2;
-	if (opt.num_players > MAX_PLAYER) opt.num_players = MAX_PLAYER;
 	if (opt.expanded < 0) opt.expanded = 0;
 	if (opt.expanded > MAX_EXPANSION - 1) opt.expanded = MAX_EXPANSION - 1;
+	if (opt.num_players < 2) opt.num_players = 2;
+	if (opt.num_players > exp_max_player[opt.expanded])
+	{
+		opt.num_players = exp_max_player[opt.expanded];
+	}
 }
 
 /*
@@ -11224,7 +11215,7 @@ void update_menu_items()
 		gtk_widget_set_sensitive(debug_draw_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_vp_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_prestige_item, !real_game.game_over &&
-		                         real_game.expanded == 3);
+		                         real_game.expanded == EXP_BOW);
 		gtk_widget_set_sensitive(debug_rotate_item, !real_game.game_over &&
 		                         real_game.cur_action > ACT_GAME_START);
 		gtk_widget_set_sensitive(debug_ai_item, !real_game.game_over);
@@ -11283,7 +11274,7 @@ void update_menu_items()
 				                         !real_game.game_over);
 				gtk_widget_set_sensitive(debug_prestige_item, debug_server &&
 				                         !real_game.game_over &&
-				                         real_game.expanded == 3);
+				                         real_game.expanded == EXP_BOW);
 				gtk_widget_set_sensitive(debug_rotate_item, debug_server &&
 				                         !real_game.game_over &&
 				                         real_game.cur_action > ACT_GAME_START);
@@ -11844,7 +11835,8 @@ static void update_sensitivity()
 		/* Set player radio sensitivities */
 		for (i = 0; player_labels[i]; ++i)
 		{
-			gtk_widget_set_sensitive(num_players_radio[i], i < (next_exp >= 4 ? 4 : next_exp + 3));
+			gtk_widget_set_sensitive(num_players_radio[i],
+			                         i + 2 <= exp_max_player[next_exp]);
 		}
 
 		/* Set advanced checkbox sensitivity */
@@ -12491,12 +12483,14 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 #endif
 
 		/* Set goals disabled flag */
-		opt.disable_goal = (opt.expanded >= 1) && (opt.expanded <= 3) &&
+		opt.disable_goal = (opt.expanded >= EXP_TGS) &&
+		                (opt.expanded <= EXP_BOW) &&
 		                gtk_toggle_button_get_active(
 		                         GTK_TOGGLE_BUTTON(disable_goal_check));
 
 		/* Set takeover disabled flag */
-		opt.disable_takeover = (opt.expanded >= 2) && (opt.expanded <= 3) &&
+		opt.disable_takeover = (opt.expanded >= EXP_RVI) &&
+		                (opt.expanded <= EXP_BOW) &&
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
 
@@ -13614,7 +13608,8 @@ static void gui_debug_choice(GtkMenuItem *menu_item, gpointer data)
 	if (real_game.game_over) return;
 
 	/* Check for taking prestige in expansion without prestige */
-	if (choice == CHOICE_D_TAKE_PRESTIGE && real_game.expanded != 3) return;
+	if (choice == CHOICE_D_TAKE_PRESTIGE && real_game.expanded != EXP_BOW)
+		return;
 
 	/* Check for rotating players before game has started */
 	if (choice == CHOICE_D_ROTATE &&

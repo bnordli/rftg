@@ -149,7 +149,7 @@ static void handle_status_player(char *ptr)
 	p_ptr->phase_bonus_used = get_integer(&ptr);
 	p_ptr->bonus_military = get_integer(&ptr);
 	/* Xeno military bonus only for XI games */
-	if (real_game.expanded == 5)
+	if (real_game.expanded == EXP_XI)
 		p_ptr->bonus_military_xeno = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 }

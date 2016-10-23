@@ -259,12 +259,15 @@ static void clear_games_users(void)
 /*
  * Expansion name abbreviations.
  */
-static char *exp_abbr[MAX_EXPANSION] =
+static char *exp_abbr[MAX_EXPANSION + 1] =
 {
 	"Base",
 	"TGS",
 	"RvI",
-	"BoW"
+	"BoW",
+	"AA",
+	"XI",
+	"?"
 };
 
 /*
@@ -508,6 +511,9 @@ static void handle_open_game(char *ptr)
 
 	/* Read expansion level */
 	x = get_integer(&ptr);
+
+	/* Sanitize expansion level */
+	if (x < 0 || x > MAX_EXPANSION) x = MAX_EXPANSION;
 
 	/* Set expansion */
 	gtk_tree_store_set(game_list, &list_iter,
@@ -777,7 +783,7 @@ static void handle_status_player(char *ptr, int size)
 	p_ptr->phase_bonus_used = get_integer(&ptr);
 	p_ptr->bonus_military = get_integer(&ptr);
 	/* Xeno military bonus only for XI games */
-	if (real_game.expanded == 5)
+	if (real_game.expanded == EXP_XI)
 		p_ptr->bonus_military_xeno = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 
@@ -2553,15 +2559,15 @@ static void update_sensitivity()
 	int max_p;
 
 	/* Set goal disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0 && next_exp < 4);
+	gtk_widget_set_sensitive(disable_goal_check, next_exp >= EXP_TGS &&
+	                                             next_exp <= EXP_BOW);
 
 	/* Set takeover disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1 && next_exp < 4);
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp >= EXP_RVI &&
+	                                                 next_exp <= EXP_BOW);
 
 	/* Find maximum number of players */
-	max_p = next_exp + 4;
-	if (max_p > 6) max_p = 6;
-	if (next_exp >= 4) max_p = 5;
+	max_p = exp_max_player[next_exp];
 
 	/* Reduce value to the maximum */
 	if (gtk_range_get_value(GTK_RANGE(min_player)) > max_p)
