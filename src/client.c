@@ -2565,15 +2565,15 @@ static void update_sensitivity()
 	int max_p;
 
 	/* Set goal disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0 && next_exp < 4);
+	gtk_widget_set_sensitive(disable_goal_check, next_exp >= EXP_TGS &&
+	                                             next_exp <= EXP_BOW);
 
 	/* Set takeover disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1 && next_exp < 4);
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp >= EXP_RVI &&
+	                                                 next_exp <= EXP_BOW);
 
 	/* Find maximum number of players */
-	max_p = next_exp + 4;
-	if (max_p > 6) max_p = 6;
-	if (next_exp >= 4) max_p = 5;
+	max_p = exp_max_player[next_exp];
 
 	/* Reduce value to the maximum */
 	if (gtk_range_get_value(GTK_RANGE(min_player)) > max_p)
