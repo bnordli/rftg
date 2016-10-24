@@ -30,6 +30,10 @@
 # Visual studio files
 .vs
 *.*sdf
+*.vcxproj.user
+*.VC.opendb
+*.VC.db
+*.aps
 
 # Build files
 Debug
