@@ -13,8 +13,6 @@ IF NOT EXIST "Release\rftg9.exe" (
 xcopy "Release\rftg9.exe" "%OutDir%\" /y
 xcopy "..\..\src\COPYING" "%OutDir%\" /y
 xcopy "..\..\src\README" "%OutDir%\" /y
-xcopy "..\..\src\READMEwin" "%OutDir%\" /y
-xcopy "..\..\src\READMEpatch" "%OutDir%\" /y
 xcopy "..\..\src\cards.txt" "%OutDir%\" /y
 xcopy "..\..\src\campaign.txt" "%OutDir%\" /y
 xcopy "..\..\src\images.data" "%OutDir%\" /y
