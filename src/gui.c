@@ -3166,7 +3166,7 @@ static char *get_military_tooltip(mil_strength *military)
 		strcat(msg, text);
 	}
 
-	/* Add temporary military against Xeno*/
+	/* Add temporary military against Xeno */
 	if (military->bonus_xeno)
 	{
 		/* Create text */
@@ -5196,7 +5196,7 @@ static void compute_military(game *g, int who, mil_strength *m_ptr)
 	/* Set bonus military */
 	m_ptr->bonus = g->p[who].bonus_military;
 
-	/* Set bonus military against Xeno*/
+	/* Set bonus military against Xeno */
 	m_ptr->bonus_xeno = g->p[who].bonus_military_xeno;
 
 	/* Get first active card */
@@ -11835,7 +11835,8 @@ static void update_sensitivity()
 		/* Set player radio sensitivities */
 		for (i = 0; player_labels[i]; ++i)
 		{
-			gtk_widget_set_sensitive(num_players_radio[i], i < (next_exp >= 4 ? 4 : next_exp + 3));
+			gtk_widget_set_sensitive(num_players_radio[i],
+			                         i + 2 <= exp_max_player[next_exp]);
 		}
 
 		/* Set advanced checkbox sensitivity */

@@ -2632,7 +2632,7 @@ static int predict_action_player(game *g, int who, int n, int *leader)
 	int i, x, good[MAX_GOOD], count, count_dev, count_world, explore_mix = 0;
 
 	/* Clear good types */
-	for (i = 0; i <= MAX_GOOD; i++) good[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) good[i] = 0;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];

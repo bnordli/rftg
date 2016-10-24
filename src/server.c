@@ -1409,7 +1409,7 @@ static void send_session_one(int sid, int cid)
 	/*
 	 * Do not advertise XI games to clients not supporting XI
 	 */
-	if (s_ptr->expanded == EXP_XI && strcmp(c_list[cid].version, "0.9.5"))
+	if (s_ptr->expanded == EXP_XI && strcmp(c_list[cid].version, "0.9.5") < 0)
 		return;
 
 	/* Check for game not in waiting status */
@@ -3727,15 +3727,6 @@ static void handle_join(int cid, char *ptr)
 	{
 		/* Send denied message */
 		send_msgf(cid, MSG_JOINNAK, "s", "Incorrect game password");
-		return;
-	}
-	/* Check for a version compatible with Xeno Invasion expansion */
-	if (s_list[sid].expanded == EXP_XI &&
-	        strcmp(c_list[cid].version, "0.9.5") < 0)
-	{
-		/* Send denied message */
-		send_msgf(cid, MSG_JOINNAK, "s", "Client version does not support Xeno"
-				" Invasion, see https://github.com/bnordli/rftg/wiki.");
 		return;
 	}
 
