@@ -4659,7 +4659,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			}
 
 			/* Check for consume to reduce cost */
-			if (o_ptr->code & P3_CONSUME_GENE)
+			if ((o_ptr->code & P3_CONSUME_GENE) &&
+			    (o_ptr->code & P3_REDUCE))
 			{
 				/* Mark power as used */
 				c_ptr->misc |= 1 << (MISC_USED_SHIFT + j);
@@ -5484,6 +5485,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 
 		/* Check for consume gene */
 		if ((o_ptr->code & P3_CONSUME_GENE) &&
+		    (o_ptr->code & P3_REDUCE) &&
 		    has_good(g, who, GOOD_GENE))
 		{
 			/* Add to special list */
