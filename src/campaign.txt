@@ -25,13 +25,239 @@
 # C:---
 #   Go to next player
 
+
+N:=== Preset Learning Hands ===
+
+N:Preset Learning Hands - Base game - Epsilon Eridani
+O:0:2-4:-1:-1:-1
+F:DRAW_FOUR
+D:Play with preset learning hands
+C:Epsilon Eridani
+C:Rebel Fuel Cache
+C:Public Works
+C:Colony Ship
+C:Gem World
+C:---
+C:Alpha Centauri
+C:Expedition Force
+C:Mining Robots
+C:Rebel Miners
+C:Comet Zone
+C:---
+C:New Sparta
+C:Export Duties
+C:Former Penal Colony
+C:Malevolent Lifeforms
+C:New Military Tactics
+C:---
+C:Earth's Lost Colony
+C:Space Marines
+C:Contact Specialist
+C:Spice World
+C:Avian Uplift Race
+
+N:Preset Learning Hands - Base game - Alpha Centauri
+O:0:2-4:-1:0:0
+F:DRAW_FOUR
+D:Play with preset learning hands
+C:Alpha Centauri
+C:Expedition Force
+C:Mining Robots
+C:Rebel Miners
+C:Comet Zone
+C:---
+C:Epsilon Eridani
+C:Rebel Fuel Cache
+C:Public Works
+C:Colony Ship
+C:Gem World
+C:---
+C:New Sparta
+C:Export Duties
+C:Former Penal Colony
+C:Malevolent Lifeforms
+C:New Military Tactics
+C:---
+C:Earth's Lost Colony
+C:Space Marines
+C:Contact Specialist
+C:Spice World
+C:Avian Uplift Race
+
+N:Preset Learning Hands - Base game - New Sparta
+O:0:3-4:-1:0:0
+F:DRAW_FOUR
+D:Play with preset learning hands
+C:New Sparta
+C:Export Duties
+C:Former Penal Colony
+C:Malevolent Lifeforms
+C:New Military Tactics
+C:---
+C:Epsilon Eridani
+C:Rebel Fuel Cache
+C:Public Works
+C:Colony Ship
+C:Gem World
+C:---
+C:Alpha Centauri
+C:Expedition Force
+C:Mining Robots
+C:Rebel Miners
+C:Comet Zone
+C:---
+C:Earth's Lost Colony
+C:Space Marines
+C:Contact Specialist
+C:Spice World
+C:Avian Uplift Race
+
+N:Preset Learning Hands - Base game - Earth's Lost Colony
+O:0:4:-1:0:0
+F:DRAW_FOUR
+D:Play with preset learning hands
+C:Earth's Lost Colony
+C:Space Marines
+C:Contact Specialist
+C:Spice World
+C:Avian Uplift Race
+C:---
+C:Epsilon Eridani
+C:Rebel Fuel Cache
+C:Public Works
+C:Colony Ship
+C:Gem World
+C:---
+C:Alpha Centauri
+C:Expedition Force
+C:Mining Robots
+C:Rebel Miners
+C:Comet Zone
+C:---
+C:New Sparta
+C:Export Duties
+C:Former Penal Colony
+C:Malevolent Lifeforms
+C:New Military Tactics
+
+
+N:Preset Learning Hands - The Gathering Storm - Separatist Colony
+O:1:5:0:-1:0
+F:DRAW_FOUR
+D:Play with preset learning hands
+C:Separatist Colony
+C:Alien Toy Shop
+C:Deserted Alien World
+C:Hive World
+C:Space Mercenaries
+C:---
+C:Epsilon Eridani
+C:Rebel Fuel Cache
+C:Public Works
+C:Colony Ship
+C:Gem World
+C:---
+C:Alpha Centauri
+C:Expedition Force
+C:Mining Robots
+C:Rebel Miners
+C:Comet Zone
+C:---
+C:New Sparta
+C:Export Duties
+C:Former Penal Colony
+C:Malevolent Lifeforms
+C:New Military Tactics
+C:---
+C:Earth's Lost Colony
+C:Space Marines
+C:Contact Specialist
+C:Spice World
+C:Avian Uplift Race
+
+
+N:Preset Learning Hands - Alien Artifacts - Sentient Robots
+O:4:5:0:0:0
+F:DRAW_FOUR
+D:Play with preset learning hands
+C:Sentient Robots
+C:Deep Space Symbionts, Ltd.
+C:Imperium Stealth Tactics
+C:Rebel Gem Smugglers
+C:Self-Repairing Alien Artillery
+C:---
+C:Epsilon Eridani
+C:Rebel Fuel Cache
+C:Public Works
+C:Colony Ship
+C:Gem World
+C:---
+C:Alpha Centauri
+C:Expedition Force
+C:Mining Robots
+C:Rebel Miners
+C:Comet Zone
+C:---
+C:New Sparta
+C:Export Duties
+C:Former Penal Colony
+C:Malevolent Lifeforms
+C:New Military Tactics
+C:---
+C:Earth's Lost Colony
+C:Space Marines
+C:Contact Specialist
+C:Spice World
+C:Avian Uplift Race
+
+
+N:Preset Learning Hands - Xeno Invasion - Alien First Contact Team
+O:5:5:-1:0:0
+F:DRAW_FOUR
+D:Play with preset learning hands
+C:Alien First Contact Team
+C:Alien Weapon Cache
+C:Rebel Black Market Gangs
+C:Terraforming Uplift Project
+C:Uplift Terraforming
+C:---
+C:Epsilon Eridani
+C:Rebel Fuel Cache
+C:Public Works
+C:Colony Ship
+C:Gem World
+C:---
+C:Alpha Centauri
+C:Expedition Force
+C:Mining Robots
+C:Rebel Miners
+C:Comet Zone
+C:---
+C:New Sparta
+C:Export Duties
+C:Former Penal Colony
+C:Malevolent Lifeforms
+C:New Military Tactics
+C:---
+C:Earth's Lost Colony
+C:Space Marines
+C:Contact Specialist
+C:Spice World
+C:Avian Uplift Race
+
+
+N:=== Original Keldon campaign ===
+
 N:Alien Nightmare
-O:1:2:-1:-1:0
-D:You have a random start world versus Earth's Lost Colony with Alien
-D:Toy Shop in the starting hand.
+O:1:2:-1:-1:-1
+D:You have a random start world versus Earth's Lost Colony with
+D:Alien Toy Shop in the starting hand.
 C:---
 C:Earth's Lost Colony
 C:Alien Toy Shop
+
+
+N:=== 2-Player Takeover Scenarios ===
 
 N:Rebel vs Imperium
 O:2:2:-1:-1:0
@@ -76,3 +302,271 @@ C:RANDOM
 C:RANDOM
 C:RANDOM
 C:Rebel Alliance
+
+
+N:=== Perfect Hands ===
+
+N:Perfect Hand - Base game - Old Earth
+O:0:2-4:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Old Earth
+C:Empath World
+C:Secluded World
+C:Artist Colony
+C:Tourist World
+
+N:Perfect Hand - Base game - Epsilon Eridani
+O:0:2-4:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Epsilon Eridani
+C:Runaway Robots
+C:New Survivalists
+C:Artist Colony
+C:Tourist World
+
+N:Perfect Hand - Base game - Alpha Centauri
+O:0:2-4:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Alpha Centauri
+C:Runaway Robots
+C:Mining League
+C:Mining Conglomerate
+C:Mining World
+
+N:Perfect Hand - Base game - New Sparta
+O:0:2-4:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:New Sparta
+C:Alien Robot Sentry
+C:New Galactic Order
+C:Alien Robot Scout Ship
+C:Lost Alien Warship
+
+N:Perfect Hand - Base game - Earth's Lost Colony
+O:0:2-4:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Earth's Lost Colony
+C:Empath World
+C:Secluded World
+C:Artist Colony
+C:Tourist World
+
+
+N:Perfect Hand - The Gathering Storm - Separatist Colony
+O:1:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Separatist Colony
+C:The Last of the Uplift Gnarssh
+C:Terraforming Guild
+C:Smuggling Lair
+C:Star Nomad Lair
+
+N:Perfect Hand - The Gathering Storm - Ancient Race
+O:1:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Ancient Race
+C:Genetics Lab
+C:Terraforming Guild
+C:Empath World
+C:Galactic Genome Project
+
+N:Perfect Hand - The Gathering Storm - Damaged Alien Factory
+O:1:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Damaged Alien Factory
+C:Deserted Alien World
+C:Alien Toy Shop
+C:Alien Tech Institute
+C:Alien Robotic Factory
+
+N:Perfect Hand - The Gathering Storm - Doomed World
+O:1:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Doomed World
+C:Empath World
+C:Lost Species Ark World
+C:Earth's Lost Colony
+C:Tourist World
+
+
+N:Perfect Hand - Rebel vs Imperium - Rebel Cantina
+O:2:2-6:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Rebel Cantina
+C:Rebel Pact
+C:Rebel Fuel Cache
+C:Rebel Underground
+C:Rebel Alliance
+
+N:Perfect Hand - Rebel vs Imperium - Galactic Developers
+O:2:2-6:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Galactic Developers
+C:Public Works
+C:Interstellar Bank
+C:Investment Credits
+C:Galactic Federation
+
+N:Perfect Hand - Rebel vs Imperium - Imperium Warlord
+O:2:2-6:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Imperium Warlord
+C:Imperium Troops
+C:Rebel Warrior Race
+C:Rebel Outpost
+C:Imperium Seat
+
+
+N:Perfect Hand - The Brink of War - Galactic Scavengers
+O:3:2-6:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Galactic Scavengers
+C:Secluded World
+C:Tourist World
+C:Earth's Lost Colony
+C:Free Trade Association
+
+N:Perfect Hand - The Brink of War - Uplift Mercenary Force
+O:3:2-6:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Uplift Mercenary Force
+C:The Last of the Uplift Gnarssh
+C:Clandestine Uplift Lab
+C:Ravaged Uplift World
+C:Uplift Code
+
+N:Perfect Hand - The Brink of War - Alien Research Team
+O:3:2-6:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Alien Research Team
+C:Deserted Alien World
+C:Damaged Alien Factory
+C:Alien Toy Shop
+C:Alien Tech Institute
+
+N:Perfect Hand - The Brink of War - Rebel Freedom Fighters
+O:3:2-6:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Rebel Freedom Fighters
+C:Rebel Troops
+C:Rebel Miners
+C:Rebel Warrior Race
+C:Rebel Alliance
+
+
+N:Perfect Hand - Alien Artifacts - Sentient Robots
+O:4:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Sentient Robots
+C:Runaway Robots
+C:Alien Fuel Refinery
+C:Secluded World
+C:Diversified Economy
+
+N:Perfect Hand - Alien Artifacts - Alien Artifact Hunters
+O:4:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Alien Artifact Hunters
+C:Alien Fuel Refinery
+C:Alien Researchers
+C:Alien Robot Sentry
+C:Alien Tech Institute
+
+N:Perfect Hand - Alien Artifacts - Rebel Mutineers
+O:4:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Rebel Mutineers
+C:Scientific Cruisers
+C:Rebel Miners
+C:Alien Fuel Refinery
+C:Diversified Economy
+
+N:Perfect Hand - Alien Artifacts - Uplift Researchers
+O:4:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Uplift Researchers
+C:The Last of the Uplift Gnarssh
+C:Alien Uplift Chamber
+C:Uplift Alliance
+C:Designer Species, Ultd.
+
+N:Perfect Hand - Alien Artifacts - Frontier Capital
+O:4:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Frontier Capital
+C:Public Works
+C:Interstellar Bank
+C:Galactic Investors
+C:Galactic Federation
+
+
+N:Perfect Hand - Xeno Invasion - Alien First Contact Team
+O:5:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Alien First Contact Team
+C:Alien Weapon Plans
+C:Alien Robot Scout Ship
+C:Xeno-Infested Alien Outpost
+C:Alien Tech Institute
+
+N:Perfect Hand - Xeno Invasion - Starry Rift Pioneers
+O:5:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Starry Rift Pioneers
+C:Uplift Terraforming
+C:The Last of the Uplift Gnarssh
+C:Uplift Descendants
+C:Adaptable Uplift Race
+
+N:Perfect Hand - Xeno Invasion - Rebel Cadre
+O:5:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Rebel Cadre
+C:Space Marines
+C:Rebel Resistance
+C:Rebel Warrior Race
+C:Anti-Xeno Rebel Force
+
+N:Perfect Hand - Xeno Invasion - Terraforming Surveyors
+O:5:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Terraforming Surveyors
+C:Uplift Terraforming
+C:The Last of the Uplift Gnarssh
+C:Uplift Descendants
+C:Adaptable Uplift Race
+
+N:Perfect Hand - Xeno Invasion - Anti-Xeno Defense Post
+O:5:2-5:-1:-1:-1
+F:DRAW_FOUR
+D:Play with a perfect starting hand
+C:Anti-Xeno Defense Post
+C:Anti-Xeno Militia
+C:Xeno-Infested Uplift World
+C:Anti-Xeno Refugees
+C:Anti-Xeno League

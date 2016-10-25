@@ -16,6 +16,8 @@
 
 ### Campaigns
 
+* Campaigns for preset starting hands
+* Campaigns for perfect starting hands, provided by entranced
 * Support player ranges
 * Support customizable game options
 * Fix bug using Old Earth
