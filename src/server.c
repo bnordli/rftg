@@ -4,6 +4,7 @@
  * Copyright (C) 2009-2015 Keldon Jones
  *
  * Source file modified by B. Nordli, August 2015.
+ * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1405,6 +1406,12 @@ static void send_session_one(int sid, int cid)
 	char name[1024];
 	int i;
 
+	/*
+	 * Do not advertise XI games to clients not supporting XI
+	 */
+	if (s_ptr->expanded == EXP_XI && strcmp(c_list[cid].version, "0.9.5") < 0)
+		return;
+
 	/* Check for game not in waiting status */
 	if (s_ptr->state != SS_WAITING)
 	{
@@ -1882,6 +1889,7 @@ static int player_changed(player *p_ptr, player *q_ptr)
 	/* Check for change in temporary phase bonuses */
 	if (p_ptr->phase_bonus_used != q_ptr->phase_bonus_used) return 1;
 	if (p_ptr->bonus_military != q_ptr->bonus_military) return 1;
+	if (p_ptr->bonus_military_xeno != q_ptr->bonus_military_xeno) return 1;
 	if (p_ptr->bonus_reduce != q_ptr->bonus_reduce) return 1;
 
 	/* Loop over goals */
@@ -1968,6 +1976,9 @@ static void update_status_one(int sid, int who)
 			/* Add player's temporary phase bonuses */
 			put_integer(p_ptr->phase_bonus_used, &ptr);
 			put_integer(p_ptr->bonus_military, &ptr);
+			/* Xeno military bonus transmitted only for XI games */
+			if (s_ptr->g.expanded == EXP_XI)
+				put_integer(p_ptr->bonus_military_xeno, &ptr);
 			put_integer(p_ptr->bonus_reduce, &ptr);
 
 			/* Add whether player has prestige on the tile */
@@ -2224,7 +2235,7 @@ static void ask_client(int sid, int who)
 
 		/* Ask player to prepare */
 		send_msgf(s_ptr->cids[who], MSG_PREPARE, "ddd",
-				  g->p[who].choice_size, o_ptr->arg1, o_ptr->arg2);
+		          g->p[who].choice_size, o_ptr->arg1, o_ptr->arg2);
 
 		/* Finished */
 		return;
@@ -3623,14 +3634,10 @@ static void handle_create(int cid, char *ptr)
 
 	/* Validate expansion level */
 	if (s_ptr->expanded < 0) s_ptr->expanded = 0;
-	if (s_ptr->expanded > 4) s_ptr->expanded = 4;
+	if (s_ptr->expanded >= MAX_EXPANSION) s_ptr->expanded = MAX_EXPANSION - 1;
 
 	/* Compute maximum number of players allowed */
-	maxp = s_ptr->expanded + 4;
-	if (maxp > 6) maxp = 6;
-
-	/* Maximum of 5 players for Alien Artifacts */
-	if (s_ptr->expanded == 4 && maxp > 5) maxp = 5;
+	maxp = exp_max_player[s_ptr->expanded]; 
 
 	/* Validate number of players */
 	if (s_ptr->min_player < 2) s_ptr->min_player = 2;
@@ -3641,8 +3648,10 @@ static void handle_create(int cid, char *ptr)
 		s_ptr->min_player = s_ptr->max_player;
 
 	/* Validate disabled flags */
-	if (s_ptr->expanded < 1 || s_ptr->expanded == 4) s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < 2 || s_ptr->expanded == 4) s_ptr->disable_takeover = 0;
+	if (s_ptr->expanded < EXP_TGS || s_ptr->expanded > EXP_BOW)
+		s_ptr->disable_goal = 0;
+	if (s_ptr->expanded < EXP_RVI || s_ptr->expanded > EXP_BOW)
+		s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */
 	s_ptr->gid = db_new_game(sid);

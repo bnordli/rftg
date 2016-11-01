@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file modified by J.-R. Reinhard, October 2016.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -146,6 +148,9 @@ static void handle_status_player(char *ptr)
 	/* Read player's phase bonuses */
 	p_ptr->phase_bonus_used = get_integer(&ptr);
 	p_ptr->bonus_military = get_integer(&ptr);
+	/* Xeno military bonus only for XI games */
+	if (real_game.expanded == EXP_XI)
+		p_ptr->bonus_military_xeno = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 }
 

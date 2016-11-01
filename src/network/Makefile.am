@@ -25,6 +25,11 @@ network_DATA = rftg.eval.0.2.net rftg.role.0.2.net \
                rftg.eval.4.2a.net rftg.role.4.2a.net \
                rftg.eval.4.3.net rftg.role.4.3.net \
                rftg.eval.4.4.net rftg.role.4.4.net \
-               rftg.eval.4.5.net rftg.role.4.5.net
+               rftg.eval.4.5.net rftg.role.4.5.net \
+               rftg.eval.5.2.net rftg.role.5.2.net \
+               rftg.eval.5.2a.net rftg.role.5.2a.net \
+               rftg.eval.5.3.net rftg.role.5.3.net \
+               rftg.eval.5.4.net rftg.role.5.4.net \
+               rftg.eval.5.5.net rftg.role.5.5.net
 
 EXTRA_DIST = $(network_DATA)

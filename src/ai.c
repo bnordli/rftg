@@ -4,6 +4,7 @@
  * Copyright (C) 2009-2015 Keldon Jones
  *
  * Source file modified by B. Nordli, August 2015.
+ * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -535,8 +536,8 @@ static int consume_ability(game *g, int who, int produce)
 	power *o_ptr;
 	power_where w_list[100];
 	int i, j, k, x, n = 0;
-	int consume_goods[6], produce_goods[6];
-	int windfall_world[6], windfall_power[6];
+	int consume_goods[MAX_GOOD], produce_goods[MAX_GOOD];
+	int windfall_world[MAX_GOOD], windfall_power[MAX_GOOD];
 	int total_goods, good_types;
 	int good, cost, progress, count = 0;
 	int hand_size, prestige_avail;
@@ -545,7 +546,7 @@ static int consume_ability(game *g, int who, int produce)
 	p_ptr = &g->p[who];
 
 	/* Clear good type arrays */
-	for (i = 0; i <= GOOD_ALIEN; i++)
+	for (i = 0; i < MAX_GOOD; i++)
 	{
 		/* Clear arrays */
 		consume_goods[i] = 0;
@@ -609,7 +610,7 @@ static int consume_ability(game *g, int who, int produce)
 
 				/* Check for powers that don't consume goods */
 				if (o_ptr->code & (P4_DISCARD_HAND |
-						   P4_CONSUME_PRESTIGE))
+				                   P4_CONSUME_PRESTIGE))
 				{
 					/* Skip if not checking immediate */
 					if (!produce) continue;
@@ -1076,7 +1077,7 @@ static void setup_nets(game *g)
 		sprintf(buf, "Clock %d", i);
 		input_name[n++] = strdup(buf);
 	}
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		for (i = 0; i < MAX_GOAL; i++)
 		{
@@ -1211,7 +1212,7 @@ static void setup_nets(game *g)
 			input_name[n++] = strdup(buf);
 		}
 
-		if (g->expanded > 0 && g->expanded < 4)
+		if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 		{
 			for (j = 0; j < MAX_GOAL; j++)
 			{
@@ -1220,7 +1221,7 @@ static void setup_nets(game *g)
 			}
 		}
 
-		if (g->expanded == 3)
+		if (g->expanded == EXP_BOW)
 		{
 			sprintf(buf, "%s prestige action used", name);
 			input_name[n++] = strdup(buf);
@@ -1250,7 +1251,7 @@ static void setup_nets(game *g)
 		}
 	}
 
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		for (i = 0; i < g->num_players; i++)
 		{
@@ -1320,7 +1321,7 @@ static void setup_nets(game *g)
 	}
 
 	/* Check for third expansion */
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		/* Use third expansion number of outputs */
 		outputs = g->advanced ? ROLE_OUT_ADV_EXP3 : ROLE_OUT_EXP3;
@@ -1429,7 +1430,7 @@ static void setup_nets(game *g)
 			input_name[n++] = strdup(buf);
 		}
 
-		if (g->expanded > 0 && g->expanded < 4)
+		if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 		{
 			for (j = 0; j < MAX_GOAL; j++)
 			{
@@ -1438,7 +1439,7 @@ static void setup_nets(game *g)
 			}
 		}
 
-		if (g->expanded == 3)
+		if (g->expanded == EXP_BOW)
 		{
 			sprintf(buf, "%s prestige action used", name);
 			input_name[n++] = strdup(buf);
@@ -1471,7 +1472,7 @@ static void setup_nets(game *g)
 		}
 	}
 
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		for (i = 0; i < g->num_players; i++)
 		{
@@ -1545,7 +1546,7 @@ static void setup_nets(game *g)
 		sprintf(buf, "Clock %d", i);
 		input_name[n++] = strdup(buf);
 	}
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		for (i = 0; i < MAX_GOAL; i++)
 		{
@@ -1563,7 +1564,7 @@ static void setup_nets(game *g)
 		if (g->advanced)
 		{
 			sprintf(buf, "Raw %s/%s", action_name(adv_combo[i][0]),
-						  action_name(adv_combo[i][1]));
+			                          action_name(adv_combo[i][1]));
 		}
 		else
 		{
@@ -1941,12 +1942,12 @@ static int eval_game_player(game *g, int who, int n, int *leader)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
-	int i, x, count, good[6], explore_mix = 0, num_build = 0;
+	int i, x, count, good[MAX_GOOD], explore_mix = 0, num_build = 0;
 	int pos_military = 0, neg_military = 0;
 	int count_six = 0;
 
 	/* Clear good type array */
-	for (i = 0; i <= GOOD_ALIEN; i++)
+	for (i = 0; i < MAX_GOOD; i++)
 	{
 		/* Clear arrays */
 		good[i] = 0;
@@ -2196,7 +2197,7 @@ static int eval_game_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for goals in expansion */
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		/* Set inputs for claimed goals */
 		for (i = 0; i < MAX_GOAL; i++)
@@ -2207,7 +2208,7 @@ static int eval_game_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for prestige in expansion */
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		/* Set input if player has used prestige/search action */
 		eval.input_value[n++] = (p_ptr->prestige_action_used ||
@@ -2366,7 +2367,7 @@ static double eval_game(game *g, int who)
 	}
 
 	/* Check for goals in expansion */
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		/* Set inputs for active goals */
 		for (i = 0; i < MAX_GOAL; i++)
@@ -2504,7 +2505,7 @@ static double eval_game(game *g, int who)
 	n = eval_game_leader(g, who, n, leader, LEADER_VP, 20);
 
 	/* Check for third expansion */
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		/* Add inputs for amount behind prestige leader */
 		n = eval_game_leader(g, who, n, leader, LEADER_PRESTIGE, 5);
@@ -2628,10 +2629,10 @@ static int predict_action_player(game *g, int who, int n, int *leader)
 	player *p_ptr;
 	card *c_ptr;
 	power *o_ptr;
-	int i, x, good[6], count, count_dev, count_world, explore_mix = 0;
+	int i, x, good[MAX_GOOD], count, count_dev, count_world, explore_mix = 0;
 
 	/* Clear good types */
-	for (i = 0; i <= GOOD_ALIEN; i++) good[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) good[i] = 0;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -2802,7 +2803,7 @@ static int predict_action_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for goals in expansion */
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		/* Set inputs for claimed goals */
 		for (i = 0; i < MAX_GOAL; i++)
@@ -2813,7 +2814,7 @@ static int predict_action_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for prestige in expansion */
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		/* Set input if player has used prestige/search action */
 		role.input_value[n++] = p_ptr->prestige_action_used ? 1 : -1;
@@ -2925,7 +2926,7 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION],
 	n = predict_action_leader(g, who, n, leader, LEADER_VP, 20);
 
 	/* Check for third expansion */
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		/* Add inputs for amount behind prestige leader */
 		n = predict_action_leader(g, who, n, leader,
@@ -2987,7 +2988,7 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION],
 	}
 
 	/* Check for goals in expansion */
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		/* Set inputs for active goals */
 		for (i = 0; i < MAX_GOAL; i++)
@@ -3635,7 +3636,7 @@ static void ai_choose_action_advanced(game *g, int who, int action[2], int one)
 
 		/* Check our action scores against this combo */
 		ai_choose_action_advanced_aux(g, who, oa, scores, prob, used,
-					      one, action[0]);
+		                              one, action[0]);
 
 		/* Track used amount of probability space */
 		used += prob;
@@ -3815,8 +3816,8 @@ static int cmp_opponent_act(const void *p1, const void *p2)
  * Populate list of opponent combos.
  */
 static void ai_choose_action_combo(game *g, int who, int current, double prob,
-				   action_prob *action_order[MAX_PLAYER],
-				   int acts[MAX_PLAYER], double threshold)
+                                   action_prob *action_order[MAX_PLAYER],
+                                   int acts[MAX_PLAYER], double threshold)
 {
 	int i;
 
@@ -3825,7 +3826,7 @@ static void ai_choose_action_combo(game *g, int who, int current, double prob,
 	{
 		/* Go to next */
 		ai_choose_action_combo(g, who, current + 1, prob, action_order,
-				       acts, threshold);
+		                       acts, threshold);
 
 		/* Done */
 		return;
@@ -3846,9 +3847,9 @@ static void ai_choose_action_combo(game *g, int who, int current, double prob,
 
 			/* Reallocate */
 			opponent_combos = (struct opponent_act *)realloc(
-				opponent_combos,
-				sizeof(struct opponent_act) *
-				opponent_combo_size);
+			                   opponent_combos,
+			                   sizeof(struct opponent_act) *
+			                   opponent_combo_size);
 		}
 
 		/* Copy actions to combo list */
@@ -3874,7 +3875,7 @@ static void ai_choose_action_combo(game *g, int who, int current, double prob,
 		/* Try next player's actions */
 		ai_choose_action_combo(g, who, current + 1,
 		                     prob * action_order[current][i].prob,
-				     action_order, acts, threshold);
+		                     action_order, acts, threshold);
 	}
 }
 
@@ -4163,7 +4164,7 @@ static void ai_choose_action(game *g, int who, int action[2], int one)
 	{
 		/* Evaluate our actions */
 		if (!ai_choose_action_aux(&sim, who, opponent_combos[i].act,
-	 	                          opponent_combos[i].prob, &prob_used,
+		                          opponent_combos[i].prob, &prob_used,
 		                          scores))
 		{
 			/* Only checked one action, done */
@@ -4352,8 +4353,8 @@ static void ai_choose_discard_aux(game *g, int who, int list[], int n, int c,
  * Helper function for ai_choose_discard().
  */
 static void ai_choose_discard_aux_action(game *g, int who, int list[], int n,
-					 int c, int chosen, int *best,
-					 double *b_s)
+                                         int c, int chosen, int *best,
+                                         double *b_s)
 {
 	game sim, sim2;
 	double score;
@@ -4447,7 +4448,7 @@ static void ai_choose_discard_aux_action(game *g, int who, int list[], int n,
 
 	/* Try without current card */
 	ai_choose_discard_aux_action(g, who, list, n - 1, c, chosen << 1, best,
-				     b_s);
+	                             b_s);
 
 	/* Try with current card (if more can be chosen) */
 	if (c) ai_choose_discard_aux_action(g, who, list, n - 1, c - 1,
@@ -4602,13 +4603,13 @@ static void ai_choose_discard(game *g, int who, int list[], int *num,
 
 		/* Do deeper search for discarded cards */
 		ai_choose_discard_aux_action(&sim, who, list, *num, discard, 0,
-					     &best, &b_s);
+		                             &best, &b_s);
 	}
 	else
 	{
 		/* Find best set of cards */
 		ai_choose_discard_aux(&sim, who, list, *num, discard, 0,
-				      &best, &b_s);
+		                      &best, &b_s);
 	}
 
 	/* Check for failure */
@@ -5225,7 +5226,7 @@ static void ai_choose_start(game *g, int who, int list[], int *num,
  * Simulate placing and paying for the given card (as an opponent).
  */
 static double ai_choose_place_opp_aux(game *g, int who, int which, int phase,
-				      int special)
+                                      int special)
 {
 	/* Place given card */
 	g->p[who].placing = which;
@@ -5470,7 +5471,7 @@ static int ai_choose_place_opp(game *g, int who, int phase, int special)
 
 		/* Get score for playing this card */
 		score = ai_choose_place_opp_aux(&sim, who, unknown[j], phase,
-						special);
+		                                special);
 
 		/* Remember card played and resulting score */
 		scores[n].list[0] = unknown[j];
@@ -5499,7 +5500,7 @@ static int ai_choose_place_opp(game *g, int who, int phase, int special)
 
 		/* Get score for placing no card */
 		no_place = ai_choose_place_opp_aux(&sim, who, -1, phase,
-						   special);
+		                                   special);
 
 		/* Store score in cache */
 		e_ptr->score = no_place;
@@ -5625,7 +5626,7 @@ static int ai_choose_place(game *g, int who, int list[], int num, int phase,
 				{
 					/* Settle choice */
 					settle_finish(&sim, i, which, 0,
-						      special, 0);
+					              special, 0);
 				}
 			}
 			else
@@ -5960,7 +5961,7 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
 			{
 				/* Ask for settle payment */
 				settle_finish(&sim, i, g->p[i].placing, 0, -1,
-					      0);
+				              0);
 
 				/* Ask about future settle powers */
 				settle_extra(&sim, i, g->p[i].placing);
@@ -5969,7 +5970,7 @@ static void ai_choose_pay_aux1(game *g, int who, int which, int list[], int num,
 
 		/* Try payment with different card combinations */
 		ai_choose_pay_aux2(&sim, who, which, list, special, num_special,
-				   mil_only, mil_bonus, num, need, 0,
+		                   mil_only, mil_bonus, num, need, 0,
 		                   chosen_special, best, best_special, b_s);
 
 		/* Done */
@@ -6052,7 +6053,7 @@ static void ai_choose_pay(game *g, int who, int which, int list[], int *num,
 
 			/* Attempt to pay */
 			if (!payment_callback(&sim, who, which, payment,
-					      payment_list[i].needed,
+			                      payment_list[i].needed,
 			                      used, n_used, mil_only,
 			                      mil_bonus))
 			{
@@ -6290,8 +6291,8 @@ static void ai_choose_defend_aux2(game *g, int who, int which, int opponent,
 						{
 							/* Move good as well */
 							move_card(&sim, x,
-								  opponent,
-								  WHERE_GOOD);
+							          opponent,
+							          WHERE_GOOD);
 						}
 					}
 				}
@@ -6372,7 +6373,7 @@ static void ai_choose_defend_aux2(game *g, int who, int which, int opponent,
 					{
 						/* Move good as well */
 						move_card(&sim, x, opponent,
-							  WHERE_GOOD);
+						          WHERE_GOOD);
 					}
 				}
 			}
@@ -6842,11 +6843,11 @@ static int score_consume(game *g, int who, int c_idx, int o_idx)
 	if (o_ptr->code & P4_GET_VP) vp += o_ptr->value;
 
 	/* Check for card awarded */
-	if (o_ptr->code & P4_GET_CARD) card += o_ptr->value;
+	if (o_ptr->code & P4_GET_CARD) card += 1;
 
 	/* Check for cards awarded */
-	if (o_ptr->code & P4_GET_2_CARD) card += o_ptr->value * 2;
-	if (o_ptr->code & P4_GET_3_CARD) card += o_ptr->value * 3;
+	if (o_ptr->code & P4_GET_2_CARD) card += 2;
+	if (o_ptr->code & P4_GET_3_CARD) card += 3;
 
 	/* Assume trade will earn 4 cards */
 	if (o_ptr->code & P4_TRADE_ACTION) card += 4;
@@ -6999,9 +7000,9 @@ static void ai_choose_consume(game *g, int who, int cidx[], int oidx[],
 
 			/* Do not compare unusual powers */
 			if (n_ptr->code & (P4_DISCARD_HAND | P4_ANTE_CARD |
-					   P4_CONSUME_PRESTIGE |
-					   P4_CONSUME_ALL | P4_CONSUME_3_DIFF |
-					   P4_CONSUME_N_DIFF))
+			                   P4_CONSUME_PRESTIGE |
+			                   P4_CONSUME_ALL | P4_CONSUME_3_DIFF |
+			                   P4_CONSUME_N_DIFF))
 			{
 				/* Skip power */
 				continue;

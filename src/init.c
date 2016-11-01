@@ -4,6 +4,7 @@
  * Copyright (C) 2009-2015 Keldon Jones
  *
  * Source file modified by B. Nordli, August 2015.
+ * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -74,6 +75,8 @@ static char *flag_name[] =
 	"EXTRA_SURVEY",
 	"NO_PRODUCE",
 	"DISCARD_PRODUCE",
+	"XENO",
+	"ANTI_XENO",
 	NULL
 };
 
@@ -108,6 +111,7 @@ static char *power_name[6][64] =
 		"DISCARD_ANY",
 		"DISCARD_PRESTIGE",
 		"ORB_MOVEMENT",
+		"PER_REBEL_MILITARY",
 		NULL,
 	},
 
@@ -171,6 +175,14 @@ static char *power_name[6][64] =
 		"PREVENT_TAKEOVER",
 		"UPGRADE_WORLD",
 		"FLIP_ZERO",
+		"XENO",
+		"XENO_DEFENSE",
+		"DISCARD_HAND",
+		"PER_IMPERIUM",
+		"PER_REBEL_MILITARY",
+		"PER_PEACEFUL",
+		"CONSUME_NOVELTY",
+		"CONSUME_ANY",
 		NULL,
 	},
 
@@ -242,6 +254,11 @@ static char *power_name[6][64] =
 		"DRAW_5_DEV",
 		"TAKE_SAVED",
 		"SHIFT_RARE",
+		"REPAIR",
+		"DRAW_EVERY_TWO",
+		"DRAW_WORLD_RARE",
+		"DRAW_XENO_MILITARY",
+		"DRAW_TWO_MILITARY",
 		NULL,
 	}
 };
@@ -287,7 +304,24 @@ static char *vp_name[] =
 	"ALIEN_SCIENCE",
 	"ALIEN_UPLIFT",
 	"NAME",
+	"ANTI_XENO_FLAG",
+	"ANTI_XENO_WORLD",
+	"ANTI_XENO_DEVEL",
+	"XENO_MILITARY",
 	NULL
+};
+
+/*
+ * Lists of expansions following a given expansion, in any arc
+ */
+static int succ_in_arc[MAX_EXPANSION][MAX_EXPANSION+1] =
+{
+	{0, 1, 2, 3, 4, 5, -1},
+	{1, 2, 3, -1},
+	{2, 3, -1},
+	{3, -1},
+	{4, -1},
+	{5, -1}
 };
 
 /*
@@ -324,7 +358,7 @@ int read_cards(char *suggestion)
 	design *d_ptr = NULL;
 	power *o_ptr;
 	vp_bonus *v_ptr;
-	int i, phase;
+	int i, phase, exp, x, *s_ptr;
 	uint64_t code;
 
 	/* Open card database */
@@ -356,7 +390,7 @@ int read_cards(char *suggestion)
 	}
 
 	/* Loop over file */
-	while (num_design < AVAILABLE_DESIGN)
+	while (1)
 	{
 		/* Read a line */
 		fgets(buf, 1024, fff);
@@ -375,6 +409,16 @@ int read_cards(char *suggestion)
 		{
 			/* New card */
 			case 'N':
+
+				/* Check for maximum number of design reached */
+				if (num_design == AVAILABLE_DESIGN)
+				{
+					/* Error */
+					printf("Maximum number of design slots reached!\n");
+
+					/* Exit */
+					exit(1);
+				}
 
 				/* Current design pointer */
 				d_ptr = &library[num_design];
@@ -414,13 +458,26 @@ int read_cards(char *suggestion)
 				/* Get first count string */
 				ptr = strtok(buf + 2, ":");
 
-				/* Loop over number of expansions */
-				for (i = 0; i < MAX_EXPANSION; i++)
+				/* Loop over expansions */
+				while (ptr)
 				{
-					/* Set count */
-					d_ptr->expand[i] = (int8_t) strtol(ptr, NULL, 0);
+					/* Get expansion the card appears in */
+					exp = (int8_t) strtol(ptr, NULL, 0);
 
-					/* Read next count */
+					/* Get count */
+					ptr = strtok(NULL, "@");
+					if (ptr)
+						x = (int8_t) strtol(ptr, NULL, 0);
+					else
+						x = 0;
+
+					/* Add count to all following games in the arc */
+					for (s_ptr = succ_in_arc[exp]; *s_ptr != -1; s_ptr++)
+					{
+						d_ptr->expand[*s_ptr] += x;
+					}
+
+					/* Read next expansion */
 					ptr = strtok(NULL, ":");
 				}
 
@@ -579,6 +636,20 @@ int read_cards(char *suggestion)
 		}
 	}
 
+	/* Attribute peaceful world flag */
+	for (i = 0; i < num_design; i++)
+	{
+		/* Design pointer */
+		d_ptr = &library[i];
+
+		/* Check for type world */
+		if (d_ptr->type != TYPE_WORLD)
+			continue;
+
+		/* If world is not military, it is peaceful */
+		if (!(d_ptr->flags & FLAG_MILITARY))
+			d_ptr->flags |= FLAG_PEACEFUL;
+	}
 	/* Close card design file */
 	fclose(fff);
 
@@ -821,9 +892,7 @@ void read_campaign(void)
 				if (i == MAX_DESIGN)
 				{
 					/* Error */
-					fprintf(stderr,
-						"Could not find card %s!\n",
-					        ptr);
+					fprintf(stderr, "Could not find card %s!\n", ptr);
 					exit(1);
 				}
 
@@ -858,9 +927,7 @@ void read_campaign(void)
 				if (i == MAX_GOAL)
 				{
 					/* Error */
-					fprintf(stderr,
-						"Could not find goal %s!\n",
-					        ptr);
+					fprintf(stderr, "Could not find goal %s!\n", ptr);
 					exit(1);
 				}
 		}
@@ -1018,7 +1085,7 @@ void init_game(game *g)
 	g->vp_pool = g->num_players * 12;
 
 	/* Increase size of pool in third expansion */
-	if (g->expanded == 3) g->vp_pool += 5;
+	if (g->expanded == EXP_BOW) g->vp_pool += 5;
 
 	/* No game round yet */
 	g->round = 0;
@@ -1141,6 +1208,9 @@ void init_game(game *g)
 		/* Player has no bonus military accrued */
 		p_ptr->bonus_military = 0;
 
+		/* Player has no Xeno specific bonus military accrued */
+		p_ptr->bonus_military_xeno = 0;
+
 		/* Player has no bonus settle discount */
 		p_ptr->bonus_reduce = 0;
 
@@ -1189,19 +1259,19 @@ void init_game(game *g)
 	}
 
 	/* Add goals when expanded */
-	if (g->expanded > 0 && g->expanded < 4 && !g->goal_disabled)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW && !g->goal_disabled)
 	{
 		/* No goals available yet */
 		n = 0;
 
 		/* Use correct "first" goals */
-		if (g->expanded == 1)
+		if (g->expanded == EXP_TGS)
 		{
 			/* First expansion only */
 			j = GOAL_FIRST_5_VP;
 			k = GOAL_FIRST_SIX_DEVEL;
 		}
-		else if (g->expanded == 2)
+		else if (g->expanded == EXP_RVI)
 		{
 			/* First and second expansion */
 			j = GOAL_FIRST_5_VP;
@@ -1274,13 +1344,13 @@ void init_game(game *g)
 		n = 0;
 
 		/* Use correct "most" goals */
-		if (g->expanded == 1)
+		if (g->expanded == EXP_TGS)
 		{
 			/* First expansion only */
 			j = GOAL_MOST_MILITARY;
 			k = GOAL_MOST_PRODUCTION;
 		}
-		else if (g->expanded == 2)
+		else if (g->expanded == EXP_RVI)
 		{
 			/* First and second expansion */
 			j = GOAL_MOST_MILITARY;

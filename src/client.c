@@ -4,6 +4,7 @@
  * Copyright (C) 2009-2015 Keldon Jones
  *
  * Source file modified by B. Nordli, August 2015.
+ * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -258,12 +259,15 @@ static void clear_games_users(void)
 /*
  * Expansion name abbreviations.
  */
-static char *exp_abbr[MAX_EXPANSION] =
+static char *exp_abbr[MAX_EXPANSION + 1] =
 {
 	"Base",
 	"TGS",
 	"RvI",
-	"BoW"
+	"BoW",
+	"AA",
+	"XI",
+	"?"
 };
 
 /*
@@ -508,6 +512,9 @@ static void handle_open_game(char *ptr)
 	/* Read expansion level */
 	x = get_integer(&ptr);
 
+	/* Sanitize expansion level */
+	if (x < 0 || x > MAX_EXPANSION) x = MAX_EXPANSION;
+
 	/* Set expansion */
 	gtk_tree_store_set(game_list, &list_iter,
 	                   GAME_COL_EXPANSION, x,
@@ -558,9 +565,9 @@ static void handle_open_game(char *ptr)
 	{
 		/* Set the cursor at the new game */
 		gtk_tree_view_set_cursor(
-			GTK_TREE_VIEW(games_view),
-			gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
-			NULL, FALSE);
+		        GTK_TREE_VIEW(games_view),
+		        gtk_tree_model_get_path(GTK_TREE_MODEL(game_list), &list_iter),
+		        NULL, FALSE);
 	}
 
 	/* Make checkboxes visible */
@@ -570,7 +577,7 @@ static void handle_open_game(char *ptr)
 
 	/* Sort game list by session ID */
 	gtk_tree_sortable_set_sort_column_id(
-		GTK_TREE_SORTABLE(game_list), GAME_COL_ID, GTK_SORT_ASCENDING);
+	        GTK_TREE_SORTABLE(game_list), GAME_COL_ID, GTK_SORT_ASCENDING);
 
 	/* Reset button state */
 	game_view_changed(GTK_TREE_VIEW(games_view), NULL);
@@ -775,6 +782,9 @@ static void handle_status_player(char *ptr, int size)
 	/* Read player's phase bonuses */
 	p_ptr->phase_bonus_used = get_integer(&ptr);
 	p_ptr->bonus_military = get_integer(&ptr);
+	/* Xeno military bonus only for XI games */
+	if (real_game.expanded == EXP_XI)
+		p_ptr->bonus_military_xeno = get_integer(&ptr);
 	p_ptr->bonus_reduce = get_integer(&ptr);
 
 	/* Copy prestige information */
@@ -1416,11 +1426,11 @@ static gboolean message_read(gpointer data)
 
 			/* Set name, status and weight */
 			gtk_list_store_set(user_list, &list_iter,
-				PLAYER_COL_USERNAME, username,
-				PLAYER_COL_IN_GAME, x,
-				PLAYER_COL_USERNAME_CMP, cmp_key,
-				PLAYER_COL_WEIGHT, 400 + 400 * y,
-				-1);
+			        PLAYER_COL_USERNAME, username,
+			        PLAYER_COL_IN_GAME, x,
+			        PLAYER_COL_USERNAME_CMP, cmp_key,
+			        PLAYER_COL_WEIGHT, 400 + 400 * y,
+			        -1);
 
 			/* Destroy compare key */
 			g_free(cmp_key);
@@ -1863,18 +1873,18 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 
 		/* Create alert dialog */
 		dialog = gtk_message_dialog_new(NULL,
-					 GTK_DIALOG_DESTROY_WITH_PARENT,
-					 GTK_MESSAGE_ERROR,
-					 GTK_BUTTONS_CLOSE,
-					 "Lost connection to server");
+		                                GTK_DIALOG_DESTROY_WITH_PARENT,
+		                                GTK_MESSAGE_ERROR,
+		                                GTK_BUTTONS_CLOSE,
+		                                "Lost connection to server");
 
 		/* Show dialog */
 		gtk_widget_show_all(dialog);
 
 		/* Destroy dialog when responded to */
 		g_signal_connect_swapped(dialog, "response",
-					 G_CALLBACK(gtk_widget_destroy),
-					 dialog);
+		                         G_CALLBACK(gtk_widget_destroy),
+		                         dialog);
 
 		/* Disconnect */
 		disconnect();
@@ -2340,9 +2350,15 @@ with the password you enter.");
 		if (connect_dialog_closed) break;
 
 		/* Send login message to server */
+		/* Hack: in order to be able to connect to the official keldon.net
+		 * server, which at the time being runs the 0.9.4 server, the client
+		 * poses as a 0.9.4 version client.
+		 * We do not fake the RELEASE, the new server uses this information to
+		 * determine clients allowed to join a XI session.
+		 */
 		send_msgf(server_fd, MSG_LOGIN, "ssss",
 		          gtk_entry_get_text(GTK_ENTRY(user)),
-		          gtk_entry_get_text(GTK_ENTRY(pass)), VERSION, RELEASE);
+		          gtk_entry_get_text(GTK_ENTRY(pass)), COMM_VERSION, RELEASE);
 
 
 		/* Enter main loop to wait for response */
@@ -2542,22 +2558,22 @@ static GtkWidget *disable_takeover_check;
 static int next_exp;
 
 /*
- * Update button sensitivities.
+ * Update button sensitivities after next_exp is set.
  */
 static void update_sensitivity()
 {
 	int max_p;
 
 	/* Set goal disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_goal_check, next_exp > 0 && next_exp < 4);
+	gtk_widget_set_sensitive(disable_goal_check, next_exp >= EXP_TGS &&
+	                                             next_exp <= EXP_BOW);
 
 	/* Set takeover disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_takeover_check, next_exp > 1 && next_exp < 4);
+	gtk_widget_set_sensitive(disable_takeover_check, next_exp >= EXP_RVI &&
+	                                                 next_exp <= EXP_BOW);
 
 	/* Find maximum number of players */
-	max_p = next_exp + 4;
-	if (max_p > 6) max_p = 6;
-	if (next_exp == 4) max_p = 5;
+	max_p = exp_max_player[next_exp];
 
 	/* Reduce value to the maximum */
 	if (gtk_range_get_value(GTK_RANGE(min_player)) > max_p)
@@ -2703,6 +2719,12 @@ void create_dialog(GtkButton *button, gpointer data)
 	/* Loop over expansion levels */
 	for (i = 0; exp_names[i]; i++)
 	{
+		/* If connected to a server older than 0.9.5, don't offer the
+		 * possibility to create a XI session
+		 */
+		if (i == EXP_XI && strcmp(server_version, "0.9.5") < 0)
+			break;
+
 		/* Create radio button */
 		radio[i] = gtk_radio_button_new_with_label_from_widget(
 		                                     GTK_RADIO_BUTTON(radio[0]),
@@ -2749,8 +2771,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	g_signal_connect(G_OBJECT(min_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(0));
 
-	/* Set default value */
-	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
+	/* Default value is set after advanced check box is created */
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 0, 1);
@@ -2767,8 +2788,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	g_signal_connect(G_OBJECT(max_player), "value-changed",
 	                 G_CALLBACK(player_changed), GINT_TO_POINTER(1));
 
-	/* Set default value */
-	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
+	/* Default value is set after advanced check box is created */
 
 	/* Add widgets to table */
 	gtk_table_attach_defaults(GTK_TABLE(table), label, 0, 1, 1, 2);
@@ -2801,6 +2821,12 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Add checkbox to options box */
 	gtk_container_add(GTK_CONTAINER(options_box), advanced_check);
+
+	/* Set default min-player value */
+	gtk_range_set_value(GTK_RANGE(min_player), opt.multi_min);
+
+	/* Set default max-player value */
+	gtk_range_set_value(GTK_RANGE(max_player), opt.multi_max);
 
 	/* Create check box for disabled goals */
 	disable_goal_check = gtk_check_button_new_with_label("Disable goals");
@@ -2866,15 +2892,15 @@ void create_dialog(GtkButton *button, gpointer data)
 
 	/* Send create message to server */
 	send_msgf(server_fd, MSG_CREATE, "ssddddddd",
-	          gtk_entry_get_text(GTK_ENTRY(pass)),
-	          gtk_entry_get_text(GTK_ENTRY(desc)),
-	          (int)gtk_range_get_value(GTK_RANGE(min_player)),
-	          (int)gtk_range_get_value(GTK_RANGE(max_player)),
-	          next_exp,
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
-        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
-	          0);
+	    gtk_entry_get_text(GTK_ENTRY(pass)),
+	    gtk_entry_get_text(GTK_ENTRY(desc)),
+	    (int)gtk_range_get_value(GTK_RANGE(min_player)),
+	    (int)gtk_range_get_value(GTK_RANGE(max_player)),
+	    next_exp,
+	    gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(advanced_check)),
+	    gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_goal_check)),
+	    gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(disable_takeover_check)),
+	    0);
 
 	/* Destroy dialog */
 	gtk_widget_destroy(dialog);

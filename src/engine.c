@@ -4,6 +4,7 @@
  * Copyright (C) 2009-2015 Keldon Jones
  *
  * Source file modified by B. Nordli, August 2015.
+ * Source file modified by J.-R. Reinhard, October 2016.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,8 +33,14 @@ char *exp_names[MAX_EXPANSION + 1] =
 	"Rebel vs Imperium",
 	"The Brink of War",
 	"Alien Artifacts",
+	"Xeno Invasion",
 	NULL
 };
+
+/*
+ * Maximum number of players per expansion
+ */
+int exp_max_player[MAX_EXPANSION] = {4, 5, 6, 6, 5, 5};
 
 /*
  * Textual representation for number of players.
@@ -148,7 +155,8 @@ int simple_rand(unsigned int *seed)
  */
 int goals_enabled(game *g)
 {
-	return g->expanded > 0 && g->expanded < 4 && !g->goal_disabled;
+	return g->expanded >= EXP_TGS && g->expanded <= EXP_BOW &&
+	       !g->goal_disabled;
 }
 
 /*
@@ -156,7 +164,8 @@ int goals_enabled(game *g)
  */
 int takeovers_enabled(game *g)
 {
-	return g->expanded > 1 && g->expanded < 4 && !g->takeover_disabled;
+	return g->expanded >= EXP_RVI && g->expanded <= EXP_BOW &&
+	       !g->takeover_disabled;
 }
 
 /*
@@ -813,7 +822,7 @@ void check_prestige(game *g)
 	int i, max = 0, num = 0;
 
 	/* Do nothing unless third expansion is present */
-	if (g->expanded != 3) return;
+	if (g->expanded != EXP_BOW) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -862,7 +871,7 @@ void start_prestige(game *g)
 	int i, max = 0, num = 0, card_bonus = -1;
 
 	/* Do nothing unless third expansion is present */
-	if (g->expanded != 3) return;
+	if (g->expanded != EXP_BOW) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -989,6 +998,9 @@ void clear_temp(game *g)
 
 		/* Clear bonus military */
 		p_ptr->bonus_military = 0;
+
+		/* Clear bonus military */
+		p_ptr->bonus_military_xeno = 0;
 
 		/* Clear bonus settle cost reduction */
 		p_ptr->bonus_reduce = 0;
@@ -1168,7 +1180,7 @@ static void perform_debug_moves(game *g, int who)
 				l_ptr += 4;
 
 				/* Don't do anything if expansion does not have prestige */
-				if (g->expanded != 3) break;
+				if (g->expanded != EXP_BOW) break;
 
 				/* Format message */
 				sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
@@ -2329,6 +2341,14 @@ void phase_explore(game *g)
 			/* Skip powers that do not have extra draw */
 			if (!(o_ptr->code & P1_DRAW)) continue;
 
+			/* Add value special case : draw per rebel military */
+			if (o_ptr->code & P1_PER_REBEL_MILITARY)
+			{
+				draw += o_ptr->value * count_active_flags(g, i,
+				                           (FLAG_REBEL | FLAG_MILITARY));
+				continue;
+			}
+
 			/* Add value */
 			draw += o_ptr->value;
 		}
@@ -2349,8 +2369,10 @@ void phase_explore(game *g)
 		/* Assume we keep one card */
 		keep = 1;
 
-		/* Assume player has no "discard any" power */
-		discard_any = 0;
+		/* Assume player has no "discard any" power, unless the expansion is XI,
+		 * in which case "discard any" power always applies
+		 */
+		discard_any = g->expanded == EXP_XI ? 1 : 0;
 
 		/* Check for chosen "+1 keep" explore */
 		if (player_chose(g, i, ACT_EXPLORE_1_1)) keep += 1;
@@ -2512,7 +2534,7 @@ void place_card(game *g, int who, int which)
 	if (c_ptr->d_ptr->flags & FLAG_WINDFALL) add_good(g, which);
 
 	/* Check for third expansion */
-	if (g->expanded == 3)
+	if (g->expanded == EXP_BOW)
 	{
 		/* Check for prestige from card */
 		if (c_ptr->d_ptr->flags & FLAG_PRESTIGE)
@@ -3512,6 +3534,27 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 				military += o_ptr->value;
 				continue;
 			}
+
+			/* Check for against xeno */
+			if ((o_ptr->code & P3_XENO) &&
+			    (c_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* If power requires payment, skip power */
+				if (o_ptr->code & P3_CONSUME_ALIEN) continue;
+
+				/* Check for per peaceful military */
+				if (o_ptr->code & P3_PER_PEACEFUL)
+				{
+					military += count_active_flags(g, who, FLAG_PEACEFUL);
+				}
+				/* Add military power */
+				else
+				{
+					military += o_ptr->value;
+				}
+				/* Process next power */
+				continue;
+			}
 		}
 
 		/* Check for takeover defense */
@@ -3562,6 +3605,12 @@ int strength_against(game *g, int who, int world, int attack, int defend)
 
 	/* Add in bonus temporary military strength */
 	military += p_ptr->bonus_military;
+
+	/* Add in bonus temporary military strength against Xeno */
+	if (c_ptr->d_ptr->flags & FLAG_XENO)
+	{
+	    military += p_ptr->bonus_military_xeno;
+	}
 
 	/* Return total military for this world */
 	return military;
@@ -3644,10 +3693,11 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int gene_used = 0, rare_used = 0, alien_used = 0;
+	int novelty_used = 0, rare_used = 0, gene_used = 0, alien_used = 0;
 	int i, n, cost, defense, military, conquer, good, pay_military;
 	int pay_cost, pay_discount;
 	int conquer_peaceful, conquer_bonus;
+	int xeno_world;
 	int hand_military, hand_size;
 
 	/* Get player pointer */
@@ -3667,6 +3717,9 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 
 	/* Get good type of world to be settled (if any) */
 	good = c_ptr->d_ptr->good_type;
+
+	/* Check for Xeno world */
+	xeno_world = c_ptr->d_ptr->flags & FLAG_XENO;
 
 	/* Start with basic military strength */
 	military = total_military(g, who);
@@ -3746,70 +3799,125 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
+			/* Skip powers taken into account in total_military */
+			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
+
+			/* Check for specificity */
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY)||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
-				continue;
-			}
-
-			/* Check for consumption required */
-			if ((o_ptr->code & P3_CONSUME_RARE) &&
-			    count_goods(g, who, GOOD_RARE) > rare_used)
-			{
-				/* Mark one good as used */
-				rare_used++;
-
-				/* Add value to military */
-				military += o_ptr->value;
-				continue;
-			}
-
-			/* Check for consumption required */
-			if ((o_ptr->code & P3_CONSUME_ALIEN) &&
-			    count_goods(g, who, GOOD_ALIEN) > alien_used)
-			{
-				/* Mark one good as used */
-				alien_used++;
-
-				/* Add value to military */
-				military += o_ptr->value;
-				continue;
-			}
-
-			/* Check for prestige required */
-			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
-			    p_ptr->prestige > 0)
-			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (c_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(c_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
-			/* Check for discard needed */
-			if (o_ptr->code & P3_DISCARD)
+			/* Check for Xeno specific military */
+			if ((o_ptr->code & P3_XENO) && !xeno_world)
 			{
-				/* Assume card will be used */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
+
+			/* Military power applies, check for payment availability */
+
+			/* Note: the following code is based on the assumption that a given
+			 * good provides a fixed amount of possible extra-military and can
+			 * only be used by a single type of consume power. This is only true
+			 * because for expansions providing good of type ANY, there is only
+			 * one type of consume for extra-military. The general case would
+			 * require to compute the best affectation of good for military. We
+			 * postpone this implementation because it is not needed for the
+			 * time being.
+			 */
+
+			/* Check for consumption required */
+			if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				if (count_goods(g, who, GOOD_NOVELTY) > novelty_used)
+				{
+					/* Mark one good as used */
+					novelty_used++;
+				}
+				else
+				{
+					/* Skip power */
+					continue;
+				}
+			}
+
+			/* Check for consumption required */
+			if (o_ptr->code & P3_CONSUME_RARE)
+			{
+				if (count_goods(g, who, GOOD_RARE) > rare_used)
+				{
+					/* Mark one good as used */
+					rare_used++;
+				}
+				else
+				{
+					/* Cannot pay for this power, skip it */
+					continue;
+				}
+			}
+
+			/* Check for consumption required */
+			if (o_ptr->code & P3_CONSUME_ALIEN)
+			{
+				if (count_goods(g, who, GOOD_ALIEN) > alien_used)
+				{
+					/* Mark one good as used */
+					alien_used++;
+				}
+				else
+				{
+					/* Cannot pay for this power, skip it */
+					continue;
+				}
+			}
+
+			/* Check for prestige required */
+			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
+			    p_ptr->prestige == 0)
+			{
+				/* Skip power */
+				continue;
+			}
+
+			/* Check for discard needed is not necessary, since it can
+			 * always be paid by discarding
+			 */
+			/* if (o_ptr->code & P3_DISCARD)
+			{
+			}
+			*/
+
+			/* The military power can be paid, take its value into account */
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+			}
+			/* Add military power */
+			else
+			{
+				military += o_ptr->value;
+			}
+			/* Power taken into account, go to next power */
+			continue;
 		}
 
-		/* Check for able to pay for military worlds */
-		if (o_ptr->code & P3_PAY_MILITARY)
+		/* Check for able to pay for military worlds, only for non Xeno world*/
+		if (!xeno_world && o_ptr->code & P3_PAY_MILITARY)
 		{
 			/* Check for alien flag */
 			if (o_ptr->code & P3_ALIEN)
@@ -3896,6 +4004,9 @@ int settle_legal(game *g, int who, int world, int mil_bonus, int mil_only,
 	/* Apply bonus military accrued earlier in the phase */
 	military += p_ptr->bonus_military;
 
+	/* Apply bonus military against Xeno accrued earlier in the phase */
+	if (xeno_world) military += p_ptr->bonus_military_xeno;
+
 	/* Apply bonus military, if any */
 	military += mil_bonus;
 
@@ -3956,7 +4067,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	int hand_military = 0, conquer_peaceful = 0;
 	int discard_zero = 0, takeover = 0;
 	int consume_reduce = 0, consume_military = 0;
-	int goods_needed[6];
+	int goods_needed[MAX_GOOD];
 	int i, j, n;
 
 	/* Get player pointer */
@@ -3983,11 +4094,14 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 	/* Add bonuses from earlier in the phase */
 	military += p_ptr->bonus_military + mil_bonus;
 
+	/* Add Xeno specific bonuses from earlier in the phase */
+	if (t_ptr->d_ptr->flags & FLAG_XENO) military += p_ptr->bonus_military_xeno;
+
 	/* Reduce cost by bonus reductions from earlier in the phase */
 	cost -= p_ptr->bonus_reduce;
 
 	/* Clear number of goods needed */
-	for (i = 0; i < 6; i++) goods_needed[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) goods_needed[i] = 0;
 
 	/* Get all active settle powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -4013,6 +4127,9 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				/* Don't use multiple pay abilities at once */
 				if (pay_military) return -1;
 
+				/* Check for non-Xeno world */
+				if (t_ptr->d_ptr->flags & FLAG_XENO) return -1;
+
 				/* Check for correct alien-ness */
 				if (((o_ptr->code & P3_ALIEN) &&
 				     good != GOOD_ALIEN)) return -1;
@@ -4020,6 +4137,14 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				/* Check for correct alien-ness */
 				if (!(o_ptr->code & P3_ALIEN) &&
 				    good == GOOD_ALIEN) return -1;
+
+				/* Check for correct chromo */
+				if ((o_ptr->code & P3_AGAINST_CHROMO) &&
+				    !(t_ptr->d_ptr->flags & FLAG_CHROMO)) return -1;
+
+				/* Check for correct rebel */
+				if ((o_ptr->code & P3_AGAINST_REBEL) &&
+				    !(t_ptr->d_ptr->flags & FLAG_REBEL)) return -1;
 
 				/* Mark ability */
 				pay_military = 1;
@@ -4096,6 +4221,19 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 			}
 
 			/* Check for consume to increase military */
+			if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				/* Ask for goods to consume later */
+				consume_military++;
+
+				/* Add extra military */
+				military += o_ptr->value;
+
+				/* Need one more novelty good */
+				goods_needed[GOOD_NOVELTY]++;
+			}
+
+			/* Check for consume to increase military */
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Ask for goods to consume later */
@@ -4114,8 +4252,20 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 				/* Ask for goods to consume later */
 				consume_military++;
 
-				/* Add extra military */
-				military += o_ptr->value;
+				/* Check Xeno specific military */
+				if (o_ptr->code & P3_XENO)
+				{
+					if (t_ptr->d_ptr->flags & FLAG_XENO)
+					{
+						/* Add extra military */
+						military += o_ptr->value;
+					}
+				}
+				else
+				{
+					/* Add extra military */
+					military += o_ptr->value;
+				}
 
 				/* Need one more alien good */
 				goods_needed[GOOD_ALIEN]++;
@@ -4194,29 +4344,58 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
+			/* Skip generic powers taken into account in total_military */
+			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
+
 			/* Skip powers that require good consumption */
+			if (o_ptr->code & P3_CONSUME_NOVELTY) continue;
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
+			/* Skip powers that require discarding an active card */
+			if (o_ptr->code & P3_DISCARD) continue;
+
+			/* Check for specificity */
+
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY)||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY)||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (t_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(t_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
+
+			/* Check for against Xeno */
+			if ((o_ptr->code & P3_XENO) &&
+			    !(t_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* Skip power */
+				continue;
+			}
+
+			/* Military power does not require payment and applies */
+			/* Add value to military */
+
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+			}
+			else
+			{
+				military += o_ptr->value;
+			}
+			continue;
 		}
 
 		/* Discount when using pay for military */
@@ -4277,7 +4456,7 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
  * cases where too many cards were discarded, to prevent stupid AI play.
  */
 int settle_callback(game *g, int who, int which, int list[], int num,
-		    int special[], int num_special, int mil_only, int mil_bonus)
+                    int special[], int num_special, int mil_only, int mil_bonus)
 {
 	player *p_ptr;
 	card *c_ptr, *t_ptr;
@@ -4290,10 +4469,11 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	int consume_reduce = 0, consume_military = 0;
 	int consume_special[2], num_consume_special;
 	int g_list[MAX_DECK], num_goods;
-	int goods_needed[6];
+	int goods_needed[MAX_GOOD];
 	int i, j, n;
 	char* name;
 	char msg[1024];
+	int against_xeno;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
@@ -4319,11 +4499,14 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 	/* Add bonuses from earlier in the phase */
 	military += p_ptr->bonus_military + mil_bonus;
 
+	/* Add Xeno specific bonuses from earlier in the phase */
+	if (t_ptr->d_ptr->flags & FLAG_XENO) military += p_ptr->bonus_military_xeno;
+
 	/* Reduce cost by bonus reductions from earlier in the phase */
 	cost -= p_ptr->bonus_reduce;
 
 	/* Clear number of goods needed */
-	for (i = 0; i < 6; i++) goods_needed[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) goods_needed[i] = 0;
 
 	/* Get all active settle powers */
 	n = get_powers(g, who, PHASE_SETTLE, w_list);
@@ -4349,6 +4532,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Don't use multiple pay abilities at once */
 				if (pay_military) return 0;
 
+				/* Check for non-Xeno world */
+				if (t_ptr->d_ptr->flags & FLAG_XENO) return 0;
+
 				/* Check for correct alien-ness */
 				if ((o_ptr->code & P3_ALIEN) &&
 				    good != GOOD_ALIEN) return 0;
@@ -4356,6 +4542,14 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Check for correct alien-ness */
 				if (!(o_ptr->code & P3_ALIEN) &&
 				    good == GOOD_ALIEN) return 0;
+
+				/* Check for correct chromo */
+				if ((o_ptr->code & P3_AGAINST_CHROMO) &&
+				    !(t_ptr->d_ptr->flags & FLAG_CHROMO)) return 0;
+
+				/* Check for correct rebel */
+				if ((o_ptr->code & P3_AGAINST_REBEL) &&
+				    !(t_ptr->d_ptr->flags & FLAG_REBEL)) return 0;
 
 				/* Mark ability */
 				pay_military = 1;
@@ -4370,9 +4564,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg, "%s uses %s.\n",
-						p_ptr->name,
-						c_ptr->d_ptr->name);
+					sprintf(msg, "%s uses %s.\n", p_ptr->name,
+					                              c_ptr->d_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -4389,9 +4582,8 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg, "%s discards %s.\n",
-						p_ptr->name,
-						c_ptr->d_ptr->name);
+					sprintf(msg, "%s discards %s.\n", p_ptr->name,
+					                                  c_ptr->d_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -4500,6 +4692,36 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			}
 
 			/* Check for consume to increase military */
+			if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				/* Mark power as used */
+				c_ptr->misc |= 1 << (MISC_USED_SHIFT + j);
+
+				/* Ask for goods to consume later */
+				consume_military++;
+
+				/* Add extra military */
+				military += o_ptr->value;
+
+				/* Remember bonus for later */
+				p_ptr->bonus_military += o_ptr->value;
+
+				/* Message */
+				if (!g->simulation)
+				{
+					/* Format message */
+					sprintf(msg, "%s discards a Novelty good for "
+					        "extra military.\n", p_ptr->name);
+
+					/* Send message */
+					message_add(g, msg);
+				}
+
+				/* Need one more novelty good */
+				goods_needed[GOOD_NOVELTY]++;
+			}
+
+			/* Check for consume to increase military */
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Mark power as used */
@@ -4538,18 +4760,39 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 				/* Ask for goods to consume later */
 				consume_military++;
 
-				/* Add extra military */
-				military += o_ptr->value;
+				/* Assume generic, not against Xenos  */
+				against_xeno = 0;
 
-				/* Remember bonus for later */
-				p_ptr->bonus_military += o_ptr->value;
+				if (o_ptr->code & P3_XENO)
+				{
+					if (t_ptr->d_ptr->flags & FLAG_XENO)
+					{
+						/* Add extra military */
+						military += o_ptr->value;
+					}
+
+					/* Remember bonus for later */
+					p_ptr->bonus_military_xeno += o_ptr->value;
+
+					/* Remember that power applies against Xenos */
+					against_xeno = 1;
+				}
+				else
+				{
+					/* Add extra military */
+					military += o_ptr->value;
+
+					/* Remember bonus for later */
+					p_ptr->bonus_military += o_ptr->value;
+				}
 
 				/* Message */
 				if (!g->simulation)
 				{
 					/* Format message */
 					sprintf(msg, "%s discards an Alien good for "
-					        "extra military.\n", p_ptr->name);
+					        "extra military%s.\n",
+					        p_ptr->name, against_xeno ? " against Xenos" : "");
 
 					/* Send message */
 					message_add(g, msg);
@@ -4667,29 +4910,58 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
+			/* Skip powers taken into account in total_military */
+			if (!(o_ptr->code & P3_CONDITIONAL_MILITARY)) continue;
+
 			/* Skip powers that require good consumption */
+			if (o_ptr->code & P3_CONSUME_NOVELTY) continue;
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
+			/* Skip powers that require discarding an active card */
+			if (o_ptr->code & P3_DISCARD) continue;
+
+			/* Check for specificity */
+
 			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY) && good == GOOD_NOVELTY) ||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY) ||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (t_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(t_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
+
+			/* Check for against Xeno */
+			if ((o_ptr->code & P3_XENO) &&
+			    !(t_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* Skip power */
+				continue;
+			}
+
+			/* Military power does not require payment and applies */
+			/* Add value to military */
+
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+			}
+			else
+			{
+				military += o_ptr->value;
+			}
+			continue;
 		}
 
 		/* Discount when using pay for military */
@@ -4781,24 +5053,28 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_GENE)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_GENE);
+				num_goods = get_goods(g, who, g_list, GOOD_GENE);
+			}
+
+			/* Check for needing novelty good */
+			else if (o_ptr->code & P3_CONSUME_NOVELTY)
+			{
+				/* Get good list */
+				num_goods = get_goods(g, who, g_list, GOOD_NOVELTY);
 			}
 
 			/* Check for needing rare good */
 			else if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_RARE);
+				num_goods = get_goods(g, who, g_list, GOOD_RARE);
 			}
 
 			/* Check for needing alien good */
 			else if (o_ptr->code & P3_CONSUME_ALIEN)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_ALIEN);
+				num_goods = get_goods(g, who, g_list, GOOD_ALIEN);
 			}
 
 			else
@@ -4889,16 +5165,15 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 		else if (conquer && !pay_military && hand_military > 0)
 		{
 			/* Format message */
-			sprintf(msg, "%s pays %d to conquer %s.\n", p_ptr->name,
-				num, t_ptr->d_ptr->name);
+			sprintf(msg, "%s pays %d to conquer %s.\n",
+			              p_ptr->name, num, t_ptr->d_ptr->name);
 		}
 
 		/* Check for normal conquer */
 		else if (conquer && !pay_military)
 		{
 			/* Format message */
-			sprintf(msg, "%s conquers %s.\n", p_ptr->name,
-				t_ptr->d_ptr->name);
+			sprintf(msg, "%s conquers %s.\n", p_ptr->name, t_ptr->d_ptr->name);
 		}
 
 		/* Check for payment */
@@ -4909,7 +5184,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Format message */
 				sprintf(msg, "%s pays %d for extra military.\n",
-				        p_ptr->name, hand_military);
+				             p_ptr->name, hand_military);
 
 				/* Send message */
 				message_add(g, msg);
@@ -4917,7 +5192,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 
 			/* Format message */
 			sprintf(msg, "%s pays %d for %s.\n", p_ptr->name, num,
-				t_ptr->d_ptr->name);
+			                                     t_ptr->d_ptr->name);
 		}
 
 		/* Send message */
@@ -4944,7 +5219,7 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			{
 				/* Ask player which to save */
 				ask_player(g, who, CHOICE_SAVE, list, &num,
-					   NULL, NULL, 0, 0, 0);
+				           NULL, NULL, 0, 0, 0);
 
 				/* Check for aborted game */
 				if (g->game_over) return 0;
@@ -5043,25 +5318,90 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		/* Check for extra military */
 		if (o_ptr->code & P3_EXTRA_MILITARY)
 		{
-			/* Check for specific good required */
-			if (((o_ptr->code & P3_NOVELTY)&&good == GOOD_NOVELTY)||
-			    ((o_ptr->code & P3_RARE) && good == GOOD_RARE) ||
-			    ((o_ptr->code & P3_GENE) && good == GOOD_GENE) ||
-			    ((o_ptr->code & P3_ALIEN) && good == GOOD_ALIEN))
+			/* If specificity is not satisfied, ignore power */
+
+			/* Specific good check */
+			if (((o_ptr->code & P3_NOVELTY) && good != GOOD_NOVELTY) ||
+			    ((o_ptr->code & P3_RARE) && good != GOOD_RARE) ||
+			    ((o_ptr->code & P3_GENE) && good != GOOD_GENE) ||
+			    ((o_ptr->code & P3_ALIEN) && good != GOOD_ALIEN))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
 
 			/* Check for against rebels */
 			if ((o_ptr->code & P3_AGAINST_REBEL) &&
-			    (c_ptr->d_ptr->flags & FLAG_REBEL))
+			    !(c_ptr->d_ptr->flags & FLAG_REBEL))
 			{
-				/* Add value to military */
-				military += o_ptr->value;
+				/* Skip power */
 				continue;
 			}
+
+			/* Check for against Xeno */
+			if ((o_ptr->code & P3_XENO) && !(c_ptr->d_ptr->flags & FLAG_XENO))
+			{
+				/* Skip power */
+				continue;
+			}
+
+			/* If power needs payment add to special */
+			/* Check for discard for extra military */
+			if (o_ptr->code & P3_DISCARD)
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for prestige for military */
+			if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
+			    p_ptr->prestige > 0)
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for consume novelty */
+			if ((o_ptr->code & P3_CONSUME_NOVELTY) &&
+			    has_good(g, who, GOOD_NOVELTY))
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for consume rare */
+			if ((o_ptr->code & P3_CONSUME_RARE) &&
+			    has_good(g, who, GOOD_RARE))
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* Check for consume alien */
+			if ((o_ptr->code & P3_CONSUME_ALIEN) &&
+			    has_good(g, who, GOOD_ALIEN))
+			{
+				/* Add to special list */
+				special[num_special++] = w_list[i].c_idx;
+				continue;
+			}
+
+			/* At this point, we have a military power that applies to world */
+			/* and does not require payment. We can increase the military */
+
+			/* Check for per peaceful military */
+			if (o_ptr->code & P3_PER_PEACEFUL)
+			{
+				military += count_active_flags(g, who, FLAG_PEACEFUL);
+				continue;
+			}
+
+			/* Default case */
+			military += o_ptr->value;
 		}
 
 		/* Check for discard to reduce cost */
@@ -5072,17 +5412,16 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 			special[num_special++] = w_list[i].c_idx;
 		}
 
-		/* Check for discard for extra military */
-		if (o_ptr->code == (P3_DISCARD | P3_EXTRA_MILITARY))
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
-
 		/* Check for pay for military ability */
 		if (!takeover && !mil_only && conquer &&
 		    (o_ptr->code & P3_PAY_MILITARY))
 		{
+			/* Check for Xeno flag */
+			if (c_ptr->d_ptr->flags & FLAG_XENO)
+			{
+				/* Cannot pay for world */
+				continue;
+			}
 			/* Check for alien flag */
 			if (o_ptr->code & P3_ALIEN)
 			{
@@ -5126,6 +5465,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		{
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
+			continue;
 		}
 
 		/* Check for conquer peaceful world */
@@ -5149,30 +5489,6 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 			/* Add to special list */
 			special[num_special++] = w_list[i].c_idx;
 		}
-
-		/* Check for consume rare */
-		if ((o_ptr->code & P3_CONSUME_RARE) &&
-		    has_good(g, who, GOOD_RARE))
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
-
-		/* Check for consume alien */
-		if ((o_ptr->code & P3_CONSUME_ALIEN) &&
-		    has_good(g, who, GOOD_ALIEN))
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
-
-		/* Check for prestige for military */
-		if ((o_ptr->code & P3_CONSUME_PRESTIGE) &&
-		    p_ptr->prestige > 0)
-		{
-			/* Add to special list */
-			special[num_special++] = w_list[i].c_idx;
-		}
 	}
 
 	/* Check for no need to pay */
@@ -5189,7 +5505,7 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 		{
 			/* Format message */
 			sprintf(msg, "%s conquers %s.\n", p_ptr->name,
-				c_ptr->d_ptr->name);
+			                                  c_ptr->d_ptr->name);
 
 			/* Send message */
 			message_add(g, msg);
@@ -5275,9 +5591,9 @@ int takeover_callback(game *g, int special, int world)
 
 		/* Skip non-takeover powers */
 		if (!(o_ptr->code & (P3_TAKEOVER_REBEL |
-				     P3_TAKEOVER_IMPERIUM |
-				     P3_TAKEOVER_MILITARY |
-				     P3_TAKEOVER_PRESTIGE)))
+		                     P3_TAKEOVER_IMPERIUM |
+		                     P3_TAKEOVER_MILITARY |
+		                     P3_TAKEOVER_PRESTIGE)))
 		{
 			/* Skip power */
 			continue;
@@ -6066,8 +6382,8 @@ static void flip_world(game *g, int who)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s places %s at zero cost.\n",
-				p_ptr->name, c_ptr->d_ptr->name);
+			sprintf(msg, "%s places %s at zero cost.\n", p_ptr->name,
+			                                             c_ptr->d_ptr->name);
 
 			/* Add message */
 			message_add(g, msg);
@@ -6089,8 +6405,8 @@ static void flip_world(game *g, int who)
 		if (!g->simulation)
 		{
 			/* Format message */
-			sprintf(msg, "%s takes %s into hand.\n",
-				p_ptr->name, c_ptr->d_ptr->name);
+			sprintf(msg, "%s takes %s into hand.\n", p_ptr->name,
+			                                         c_ptr->d_ptr->name);
 
 			/* Add message */
 			message_add(g, msg);
@@ -6141,9 +6457,9 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 
 			/* Check for special placement power */
 			if (o_ptr->code & (P3_PLACE_TWO |
-					   P3_PLACE_ZERO |
-					   P3_PLACE_MILITARY |
-					   P3_PLACE_LEFTOVER)) break;
+			                   P3_PLACE_ZERO |
+			                   P3_PLACE_MILITARY |
+			                   P3_PLACE_LEFTOVER)) break;
 		}
 	}
 
@@ -6166,8 +6482,7 @@ void settle_finish(game *g, int who, int world, int mil_only, int special,
 			{
 				/* Format message */
 				sprintf(msg, "%s places %s at zero cost.\n",
-					p_ptr->name,
-					g->deck[world].d_ptr->name);
+				             p_ptr->name, g->deck[world].d_ptr->name);
 
 				/* Add message */
 				message_add(g, msg);
@@ -6697,8 +7012,7 @@ static int settle_action(game *g, int who, int world)
 					continue;
 
 				/* Determine amount of unreusable military */
-				mil_spent_spec = strength_first(g, who, world,
-								x);
+				mil_spent_spec = strength_first(g, who, world, x);
 
 				/* Compute military that was spent */
 				mil_bonus = mil_spent - mil_spent_spec;
@@ -6707,8 +7021,7 @@ static int settle_action(game *g, int who, int world)
 				if (mil_bonus < 0) mil_bonus = 0;
 
 				/* Skip cards that cannot be settled */
-				if (!settle_legal(g, who, x, -mil_bonus, 1, 0,
-				                  0)) continue;
+				if (!settle_legal(g, who, x, -mil_bonus, 1, 0, 0)) continue;
 
 				/* Add power to list */
 				cidx[num] = w_ptr->c_idx;
@@ -6979,8 +7292,7 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 		}
 
 		/* Format message */
-		sprintf(msg, "%s pays %d for extra military.\n",
-			p_ptr->name, num);
+		sprintf(msg, "%s pays %d for extra military.\n", p_ptr->name, num);
 
 		/* Send message */
 		message_add(g, msg);
@@ -7021,16 +7333,14 @@ int defend_callback(game *g, int who, int deficit, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_RARE)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_RARE);
+				num_goods = get_goods(g, who, g_list, GOOD_RARE);
 			}
 
 			/* Check for needing alien good */
 			if (o_ptr->code & P3_CONSUME_ALIEN)
 			{
 				/* Get good list */
-				num_goods = get_goods(g, who, g_list,
-				                      GOOD_ALIEN);
+				num_goods = get_goods(g, who, g_list, GOOD_ALIEN);
 			}
 
 			/* Other powers are already included */
@@ -7435,7 +7745,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 		{
 			/* Format message */
 			sprintf(msg, "%s destroys %s.\n", p_ptr->name,
-				c_ptr->d_ptr->name);
+			        c_ptr->d_ptr->name);
 
 			/* Send message */
 			message_add_formatted(g, msg, FORMAT_TAKEOVER);
@@ -7503,7 +7813,7 @@ int resolve_takeover(game *g, int who, int world, int special,
 	{
 		/* Format message */
 		sprintf(msg, "%s takes over %s.\n", p_ptr->name,
-			c_ptr->d_ptr->name);
+		        c_ptr->d_ptr->name);
 
 		/* Send message */
 		message_add_formatted(g, msg, FORMAT_TAKEOVER);
@@ -7614,7 +7924,7 @@ void resolve_takeovers(game *g)
 
 			/* Ask player which takeover (if any) to defeat */
 			ask_player(g, i, CHOICE_TAKEOVER_PREVENT,
-				   list, &num, special, &num, 0, 0, 0);
+			           list, &num, special, &num, 0, 0, 0);
 
 			/* Check for aborted game */
 			if (g->game_over) return;
@@ -8304,7 +8614,9 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 {
 	card *c_ptr;
 	power *o_ptr;
-	int i, num_saved = num, types[6], num_types, goods_left;
+	int i, num_saved = num, types[MAX_GOOD], required_any, num_types, goods_left;
+	int good_type;
+	uint64_t cons;
 
 	/* Loop over chosen goods */
 	for (i = 0; i < num_saved; ++i)
@@ -8344,6 +8656,39 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		{
 			/* Check for not two */
 			if (num != 2) return 0;
+
+			/* If there is more than 1 constraint, check everyone is satified */
+			if (count_consume_constraints(o_ptr) > 1)
+			{
+				/* Assume no GOOD_ANY required */
+				required_any = 0;
+
+				/* Clear type counts */
+				for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
+
+				/* Loop over goods */
+				for (i = 0; i < num; i++)
+				{
+					/* Get card pointer */
+					c_ptr = &g->deck[g_list[i]];
+
+					/* Count good type */
+					types[c_ptr->d_ptr->good_type]++;
+				}
+
+				/* Count number of GOOD_ANY required */
+				for (cons = P4_CONSUME_NOVELTY, good_type = GOOD_NOVELTY;
+				     cons <= P4_CONSUME_ALIEN &&
+				     required_any <= types[GOOD_ANY];
+				     cons <<= 1, good_type++)
+				{
+					if ((o_ptr->code & cons) && types[good_type] == 0)
+						required_any++;
+				}
+
+				/* Check the constraints are satisfied */
+				if (required_any > types[GOOD_ANY]) return 0;
+			}
 		}
 
 		/* Check for needing three */
@@ -8371,7 +8716,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		if (o_ptr->code & P4_CONSUME_3_DIFF)
 		{
 			/* Clear type counts */
-			for (i = 0; i < 6; i++) types[i] = 0;
+			for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 			/* Assume zero types */
 			num_types = 0;
@@ -8387,7 +8732,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			}
 
 			/* Count good types */
-			for (i = 0; i < 6; i++)
+			for (i = 0; i < MAX_GOOD; i++)
 			{
 				/* Check for type given */
 				if (types[i]) num_types++;
@@ -8401,7 +8746,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		if (o_ptr->code & P4_CONSUME_N_DIFF)
 		{
 			/* Clear type counts */
-			for (i = 0; i < 6; i++) types[i] = 0;
+			for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 			/* Assume zero types */
 			num_types = 0;
@@ -8417,7 +8762,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			}
 
 			/* Count good types */
-			for (i = 0; i < 6; i++)
+			for (i = 0; i < MAX_GOOD; i++)
 			{
 				/* Check for type given */
 				if (types[i]) num_types++;
@@ -8432,6 +8777,31 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 	return 1;
 }
 
+/*
+ * Count the number of P4_CONSUME_X constraints of the given power
+ */
+int count_consume_constraints(power *o_ptr)
+{
+	int num_constraints = 0;
+	uint64_t cons;
+	for (cons = P4_CONSUME_ANY; cons <= P4_CONSUME_ALIEN; cons <<= 1)
+	{
+		if (o_ptr->code & cons) num_constraints++;
+	}
+	return num_constraints;
+}
+
+/*
+ * Count the number of cards attributed by the given consume power
+ */
+int count_card_reward(power *o_ptr)
+{
+	int card = 0;
+	if (o_ptr->code & P4_GET_CARD) card += 1;
+	if (o_ptr->code & P4_GET_2_CARD) card += 2;
+	if (o_ptr->code & P4_GET_3_CARD) card += 3;
+	return card;
+}
 
 /*
  * Called when a player has chosen goods to consume.
@@ -8554,26 +8924,10 @@ int good_chosen(game *g, int who, int c_idx, int o_idx,
 		vps = o_ptr->value * times * vp_mult;
 	}
 
-	/* Check for card award */
-	if (o_ptr->code & P4_GET_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value * times;
-	}
-
-	/* XXX Check for multiple card award */
-	if (o_ptr->code & P4_GET_2_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value * 2 * times;
-	}
-
-	/* XXX Check for multiple card award */
-	if (o_ptr->code & P4_GET_3_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value * 3 * times;
-	}
+	/* Determine amount of card award
+	 * Note: the card award is not affected by the power value
+	 */
+	cards = count_card_reward(o_ptr) * times;
 
 	/* Check for prestige award */
 	if (o_ptr->code & P4_GET_PRESTIGE)
@@ -8586,8 +8940,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx,
 	if (!g->simulation)
 	{
 		/* Log rewards */
-		log_rewards(g, who, cards, vps, prestige,
-		            "from", name, FORMAT_VERBOSE);
+		log_rewards(g, who, cards, vps, prestige, "from", name, FORMAT_VERBOSE);
 	}
 
 	/* Check for any VPs awarded */
@@ -8648,8 +9001,7 @@ static void draw_lucky(game *g, int who)
 	p_ptr = &g->p[who];
 
 	/* Ask player to choose lucky number */
-	cost = ask_player(g, who, CHOICE_LUCKY, NULL, NULL, NULL, NULL,
-	                  0, 0, 0);
+	cost = ask_player(g, who, CHOICE_LUCKY, NULL, NULL, NULL, NULL, 0, 0, 0);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
@@ -8873,7 +9225,7 @@ static void ante_card(game *g, int who)
 	{
 		/* Format message */
 		sprintf(msg, "%s keeps %s.\n", p_ptr->name,
-			g->deck[chosen].d_ptr->name);
+		        g->deck[chosen].d_ptr->name);
 
 		/* Add message */
 		message_add(g, msg);
@@ -9002,12 +9354,8 @@ int consume_hand_chosen(game *g, int who, int c_idx, int o_idx,
 			vps += o_ptr->value;
 		}
 
-		/* Count card rewards */
-		if (o_ptr->code & P4_GET_CARD)
-		{
-			/* Remember cards */
-			cards += o_ptr->value;
-		}
+		/* Count card reward */
+		cards += count_card_reward(o_ptr);
 
 		/* Count prestige rewards */
 		if (o_ptr->code & P4_GET_PRESTIGE)
@@ -9125,11 +9473,7 @@ void consume_prestige_chosen(game *g, int who, int c_idx, int o_idx)
 	cards = vps = 0;
 
 	/* Count card reward */
-	if (o_ptr->code & P4_GET_CARD)
-	{
-		/* Remember cards */
-		cards += o_ptr->value;
-	}
+	cards += count_card_reward(o_ptr);
 
 	/* Count VP rewards */
 	if (o_ptr->code & P4_GET_VP)
@@ -9198,7 +9542,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	power *o_ptr;
 	char *name;
 	int i, x, min, max, vp, vp_mult;
-	int types[6], num_types = 0;
+	int types[MAX_GOOD], num_types = 0;
 	int good, g_list[MAX_DECK], n = 0, num_goods = 0;
 	int special[MAX_DECK], num_special = 2;
 
@@ -9328,7 +9672,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Clear good type counts */
-	for (i = 0; i < 6; i++) types[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 	/* Start at first active card */
 	x = g->p[who].head[WHERE_ACTIVE];
@@ -9348,12 +9692,16 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		/* Count good type */
 		types[good]++;
 
-		/* Check for specific good type needed */
-		if (good != GOOD_ANY &&
-		   (((o_ptr->code & P4_CONSUME_NOVELTY)&&good != GOOD_NOVELTY) ||
-		    ((o_ptr->code & P4_CONSUME_RARE) && good != GOOD_RARE) ||
-		    ((o_ptr->code & P4_CONSUME_GENE) && good != GOOD_GENE) ||
-		    ((o_ptr->code & P4_CONSUME_ALIEN) && good != GOOD_ALIEN)))
+		/* Check the good is consumable by the power */
+		if (!((good == GOOD_ANY) ||
+		    (o_ptr->code & P4_CONSUME_ANY) ||
+		    (o_ptr->code & P4_CONSUME_3_DIFF) ||
+		    (o_ptr->code & P4_CONSUME_N_DIFF) ||
+		    (o_ptr->code & P4_CONSUME_ALL) ||
+		    ((o_ptr->code & P4_CONSUME_NOVELTY) && good == GOOD_NOVELTY) ||
+		    ((o_ptr->code & P4_CONSUME_RARE) && good == GOOD_RARE) ||
+		    ((o_ptr->code & P4_CONSUME_GENE) && good == GOOD_GENE) ||
+		    ((o_ptr->code & P4_CONSUME_ALIEN) && good == GOOD_ALIEN)))
 		{
 			/* Skip good */
 			continue;
@@ -9374,7 +9722,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Count number of types */
-	for (i = 0; i < 6; i++) if (types[i]) num_types++;
+	for (i = 0; i < MAX_GOOD; i++) if (types[i]) num_types++;
 
 	/* Compute number of goods needed */
 	if (o_ptr->code & P4_CONSUME_TWO)
@@ -9476,15 +9824,16 @@ int consume_action(game *g, int who)
 	power_where w_list[100], *w_ptr;
 	power *o_ptr;
 	int cidx[MAX_DECK], oidx[MAX_DECK];
-	int goods = 0, types[6], num_types = 0;
-	int i, x, need, n, num = 0;
+	int goods = 0, types[MAX_GOOD], num_types = 0, num_constraints = 0;
+	int i, x, need, n, num = 0, required_any, good_type;
+	uint64_t cons;
 	int optional = 1;
 
 	/* Get player pointer */
 	p_ptr = &g->p[who];
 
 	/* Clear good type counts */
-	for (i = 0; i < 6; i++) types[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 	/* Start at first active card */
 	x = p_ptr->head[WHERE_ACTIVE];
@@ -9506,7 +9855,7 @@ int consume_action(game *g, int who)
 	}
 
 	/* Count number of types */
-	for (i = 0; i < 6; i++) if (types[i]) num_types++;
+	for (i = 0; i < MAX_GOOD; i++) if (types[i]) num_types++;
 
 	/* Get consume powers */
 	n = get_powers(g, who, PHASE_CONSUME, w_list);
@@ -9526,12 +9875,62 @@ int consume_action(game *g, int who)
 		/* Assume only one good needed */
 		need = 1;
 
-		/* Check for need two */
-		if (o_ptr->code & P4_CONSUME_TWO) need = 2;
-
 		/* Check for good on this world needed */
 		if ((o_ptr->code & P4_CONSUME_THIS) &&
 		    (!c_ptr->num_goods)) continue;
+
+		/* Check for need two */
+		if (o_ptr->code & P4_CONSUME_TWO)
+		{
+			need = 2;
+
+			/* Count number of constraints */
+			num_constraints = count_consume_constraints(o_ptr);
+
+			/* Cannot have more than two constraints */
+			if (num_constraints > 2)
+			{
+				/* Error */
+				display_error("Consume two power has more than two constraints!\n");
+				exit(1);
+			}
+
+			/* If there is more than one constraint, check every constraint
+			   can be satisfied */
+			if (num_constraints == 2)
+			{
+				required_any = 0;
+				for (cons = P4_CONSUME_NOVELTY, good_type = GOOD_NOVELTY;
+				     cons <= P4_CONSUME_ALIEN &&
+				     required_any <= types[GOOD_ANY];
+				     cons <<= 1, good_type++)
+				{
+					if ((o_ptr->code & cons) && types[good_type] == 0)
+						required_any++;
+				}
+
+				/* If not any good to satisfy all constraints skip power */
+				if (required_any > types[GOOD_ANY]) continue;
+
+				/* If consume any constraint, check number of good */
+				if (!(o_ptr->code & P4_CONSUME_ANY) || goods >= 2)
+				{
+					/* Add power to list */
+					cidx[num] = w_ptr->c_idx;
+					oidx[num] = w_ptr->o_idx;
+					num++;
+
+					/* Not optional */
+					optional = 0;
+				}
+
+				/* Process next power, either because this one was added, or
+				 * does not apply
+				 */
+				continue;
+			}
+			/* Else use previous code */
+		}
 
 		/* Check for regular consume powers */
 		if (((o_ptr->code & P4_CONSUME_ANY) && goods >= need) ||
@@ -9623,7 +10022,7 @@ int consume_action(game *g, int who)
 
 		/* Check for other powers */
 		if (o_ptr->code & (P4_DRAW | P4_DRAW_LUCKY | P4_VP |
-				   P4_ANTE_CARD))
+		                   P4_ANTE_CARD))
 		{
 			/* Add power to list */
 			cidx[num] = w_ptr->c_idx;
@@ -10053,8 +10452,7 @@ static void produce_windfall(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Ask player to choose world to produce */
-	ask_player(g, who, CHOICE_WINDFALL, list, &n, NULL, NULL, c_idx, o_idx,
-	           0);
+	ask_player(g, who, CHOICE_WINDFALL, list, &n, NULL, NULL, c_idx, o_idx, 0);
 
 	/* Check for aborted game */
 	if (g->game_over) return;
@@ -10072,7 +10470,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	card *c_ptr;
 	power *o_ptr;
 	char *name;
-	int i, x, count, produced[6];
+	int i, x, count, produced[MAX_GOOD];
 	int list[MAX_DECK];
 	char msg[1024];
 
@@ -10151,6 +10549,36 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		return;
 	}
 
+	/* Check for draw per rare world */
+	if (o_ptr->code & P5_DRAW_WORLD_RARE)
+	{
+		/* Assume no rare worlds */
+		count = 0;
+
+		/* Start at first active card */
+		x = p_ptr->head[WHERE_ACTIVE];
+
+		/* Loop over cards */
+		for ( ; x != -1; x = g->deck[x].next)
+		{
+			/* Get card pointer */
+			c_ptr = &g->deck[x];
+
+			/* Check for rare world */
+			if (c_ptr->d_ptr->good_type == GOOD_RARE ||
+			    c_ptr->d_ptr->good_type == GOOD_ANY) count++;
+		}
+
+		/* Draw cards */
+		draw_cards(g, who, count * o_ptr->value, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
+		/* Done */
+		return;
+	}
+
 	/* Check for draw per gene world */
 	if (o_ptr->code & P5_DRAW_WORLD_GENE)
 	{
@@ -10186,6 +10614,22 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	{
 		/* Count military worlds */
 		count = count_active_flags(g, who, FLAG_MILITARY);
+
+		/* Draw cards */
+		draw_cards(g, who, count * o_ptr->value, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
+		/* Done */
+		return;
+	}
+
+	/* Check for draw per two military world */
+	if (o_ptr->code & P5_DRAW_TWO_MILITARY)
+	{
+		/* Count military worlds */
+		count = count_active_flags(g, who, FLAG_MILITARY) / 2;
 
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value, name);
@@ -10253,6 +10697,22 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 			/* Check for rebel world */
 			if (c_ptr->d_ptr->flags & FLAG_REBEL) count++;
 		}
+
+		/* Draw cards */
+		draw_cards(g, who, count * o_ptr->value, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count * o_ptr->value;
+
+		/* Done */
+		return;
+	}
+
+	/* Check for draw per Xeno military world */
+	if (o_ptr->code & P5_DRAW_XENO_MILITARY)
+	{
+		/* Count number of Xeno military worlds */
+		count = count_active_flags(g, who, FLAG_MILITARY | FLAG_XENO);
 
 		/* Draw cards */
 		draw_cards(g, who, count * o_ptr->value, name);
@@ -10376,8 +10836,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 				        g->deck[list[i]].d_ptr->name);
 
 				/* Send message */
-				g->p[who].control->private_message(g, who, msg,
-				                                   FORMAT_DISCARD);
+				g->p[who].control->private_message(g, who, msg, FORMAT_DISCARD);
 			}
 		}
 
@@ -10400,8 +10859,8 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	/* Check for discard to produce on windfall */
 	if ((o_ptr->code & P5_DISCARD) &&
 	    (o_ptr->code & (P5_WINDFALL_ANY | P5_WINDFALL_NOVELTY |
-			   P5_WINDFALL_RARE | P5_WINDFALL_GENE |
-			   P5_WINDFALL_ALIEN)))
+	                    P5_WINDFALL_RARE | P5_WINDFALL_GENE |
+	                    P5_WINDFALL_ALIEN)))
 	{
 		/* Choose discard to produce */
 		discard_windfall(g, who, c_idx, o_idx);
@@ -10412,8 +10871,8 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 
 	/* Check for produce on windfall */
 	if (o_ptr->code & (P5_WINDFALL_ANY | P5_WINDFALL_NOVELTY |
-			   P5_WINDFALL_RARE | P5_WINDFALL_GENE |
-			   P5_WINDFALL_ALIEN))
+	                   P5_WINDFALL_RARE | P5_WINDFALL_GENE |
+	                   P5_WINDFALL_ALIEN))
 	{
 		/* Produce on a windfall world */
 		produce_windfall(g, who, c_idx, o_idx);
@@ -10423,7 +10882,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 	}
 
 	/* Clear production counts */
-	for (i = 0; i < 6; i++) produced[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) produced[i] = 0;
 
 	/* Start at first active card */
 	x = p_ptr->head[WHERE_ACTIVE];
@@ -10500,7 +10959,7 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 		count = 0;
 
 		/* Count types */
-		for (i = 0; i < 6; i++)
+		for (i = 0; i < MAX_GOOD; i++)
 		{
 			/* Check for this type produced */
 			if (produced[i]) count++;
@@ -10511,6 +10970,29 @@ void produce_chosen(game *g, int who, int c_idx, int o_idx)
 
 		/* Count reward */
 		p_ptr->phase_cards += count;
+
+		/* Done */
+		return;
+	}
+
+	/* Check for draw per every two good produced */
+	if (o_ptr->code & P5_DRAW_EVERY_TWO)
+	{
+		/* Start count at zero */
+		count = 0;
+
+		/* Count types */
+		for (i = 0; i < MAX_GOOD; i++)
+		{
+			/* Check for this type produced */
+			count += produced[i];
+		}
+
+		/* Award cards */
+		draw_cards(g, who, count / 2, name);
+
+		/* Count reward */
+		p_ptr->phase_cards += count / 2;
 
 		/* Done */
 		return;
@@ -10530,7 +11012,7 @@ int produce_action(game *g, int who)
 	power_where w_list[100], *w_ptr;
 	power *o_ptr;
 	int cidx[MAX_DECK], oidx[MAX_DECK];
-	int windfall[6], windfall_any = 0;
+	int windfall[MAX_GOOD], windfall_any = 0;
 	int i, x, n, num = 0;
 	uint64_t all_codes = 0;
 
@@ -10538,7 +11020,7 @@ int produce_action(game *g, int who)
 	p_ptr = &g->p[who];
 
 	/* Clear windfall counts */
-	for (i = 0; i < 6; i++) windfall[i] = 0;
+	for (i = 0; i < MAX_GOOD; i++) windfall[i] = 0;
 
 	/* Start at first active card */
 	x = p_ptr->head[WHERE_ACTIVE];
@@ -10608,14 +11090,17 @@ int produce_action(game *g, int who)
 
 		/* Check for other draw powers */
 		if (o_ptr->code & (P5_DRAW_WORLD_GENE |
-				   P5_DRAW_MILITARY |
-				   P5_DRAW_REBEL |
-				   P5_DRAW_REBEL_MILITARY |
-				   P5_DRAW_IMPERIUM |
-				   P5_DRAW_CHROMO |
-				   P5_DRAW_5_DEV |
-				   P5_PRESTIGE_MOST_CHROMO |
-				   P5_TAKE_SAVED))
+		                   P5_DRAW_MILITARY |
+		                   P5_DRAW_REBEL |
+		                   P5_DRAW_REBEL_MILITARY |
+		                   P5_DRAW_IMPERIUM |
+		                   P5_DRAW_CHROMO |
+		                   P5_DRAW_5_DEV |
+		                   P5_PRESTIGE_MOST_CHROMO |
+		                   P5_TAKE_SAVED |
+		                   P5_DRAW_WORLD_RARE |
+		                   P5_DRAW_XENO_MILITARY |
+		                   P5_DRAW_TWO_MILITARY))
 		{
 			/* Use power immediately */
 			produce_chosen(g, who, w_ptr->c_idx, w_ptr->o_idx);
@@ -10660,16 +11145,17 @@ int produce_action(game *g, int who)
 
 		/* Check for useable power */
 		if (o_ptr->code & (P5_PRODUCE |
-				   P5_WINDFALL_ANY |
-				   P5_WINDFALL_NOVELTY |
-				   P5_WINDFALL_RARE |
-				   P5_WINDFALL_GENE |
-				   P5_WINDFALL_ALIEN |
-				   P5_DRAW_EACH_NOVELTY |
-				   P5_DRAW_EACH_RARE |
-				   P5_DRAW_EACH_GENE |
-				   P5_DRAW_EACH_ALIEN |
-				   P5_DRAW_DIFFERENT))
+		                   P5_WINDFALL_ANY |
+		                   P5_WINDFALL_NOVELTY |
+		                   P5_WINDFALL_RARE |
+		                   P5_WINDFALL_GENE |
+		                   P5_WINDFALL_ALIEN |
+		                   P5_DRAW_EACH_NOVELTY |
+		                   P5_DRAW_EACH_RARE |
+		                   P5_DRAW_EACH_GENE |
+		                   P5_DRAW_EACH_ALIEN |
+		                   P5_DRAW_DIFFERENT |
+		                   P5_DRAW_EVERY_TWO))
 		{
 			/* Add power to list */
 			cidx[num] = w_list[i].c_idx;
@@ -10849,11 +11335,10 @@ void phase_produce_start(game *g)
 				if (!g->simulation)
 				{
 					/* Format message */
-					sprintf(msg,
-					"%s shifts good from %s to %s.\n",
-						p_ptr->name,
-						b_ptr->d_ptr->name,
-					g->deck[w_list[j].c_idx].d_ptr->name);
+					sprintf(msg, "%s shifts good from %s to %s.\n",
+					             p_ptr->name,
+					             b_ptr->d_ptr->name,
+					             g->deck[w_list[j].c_idx].d_ptr->name);
 
 					/* Send message */
 					message_add(g, msg);
@@ -10872,7 +11357,7 @@ void phase_produce_end(game *g)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int produced[MAX_PLAYER][6], all[MAX_PLAYER], most;
+	int produced[MAX_PLAYER][MAX_GOOD], all[MAX_PLAYER], most;
 	int i, j, k, x, n;
 
 	/* Loop over players */
@@ -11360,7 +11845,7 @@ static int check_goal_player(game *g, int goal, int who)
 	card *c_ptr;
 	power_where w_list[100];
 	power *o_ptr;
-	int good[6], phase[6], count = 0;
+	int good[MAX_GOOD], phase[6], count = 0;
 	int i, x, n;
 
 	/* Get player pointer */
@@ -11379,7 +11864,7 @@ static int check_goal_player(game *g, int goal, int who)
 		case GOAL_FIRST_4_TYPES:
 
 			/* Clear good marks */
-			for (i = 0; i < 6; i++) good[i] = 0;
+			for (i = 0; i < MAX_GOOD; i++) good[i] = 0;
 
 			/* Start at first active card */
 			x = p_ptr->head[WHERE_ACTIVE];
@@ -12467,7 +12952,7 @@ static void game_information(game *g)
 	message_add(g, msg);
 
 	/* Check for expansion with goals */
-	if (g->expanded > 0 && g->expanded < 4)
+	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW)
 	{
 		/* Check for disabled goals */
 		if (g->goal_disabled)
@@ -12483,7 +12968,7 @@ static void game_information(game *g)
 	}
 
 	/* Check for expansion with takeovers */
-	if (g->expanded > 1 && g->expanded < 4)
+	if (g->expanded >= EXP_RVI && g->expanded <= EXP_BOW)
 	{
 		/* Check for disabled takeovers */
 		if (g->takeover_disabled)
@@ -12555,7 +13040,7 @@ void begin_game(game *g)
 	}
 
 	/* Check for second (or later) expansion */
-	if ((g->expanded >= 2 || g->promo) && !g->camp)
+	if ((g->expanded >= EXP_RVI || g->promo) && !g->camp)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)
@@ -13054,7 +13539,7 @@ int game_round(game *g)
 		{
 			/* Format message */
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
-				action_name(p_ptr->action[0]));
+			        action_name(p_ptr->action[0]));
 
 			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
 			{
@@ -13127,7 +13612,7 @@ int game_round(game *g)
 		{
 			/* Format message */
 			sprintf(msg, "%s chooses %s.\n", p_ptr->name,
-				action_name(p_ptr->action[0]));
+			        action_name(p_ptr->action[0]));
 
 			if (p_ptr->action[0] == ACT_SEARCH || p_ptr->action[0] & ACT_PRESTIGE)
 			{
@@ -13346,6 +13831,20 @@ int total_military(game *g, int who)
 		{
 			/* Add to military */
 			amt += count_active_flags(g, who, FLAG_CHROMO);
+		}
+
+		/* Check for non-specific military per imperium flag */
+		if (o_ptr->code == (P3_EXTRA_MILITARY | P3_PER_IMPERIUM))
+		{
+			/* Add to military */
+			amt += count_active_flags(g, who, FLAG_IMPERIUM);
+		}
+
+		/* Check for non-specific military per rebel military world */
+		if (o_ptr->code == (P3_EXTRA_MILITARY | P3_PER_REBEL_MILITARY))
+		{
+			/* Add to military */
+			amt += count_active_flags(g, who, FLAG_MILITARY | FLAG_REBEL);
 		}
 
 		/* Check for only if Imperium card active */
@@ -13600,6 +14099,30 @@ static int bonus_match(game *g, vp_bonus *v_ptr, design *d_ptr)
 
 			/* Check for correct name */
 			return !strcmp(v_ptr->name, d_ptr->name);
+
+		/* Anti-Xeno flag */
+		case VP_ANTI_XENO_FLAG:
+
+			/* Check for flag */
+			return d_ptr->flags & FLAG_ANTI_XENO;
+
+		case VP_ANTI_XENO_WORLD:
+
+			/* Check for flag */
+			return d_ptr->type == TYPE_WORLD && d_ptr->flags & FLAG_ANTI_XENO;
+
+		case VP_ANTI_XENO_DEVEL:
+
+			/* Check for flag */
+			return d_ptr->type == TYPE_DEVELOPMENT &&
+			       d_ptr->flags & FLAG_ANTI_XENO;
+
+		case VP_XENO_MILITARY:
+
+			/* Check for flag */
+			return d_ptr->type == TYPE_WORLD &&
+			        (d_ptr->flags & FLAG_XENO) &&
+			        (d_ptr->flags & FLAG_MILITARY);
 	}
 
 	/* Other types never match */
@@ -13614,7 +14137,7 @@ int get_score_bonus(game *g, int who, int which)
 	player *p_ptr;
 	card *c_ptr, *score;
 	vp_bonus *v_ptr;
-	int i, j, x, count = 0, types[6];
+	int i, j, x, count = 0, types[MAX_GOOD];
 	int amt = 0;
 
 	/* Get player pointer */
@@ -13653,7 +14176,7 @@ int get_score_bonus(game *g, int who, int which)
 		else if (v_ptr->type == VP_KIND_GOOD)
 		{
 			/* Clear type flags */
-			for (j = 0; j < 6; j++) types[j] = 0;
+			for (j = 0; j < MAX_GOOD; j++) types[j] = 0;
 
 			/* Start at first active card */
 			x = p_ptr->head[WHERE_ACTIVE];
@@ -14041,7 +14564,7 @@ void declare_winner(game *g)
 				{
 					/* Format message */
 					sprintf(msg, "%s wins with %d VP%s.\n", g->p[i].name,
-							g->p[i].end_vp, PLURAL(g->p[i].end_vp));
+					        g->p[i].end_vp, PLURAL(g->p[i].end_vp));
 				}
 
 				/* Send message */
