@@ -1,7 +1,8 @@
-# Next version
+# Version 0.9.5
 
 ### Gameplay
 
+* Regular cards from *Xeno Invasion* expansion added (no invasion game)
 * *Alien Survey Technology* no longer scores with *Galactic Survey: SETI*
 * *Alien Oort Cloud Refinery* is now optional to use with *Diversified Economy*
 
@@ -38,7 +39,7 @@
 
 * Autocompletion in server text box
 * Overhaul of the online "Create Game" dialog
-* Sortable games and users in lobby 
+* Sortable games and users in lobby
 * Bolding own user and game in lobby
 * Change sensitivity of "Join Game" button depending on selected game
 * Change selected "Number of players" if value is too large
