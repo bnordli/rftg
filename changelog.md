@@ -1,3 +1,9 @@
+# Version 0.9.5
+
+### Gameplay
+
+* Regular cards from *Xeno Invasion* expansion added (no invasion game)
+
 # Changelog for 0.9.4 versions
 
 ## 0.9.4q
@@ -31,7 +37,7 @@
 
 * Autocompletion in server text box
 * Overhaul of the online "Create Game" dialog
-* Sortable games and users in lobby 
+* Sortable games and users in lobby
 * Bolding own user and game in lobby
 * Change sensitivity of "Join Game" button depending on selected game
 * Change selected "Number of players" if value is too large
