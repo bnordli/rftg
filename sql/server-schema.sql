@@ -25,7 +25,7 @@ CREATE TABLE games(
  adv INT NOT NULL,
  dis_goal INT NOT NULL,
  dis_takeover INT NOT NULL,
- variant INT NOT NULL, # Only used in version 0.8.1n
+ # variant INT NOT NULL, # Only used in version 0.8.1n
  speed INT NOT NULL,
  version TEXT NOT NULL);
 
