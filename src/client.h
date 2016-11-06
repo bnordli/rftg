@@ -129,6 +129,9 @@ typedef struct options
 	/* Password */
 	char *password;
 
+	/* Hide password */
+	int hide_password;
+
 	/* Export style sheet */
 	char *export_style_sheet;
 

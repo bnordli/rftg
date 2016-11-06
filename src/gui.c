@@ -10929,6 +10929,8 @@ static void read_prefs(void)
 	                                     "username", NULL);
 	opt.password = g_key_file_get_string(pref_file, "multiplayer",
 	                                     "password", NULL);
+	opt.hide_password = g_key_file_get_boolean(pref_file, "multiplayer",
+	                                     "hide_password", NULL);
 
 	/* Read multiplayer game creation options */
 	opt.game_desc = g_key_file_get_string(pref_file, "multiplayer",

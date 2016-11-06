@@ -2116,8 +2116,11 @@ with the password you enter.");
 	/* Check for no password in preferences */
 	if (!opt.password) opt.password = "";
 
-	/* Set default username */
+	/* Set default password */
 	gtk_entry_set_text(GTK_ENTRY(pass), opt.password);
+
+	/* Hide password if manually set in preferences */
+	gtk_entry_set_visibility(GTK_ENTRY(pass), !opt.hide_password);
 
 	/* Set maximum password length */
 	gtk_entry_set_max_length(GTK_ENTRY(pass), 20);
