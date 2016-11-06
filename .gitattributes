@@ -1,1 +1,3 @@
 *.net binary
+*.rc diff
+*.h diff
