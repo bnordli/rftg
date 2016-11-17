@@ -12731,8 +12731,8 @@ static void rotate_players(game *g)
 }
 
  /*
-+ * Checks for and performs any debug rotations.
-+ */
+  * Checks for and performs any debug rotations.
+  */
 static void check_debug_rotate(game *g)
 {
 	int i;
