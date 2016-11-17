@@ -77,7 +77,8 @@
 
 
 /* External functions */
-extern void get_string(char *dest, char **msg);
+extern int get_string(char *dest, unsigned int dest_len,
+                      char *msg, unsigned int msg_len, char **msg_ptr);
 extern int get_integer(char **msg);
 extern void put_string(char *ptr, char **msg);
 extern void put_integer(int x, char **msg);

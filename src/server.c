@@ -47,6 +47,10 @@
  */
 #define MAX_RAND     1024
 
+/*
+ * Message buffer length
+ */
+#define BUF_LEN      2048
 
 /*
  * A connection from a client.
@@ -60,7 +64,7 @@ typedef struct conn
 	int ai;
 
 	/* Data buffer for incoming bytes */
-	char buf[2048];
+	char buf[BUF_LEN];
 
 	/* Amount of data currently in buffer */
 	int buf_full;
@@ -3270,15 +3274,33 @@ static void handle_login(int cid, char *ptr)
 	}
 
 	/* Pull strings from message */
-	get_string(user, &ptr);
-	get_string(pass, &ptr);
-	get_string(version, &ptr);
+	if (!get_string(user, 1024, c_list[cid].buf, BUF_LEN, &ptr))
+	{
+format_error:
+		/*
+		 * Process badly formatted message, missing \0 in a string or with a
+		 * format leading to read beyond the message length.
+		 */
+
+		/* Send denied message */
+		send_msgf(cid, MSG_DENIED, "s", "String format error");
+
+		/* Log message */
+		server_log("Denied (string format error)");
+
+		/* Done */
+		return;
+	}
+	if (!get_string(pass, 1024, c_list[cid].buf, BUF_LEN, &ptr)) goto format_error;
+	if (!get_string(version, 1024, c_list[cid].buf, BUF_LEN, &ptr))
+		goto format_error;
 
 	/* Check for release information */
 	if (ptr - c_list[cid].buf < c_list[cid].buf_full)
 	{
 		/* Use release as version */
-		get_string(c_list[cid].version, &ptr);
+		if (!get_string(c_list[cid].version, 80, c_list[cid].buf, BUF_LEN, &ptr))
+			goto format_error;
 	}
 	else
 	{
@@ -3564,9 +3586,22 @@ static void handle_create(int cid, char *ptr)
 	memset(pass, 0, 2048);
 	memset(desc, 0, 2048);
 
-	/* Read game password and descripton */
-	get_string(pass, &ptr);
-	get_string(desc, &ptr);
+	/* Read game password */
+	if (!get_string(pass, 2048, c_list[cid].buf, BUF_LEN, &ptr))
+	{
+		/*
+		 * Process badly formatted message, missing \0 in a string or with a
+		 * format leading to read beyond the message length.
+		 */
+
+format_error:
+		/* Kick requester */
+		kick_player(cid, "String format error");
+		return;
+	}
+
+	/* Read game descripton */
+	if (!get_string(desc, 2048, c_list[cid].buf, BUF_LEN, &ptr)) goto format_error;
 
 	/* Check for no description */
 	if (!strlen(desc))
@@ -3714,7 +3749,12 @@ static void handle_join(int cid, char *ptr)
 	}
 
 	/* Get client-supplied password */
-	get_string(pass, &ptr);
+	if (!get_string(pass, 1024, c_list[cid].buf, BUF_LEN, &ptr))
+	{
+		/* Kick requester */
+		kick_player(cid, "String format error");
+		return;
+	}
 
 	/* Check for too-long password */
 	if (strlen(pass) > 20)
@@ -3836,7 +3876,17 @@ static void handle_remove(int cid, char *ptr)
 	}
 
 	/* Get name of player to remove */
-	get_string(buf, &ptr);
+	if (!get_string(buf, 1024, c_list[cid].buf, BUF_LEN, &ptr))
+	{
+		/*
+		 * Process badly formatted message, missing \0 in a string or with a
+		 * format leading to read beyond the message length.
+		 */
+
+		/* Kick requester */
+		kick_player(cid, "String format error");
+		return;
+	}
 
 	/* Loop over players in session */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -4128,7 +4178,17 @@ static void handle_chat(int cid, char *ptr)
 	int i;
 
 	/* Read chat message */
-	get_string(chat, &ptr);
+	if (!get_string(chat, 1024, c_list[cid].buf, BUF_LEN, &ptr))
+	{
+		/*
+		 * Process badly formatted message, missing \0 in a string or with a
+		 * format leading to read beyond the message length.
+		 */
+
+		/* Kick requester */
+		kick_player(cid, "String format error");
+		return;
+	}
 
 	/* Check for sender in lobby */
 	if (c_list[cid].state == CS_LOBBY)

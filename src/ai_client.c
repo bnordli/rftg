@@ -34,6 +34,21 @@ static game real_game;
 static int player_us;
 
 /*
+ * Message buffer length
+ */
+#define BUF_LEN 1024
+
+/*
+ * Our incoming message buffer
+ */
+static char buf[BUF_LEN];
+
+/*
+ * The number of received bytes in the buffer
+ */
+static int buf_full;
+
+/*
  * Send message to server.
  */
 void send_msg(int fd, char *msg)
@@ -101,7 +116,15 @@ static void handle_status_meta(char *ptr)
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Read player name */
-		get_string(name, &ptr);
+		if (!get_string(name, 1024, buf, buf_full, &ptr))
+		{
+			/*
+			 * Process badly formatted message, missing \0 in a string or with a
+			 * format leading to read beyond the message length.
+			 */
+			display_error("String format error");
+			exit(1);
+		}
 
 		/* Copy name */
 		real_game.p[i].name = strdup(name);
@@ -259,7 +282,7 @@ static void handle_status_misc(char *ptr)
 static void handle_choose(char *ptr)
 {
 	player *p_ptr;
-	char msg[1024];
+	char msg[BUF_LEN];
 	int pos, type, num, num_special;
 	int list[MAX_DECK], special[MAX_DECK];
 	int arg1, arg2, arg3;
@@ -418,7 +441,15 @@ static void message_read(char *data)
 		/* Server disconnect */
 		case MSG_GOODBYE:
 			/* Read reason */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, buf, buf_full, &ptr))
+			{
+				/*
+				 * Process badly formatted message, missing \0 in a string or
+				 * with a format leading to read beyond the message length.
+				 */
+				display_error("String format error");
+				exit(1);
+			}
 
 			/* Print reason and exit */
 			sprintf(text + 512, "Server disconnected: %s\n", text);
@@ -446,8 +477,6 @@ static void message_read(char *data)
  */
 static void data_ready(void)
 {
-	static char buf[1024];
-	static int buf_full;
 	char *ptr;
 	int x;
 

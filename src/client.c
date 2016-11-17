@@ -27,6 +27,11 @@
 #include "client.h"
 
 /*
+ * Message buffer length
+ */
+#define BUF_LEN 1024
+
+/*
  * File descriptor of connection to server.
  */
 static int server_fd = -1;
@@ -428,6 +433,7 @@ static void handle_open_game(char *ptr)
 {
 	int x, y, new_game = FALSE;
 	char buf[1024];
+	char *msg_buf = ptr;
 	char *cmp_key;
 	GtkTreeIter list_iter;
 
@@ -450,7 +456,18 @@ static void handle_open_game(char *ptr)
 	}
 
 	/* Read description */
-	get_string(buf, &ptr);
+	if (!get_string(buf, 1024, msg_buf, BUF_LEN, &ptr))
+	{
+		/*
+		 * Process badly formatted message, missing \0 in a string or with a
+		 * format leading to read beyond the message length.
+		 */
+
+format_error:
+		/* Print error */
+		display_error("String format error");
+		exit(1);
+	}
 
 	/* Create compare key */
 	cmp_key = create_cmp_key(buf);
@@ -465,7 +482,7 @@ static void handle_open_game(char *ptr)
 	g_free(cmp_key);
 
 	/* Read creator username */
-	get_string(buf, &ptr);
+	if (!get_string(buf, 1024, msg_buf, BUF_LEN, &ptr)) goto format_error;
 
 	/* Create compare key */
 	cmp_key = create_cmp_key(buf);
@@ -591,6 +608,7 @@ static void handle_game_player(char *ptr)
 {
 	int x, y;
 	char buf[1024];
+	char *msg_buf = ptr;
 	char *cmp_key;
 	GtkTreeIter list_iter, child_iter;
 
@@ -601,7 +619,17 @@ static void handle_game_player(char *ptr)
 	y = get_integer(&ptr);
 
 	/* Read user name */
-	get_string(buf, &ptr);
+	if (!get_string(buf, 1024, msg_buf, BUF_LEN, &ptr))
+	{
+		/*
+		 * Process badly formatted message, missing \0 in a string or with a
+		 * format leading to read beyond the message length.
+		 */
+
+		/* Print error */
+		display_error("String format error");
+		exit(1);
+	}
 
 	/* Find game ID */
 	find_game_iter(x, &list_iter);
@@ -692,6 +720,7 @@ static void handle_game_player(char *ptr)
 static void handle_status_meta(char *ptr, int size)
 {
 	char name[1024];
+	char *msg_buf = ptr;
 	int i;
 
 	/* Read basic game parameters */
@@ -722,7 +751,17 @@ static void handle_status_meta(char *ptr, int size)
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Read player name */
-		get_string(name, &ptr);
+		if (!get_string(name, 1024, msg_buf, BUF_LEN, &ptr))
+		{
+			/*
+			 * Process badly formatted message, missing \0 in a string or with a
+			 * format leading to read beyond the message length.
+			 */
+
+			/* Print error */
+			display_error("String format error");
+			exit(1);
+		}
 
 		/* Copy name */
 		real_game.p[i].name = strdup(name);
@@ -1288,6 +1327,7 @@ static gboolean message_read(gpointer data)
 {
 	char *ptr = data;
 	int type, size;
+	char *msg_buf = (char *) data;
 	char text[1024], format[1024], username[1024];
 	char *cmp_key;
 	GtkTreeIter list_iter;
@@ -1315,7 +1355,18 @@ static gboolean message_read(gpointer data)
 			if (size > 8)
 			{
 				/* Get server version */
-				get_string(server_version, &ptr);
+				if (!get_string(server_version, 30, msg_buf, BUF_LEN, &ptr))
+				{
+					/*
+					* Process badly formatted message, missing \0 in a string or with a
+					* format leading to read beyond the message length.
+					*/
+
+format_error:
+					/* Print error */
+					display_error("String format error");
+					exit(1);
+				}
 
 				/* Check for debug server */
 				debug_server = strstr(server_version, "-debug") != NULL;
@@ -1347,7 +1398,8 @@ static gboolean message_read(gpointer data)
 		case MSG_DENIED:
 
 			/* Read denied message */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Set login status */
 			gtk_label_set_text(GTK_LABEL(login_status), text);
@@ -1363,7 +1415,8 @@ static gboolean message_read(gpointer data)
 		case MSG_GOODBYE:
 
 			/* Read message */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Create alert dialog */
 			dialog = gtk_message_dialog_new(NULL,
@@ -1396,7 +1449,8 @@ static gboolean message_read(gpointer data)
 		case MSG_PLAYER_NEW:
 
 			/* Get username */
-			get_string(username, &ptr);
+			if (!get_string(username, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Get in-game status */
 			x = get_integer(&ptr);
@@ -1441,7 +1495,8 @@ static gboolean message_read(gpointer data)
 		case MSG_PLAYER_LEFT:
 
 			/* Get username */
-			get_string(username, &ptr);
+			if (!get_string(username, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Remove user from list */
 			gtk_tree_model_foreach(GTK_TREE_MODEL(user_list),
@@ -1490,7 +1545,8 @@ static gboolean message_read(gpointer data)
 		case MSG_JOINNAK:
 
 			/* Read message */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Create alert dialog */
 			dialog = gtk_message_dialog_new(NULL,
@@ -1552,7 +1608,8 @@ static gboolean message_read(gpointer data)
 		case MSG_LOG:
 
 			/* Read message */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Add message to log */
 			message_add(&real_game, text);
@@ -1562,10 +1619,12 @@ static gboolean message_read(gpointer data)
 		case MSG_LOG_FORMAT:
 
 			/* Read message */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Read format tag */
-			get_string(format, &ptr);
+			if (!get_string(format, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Add formatted message to log */
 			message_add_formatted(&real_game, text, format);
@@ -1575,13 +1634,15 @@ static gboolean message_read(gpointer data)
 		case MSG_GAMECHAT:
 
 			/* Read username */
-			get_string(username, &ptr);
+			if (!get_string(username, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Add colon to displayed username */
 			if (strlen(username) > 0) strcat(username, ": ");
 
 			/* Read text of message */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Add newline to message */
 			strcat(text, "\n");
@@ -1632,13 +1693,15 @@ static gboolean message_read(gpointer data)
 		case MSG_CHAT:
 
 			/* Get username */
-			get_string(username, &ptr);
+			if (!get_string(username, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Add colon to displayed username */
 			if (strlen(username) > 0) strcat(username, ": ");
 
 			/* Get message */
-			get_string(text, &ptr);
+			if (!get_string(text, 1024, msg_buf, BUF_LEN, &ptr))
+				goto format_error;
 
 			/* Add newline to message */
 			strcat(text, "\n");
@@ -1823,7 +1886,7 @@ static gboolean message_read(gpointer data)
 static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 {
 	GtkWidget *dialog;
-	static char buf[1024];
+	static char buf[BUF_LEN];
 	static int buf_full;
 	char *ptr, *copy;
 	int x, type;

@@ -22,20 +22,34 @@
 #include "comm.h"
 
 /*
- * Copy a string from a message.
+ * Copy a string located at msg_ptr from a message buffer of length msg_len
+ * to a destination buffer of length dest_len. The trailing string \0 has to
+ * appear within the buffer length.
  *
- * We advance the message pointer past the end of the string.
+ * Returns 1 if message could be read without reading or writing overflow,
+ * 0 otherwise.
+ * When 1 is returned, the message is copied and the msg_ptr has
+ * advanced past the end of the read string.
+ * When 0 is returned, the effect on dest, msg and msg_ptr is undefined.
  */
-void get_string(char *dest, char **msg)
+int get_string(char *dest, unsigned int dest_len,
+               char *msg, unsigned int msg_len, char **msg_ptr)
 {
-	/* Copy until we reach the end of the string */
-	while (1)
+	char *dest_end = dest + dest_len, *msg_end = msg + msg_len;
+	int pos;
+
+	/* Check pointer consistence */
+	pos = *msg_ptr - msg;
+	if (pos < 0 || pos >= msg_len) return 0;
+
+	/* Copy until we reach the end of the string or surpass a buffer length */
+	while (dest != dest_end && *msg_ptr != msg_end)
 	{
 		/* Copy a byte */
-		*dest = **msg;
+		*dest = **msg_ptr;
 
 		/* Advance message pointer */
-		(*msg)++;
+		(*msg_ptr)++;
 
 		/* Check for end of string */
 		if (!(*dest)) break;
@@ -43,6 +57,9 @@ void get_string(char *dest, char **msg)
 		/* Advance destination pointer */
 		dest++;
 	}
+
+	/* Test read or write overflow */
+	return *dest == 0 ? 1 : 0;
 }
 
 /*
