@@ -3683,7 +3683,7 @@ static void handle_create(int cid, int size)
 	if (strlen(desc) > 40)
 	{
 		/* Truncate description */
-		pass[40] = '\0';
+		desc[40] = '\0';
 	}
 
 	/* Initialize session mutex */
