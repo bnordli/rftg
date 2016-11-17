@@ -10844,7 +10844,7 @@ static void read_prefs(void)
 	int i;
 	GtkTreeIter list_iter;
 
-    /* Build user preference filename */
+	/* Build user preference filename */
 #ifdef __APPLE__
 	path = g_build_filename(g_get_home_dir(),
 	                        "Library/Preferences/net.keldon.rftg", NULL);
@@ -12155,7 +12155,7 @@ static void update_option(GtkToggleButton *button, gpointer option)
  */
 static void enter_callback(GtkWidget *widget, GtkWidget *dialog)
 {
-    g_signal_emit_by_name(G_OBJECT(dialog), "response", GTK_RESPONSE_ACCEPT);
+	g_signal_emit_by_name(G_OBJECT(dialog), "response", GTK_RESPONSE_ACCEPT);
 }
 
 /*
