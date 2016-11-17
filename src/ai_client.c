@@ -34,11 +34,6 @@ static game real_game;
 static int player_us;
 
 /*
- * Message buffer length
- */
-#define BUF_LEN 1024
-
-/*
  * Our incoming message buffer
  */
 static char buf[BUF_LEN];

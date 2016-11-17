@@ -18,6 +18,11 @@
 #include <fcntl.h>
 
 /*
+ * Message buffer length
+ */
+#define BUF_LEN 1024
+
+/*
  * Message types.
  */
 #define MSG_LOGIN             1

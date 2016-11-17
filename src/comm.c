@@ -158,7 +158,7 @@ void finish_msg(char *start, char *end)
  */
 void send_msgf(int fd, int type, char *fmt, ...)
 {
-	char msg[1024], *ptr = msg;
+	char msg[BUF_LEN], *ptr = msg;
 	va_list ap;
 
 	/* Start message */

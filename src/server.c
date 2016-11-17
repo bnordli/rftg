@@ -48,11 +48,6 @@
 #define MAX_RAND     1024
 
 /*
- * Message buffer length
- */
-#define BUF_LEN      2048
-
-/*
  * A connection from a client.
  */
 typedef struct conn
@@ -1078,7 +1073,7 @@ static void replay_messages(int gid, int cid)
 	MYSQL_RES *res;
 	MYSQL_ROW row;
 	char query[1024];
-	char msg[1024], name[1024], *ptr;
+	char msg[BUF_LEN], name[1024], *ptr;
 
 	/* Create lookup query */
 	sprintf(query, "SELECT message, format, user "
@@ -1918,7 +1913,7 @@ static void update_status_one(int sid, int who)
 	game obfus;
 	player *p_ptr;
 	card *c_ptr;
-	char msg[1024], *ptr;
+	char msg[BUF_LEN], *ptr;
 	int i, j;
 
 	/* Obfuscate hidden information for this player */
@@ -2203,7 +2198,7 @@ static void ask_client(int sid, int who)
 	game *g = &s_ptr->g;
 	choice *o_ptr;
 	int cid;
-	char msg[1024], *ptr = msg;
+	char msg[BUF_LEN], *ptr = msg;
 	int i;
 
 	/* Send game updates to players */
@@ -2751,7 +2746,7 @@ static void handle_prepare(int cid, char *ptr)
  */
 void server_private_message(game *g, int who, char *txt, char *tag)
 {
-	char msg[1024], *ptr = msg;
+	char msg[BUF_LEN], *ptr = msg;
 	int cid, uid;
 
 	/* Get connection ID of this user */
@@ -4366,7 +4361,7 @@ static void handle_data(int cid)
 	}
 
 	/* Check for too-long message */
-	if (x > 1024)
+	if (x > BUF_LEN)
 	{
 		/* Close connection */
 		kick_player(cid, "Message too long");

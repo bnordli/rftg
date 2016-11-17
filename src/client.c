@@ -27,11 +27,6 @@
 #include "client.h"
 
 /*
- * Message buffer length
- */
-#define BUF_LEN 1024
-
-/*
  * File descriptor of connection to server.
  */
 static int server_fd = -1;
@@ -1018,7 +1013,7 @@ static void handle_waiting(char *ptr)
 static void handle_choose(char *ptr)
 {
 	player *p_ptr;
-	char msg[1024];
+	char msg[BUF_LEN];
 	int pos, type, num, num_special;
 	int list[MAX_DECK], special[MAX_DECK];
 	int arg1, arg2, arg3;
@@ -1144,7 +1139,7 @@ static void prepare_make_choice(game *g, int who, int type, int list[], int *nl,
                                 int arg3)
 {
 	player *p_ptr = &g->p[who];
-	char msg[1024], *ptr = msg;
+	char msg[BUF_LEN], *ptr = msg;
 	int i;
 
 	/* Check for random number generator used in simulated game */
@@ -1912,7 +1907,7 @@ static gboolean data_ready(GIOChannel *source, GIOCondition in, gpointer data)
 	}
 
 	/* Check for overly long message */
-	if (x > 1024)
+	if (x > BUF_LEN)
 	{
 		/* Error */
 		display_error("Received too long message!\n");
