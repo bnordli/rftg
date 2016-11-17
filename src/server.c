@@ -3505,14 +3505,12 @@ static void handle_login(int cid, int size)
 		/* Loop over file */
 		while (1)
 		{
-			/* Read a line */
-			fgets(text, 1024, fff);
-
-			/* Check for end of file */
-			if (feof(fff)) break;
+			/* Read a line, in case of error, stop sending welcome message */
+			if (!fgets(text, 1024, fff)) break;
 
 			/* Strip newline */
-			text[strlen(text) - 1] = '\0';
+			i = strlen(text) - 1;
+			if (text[i] == '\n') text[i] = '\0';
 
 			/* Skip comments and blank lines */
 			if (!text[0] || text[0] == '#') continue;
