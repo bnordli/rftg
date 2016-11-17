@@ -48,6 +48,11 @@
 #define MAX_RAND     1024
 
 /*
+ * Size (in int) of the choice log of a player.
+ */
+#define CHOICE_LOG_LEN    4096
+
+/*
  * A connection from a client.
  */
 typedef struct conn
@@ -2534,11 +2539,12 @@ static int verify_choice(session *s_ptr, int who, int type, int list[], int nl,
 static void handle_choice(int cid, int size)
 {
 	session *s_ptr;
-	player *p_ptr;
-       int who, i, x, sid, pos, type, nl, ns, got_choice = 0;
+	player *p_ptr = NULL;
+	int who, i, x, sid, pos, type, nl, ns, got_choice = 0;
+	int len_choices, process_choices = 0;
 	int *l_ptr, *list, *special;
-       char *msg_buf = c_list[cid].buf;
-       char *ptr = msg_buf;
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
 
 	/* Get session ID from player */
 	sid = c_list[cid].sid;
@@ -2548,9 +2554,6 @@ static void handle_choice(int cid, int size)
 
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
-
-	/* Grab session mutex */
-	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Loop over players in session */
 	for (who = 0; who < s_ptr->num_users; who++)
@@ -2563,6 +2566,12 @@ static void handle_choice(int cid, int size)
 			break;
 		}
 	}
+
+	/* Do nothing if client is not a player */
+	if (!p_ptr) return;
+
+	/* Grab session mutex */
+	pthread_mutex_lock(&s_ptr->session_mutex);
 
 	/* Skip header */
 	ptr += HEADER_LEN;
@@ -2578,6 +2587,37 @@ static void handle_choice(int cid, int size)
 
 		/* Release lock and discard the rest of the message */
 		pthread_mutex_unlock(&s_ptr->session_mutex);
+		return;
+	}
+
+	/* Compute the expected number of log elements */
+	len_choices = size - (ptr - msg_buf);
+	if (len_choices % 4 != 0) goto format_error;
+	len_choices /= 4;
+
+	/*
+	 * Check against choice log overflow. If we detect an overflow, increasing
+	 * the size may result in a denial of service by excessive memory
+	 * consumption. If we kick the player the log is still full. The game seems
+	 * definitively messed up. We adopt the option of abandoning the game.
+	 */
+	if (p_ptr->choice_size + len_choices > CHOICE_LOG_LEN)
+	{
+		/* Save client ids */
+		for (who = 0; who < s_ptr->num_users; who++)
+		{
+				/* Inform the players an error occured */
+				send_msgf(s_ptr->cids[who], MSG_CHAT, "ss", "",
+				          "Choice log overflow, abandoning game");
+
+				/* Tell the players the game is over */
+				send_msgf(s_ptr->cids[who], MSG_GAMEOVER, "");
+		}
+
+		/* Release lock */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
+
+		/* Discard the rest of the message */
 		return;
 	}
 
@@ -2650,17 +2690,17 @@ static void handle_choice(int cid, int size)
 			if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
 			*l_ptr++ = x;
 		}
-	}
 
-	/* Check for illegal answer */
-	if (!verify_choice(s_ptr, who, type, list, nl, special, ns))
-	{
-		/* Kick player for illegal play */
-		kick_player(cid, "Illegal choice!");
+		/* Check for illegal answer */
+		if (!verify_choice(s_ptr, who, type, list, nl, special, ns))
+		{
+			/* Kick player for illegal play */
+			kick_player(cid, "Illegal choice!");
 
-		/* Release lock and don't store the answer */
-		pthread_mutex_unlock(&s_ptr->session_mutex);
-		return;
+			/* Release lock and don't store the answer */
+			pthread_mutex_unlock(&s_ptr->session_mutex);
+			return;
+		}
 	}
 
 	/* Mark new size of choice log */
@@ -3214,7 +3254,7 @@ static void start_session(int sid)
 		s_ptr->g.p[i].control = &server_func;
 
 		/* Create choice log */
-		s_ptr->g.p[i].choice_log = (int *)malloc(sizeof(int) * 4096);
+		s_ptr->g.p[i].choice_log = (int *)malloc(sizeof(int) * CHOICE_LOG_LEN);
 
 		/* Clear choice log size and position */
 		s_ptr->g.p[i].choice_size = 0;
