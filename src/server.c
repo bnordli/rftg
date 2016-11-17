@@ -3655,10 +3655,6 @@ static void handle_create(int cid, int size)
 	/* Skip header */
 	ptr += HEADER_LEN;
 
-	/* Clear password and description */
-	memset(pass, 0, 2048);
-	memset(desc, 0, 2048);
-
 	/* Read game password */
 	if (!get_string(pass, 2048, msg_buf, size, &ptr)) goto format_error;
 
