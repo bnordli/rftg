@@ -23,6 +23,11 @@
 #define BUF_LEN 1024
 
 /*
+ * Message header length
+ */
+#define HEADER_LEN 8
+
+/*
  * Message types.
  */
 #define MSG_LOGIN             1
@@ -84,7 +89,8 @@
 /* External functions */
 extern int get_string(char *dest, unsigned int dest_len,
                       char *msg, unsigned int msg_len, char **msg_ptr);
-extern int get_integer(char **msg);
+extern int get_integer(int *dest,
+                       char *msg, unsigned int msg_len, char **msg_ptr);
 extern void put_string(char *ptr, char **msg);
 extern void put_integer(int x, char **msg);
 extern void start_msg(char **msg, int type);

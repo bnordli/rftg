@@ -63,22 +63,30 @@ int get_string(char *dest, unsigned int dest_len,
 }
 
 /*
- * Copy an integer from a message.
+ * Copy a 4-byte integer located at msg_ptr from a message buffer of length
+ * msg_len to a destination integer. The read integer is in network byte
+ * order
  *
- * We advance the message pointer past the end of the integer.
+ * Returns 1 if integer could be read without reading overflow, 0 otherwise.
+ * When 1 is returned, the integer is copied and the msg_ptr has
+ * advanced past the end of the read integer.
+ * When 0 is returned, the effect on dest, msg and msg_ptr is undefined.
  */
-int get_integer(char **msg)
+int get_integer(int *dest, char *msg, unsigned int msg_len, char **msg_ptr)
 {
-	int x;
+	int pos, x;
 
-	/* Copy four bytes from message */
-	memcpy(&x, *msg, 4);
+	/* Check pointer consistency */
+	pos = *msg_ptr - msg;
+	if (pos < 0 || pos > msg_len - 4) return 0;
+
+	/* Copy the integer */
+	memcpy(&x, *msg_ptr, 4);
+	*dest = ntohl(x);
 
 	/* Advance message pointer */
-	(*msg) += 4;
-
-	/* Convert integer to host form */
-	return ntohl(x);
+	(*msg_ptr) += 4;
+	return 1;
 }
 
 /*

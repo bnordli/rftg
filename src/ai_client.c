@@ -55,7 +55,7 @@ void send_msg(int fd, char *msg)
 	ptr = msg + 4;
 
 	/* Read size */
-	size = get_integer(&ptr);
+	get_integer(&size, msg, HEADER_LEN, &ptr);
 
 	/* Send until finished */
 	while (sent < size)
@@ -82,17 +82,25 @@ void send_msg(int fd, char *msg)
 /*
  * Handle a message about game parameters.
  */
-static void handle_status_meta(char *ptr)
+static void handle_status_meta(char *ptr, int size)
 {
 	char name[1024];
-	int i;
+	int i, x;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Read basic game parameters */
-	real_game.num_players = get_integer(&ptr);
-	real_game.expanded = get_integer(&ptr);
-	real_game.advanced = get_integer(&ptr);
-	real_game.goal_disabled = get_integer(&ptr);
-	real_game.takeover_disabled = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.num_players = x;
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.expanded = x;
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.advanced = x;
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.goal_disabled = x;
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.takeover_disabled = x;
 
 	/* Initialize card designs for this expansion level */
 	init_game(&real_game);
@@ -104,96 +112,133 @@ static void handle_status_meta(char *ptr)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Read goal presence */
-		real_game.goal_active[i] = get_integer(&ptr);
+		if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+		real_game.goal_active[i] = x;
 	}
 
 	/* Loop over players */
 	for (i = 0; i < real_game.num_players; i++)
 	{
 		/* Read player name */
-		if (!get_string(name, 1024, buf, buf_full, &ptr))
-		{
-			/*
-			 * Process badly formatted message, missing \0 in a string or with a
-			 * format leading to read beyond the message length.
-			 */
-			display_error("String format error");
-			exit(1);
-		}
+		if (!get_string(name, 1024, buf, size, &ptr)) goto format_error;
 
 		/* Copy name */
 		real_game.p[i].name = strdup(name);
+	}
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		display_error("Message format error");
+		exit(1);
 	}
 }
 
 /*
  * Handle a status update about a player.
  */
-static void handle_status_player(char *ptr)
+static void handle_status_player(char *ptr, int size)
 {
 	player *p_ptr;
-	int x;
+	int i, x;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Get player index */
-	x = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
 
 	/* Get player pointer */
 	p_ptr = &real_game.p[x];
 
 	/* Read actions */
-	p_ptr->action[0] = get_integer(&ptr);
-	p_ptr->action[1] = get_integer(&ptr);
+	if (!get_integer(p_ptr->action, buf, size, &ptr)) goto format_error;
+	if (!get_integer(p_ptr->action + 1, buf, size, &ptr)) goto format_error;
 
 	/* Read prestige action used flag */
-	p_ptr->prestige_action_used = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	p_ptr->prestige_action_used = x;
 
 	/* Loop over goals */
-	for (x = 0; x < MAX_GOAL; x++)
+	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Read goal claimed */
-		p_ptr->goal_claimed[x] = get_integer(&ptr);
+		if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+		p_ptr->goal_claimed[i] = x;
 
 		/* Real goal progress */
-		p_ptr->goal_progress[x] = get_integer(&ptr);
+		if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+		p_ptr->goal_progress[i] = x;
 	}
 
 	/* Read player's prestige count */
-	p_ptr->prestige = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	p_ptr->prestige = x;
 
 	/* Read player's VP count */
-	p_ptr->vp = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	p_ptr->vp = x;
 
 	/* Read player's phase bonuses */
-	p_ptr->phase_bonus_used = get_integer(&ptr);
-	p_ptr->bonus_military = get_integer(&ptr);
-	/* Xeno military bonus only for XI games */
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	p_ptr->phase_bonus_used = x;
+
+	/* Read player's bonus military */
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	p_ptr->bonus_military = x;
+
+	/* Read player's Xeno military bonus (only for XI games) */
 	if (real_game.expanded == EXP_XI)
-		p_ptr->bonus_military_xeno = get_integer(&ptr);
-	p_ptr->bonus_reduce = get_integer(&ptr);
+	{
+		if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+		p_ptr->bonus_military_xeno = x;
+	}
+
+	/* Read player's reduce bonus */
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	p_ptr->bonus_reduce = x;
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		display_error("Message format error");
+		exit(1);
+	}
 }
 
 /*
  * Handle a status update about a card.
  */
-static void handle_status_card(char *ptr)
+static void handle_status_card(char *ptr, int size)
 {
 	card *c_ptr;
-	int x;
+	int x, y;
 	int owner, where, start_owner, start_where;
 
+	/* Skip header */
+	ptr += HEADER_LEN;
+
 	/* Read card index */
-	x = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
 
 	/* Get card pointer */
 	c_ptr = &real_game.deck[x];
 
 	/* Read card owner */
-	owner = get_integer(&ptr);
-	start_owner = get_integer(&ptr);
+	if (!get_integer(&owner, buf, size, &ptr)) goto format_error;
+	if (!get_integer(&start_owner, buf, size, &ptr)) goto format_error;
 
 	/* Read card location */
-	where = get_integer(&ptr);
-	start_where = get_integer(&ptr);
+	if (!get_integer(&where, buf, size, &ptr)) goto format_error;
+	if (!get_integer(&start_where, buf, size, &ptr)) goto format_error;
 
 	/* Move card to current location */
 	move_card(&real_game, x, owner, where);
@@ -202,16 +247,20 @@ static void handle_status_card(char *ptr)
 	move_start(&real_game, x, start_owner, start_where);
 
 	/* Read misc flags */
-	c_ptr->misc = get_integer(&ptr);
+	if (!get_integer(&y, buf, size, &ptr)) goto format_error;
+	c_ptr->misc = y;
 
 	/* Read order played */
-	c_ptr->order = get_integer(&ptr);
+	if (!get_integer(&y, buf, size, &ptr)) goto format_error;
+	c_ptr->order = y;
 
 	/* Read number of goods */
-	c_ptr->num_goods = get_integer(&ptr);
+	if (!get_integer(&y, buf, size, &ptr)) goto format_error;
+	c_ptr->num_goods = y;
 
 	/* Read covered card */
-	c_ptr->covering = get_integer(&ptr);
+	if (!get_integer(&y, buf, size, &ptr)) goto format_error;
+	c_ptr->covering = y;
 
 	/* Set known flags for active and revealed cards */
 	if (c_ptr->where == WHERE_ACTIVE || c_ptr->where == WHERE_ASIDE)
@@ -227,46 +276,91 @@ static void handle_status_card(char *ptr)
 		/* Set known flag */
 		c_ptr->misc |= (1 << c_ptr->owner);
 	}
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		display_error("Message format error");
+		exit(1);
+	}
 }
 
 /*
  * Handle a goal status update.
  */
-static void handle_status_goal(char *ptr)
+static void handle_status_goal(char *ptr, int size)
 {
-	int i;
+	int i, x;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Read goal availability and progress */
-		real_game.goal_avail[i] = get_integer(&ptr);
-		real_game.goal_most[i] = get_integer(&ptr);
+		if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+		real_game.goal_avail[i] = x;
+		if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+		real_game.goal_most[i] = x;
+	}
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		display_error("Message format error");
+		exit(1);
 	}
 }
 
 /*
  * Handle a miscellaneous status update.
  */
-static void handle_status_misc(char *ptr)
+static void handle_status_misc(char *ptr, int size)
 {
-	int i;
+	int i, x;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Read round number */
-	real_game.round = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.round = x;
 
 	/* Read VP pool size */
-	real_game.vp_pool = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.vp_pool = x;
 
 	/* Loop over actions */
 	for (i = 0; i < MAX_ACTION; i++)
 	{
 		/* Read action selected flag */
-		real_game.action_selected[i] = get_integer(&ptr);
+		if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+		real_game.action_selected[i] = x;
 	}
 
 	/* Read current action */
-	real_game.cur_action = get_integer(&ptr);
+	if (!get_integer(&x, buf, size, &ptr)) goto format_error;
+	real_game.cur_action = x;
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		display_error("Message format error");
+		exit(1);
+	}
 }
 
 /*
@@ -274,7 +368,7 @@ static void handle_status_misc(char *ptr)
  *
  * Ask AI and return result.
  */
-static void handle_choose(char *ptr)
+static void handle_choose(char *ptr, int size)
 {
 	player *p_ptr;
 	char msg[BUF_LEN];
@@ -283,11 +377,14 @@ static void handle_choose(char *ptr)
 	int arg1, arg2, arg3;
 	int i;
 
+	/* Skip header */
+	ptr += HEADER_LEN;
+
 	/* Get player pointer */
 	p_ptr = &real_game.p[player_us];
 
 	/* Read choice log position expected */
-	pos = get_integer(&ptr);
+	if (!get_integer(&pos, buf, size, &ptr)) goto format_error;
 
 	/* Check for further along in log than we are */
 	if (pos > p_ptr->choice_pos)
@@ -304,32 +401,43 @@ static void handle_choose(char *ptr)
 	}
 
 	/* Read choice type */
-	type = get_integer(&ptr);
+	if (!get_integer(&type, buf, size, &ptr)) goto format_error;
 
 	/* Read number of items in list */
-	num = get_integer(&ptr);
+	if (!get_integer(&num, buf, size, &ptr)) goto format_error;
 
 	/* Loop over items in list */
 	for (i = 0; i < num; i++)
 	{
 		/* Read list item */
-		list[i] = get_integer(&ptr);
+		if (!get_integer(list + i, buf, size, &ptr)) goto format_error;
 	}
 
 	/* Read number of special items in list */
-	num_special = get_integer(&ptr);
+	if (!get_integer(&num_special, buf, size, &ptr)) goto format_error;
 
 	/* Loop over special items */
 	for (i = 0; i < num_special; i++)
 	{
 		/* Read special item */
-		special[i] = get_integer(&ptr);
+		if (!get_integer(special + i, buf, size, &ptr)) goto format_error;
 	}
 
 	/* Read extra arguments */
-	arg1 = get_integer(&ptr);
-	arg2 = get_integer(&ptr);
-	arg3 = get_integer(&ptr);
+	if (!get_integer(&arg1, buf, size, &ptr)) goto format_error;
+	if (!get_integer(&arg2, buf, size, &ptr)) goto format_error;
+	if (!get_integer(&arg3, buf, size, &ptr)) goto format_error;
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		display_error("Message format error");
+		exit(1);
+	}
 
 	/* Ask AI for decision */
 	ai_func.make_choice(&real_game, player_us, type, list, &num,
@@ -362,7 +470,7 @@ static void handle_choose(char *ptr)
 }
 
 /*
- * A complete message has been read.
+ * A complete message has been read. Parse its header and handle the message.
  */
 static void message_read(char *data)
 {
@@ -371,8 +479,8 @@ static void message_read(char *data)
 	int type, size;
 
 	/* Read message type and size */
-	type = get_integer(&ptr);
-	size = get_integer(&ptr);
+	get_integer(&type, data, HEADER_LEN, &ptr);
+	get_integer(&size, data, HEADER_LEN, &ptr);
 
 	/* Check message type */
 	switch (type)
@@ -381,49 +489,49 @@ static void message_read(char *data)
 		case MSG_STATUS_META:
 
 			/* Handle message */
-			handle_status_meta(ptr);
+			handle_status_meta(data, size);
 			break;
 
 		/* Player status update */
 		case MSG_STATUS_PLAYER:
 
 			/* Handle message */
-			handle_status_player(ptr);
+			handle_status_player(data, size);
 			break;
 
 		/* Card status update */
 		case MSG_STATUS_CARD:
 
 			/* Handle message */
-			handle_status_card(ptr);
+			handle_status_card(data, size);
 			break;
 
 		/* Goal status update */
 		case MSG_STATUS_GOAL:
 
 			/* Handle message */
-			handle_status_goal(ptr);
+			handle_status_goal(data, size);
 			break;
 
 		/* Misc status update */
 		case MSG_STATUS_MISC:
 
 			/* Handle message */
-			handle_status_misc(ptr);
+			handle_status_misc(data, size);
 			break;
 
 		/* Seat number update */
 		case MSG_SEAT:
 
 			/* Get seat number */
-			player_us = get_integer(&ptr);
+			if (!get_integer(&player_us, data, size, &ptr)) goto format_error;
 			break;
 
 		/* Make a choice */
 		case MSG_CHOOSE:
 
 			/* Handle message */
-			handle_choose(ptr);
+			handle_choose(data, size);
 			break;
 
 		/* Game is over */
@@ -436,15 +544,7 @@ static void message_read(char *data)
 		/* Server disconnect */
 		case MSG_GOODBYE:
 			/* Read reason */
-			if (!get_string(text, 1024, buf, buf_full, &ptr))
-			{
-				/*
-				 * Process badly formatted message, missing \0 in a string or
-				 * with a format leading to read beyond the message length.
-				 */
-				display_error("String format error");
-				exit(1);
-			}
+			if (!get_string(text, 1024, data, size, &ptr)) goto format_error;
 
 			/* Print reason and exit */
 			sprintf(text + 512, "Server disconnected: %s\n", text);
@@ -465,6 +565,17 @@ static void message_read(char *data)
 			printf("Unknown message type %d\n", type);
 			break;
 	}
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		display_error("Message format error");
+		exit(1);
+	}
 }
 
 /*
@@ -473,31 +584,26 @@ static void message_read(char *data)
 static void data_ready(void)
 {
 	char *ptr;
-	int x;
+	int x, size;
 
 	/* Determine number of bytes to read */
-	if (buf_full < 8)
+	if (buf_full < HEADER_LEN)
 	{
-		/* Read 8 bytes for header */
-		x = 8;
+		/* Undetermined message size, by default use the header size */
+		size = HEADER_LEN;
 	}
 	else
 	{
-		/* Skip to message size portion of header */
+		/*
+		 * Read message size. Note: size != HEADER_LEN because messages of this
+		 * size are handled as soon as their length has been determined.
+		 */
 		ptr = buf + 4;
-		x = get_integer(&ptr);
-	}
-
-	/* Check for overly long message */
-	if (x > 1024)
-	{
-		/* Error */
-		display_error("Received too long message!\n");
-		exit(1);
+		get_integer(&size, buf, HEADER_LEN, &ptr);
 	}
 
 	/* Try to read enough bytes */
-	x = read(0, buf + buf_full, x - buf_full);
+	x = read(0, buf + buf_full, size - buf_full);
 
 	/* Check for error */
 	if (x <= 0)
@@ -516,30 +622,38 @@ static void data_ready(void)
 	/* Add to amount read */
 	buf_full += x;
 
-	/* Check for complete message header */
-	if (buf_full >= 8)
+	/* Check for complete message header if it was not determined previously */
+	if (size == HEADER_LEN && buf_full >= HEADER_LEN)
 	{
-		/* Skip to length portion of header */
+		/* Read message size */
 		ptr = buf + 4;
-		x = get_integer(&ptr);
+		get_integer(&size, buf, HEADER_LEN, &ptr);
 
-		/* Check for too-small message */
-		if (x < 8)
+		/* Check for too small message */
+		if (size < HEADER_LEN)
 		{
 			/* Print error */
 			display_error("Got too small message!\n");
 			exit(1);
 		}
 
-		/* Check for complete message */
-		if (buf_full == x)
+		/* Check for too long message */
+		if (size > BUF_LEN)
 		{
-			/* Handle message at next opportunity */
-			message_read(buf);
-
-			/* Clear buffer */
-			buf_full = 0;
+			/* Error */
+			display_error("Received too long message!\n");
+			exit(1);
 		}
+	}
+
+	/* Check for complete message */
+	if (buf_full == size)
+	{
+		/* Handle message */
+		message_read(buf);
+
+		/* Clear buffer */
+		buf_full = 0;
 	}
 }
 

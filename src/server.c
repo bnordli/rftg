@@ -1187,7 +1187,7 @@ void send_msg(int cid, char *msg)
 	ptr = msg + 4;
 
 	/* Read size */
-	size = get_integer(&ptr);
+	get_integer(&size, msg, HEADER_LEN, &ptr);
 
 	/* Grab mutex for connection */
 	pthread_mutex_lock(&c->conn_mutex);
@@ -2531,13 +2531,14 @@ static int verify_choice(session *s_ptr, int who, int type, int list[], int nl,
 /*
  * Handle a choice reply message from a client.
  */
-static void handle_choice(int cid, char *ptr, int size)
+static void handle_choice(int cid, int size)
 {
 	session *s_ptr;
 	player *p_ptr;
-	int who, i, sid, pos, type, nl, ns, got_choice = 0;
+       int who, i, x, sid, pos, type, nl, ns, got_choice = 0;
 	int *l_ptr, *list, *special;
-	char *start = ptr;
+       char *msg_buf = c_list[cid].buf;
+       char *ptr = msg_buf;
 
 	/* Get session ID from player */
 	sid = c_list[cid].sid;
@@ -2563,8 +2564,11 @@ static void handle_choice(int cid, char *ptr, int size)
 		}
 	}
 
+	/* Skip header */
+	ptr += HEADER_LEN;
+
 	/* Get position in choice log that client is sending */
-	pos = get_integer(&ptr);
+	if (!get_integer(&pos, msg_buf, size, &ptr)) goto format_error;
 
 	/* Check for invalid log position */
 	if (pos != p_ptr->choice_size)
@@ -2580,11 +2584,14 @@ static void handle_choice(int cid, char *ptr, int size)
 	/* Get pointer to end of choice log */
 	l_ptr = &p_ptr->choice_log[p_ptr->choice_size];
 
+	/* Start processing choices */
+	process_choices = 1;
+
 	/* Loop over received choices */
-	while (ptr - start < size)
+	while (ptr - msg_buf < size)
 	{
 		/* Get choice type */
-		type = get_integer(&ptr);
+		if (!get_integer(&type, msg_buf, size, &ptr)) goto format_error;
 
 		/* Check whether we got a real choice */
 		got_choice |= (type >= 0);
@@ -2607,10 +2614,11 @@ static void handle_choice(int cid, char *ptr, int size)
 		}
 
 		/* Copy return value */
-		*l_ptr++ = get_integer(&ptr);
+		if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+		*l_ptr++ = x;
 
 		/* Get number of items in list */
-		nl = get_integer(&ptr);
+		if (!get_integer(&nl, msg_buf, size, &ptr)) goto format_error;
 
 		/* Copy number of items to log */
 		*l_ptr++ = nl;
@@ -2622,11 +2630,12 @@ static void handle_choice(int cid, char *ptr, int size)
 		for (i = 0; i < nl; i++)
 		{
 			/* Copy item */
-			*l_ptr++ = get_integer(&ptr);
+			if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+			*l_ptr++ = x;
 		}
 
 		/* Get number of special items in list */
-		ns = get_integer(&ptr);
+		if (!get_integer(&ns, msg_buf, size, &ptr)) goto format_error;
 
 		/* Copy number of special items to log */
 		*l_ptr++ = ns;
@@ -2638,7 +2647,8 @@ static void handle_choice(int cid, char *ptr, int size)
 		for (i = 0; i < ns; i++)
 		{
 			/* Copy item */
-			*l_ptr++ = get_integer(&ptr);
+			if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+			*l_ptr++ = x;
 		}
 	}
 
@@ -2689,12 +2699,33 @@ static void handle_choice(int cid, char *ptr, int size)
 
 	/* Unlock wait mutex */
 	pthread_mutex_unlock(&s_ptr->session_mutex);
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Log an error occurred if choice processing was already logged */
+		if (process_choices)
+		{
+			server_log("S:%d P:%d Message format error, discarding received choice at position %d from %d.", sid, who,  pos, cid);
+		}
+
+		/* Kick requester */
+		kick_player(cid, "Message format error");
+
+		/* Release lock and discard the rest of the message */
+		pthread_mutex_unlock(&s_ptr->session_mutex);
+		return;
+	}
 }
 
 /*
  * Handle preparation complete message.
  */
-static void handle_prepare(int cid, char *ptr)
+static void handle_prepare(int cid)
 {
 	session *s_ptr;
 	int who, sid;
@@ -3252,12 +3283,14 @@ static void start_all_sessions(void)
 /*
  * Handle a login message.
  */
-static void handle_login(int cid, char *ptr)
+static void handle_login(int cid, int size)
 {
 	FILE *fff;
 	session *s_ptr;
 	char user[1024], pass[1024], version[1024];
 	char text[1024];
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
 	int i, j;
 
 	/* Ensure client is in INIT state */
@@ -3268,33 +3301,20 @@ static void handle_login(int cid, char *ptr)
 		return;
 	}
 
+	/* Skip header */
+	ptr += HEADER_LEN;
+
 	/* Pull strings from message */
-	if (!get_string(user, 1024, c_list[cid].buf, BUF_LEN, &ptr))
-	{
-format_error:
-		/*
-		 * Process badly formatted message, missing \0 in a string or with a
-		 * format leading to read beyond the message length.
-		 */
-
-		/* Send denied message */
-		send_msgf(cid, MSG_DENIED, "s", "String format error");
-
-		/* Log message */
-		server_log("Denied (string format error)");
-
-		/* Done */
-		return;
-	}
-	if (!get_string(pass, 1024, c_list[cid].buf, BUF_LEN, &ptr)) goto format_error;
-	if (!get_string(version, 1024, c_list[cid].buf, BUF_LEN, &ptr))
+	if (!get_string(user, 1024, msg_buf, size, &ptr)) goto format_error;
+	if (!get_string(pass, 1024, msg_buf, size, &ptr)) goto format_error;
+	if (!get_string(version, 1024, msg_buf, size, &ptr))
 		goto format_error;
 
 	/* Check for release information */
-	if (ptr - c_list[cid].buf < c_list[cid].buf_full)
+	if (ptr - msg_buf < c_list[cid].buf_full)
 	{
 		/* Use release as version */
-		if (!get_string(c_list[cid].version, 80, c_list[cid].buf, BUF_LEN, &ptr))
+		if (!get_string(c_list[cid].version, 80, msg_buf, size, &ptr))
 			goto format_error;
 	}
 	else
@@ -3542,17 +3562,34 @@ format_error:
 
 	/* Tell player about everyone else */
 	send_all_players(cid);
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Send denied message */
+		send_msgf(cid, MSG_DENIED, "s", "String format error");
+
+		/* Log message */
+		server_log("Denied (message format error)");
+		return;
+	}
 }
 
 /*
  * Handle a login message.
  */
-static void handle_create(int cid, char *ptr)
+static void handle_create(int cid, int size)
 {
 	session *s_ptr;
 	char pass[2048], desc[2048];
-	int sid, i;
+	int sid, i, x;
 	int maxp;
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
 
 	/* Check for player already in game */
 	if (c_list[cid].sid != -1) return;
@@ -3577,26 +3614,18 @@ static void handle_create(int cid, char *ptr)
 	/* Store sid */
 	s_ptr->sid = sid;
 
+	/* Skip header */
+	ptr += HEADER_LEN;
+
 	/* Clear password and description */
 	memset(pass, 0, 2048);
 	memset(desc, 0, 2048);
 
 	/* Read game password */
-	if (!get_string(pass, 2048, c_list[cid].buf, BUF_LEN, &ptr))
-	{
-		/*
-		 * Process badly formatted message, missing \0 in a string or with a
-		 * format leading to read beyond the message length.
-		 */
-
-format_error:
-		/* Kick requester */
-		kick_player(cid, "String format error");
-		return;
-	}
+	if (!get_string(pass, 2048, msg_buf, size, &ptr)) goto format_error;
 
 	/* Read game descripton */
-	if (!get_string(desc, 2048, c_list[cid].buf, BUF_LEN, &ptr)) goto format_error;
+	if (!get_string(desc, 2048, msg_buf, size, &ptr)) goto format_error;
 
 	/* Check for no description */
 	if (!strlen(desc))
@@ -3646,15 +3675,22 @@ format_error:
 	}
 
 	/* Read game parameters */
-	s_ptr->min_player = get_integer(&ptr);
-	s_ptr->max_player = get_integer(&ptr);
-	s_ptr->expanded = get_integer(&ptr);
-	s_ptr->advanced = get_integer(&ptr);
-	s_ptr->disable_goal = get_integer(&ptr);
-	s_ptr->disable_takeover = get_integer(&ptr);
+	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+	s_ptr->min_player = x;
+	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+	s_ptr->max_player = x;
+	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+	s_ptr->expanded = x;
+	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+	s_ptr->advanced = x;
+	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+	s_ptr->disable_goal = x;
+	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+	s_ptr->disable_takeover = x;
 
 	/* Read preferred game speed */
-	s_ptr->speed = get_integer(&ptr);
+	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
+	s_ptr->speed = x;
 
 	/* Validate advanced game */
 	if (s_ptr->min_player > 2)
@@ -3692,19 +3728,40 @@ format_error:
 
 	/* Send accepted message */
 	send_msgf(cid, MSG_JOINACK, "d", sid);
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Remove the session that was being set up */
+		if (num_session == s_ptr->sid + 1) num_session--;
+		s_ptr->state = SS_EMPTY;
+
+		/* Kick requester */
+		kick_player(cid, "Message format error");
+		return;
+	}
 }
 
 /*
  * Handle a join game message from a client.
  */
-static void handle_join(int cid, char *ptr)
+static void handle_join(int cid, int size)
 {
 	char pass[1024];
 	int sid;
 	int i;
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Get session ID to join */
-	sid = get_integer(&ptr);
+	if (!get_integer(&sid, msg_buf, size, &ptr)) goto format_error;
 
 	/* Check for game not in waiting state */
 	if (s_list[sid].state != SS_WAITING)
@@ -3744,12 +3801,7 @@ static void handle_join(int cid, char *ptr)
 	}
 
 	/* Get client-supplied password */
-	if (!get_string(pass, 1024, c_list[cid].buf, BUF_LEN, &ptr))
-	{
-		/* Kick requester */
-		kick_player(cid, "String format error");
-		return;
-	}
+	if (!get_string(pass, 1024, msg_buf, size, &ptr)) goto format_error;
 
 	/* Check for too-long password */
 	if (strlen(pass) > 20)
@@ -3771,6 +3823,18 @@ static void handle_join(int cid, char *ptr)
 
 	/* Send accepted message */
 	send_msgf(cid, MSG_JOINACK, "d", sid);
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Kick requester */
+		kick_player(cid, "Message format error");
+		return;
+	}
 }
 
 /*
@@ -3810,7 +3874,7 @@ static void abandon_session(int sid)
 /*
  * Handle a leave game message from a client.
  */
-static void handle_leave(int cid, char *ptr)
+static void handle_leave(int cid)
 {
 	session *s_ptr;
 	int i;
@@ -3850,14 +3914,19 @@ static void handle_leave(int cid, char *ptr)
 /*
  * Handle a remove player message from client.
  */
-static void handle_remove(int cid, char *ptr)
+static void handle_remove(int cid, int size)
 {
 	session *s_ptr;
 	int i, sid;
 	char buf[1024], name[80];
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Read session ID from client */
-	sid = get_integer(&ptr);
+	if (!get_integer(&sid, msg_buf, size, &ptr)) goto format_error;
 
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
@@ -3871,17 +3940,7 @@ static void handle_remove(int cid, char *ptr)
 	}
 
 	/* Get name of player to remove */
-	if (!get_string(buf, 1024, c_list[cid].buf, BUF_LEN, &ptr))
-	{
-		/*
-		 * Process badly formatted message, missing \0 in a string or with a
-		 * format leading to read beyond the message length.
-		 */
-
-		/* Kick requester */
-		kick_player(cid, "String format error");
-		return;
-	}
+	if (!get_string(buf, 1024, msg_buf, size, &ptr)) goto format_error;
 
 	/* Loop over players in session */
 	for (i = 0; i < s_ptr->num_users; i++)
@@ -3906,6 +3965,18 @@ static void handle_remove(int cid, char *ptr)
 			break;
 		}
 	}
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Kick requester */
+		kick_player(cid, "Message format error");
+		return;
+	}
 }
 
 /*
@@ -3924,14 +3995,19 @@ static char *ai_names[] =
 /*
  * Handle an add AI player message from client.
  */
-static void handle_add_ai(int cid, char *ptr)
+static void handle_add_ai(int cid, int size)
 {
 	session *s_ptr;
 	int sid, uid;
 	int i;
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Read session ID from client */
-	sid = get_integer(&ptr);
+	if (!get_integer(&sid, msg_buf, size, &ptr)) goto format_error;
 
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
@@ -3982,13 +4058,25 @@ static void handle_add_ai(int cid, char *ptr)
 
 	/* Resend session details to everyone */
 	send_session(sid);
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Kick requester */
+		kick_player(cid, "Message format error");
+		return;
+	}
 }
 
 /*
  * Handle a game over message, which client sends once player has acknowledged
  * that the game is over.
  */
-static void handle_gameover(int cid, char *ptr)
+static void handle_gameover(int cid)
 {
 	char text[1024];
 
@@ -4014,7 +4102,7 @@ static void handle_gameover(int cid, char *ptr)
 /*
  * Handle a resign game message from client.
  */
-static void handle_resign(int cid, char *ptr)
+static void handle_resign(int cid)
 {
 	session *s_ptr;
 	int i;
@@ -4030,7 +4118,7 @@ static void handle_resign(int cid, char *ptr)
 	if (s_ptr->state == SS_DONE)
 	{
 		/* Leave game instead */
-		return handle_gameover(cid, ptr);
+		return handle_gameover(cid);
 	}
 
 	/* Format resignation message */
@@ -4082,15 +4170,20 @@ static void handle_resign(int cid, char *ptr)
 /*
  * Handle a start game message from client.
  */
-static void handle_start(int cid, char *ptr)
+static void handle_start(int cid, int size)
 {
 	session *s_ptr;
 	int sid;
 	int i;
 	char text[1024];
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Read session ID from client */
-	sid = get_integer(&ptr);
+	if (!get_integer(&sid, msg_buf, size, &ptr)) goto format_error;
 
 	/* Get session pointer */
 	s_ptr = &s_list[sid];
@@ -4162,28 +4255,35 @@ static void handle_start(int cid, char *ptr)
 
 	/* Initialize and run game */
 	start_session(sid);
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Kick requester */
+		kick_player(cid, "Message format error");
+		return;
+	}
 }
 
 /*
  * Handle a chat message.
  */
-static void handle_chat(int cid, char *ptr)
+static void handle_chat(int cid, int size)
 {
 	char chat[1024];
 	int i;
+	char *msg_buf = c_list[cid].buf;
+	char *ptr = msg_buf;
+
+	/* Skip header */
+	ptr += HEADER_LEN;
 
 	/* Read chat message */
-	if (!get_string(chat, 1024, c_list[cid].buf, BUF_LEN, &ptr))
-	{
-		/*
-		 * Process badly formatted message, missing \0 in a string or with a
-		 * format leading to read beyond the message length.
-		 */
-
-		/* Kick requester */
-		kick_player(cid, "String format error");
-		return;
-	}
+	if (!get_string(chat, 1024, msg_buf, size, &ptr)) goto format_error;
 
 	/* Check for sender in lobby */
 	if (c_list[cid].state == CS_LOBBY)
@@ -4204,10 +4304,23 @@ static void handle_chat(int cid, char *ptr)
 		send_gamechat(c_list[cid].sid, c_list[cid].uid, c_list[cid].user,
 		              chat, 1);
 	}
+
+	/*
+	 * Process badly formatted message, missing \0 in a string or with a
+	 * format leading to read beyond the message length.
+	 */
+	if (0)
+	{
+format_error:
+		/* Kick requester */
+		kick_player(cid, "Message format error");
+		return;
+	}
 }
 
 /*
- * Handle a completed message from a client.
+ * A completed message from a client has been read. Parse its header and handle
+ * the message.
  */
 static void handle_msg(int cid)
 {
@@ -4215,10 +4328,10 @@ static void handle_msg(int cid)
 	int type, size;
 
 	/* Read message type */
-	type = get_integer(&ptr);
+	get_integer(&type, c_list[cid].buf, HEADER_LEN, &ptr);
 
-	/* Read size */
-	size = get_integer(&ptr);
+	/* Read message size */
+	get_integer(&size, c_list[cid].buf, HEADER_LEN, &ptr);
 
 	/* Check for non-login message from client in INIT state */
 	if (c_list[cid].state == CS_INIT && type != MSG_LOGIN)
@@ -4235,7 +4348,7 @@ static void handle_msg(int cid)
 		case MSG_LOGIN:
 
 			/* Handle login message */
-			handle_login(cid, ptr);
+			handle_login(cid, size);
 			break;
 
 		/* Ping response */
@@ -4248,77 +4361,77 @@ static void handle_msg(int cid)
 		case MSG_CREATE:
 
 			/* Handle create message */
-			handle_create(cid, ptr);
+			handle_create(cid, size);
 			break;
 
 		/* Join session */
 		case MSG_JOIN:
 
 			/* Handle join message */
-			handle_join(cid, ptr);
+			handle_join(cid, size);
 			break;
 
 		/* Leave session */
 		case MSG_LEAVE:
 
 			/* Handle leave message */
-			handle_leave(cid, ptr);
+			handle_leave(cid);
 			break;
 
 		/* Start game */
 		case MSG_START:
 
 			/* Handle start message */
-			handle_start(cid, ptr);
+			handle_start(cid, size);
 			break;
 
 		/* Remove player from game */
 		case MSG_REMOVE:
 
 			/* Handle remove message */
-			handle_remove(cid, ptr);
+			handle_remove(cid, size);
 			break;
 
 		/* Add AI player to game */
 		case MSG_ADD_AI:
 
 			/* Handle add AI player message */
-			handle_add_ai(cid, ptr);
+			handle_add_ai(cid, size);
 			break;
 
 		/* Resign from game */
 		case MSG_RESIGN:
 
 			/* Handle resign message */
-			handle_resign(cid, ptr);
+			handle_resign(cid);
 			break;
 
 		/* Choice made */
 		case MSG_CHOOSE:
 
 			/* Handle choice made */
-			handle_choice(cid, ptr, size - 8);
+			handle_choice(cid, size);
 			break;
 
 		/* Done preparing */
 		case MSG_PREPARE:
 
 			/* Handle preparation complete */
-			handle_prepare(cid, ptr);
+			handle_prepare(cid);
 			break;
 
 		/* Chat message */
 		case MSG_CHAT:
 
 			/* Handle chat message */
-			handle_chat(cid, ptr);
+			handle_chat(cid, size);
 			break;
 
 		/* Client acknowledges game over */
 		case MSG_GAMEOVER:
 
 			/* Move client back to lobby */
-			handle_gameover(cid, ptr);
+			handle_gameover(cid);
 			break;
 
 
@@ -4342,34 +4455,29 @@ static void handle_data(int cid)
 {
 	conn *c;
 	char *ptr;
-	int x;
+	int x, size;
 
 	/* Get pointer to connection */
 	c = &c_list[cid];
 
 	/* Determine number of bytes to read */
-	if (c->buf_full < 8)
+	if (c->buf_full < HEADER_LEN)
 	{
-		/* Try to read 8 bytes for message header */
-		x = 8;
+		/* Undetermined message size, by default use the header size */
+		size = HEADER_LEN;
 	}
 	else
 	{
-		/* Determine message size */
+		/*
+		 * Read message size. Note: size != HEADER_LEN because messages of this
+		 * size are handled as soon as their length has been determined.
+		 */
 		ptr = c->buf + 4;
-		x = get_integer(&ptr);
-	}
-
-	/* Check for too-long message */
-	if (x > BUF_LEN)
-	{
-		/* Close connection */
-		kick_player(cid, "Message too long");
-		return;
+		get_integer(&size, c->buf, HEADER_LEN, &ptr);
 	}
 
 	/* Try to read as many bytes as needed */
-	x = recv(c->fd, c->buf + c->buf_full, x - c->buf_full, 0);
+	x = recv(c->fd, c->buf + c->buf_full, size - c->buf_full, 0);
 
 	if (x < 0)
 	{
@@ -4388,30 +4496,38 @@ static void handle_data(int cid)
 	/* Add to amount read */
 	c->buf_full += x;
 
-	/* Check for complete message header */
-	if (c->buf_full >= 8)
+	/* Check for complete message header if message size was not determined */
+	if (size == HEADER_LEN && c->buf_full >= HEADER_LEN)
 	{
-		/* Determine length of incoming message */
+		/* Determine length of incoming message, error case cannot happen */
 		ptr = c->buf + 4;
-		x = get_integer(&ptr);
+		get_integer(&size, c->buf, HEADER_LEN, &ptr);
 
 		/* Check for illegally small message */
-		if (x < 8)
+		if (size < HEADER_LEN)
 		{
 			/* Kick client */
 			kick_player(cid, "Message too small");
 			return;
 		}
 
-		/* Check for complete message */
-		if (c->buf_full == x)
+		/* Check for too long message */
+		if (size > BUF_LEN)
 		{
-			/* Handle message */
-			handle_msg(cid);
-
-			/* Clear buffer */
-			c->buf_full = 0;
+			/* Close connection */
+			kick_player(cid, "Message too long");
+			return;
 		}
+	}
+
+	/* Check for complete message */
+	if (c->buf_full == size)
+	{
+		/* Handle message */
+		handle_msg(cid);
+
+		/* Clear buffer */
+		c->buf_full = 0;
 	}
 
 	/* Mark time of last data seen */
