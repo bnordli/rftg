@@ -4352,6 +4352,9 @@ int settle_needed(game *g, int who, int which, int special[], int num_special,
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
 
+			/* Skip powers that require prestige consumption */
+			if (o_ptr->code & P3_CONSUME_PRESTIGE) continue;
+
 			/* Skip powers that require discarding an active card */
 			if (o_ptr->code & P3_DISCARD) continue;
 
@@ -4918,6 +4921,9 @@ int settle_callback(game *g, int who, int which, int list[], int num,
 			if (o_ptr->code & P3_CONSUME_NOVELTY) continue;
 			if (o_ptr->code & P3_CONSUME_RARE) continue;
 			if (o_ptr->code & P3_CONSUME_ALIEN) continue;
+
+			/* Skip powers that require prestige consumption */
+			if (o_ptr->code & P3_CONSUME_PRESTIGE) continue;
 
 			/* Skip powers that require discarding an active card */
 			if (o_ptr->code & P3_DISCARD) continue;
