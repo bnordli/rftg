@@ -473,6 +473,13 @@ static int action_cidx, action_oidx;
 #define ICON_CONSUME    24
 
 /*
+ * Icon states.
+ */
+#define ICON_STATE_NORMAL   0
+#define ICON_STATE_ACTIVE   1
+#define ICON_STATE_INACTIVE 2
+
+/*
  * Number of action card images.
  */
 #define MAX_ACT_CARD   11
@@ -4227,11 +4234,13 @@ static char *card_trade_tooltip(game *g, int who, displayed *i_ptr,
  * Create an image widget displaying an action icon.
  *
  * We superimpose the regular icon on the prestige icon for super actions.
+ * If state is ACTIVE, a blue border is drawn around the icon.
+ * If state is INACTIVE, icon will be desaturated.
  */
-static GtkWidget *action_icon(int act, int size)
+static GtkWidget *action_icon(int act, int size, int state)
 {
 	GtkWidget *image;
-	GdkPixbuf *buf, *iconbuf;
+	GdkPixbuf *buf, *iconbuf, *border_buf, *blank_buf;
 	int alpha;
 
 	/* Check for second Develop */
@@ -4247,7 +4256,7 @@ static GtkWidget *action_icon(int act, int size)
 	{
 		/* Scale prestige icon */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_PRESTIGE],
-		                              size, size,
+		                              size - 2, size - 2,
 		                              GDK_INTERP_BILINEAR);
 
 		/* Make icon semi-transparent */
@@ -4256,7 +4265,7 @@ static GtkWidget *action_icon(int act, int size)
 	else
 	{
 		/* Create empty pixbuf */
-		buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, size, size);
+		buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, size - 2, size - 2);
 
 		/* Fill pixbuf with transparent black */
 		gdk_pixbuf_fill(buf, 0);
@@ -4267,18 +4276,61 @@ static GtkWidget *action_icon(int act, int size)
 
 	/* Scale action icon down to correct size */
 	iconbuf = gdk_pixbuf_scale_simple(icon_cache[act & ACT_MASK],
-	                                  size, size, GDK_INTERP_BILINEAR);
+	                                  size - 2, size - 2,
+	                                  GDK_INTERP_BILINEAR);
 
 	/* Composite action icon onto prestige/blank buffer */
-	gdk_pixbuf_composite(iconbuf, buf, 0, 0, size, size,
+	gdk_pixbuf_composite(iconbuf, buf, 0, 0, size - 2, size - 2,
 	                     0, 0, 1, 1, GDK_INTERP_BILINEAR, alpha);
 
-	/* Make image widget */
-	image = gtk_image_new_from_pixbuf(buf);
+	/* Create a border pixbuf */
+	border_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, size, size);
 
-	/* Destroy our copy of the icons */
+	/* Check for active state */
+	if (state == ICON_STATE_ACTIVE)
+	{
+		/* Fill pixbuf with highlight color */
+		gdk_pixbuf_fill(border_buf, 0x0000ff99);
+
+		/* Create a blank pixbuf */
+		blank_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8,
+			size, size);
+
+		/* Fill blank pixbuf with transparent black */
+		gdk_pixbuf_fill(blank_buf, 0);
+
+		/* Copy blank space onto middle of border buffer */
+		gdk_pixbuf_copy_area(blank_buf, 2, 2,
+			size - 4, size - 4,
+			border_buf, 2, 2);
+
+		/* Destroy our copy of the pixpuf */
+		g_object_unref(G_OBJECT(blank_buf));
+	}
+	else
+	{
+		/* Fill pixbuf with transparent black */
+		gdk_pixbuf_fill(border_buf, 0);
+	}
+
+	/* Copy icon buffer onto middle of border buffer */
+	gdk_pixbuf_composite(buf, border_buf, 1, 1, size - 2, size - 2,
+	                     1, 1, 1, 1, GDK_INTERP_BILINEAR, 255);
+
+	/* Check for inactive state */
+	if (state == ICON_STATE_INACTIVE)
+	{
+		/* Desaturate */
+		gdk_pixbuf_saturate_and_pixelate(border_buf, border_buf, 0, TRUE);
+	}
+
+	/* Make image widget */
+	image = gtk_image_new_from_pixbuf(border_buf);
+
+	/* Destroy our copy of the pixbufs */
 	g_object_unref(G_OBJECT(buf));
 	g_object_unref(G_OBJECT(iconbuf));
+	g_object_unref(G_OBJECT(border_buf));
 
 	/* Return image widget */
 	return image;
@@ -4291,7 +4343,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 {
 	status_display *s_ptr;
 	GtkWidget *image, *label;
-	GdkPixbuf *buf, *cross_buf;
+	GdkPixbuf *buf;
 	int width, height;
 	int act0, act1;
 	int i;
@@ -4326,17 +4378,17 @@ static void redraw_status_area(int who, GtkWidget *box)
 		{
 			/* Player is ready */
 			case WAIT_READY:
-				image = action_icon(ICON_READY, height);
+				image = action_icon(ICON_READY, height, ICON_STATE_NORMAL);
 				break;
 
 			/* Waiting on player */
 			case WAIT_BLOCKED:
-				image = action_icon(ICON_WAITING, height);
+				image = action_icon(ICON_WAITING, height, ICON_STATE_NORMAL);
 				break;
 
 			/* Player has option to play */
 			case WAIT_OPTION:
-				image = action_icon(ICON_OPTION, height);
+				image = action_icon(ICON_OPTION, height, ICON_STATE_NORMAL);
 				break;
 
 			/* Error */
@@ -4361,7 +4413,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	if (!real_game.advanced) act1 = -1;
 
 	/* Make image widget */
-	image = action_icon(act0, height);
+	image = action_icon(act0, height, ICON_STATE_NORMAL);
 
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
@@ -4370,7 +4422,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	if (act1 != -1)
 	{
 		/* Make image widget */
-		image = action_icon(act1, height);
+		image = action_icon(act1, height, ICON_STATE_NORMAL);
 
 		/* Pack icon into status box */
 		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
@@ -4810,8 +4862,7 @@ static int phase_icon[] = { 0, 23, 23, 3, 3, 5, 5, 24, 24, 9 };
  */
 void redraw_phase(void)
 {
-	int i, size = 40;
-	GdkPixbuf *buf, *border_buf, *blank_buf;
+	int i, size = 40, state;
 	GtkWidget *image;
 
 	/* Recompute size */
@@ -4838,53 +4889,20 @@ void redraw_phase(void)
 			continue;
 		}
 
-		/* Scale phase icon down to correct size */
-		buf = gdk_pixbuf_scale_simple(icon_cache[phase_icon[i]],
-		                              size, size, GDK_INTERP_BILINEAR);
-
 		/* Check for inactive phase */
 		if (!real_game.action_selected[i])
-		{
-			/* Desaturate */
-			gdk_pixbuf_saturate_and_pixelate(buf, buf, 0, TRUE);
-		}
+			state = ICON_STATE_INACTIVE;
 
 		/* Check for current phase */
 		else if (real_game.cur_action == i)
-		{
-			/* Create a border pixbuf */
-			border_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8,
-			                            size, size);
+			state = ICON_STATE_ACTIVE;
 
-			/* Fill pixbuf with highlight color */
-			gdk_pixbuf_fill(border_buf, 0x0000ff99);
-
-			/* Create a blank pixbuf */
-			blank_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8,
-			                           size, size);
-
-			/* Fill pixbuf with transparent black */
-			gdk_pixbuf_fill(blank_buf, 0);
-
-			/* Copy blank space onto middle of border buffer */
-			gdk_pixbuf_copy_area(blank_buf, 3, 3,
-			                     size - 6, size - 6,
-			                     border_buf, 3, 3);
-
-			/* Composite border onto phase image buffer */
-			gdk_pixbuf_composite(border_buf, buf, 0, 0, size, size, 0, 0, 1, 1,
-			                     GDK_INTERP_BILINEAR, 255);
-
-			/* Release our copies of the pixbufs */
-			g_object_unref(G_OBJECT(blank_buf));
-			g_object_unref(G_OBJECT(border_buf));
-		}
+		/* Use normal state by default */
+		else
+			state = ICON_STATE_NORMAL;
 
 		/* Make image widget */
-		image = gtk_image_new_from_pixbuf(buf);
-
-		/* Destroy our copy of the icon */
-		g_object_unref(G_OBJECT(buf));
+		image = action_icon(phase_icon[i], size, state);
 
 		/* Add tooltip */
 		gtk_widget_set_tooltip_markup(image, plain_actname[i]);
@@ -4936,7 +4954,7 @@ static void status_resize(void)
 		if (i == 0) w = 0;
 
 		/* Request size */
-		gtk_widget_set_size_request(orig_status[i], w, 35);
+		gtk_widget_set_size_request(orig_status[i], w, 36);
 	}
 }
 
@@ -5706,9 +5724,14 @@ void reset_cards(game *g, int color_hand, int color_table)
 }
 
 /*
- * Number of action buttons pressed.
+ * Number of actions to be selected.
  */
-static int actions_chosen;
+static int num_actions;
+
+/*
+ * Actions chosen.
+ */
+static int actions_chosen[2];
 
 /*
  * Action which is receiving prestige boost.
@@ -5728,7 +5751,7 @@ static void reset_action_icon(GtkWidget *button, int act)
 {
 	GtkWidget *image;
 	GdkPixbuf *buf;
-	int h;
+	int h, state = ICON_STATE_NORMAL;
 
 	/* Get previous image */
 	image = gtk_bin_get_child(GTK_BIN(button));
@@ -5742,8 +5765,13 @@ static void reset_action_icon(GtkWidget *button, int act)
 	/* Remove previous image */
 	gtk_widget_destroy(image);
 
+	/* Check for active icon */
+	if (actions_chosen[0] == (act & ACT_MASK) ||
+	    actions_chosen[1] == (act & ACT_MASK))
+		state = ICON_STATE_ACTIVE;
+
 	/* Get image for button */
-	image = action_icon(act, h);
+	image = action_icon(act, h, state);
 
 	/* Show new image */
 	gtk_widget_show(image);
@@ -5757,146 +5785,159 @@ static void reset_action_icon(GtkWidget *button, int act)
  */
 static void prestige_pressed(GtkButton *button, gpointer data)
 {
-	GtkWidget *toggle;
-	int i;
+	int i, first = actions_chosen[0], second = actions_chosen[1];
 
-	/* Check for current prestige action */
-	if (prestige_action != -1)
+	/* Reorder actions if out of order */
+	if (first > second)
 	{
-		/* Get button for old prestige action */
-		toggle = action_toggle[prestige_action];
+		i = second;
+		second = first;
+		first = i;
+	}
+
+	/* Check for no actions selected */
+	if (second == -1) return;
+
+	/* Check for second action selected for prestige */
+	else if (prestige_action == second)
+	{
+		/* Clear prestige action */
+		prestige_action = -1;
 
 		/* Reset icon to non-prestige version */
-		reset_action_icon(toggle, prestige_action);
+		reset_action_icon(action_toggle[second], second);
 	}
 
-	/* Loop over actions */
-	for (i = prestige_action + 1; i < MAX_ACTION; i++)
+	/* Check for first action selected for prestige */
+	else if (first != -1 && prestige_action == first)
 	{
-		/* Skip search action */
-		if (i == ACT_SEARCH) continue;
+		/* Move prestige action to second */
+		prestige_action = second;
 
-		/* Get button for this action */
-		toggle = action_toggle[i];
-
-		/* Skip unavailable and unselected */
-		if (!toggle ||
-		    !gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(toggle)))
-		{
-			/* Skip action */
-			continue;
-		}
-
-		/* Skip unselectable */
-		if (!GTK_WIDGET_SENSITIVE(toggle)) continue;
-
-		/* Set prestige action */
-		prestige_action = i;
-
-		/* Reset icon image */
-		reset_action_icon(toggle, i | ACT_PRESTIGE);
-
-		/* Done */
-		return;
+		/* Reset icon to non-prestige version */
+		reset_action_icon(action_toggle[first], first);
 	}
 
-	/* Check for no action to boost */
-	if (i == MAX_ACTION) prestige_action = -1;
-}
-
-/*
- * Callback when action choice changes in advanced game.
- */
-static void action_choice_changed_advanced(GtkToggleButton *button,
-                                           gpointer data)
-{
-	int i = GPOINTER_TO_INT(data);
-
-	/* Check for toggled button */
-	if (gtk_toggle_button_get_active(button))
+	/* Check for first action available */
+	else if (first != -1)
 	{
-		/* Increment count of buttons pressed */
-		actions_chosen++;
+		/* Set prestige action to first */
+		prestige_action = first;
 	}
 	else
 	{
-		/* Decrement count of buttons pressed */
-		actions_chosen--;
+		/* Move prestige action to second */
+		prestige_action = second;
 	}
 
-	/* Check for needing to reset prestige action */
-	if (i == prestige_action || (i == ACT_SEARCH && prestige_action != -1))
+	/* Check for new prestige action */
+	if (prestige_action != -1)
 	{
-		/* Reset icon to non-prestige version */
-		reset_action_icon(GTK_WIDGET(action_toggle[prestige_action]),
-		                  prestige_action);
-
-		/* Clear prestige boost */
-		prestige_action = -1;
+		/* Set icon to prestige version */
+		reset_action_icon(action_toggle[prestige_action], prestige_action | ACT_PRESTIGE);
 	}
-
-	/* Check for search action toggle while prestige toggle visible */
-	if (i == ACT_SEARCH && prestige_toggle)
-	{
-		/* Change the sensitivity of the prestige toggle button */
-		gtk_widget_set_sensitive(GTK_WIDGET(prestige_toggle),
-		                         !gtk_toggle_button_get_active(button));
-	}
-
-	/* Check for exactly 2 actions chosen */
-	gtk_widget_set_sensitive(action_button, actions_chosen == 2);
 }
 
 /*
  * Callback when action choice changes.
  */
-static void action_choice_changed(GtkToggleButton *button, gpointer data)
+static void action_choice_changed(GtkButton *button, gpointer data)
 {
-	int i = GPOINTER_TO_INT(data), j;
+	int i = GPOINTER_TO_INT(data), to_reset, other_action = -1;
 
-	/* Check for toggled button */
-	if (gtk_toggle_button_get_active(button))
+	/* Check for action already chosen */
+	if (i == actions_chosen[0] || i == actions_chosen[1])
 	{
-		/* Change prestige action, if any */
-		if (prestige_action != -1)
+		/* Mark action for reset */
+		to_reset = i;
+
+		/* Shift second action down to first */
+		if (i == actions_chosen[0])
+			actions_chosen[0] = actions_chosen[1];
+
+		/* Clear second action */
+		actions_chosen[1] = -1;
+	}
+
+	/* Action not already chosen */
+	else
+	{
+		/* Check for two choices needed */
+		if (num_actions == 2)
 		{
-			/* Get current prestige action */
-			j = prestige_action;
+			/* Mark second action for reset */
+			to_reset = actions_chosen[1];
 
-			/* Reset icon */
-			reset_action_icon(action_toggle[j], j);
+			/* Move first action to second action */
+			other_action = actions_chosen[1] = actions_chosen[0];
+		}
+		else
+		{
+			/* Mark first action for reset */
+			to_reset = actions_chosen[0];
+		}
 
-			/* Check for pressed search button */
-			if (i == ACT_SEARCH)
+		/* Put selected action first */
+		actions_chosen[0] = i;
+	}
+
+	/* Check for any action to reset */
+	if (to_reset != -1)
+	{
+		/* Clear prestige boost if needed */
+		if (to_reset == prestige_action)
+			prestige_action = -1;
+
+		/* Reset icon to non-selected state */
+		reset_action_icon(GTK_WIDGET(action_toggle[to_reset]), to_reset);
+	}
+
+	/* Check for prestige toggle visible */
+	if (prestige_toggle)
+	{
+		/* Check for search action */
+		if (i == ACT_SEARCH)
+		{
+			/* Change the sensitivity of the prestige toggle button */
+			gtk_widget_set_sensitive(GTK_WIDGET(prestige_toggle),
+				to_reset == i);
+
+			/* Check for needing to reset prestige action */
+			if (prestige_action != -1 && (prestige_action == to_reset ||
+			    prestige_action == other_action))
 			{
-				/* Clear prestige action */
+				/* Reset icon to non-prestige version */
+				reset_action_icon(GTK_WIDGET(action_toggle[prestige_action]),
+					prestige_action);
+
+				/* Clear prestige boost */
 				prestige_action = -1;
 			}
-			else
-			{
-				/* Change prestige action */
-				prestige_action = i;
-
-				/* Reset icon */
-				reset_action_icon(GTK_WIDGET(button), i | ACT_PRESTIGE);
-			}
 		}
+		/* Check for reset of search action */
+		else if (to_reset == ACT_SEARCH)
+		{
+			/* Set the sensitivity of the prestige toggle button */
+			gtk_widget_set_sensitive(GTK_WIDGET(prestige_toggle), TRUE);
+		}
+
+		/* Clear prestige boost if deselected */
+		if (prestige_action == i) prestige_action = -1;
+	}
+
+	/* Reset action icon */
+	reset_action_icon(GTK_WIDGET(button), i);
+
+	if (num_actions == 2)
+	{
+		/* Check for exactly 2 actions chosen */
+		gtk_widget_set_sensitive(action_button, actions_chosen[1] != -1);
 	}
 	else
 	{
-		/* Reset icon */
-		reset_action_icon(GTK_WIDGET(button), i);
+		/* Check for one action chosen */
+		gtk_widget_set_sensitive(action_button, actions_chosen[0] != -1);
 	}
-}
-
-/*
- * Callback when an action button's key is pressed.
- */
-static void action_keyed(GtkWidget *widget, gpointer data)
-{
-	/* Change button state */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget),
-	              !gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)));
 }
 
 /*
@@ -5932,21 +5973,23 @@ static void combo_down(GtkWidget *widget, gpointer data)
 }
 
 /*
- * Choose two actions.
+ * Choose action card.
  */
-static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
+static void gui_choose_action(game *g, int who, int action[2], int one)
 {
 	GtkWidget *image, *label;
-	int i, a, h, n = 0, key = GDK_1;
+	int i, a, h, n = 0, key = GDK_1, previous_action = -1;
+	char* prompt;
 
 	/* Deactivate action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
 
-	/* Clear count of buttons chosen */
-	actions_chosen = 0;
+	/* Do not boost any action yet */
+	prestige_action = -1;
 
-	/* Check for needing only one action */
-	if (one == 1) actions_chosen = 1;
+	/* Clear chosen actions */
+	actions_chosen[0] = -1;
+	actions_chosen[1] = -1;
 
 	/* Reset displayed cards */
 	reset_cards(g, TRUE, TRUE);
@@ -5954,22 +5997,36 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	/* Redraw everything */
 	redraw_everything();
 
-	/* Set prompt */
-	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Actions");
-
-	/* Check for needing only first/second action */
 	if (one == 1)
 	{
-		/* Set prompt */
-		gtk_label_set_text(GTK_LABEL(action_prompt),
-		                   "Choose first Action");
+		/* First action for player with SELECT_LAST */
+		prompt = "Choose first Action";
+		num_actions = 1;
 	}
-	else if (one == 2)
+	else if (g->advanced && one == 2)
 	{
-		/* Set prompt */
-		gtk_label_set_text(GTK_LABEL(action_prompt),
-		                   "Choose second Action");
+		/* Second action for player with SELECT_LAST */
+		prompt = "Choose second Action";
+		num_actions = 1;
+
+		/* Remember previous action for later */
+		previous_action = g->p[who].action[0];
 	}
+	else if (g->advanced)
+	{
+		/* Advanced game, two actions */
+		prompt = "Choose Actions";
+		num_actions = 2;
+	}
+	else
+	{
+		/* Normal game, one action */
+		prompt = "Choose Action";
+		num_actions = 1;
+	}
+
+	/* Set prompt */
+	gtk_label_set_text(GTK_LABEL(action_prompt), prompt);
 
 	/* Get height of action box */
 	h = action_box->allocation.height - 10;
@@ -5977,21 +6034,30 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	/* Loop over actions */
 	for (i = 0; i < MAX_ACTION; i++)
 	{
-		/* Check for unusable search action */
-		if (i == ACT_SEARCH && (!expansion_has_prestige(g->expanded) ||
-		                        g->p[who].prestige_action_used ||
-		                        (one == 2 &&
-		                         g->p[who].action[0] & ACT_PRESTIGE)))
-		{
-			/* Clear toggle button */
-			action_toggle[i] = NULL;
+		/* Clear button */
+		action_toggle[i] = NULL;
 
+		/* Check for unusable search action */
+		if (i == ACT_SEARCH &&
+		    (!expansion_has_prestige(g->expanded) || g->p[who].prestige_action_used ||
+		     (g->advanced && one == 2 && g->p[who].action[0] & ACT_PRESTIGE)))
+		{
 			/* Skip search action */
 			continue;
 		}
 
-		/* Create toggle button */
-		action_toggle[i] = gtk_toggle_button_new();
+		/* Skip second develop/settle */
+		if (!g->advanced && (i == ACT_DEVELOP2 || i == ACT_SETTLE2))
+		{
+			/* Skip button */
+			continue;
+		}
+
+		/* Create button */
+		action_toggle[i] = gtk_button_new();
+
+		/* Don't take focus when clicked */
+		gtk_button_set_focus_on_click(GTK_BUTTON(action_toggle[i]), FALSE);
 
 		/* Get action index */
 		a = i;
@@ -6001,7 +6067,7 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		if (a == ACT_SETTLE2) a = ACT_SETTLE;
 
 		/* Get icon for action */
-		image = action_icon(a, h);
+		image = action_icon(a, h, ICON_STATE_NORMAL);
 
 		/* Do not request height */
 		gtk_widget_set_size_request(image, -1, 0);
@@ -6033,9 +6099,9 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 			                           window_accel, key++, 0, 0);
 		}
 
-		/* Connect "toggled" signal */
-		g_signal_connect(G_OBJECT(action_toggle[i]), "toggled",
-		                 G_CALLBACK(action_choice_changed_advanced),
+		/* Connect "clicked" signal */
+		g_signal_connect(G_OBJECT(action_toggle[i]), "clicked",
+		                 G_CALLBACK(action_choice_changed),
 		                 GINT_TO_POINTER(i));
 
 		/* Connect "pointer enter" signal */
@@ -6045,55 +6111,46 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 
 		/* Connect key-signal */
 		g_signal_connect(G_OBJECT(action_toggle[i]), "key-signal",
-		                 G_CALLBACK(action_keyed), NULL);
+		                 G_CALLBACK(action_choice_changed),
+		                 GINT_TO_POINTER(i));
 
 		/* Show everything */
 		gtk_widget_show_all(action_toggle[i]);
 
 		/* Check for choosing second action and this was first */
-		if (one == 2 && (g->p[player_us].action[0] & ACT_MASK) == i)
+		if ((previous_action & ACT_MASK) == i)
 		{
-			/* Press button */
-			gtk_toggle_button_set_active(
-			            GTK_TOGGLE_BUTTON(action_toggle[i]), TRUE);
-
 			/* Do not allow user to press button */
 			gtk_widget_set_sensitive(action_toggle[i], FALSE);
 
 			/* Check for prestige action */
-			if (g->p[player_us].action[0] & ACT_PRESTIGE)
+			if (previous_action & ACT_PRESTIGE)
 			{
 				/* Reset icon */
 				reset_action_icon(action_toggle[i],
 				                  i | ACT_PRESTIGE);
+
+				/* Mark prestige action */
+				prestige_action = i;
 			}
-		}
-	}
-
-	/* Do not boost any action yet */
-	prestige_action = -1;
-
-	/* Check for forced first action */
-	if (one == 2)
-	{
-		/* Check for first action as prestige */
-		if (g->p[player_us].action[0] & ACT_PRESTIGE)
-		{
-			/* Mark prestige action */
-			prestige_action = g->p[player_us].action[0] & ACT_MASK;
 		}
 	}
 
 	/* Check for usable prestige action */
 	if (expansion_has_prestige(real_game.expanded) &&
-	    !real_game.p[who].prestige_action_used &&
-	    real_game.p[who].prestige > 0 && prestige_action == -1)
+	    !g->p[who].prestige_action_used &&
+	    g->p[who].prestige > 0 &&
+	    prestige_action == -1 &&
+	    previous_action != ACT_SEARCH)
 	{
 		/* Create button to toggle prestige */
 		prestige_toggle = gtk_button_new();
 
+		/* Don't take focus when clicked */
+		gtk_button_set_focus_on_click(GTK_BUTTON(prestige_toggle), FALSE);
+
 		/* Get icon for action */
-		image = action_icon(ICON_PRESTIGE, h);
+		image = action_icon(ICON_PRESTIGE, h, ICON_STATE_NORMAL);
 
 		/* Do not request height */
 		gtk_widget_set_size_request(image, -1, 0);
@@ -6127,8 +6184,8 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 		                 G_CALLBACK(redraw_action),
 		                 GINT_TO_POINTER(10));
 
-		/* Connect "pressed" signal */
-		g_signal_connect(G_OBJECT(prestige_toggle), "pressed",
+		/* Connect "clicked" signal */
+		g_signal_connect(G_OBJECT(prestige_toggle), "clicked",
 		                 G_CALLBACK(prestige_pressed), NULL);
 
 		/* Connect key-signal */
@@ -6156,15 +6213,15 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	/* Process events */
 	gtk_main();
 
+	/* Clear actions */
+	action[0] = action[1] = -1;
+
 	/* Loop over choices */
 	for (i = 0; i < MAX_ACTION; i++)
 	{
-		/* Skip unavailable actions */
-		if (!action_toggle[i]) continue;
-
 		/* Check for active */
-		if (gtk_toggle_button_get_active(
-		                          GTK_TOGGLE_BUTTON(action_toggle[i])))
+		if ((previous_action & ACT_MASK) == i ||
+		    actions_chosen[0] == i || actions_chosen[1] == i)
 		{
 			/* Check for prestige action */
 			if (i == prestige_action)
@@ -6209,229 +6266,6 @@ static void gui_choose_action_advanced(game *g, int who, int action[2], int one)
 	if ((action[1] & ACT_MASK) == ACT_SETTLE2 &&
 	    (action[0] & ACT_MASK) != ACT_SETTLE)
 		action[1] = ACT_SETTLE | (action[1] & ACT_PRESTIGE);
-}
-
-/*
- * Choose action card.
- */
-void gui_choose_action(game *g, int who, int action[2], int one)
-{
-	GtkWidget *prestige = NULL, *image, *label, *group;
-	int i, h, key = GDK_1;
-
-	/* Check for advanced game */
-	if (real_game.advanced)
-	{
-		/* Call advanced function instead */
-		return gui_choose_action_advanced(g, who, action, one);
-	}
-
-	/* Do not boost any action yet */
-	prestige_action = -1;
-
-	/* Activate action button */
-	gtk_widget_set_sensitive(action_button, TRUE);
-
-	/* Reset displayed cards */
-	reset_cards(g, TRUE, TRUE);
-
-	/* Redraw everything */
-	redraw_everything();
-
-	/* Set prompt */
-	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Action");
-
-	/* Clear grouping of buttons */
-	group = NULL;
-
-	/* Get height of action box */
-	h = action_box->allocation.height - 10;
-
-	/* Loop over actions */
-	for (i = 0; i < MAX_ACTION; i++)
-	{
-		/* Clear button pointer */
-		action_toggle[i] = NULL;
-
-		/* Check for unusable search action */
-		if (i == ACT_SEARCH && (!expansion_has_prestige(real_game.expanded) ||
-		                        real_game.p[who].prestige_action_used))
-		{
-			/* Skip search action */
-			continue;
-		}
-
-		/* Skip second develop/settle */
-		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2)
-		{
-			/* Clear button */
-			action_toggle[i] = NULL;
-			continue;
-		}
-
-		/* Create radio button */
-		action_toggle[i] = gtk_radio_button_new_from_widget(
-		                                        GTK_RADIO_BUTTON(group));
-
-		/* Remember grouping */
-		group = action_toggle[i];
-
-		/* Get icon for action */
-		image = action_icon(i, h);
-
-		/* Do not request height */
-		gtk_widget_set_size_request(image, -1, 0);
-
-		/* Draw button without separate indicator */
-		gtk_toggle_button_set_mode(GTK_TOGGLE_BUTTON(action_toggle[i]), FALSE);
-
-		/* Pack image into button */
-		gtk_container_add(GTK_CONTAINER(action_toggle[i]), image);
-
-		/* Pack button into action box */
-		gtk_box_pack_start(GTK_BOX(action_box), action_toggle[i], FALSE,
-		                   FALSE, 0);
-
-		/* Create tooltip for button */
-		gtk_widget_set_tooltip_text(action_toggle[i], action_name(i));
-
-		/* Add handler for keypresses */
-		gtk_widget_add_accelerator(action_toggle[i], "key-signal",
-		                           window_accel, accel_keys[act_to_accel[i]],
-		                           accel_mods[act_to_accel[i]], 0);
-
-		/* Check if client is disconnected */
-		if (client_state == CS_DISCONN)
-		{
-			/* Add hander for numeric keypresses */
-			gtk_widget_add_accelerator(action_toggle[i], "key-signal",
-			                           window_accel, key++, 0, 0);
-		}
-
-		/* Connect "pointer enter" signal */
-		g_signal_connect(G_OBJECT(action_toggle[i]), "enter-notify-event",
-		                 G_CALLBACK(redraw_action), GINT_TO_POINTER(i));
-
-		/* Connect "toggled" signal */
-		g_signal_connect(G_OBJECT(action_toggle[i]), "toggled",
-		                 G_CALLBACK(action_choice_changed),
-		                 GINT_TO_POINTER(i));
-
-		/* Connect key-signal */
-		g_signal_connect(G_OBJECT(action_toggle[i]), "key-signal",
-		                 G_CALLBACK(action_keyed), NULL);
-
-		/* Show everything */
-		gtk_widget_show_all(action_toggle[i]);
-	}
-
-	/* Check for usable prestige action */
-	if (expansion_has_prestige(real_game.expanded) &&
-	    !real_game.p[who].prestige_action_used &&
-	    real_game.p[who].prestige > 0)
-	{
-		/* Create toggle button for prestige */
-		prestige = gtk_button_new();
-
-		/* Get icon for action */
-		image = action_icon(ICON_PRESTIGE, h);
-
-		/* Do not request height */
-		gtk_widget_set_size_request(image, -1, 0);
-
-		/* Pack image into button */
-		gtk_container_add(GTK_CONTAINER(prestige), image);
-
-		/* Pack button into action box */
-		gtk_box_pack_start(GTK_BOX(action_box), prestige, FALSE,
-		                   FALSE, h);
-
-		/* Create tooltip for button */
-		gtk_widget_set_tooltip_text(prestige, "Prestige");
-
-		/* Add handler for keypresses */
-		gtk_widget_add_accelerator(prestige, "key-signal",
-		                           window_accel,
-		                           accel_keys[6],
-		                           accel_mods[6], 0);
-
-		/* Check if client is disconnected */
-		if (client_state == CS_DISCONN)
-		{
-			/* Add 'P' keypress */
-			gtk_widget_add_accelerator(prestige, "key-signal",
-			                           window_accel, GDK_p, 0, 0);
-		}
-
-		/* Connect "pointer enter" signal */
-		g_signal_connect(G_OBJECT(prestige), "enter-notify-event",
-		                 G_CALLBACK(redraw_action),
-		                 GINT_TO_POINTER(10));
-
-		/* Connect "pressed" signal */
-		g_signal_connect(G_OBJECT(prestige), "pressed",
-		                 G_CALLBACK(prestige_pressed), NULL);
-
-		/* Connect key-signal */
-		g_signal_connect(G_OBJECT(prestige), "key-signal",
-		                 G_CALLBACK(prestige_pressed), NULL);
-
-		/* Show everything */
-		gtk_widget_show_all(prestige);
-	}
-
-	/* Create filler label */
-	label = gtk_label_new("");
-
-	/* Add label after action buttons */
-	gtk_box_pack_start(GTK_BOX(action_box), label, TRUE, TRUE, 0);
-
-	/* Show label */
-	gtk_widget_show(label);
-
-	/* Process events */
-	gtk_main();
-
-	/* Loop over choices */
-	for (i = 0; i < MAX_ACTION; i++)
-	{
-		/* Skip uncreated buttons */
-		if (action_toggle[i] == NULL) continue;
-
-		/* Check for active */
-		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(action_toggle[i])))
-		{
-			/* Set choice */
-			action[0] = i;
-			action[1] = -1;
-		}
-	}
-
-	/* Check for prestige button available */
-	if (prestige)
-	{
-		/* Check for prestige action */
-		if (prestige_action != -1)
-		{
-			/* Add prestige flag to action */
-			action[0] |= ACT_PRESTIGE;
-		}
-		/* Destroy prestige button */
-		gtk_widget_destroy(prestige);
-	}
-
-	/* Destroy buttons */
-	for (i = 0; i < MAX_ACTION; i++)
-	{
-		/* Skip uncreated buttons */
-		if (action_toggle[i] == NULL) continue;
-
-		/* Destroy button */
-		gtk_widget_destroy(action_toggle[i]);
-	}
-
-	/* Destroy filler label */
-	gtk_widget_destroy(label);
 }
 
 /*
@@ -14911,7 +14745,7 @@ int main(int argc, char *argv[])
 	action_box = gtk_hbox_new(FALSE, 0);
 
 	/* Set minimum height for action box */
-	gtk_widget_set_size_request(action_box, -1, 35);
+	gtk_widget_set_size_request(action_box, -1, 46);
 
 	/* Create action prompt */
 	action_prompt = gtk_label_new("Action");
