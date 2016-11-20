@@ -1225,6 +1225,7 @@ extern void phase_discard(game *g);
 extern int expansion_has_goals(int exp);
 extern int expansion_has_takeovers(int exp);
 extern int expansion_has_prestige(int exp);
+extern int expansion_has_start_world_choice(int exp);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
