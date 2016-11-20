@@ -34,11 +34,11 @@ char *exp_names[MAX_EXPANSION + 1] =
 	"The Brink of War",
 	"Alien Artifacts",
 	"Xeno Invasion",
-	"Rebel vs Imperium (without Gathering Storm)",
+	"Rebel vs Imperium (only)",
 	NULL
 };
 
-int exp_display_order[MAX_EXPANSION] = {0, 1, 2, 6, 3, 4, 5};
+int exp_display_order[MAX_EXPANSION] = {0, 1, 6, 2, 3, 4, 5};
 
 /*
  * Maximum number of players per expansion
