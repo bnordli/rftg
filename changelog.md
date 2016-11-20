@@ -3,6 +3,7 @@
 ### Gameplay
 
 * Regular cards from *Xeno Invasion* expansion added (no invasion game)
+* New expansion level: Rebel vs Imperium without The Gathering Storm
 * *Alien Survey Technology* no longer scores with *Galactic Survey: SETI*
 * *Alien Oort Cloud Refinery* is now optional to use with *Diversified Economy*
 

@@ -10,6 +10,7 @@
 #       3: The Brink of War
 #       4: Alien Artifacts
 #       5: Xeno Invasion
+#       6: Rebel vs Imperium only
 #   num_players:
 #       n: Exactly n players
 #     x-y: Between x and y players (inclusive)

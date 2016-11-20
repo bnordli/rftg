@@ -42,6 +42,8 @@ etc with some command line options:
 				2: Rebel vs Imperium
 				3: The Brink of War
 				4: Alien Artifacts
+				5: Xeno Invasion
+				6: Rebel vs Imperium only
 	-g, -nog       -- Enable or disable goals
 	-t, -not       -- Enable or disable takeovers
 	-c <name>      -- Play a campaign with the given name
