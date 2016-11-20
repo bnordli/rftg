@@ -70,7 +70,7 @@
 /*
  * Maximum number of expansion levels.
  */
-#define MAX_EXPANSION 6
+#define MAX_EXPANSION 7
 
 /*
  * Number of available card designs slots.
@@ -141,6 +141,7 @@
 #define EXP_BOW     3
 #define EXP_AA      4
 #define EXP_XI      5
+#define EXP_RVIO    6
 
 /*
  * Maximum number of players per expansion
@@ -1120,6 +1121,7 @@ extern char *good_printable[MAX_GOOD];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *exp_names[MAX_EXPANSION + 1];
+extern int exp_display_order[MAX_EXPANSION];
 extern char *player_labels[MAX_PLAYER];
 extern char *location_names[9];
 extern decisions ai_func;
@@ -1224,6 +1226,10 @@ extern void phase_produce_end(game *g);
 extern void produce_player(game *g, int who);
 extern void phase_produce(game *g);
 extern void phase_discard(game *g);
+extern int expansion_has_goals(int exp);
+extern int expansion_has_takeovers(int exp);
+extern int expansion_has_prestige(int exp);
+extern int expansion_has_start_world_choice(int exp);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);
