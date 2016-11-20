@@ -316,12 +316,13 @@ static char *vp_name[] =
  */
 static int succ_in_arc[MAX_EXPANSION][MAX_EXPANSION+1] =
 {
-	{0, 1, 2, 3, 4, 5, -1},
+	{0, 1, 2, 3, 4, 5, 6, -1},
 	{1, 2, 3, -1},
-	{2, 3, -1},
+	{2, 3, 6, -1},
 	{3, -1},
 	{4, -1},
-	{5, -1}
+	{5, -1},
+	{-1}
 };
 
 /*
@@ -1085,7 +1086,7 @@ void init_game(game *g)
 	g->vp_pool = g->num_players * 12;
 
 	/* Increase size of pool in third expansion */
-	if (g->expanded == EXP_BOW) g->vp_pool += 5;
+	if (expansion_has_prestige(g->expanded)) g->vp_pool += 5;
 
 	/* No game round yet */
 	g->round = 0;
@@ -1259,7 +1260,7 @@ void init_game(game *g)
 	}
 
 	/* Add goals when expanded */
-	if (g->expanded >= EXP_TGS && g->expanded <= EXP_BOW && !g->goal_disabled)
+	if (expansion_has_goals(g->expanded) && !g->goal_disabled)
 	{
 		/* No goals available yet */
 		n = 0;

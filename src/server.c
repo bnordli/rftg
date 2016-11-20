@@ -1407,9 +1407,10 @@ static void send_session_one(int sid, int cid)
 	int i;
 
 	/*
-	 * Do not advertise XI games to clients not supporting XI
+	 * Do not advertise XI and RVIO games to clients not supporting XI
 	 */
-	if (s_ptr->expanded == EXP_XI && strcmp(c_list[cid].version, "0.9.5") < 0)
+	if ((s_ptr->expanded == EXP_XI || s_ptr->expanded == EXP_RVIO) &&
+	        strcmp(c_list[cid].version, "0.9.5") < 0)
 		return;
 
 	/* Check for game not in waiting status */
@@ -3648,9 +3649,9 @@ static void handle_create(int cid, char *ptr)
 		s_ptr->min_player = s_ptr->max_player;
 
 	/* Validate disabled flags */
-	if (s_ptr->expanded < EXP_TGS || s_ptr->expanded > EXP_BOW)
+	if (!expansion_has_goals(s_ptr->expanded))
 		s_ptr->disable_goal = 0;
-	if (s_ptr->expanded < EXP_RVI || s_ptr->expanded > EXP_BOW)
+	if (!expansion_has_takeovers(s_ptr->expanded))
 		s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */

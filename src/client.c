@@ -267,6 +267,7 @@ static char *exp_abbr[MAX_EXPANSION + 1] =
 	"BoW",
 	"AA",
 	"XI",
+	"RvIo",
 	"?"
 };
 
@@ -2565,12 +2566,11 @@ static void update_sensitivity()
 	int max_p;
 
 	/* Set goal disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_goal_check, next_exp >= EXP_TGS &&
-	                                             next_exp <= EXP_BOW);
+	gtk_widget_set_sensitive(disable_goal_check, expansion_has_goals(next_exp));
 
 	/* Set takeover disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_takeover_check, next_exp >= EXP_RVI &&
-	                                                 next_exp <= EXP_BOW);
+	gtk_widget_set_sensitive(disable_takeover_check,
+	                         expansion_has_takeovers(next_exp));
 
 	/* Find maximum number of players */
 	max_p = exp_max_player[next_exp];
@@ -2654,7 +2654,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	GtkWidget *exp_box, *exp_frame;
 	GtkWidget *player_box, *player_frame;
 	GtkWidget *options_box, *options_frame;
-	int i;
+	int i, exp;
 
 	/* Create dialog box */
 	dialog = gtk_dialog_new_with_buttons("Create Game", NULL,
@@ -2717,32 +2717,39 @@ void create_dialog(GtkButton *button, gpointer data)
 	radio[0] = NULL;
 
 	/* Loop over expansion levels */
-	for (i = 0; exp_names[i]; i++)
+	for (i = 0; i < MAX_EXPANSION; i++)
 	{
+		/* Determine the expansion to consider */
+		exp = exp_display_order[i];
+
 		/* If connected to a server older than 0.9.5, don't offer the
-		 * possibility to create a XI session
+		 * possibility to create a XI or RVIonly session
 		 */
-		if (i == EXP_XI && strcmp(server_version, "0.9.5") < 0)
-			break;
+		if ((exp == EXP_XI || exp == EXP_RVIO) &&
+		        strcmp(server_version, "0.9.5") < 0)
+		{
+			radio[i] = NULL;
+			continue;
+		}
 
 		/* Create radio button */
 		radio[i] = gtk_radio_button_new_with_label_from_widget(
 		                                     GTK_RADIO_BUTTON(radio[0]),
-		                                     exp_names[i]);
+		                                     exp_names[exp]);
 
 		/* Check for current expansion level */
-		if (opt.expanded == i)
+		if (opt.expanded == exp)
 		{
 			/* Set button active */
 			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(radio[i]), TRUE);
 
 			/* Remember current expansion */
-			next_exp = i;
+			next_exp = exp;
 		}
 
 		/* Add handler */
 		g_signal_connect(G_OBJECT(radio[i]), "toggled",
-		                 G_CALLBACK(exp_toggle), GINT_TO_POINTER(i));
+		                 G_CALLBACK(exp_toggle), GINT_TO_POINTER(exp));
 
 		/* Pack radio button into box */
 		gtk_box_pack_start(GTK_BOX(exp_box), radio[i], FALSE, TRUE, 0);
