@@ -372,8 +372,10 @@ typedef struct status_display
 	/* Cards in hand */
 	int cards_hand;
 
-	/* Prestige */
+	/* Prestige information */
 	int prestige;
+	int prestige_action_used;
+	int prestige_on_tile;
 
 	/* Settle discount */
 	discounts discount;
@@ -4289,7 +4291,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 {
 	status_display *s_ptr;
 	GtkWidget *image, *label;
-	GdkPixbuf *buf;
+	GdkPixbuf *buf, *cross_buf;
 	int width, height;
 	int act0, act1;
 	int i;
@@ -4443,6 +4445,13 @@ static void redraw_status_area(int who, GtkWidget *box)
 		                              height, height,
 		                              GDK_INTERP_BILINEAR);
 
+		/* Check for prestige action used */
+		if (s_ptr->prestige_action_used)
+		{
+			/* Pixelate */
+			gdk_pixbuf_saturate_and_pixelate(buf, buf, 1.0, TRUE);
+		}
+
 		/* Create image from pixbuf */
 		image = gtk_image_new_from_pixbuf(buf);
 
@@ -4450,7 +4459,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 		ei = &status_extra_info[who][2];
 
 		/* Create text for prestige */
-		sprintf(ei->text, "<b>%d</b>", s_ptr->prestige);
+		sprintf(ei->text, "<b>%d</b>%s", s_ptr->prestige, s_ptr->prestige_on_tile ? "*" : "");
 
 		/* Set font */
 		ei->fontstr = "Sans 12";
@@ -5573,6 +5582,8 @@ void reset_status(game *g, int who)
 
 	/* Copy prestige */
 	status_player[who].prestige = g->p[who].prestige;
+	status_player[who].prestige_action_used = g->p[who].prestige_action_used;
+	status_player[who].prestige_on_tile = prestige_on_tile(g, who);
 
 	/* Count general discount */
 	compute_discounts(g, who, &status_player[who].discount);

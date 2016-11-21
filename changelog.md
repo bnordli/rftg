@@ -10,6 +10,7 @@
 ### GUI
 
 * Corrected card image for *Imperium War Faction*
+* Indicate on the prestige icon whether Prestige/Search action is used, and whether Prestige is on the tile
 * *AA* indicates *Alien Artifacts* in list of online games.
 * Do not display tool tips for pay-for-military powers when using *Imperium Supply Convoy*
 * Do not display "(or pass if you want to flip a card)" when using *Imperium Supply Convoy*
