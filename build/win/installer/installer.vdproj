@@ -99,6 +99,18 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_1DFDE5C628394BC199E178250FAE87FF"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_239F0260410E45BF82EEF59D9D4C6AAC"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_25E03C32BB814D41A494F832DD35331D"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -172,6 +184,12 @@
         "Entry"
         {
         "MsmKey" = "8:_44ED7165515E4B74BD637359F7309959"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_47080DEEC53243419C3E1BD0053B2BFB"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -303,6 +321,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_80DDFAD963904235B9A9CC3CC4E73BDA"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_80F0BB11EC3248C3B750964E702B0EA2"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -310,6 +334,12 @@
         "Entry"
         {
         "MsmKey" = "8:_81B1510E1F8D429981E466CAAE993C74"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_8346532223CA43DF94C622AAA44925F0"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -375,6 +405,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_9709AA030B7F42E585C3665DEBCEAA1C"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_9A5B155F99B34F97ADDABEC17BCEA42E"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -382,6 +418,12 @@
         "Entry"
         {
         "MsmKey" = "8:_9BD0562F19E24F0CA7EC65A522EB3CAF"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_A0FAE16FB7AA4DEFAE7F931DAA562B57"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -400,6 +442,12 @@
         "Entry"
         {
         "MsmKey" = "8:_A5412D43CEDA4961A0D9524B9C7FB64E"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_A884080980CD4A6C98E4F8C1C3ADA24B"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -471,6 +519,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_D6D8FD9447C74F01B1CCE75700163480"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_D96528B613194110B8C04EC676C3BFD4"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -496,6 +550,12 @@
         "Entry"
         {
         "MsmKey" = "8:_E28A2EA260354C8EB439B31B296B757E"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_E2BC589680F34836A1BAF7430CB87EE0"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -943,6 +1003,46 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_1DFDE5C628394BC199E178250FAE87FF"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.role.6.2.net"
+            "TargetName" = "8:rftg.role.6.2.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_239F0260410E45BF82EEF59D9D4C6AAC"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.role.6.4.net"
+            "TargetName" = "8:rftg.role.6.4.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_25E03C32BB814D41A494F832DD35331D"
             {
             "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.2.4.net"
@@ -1189,6 +1289,26 @@
             "TargetName" = "8:libpangocairo-1.0-0.dll"
             "Tag" = "8:"
             "Folder" = "8:_82923BBA69F846959019CA7643659879"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_47080DEEC53243419C3E1BD0053B2BFB"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.role.6.5.net"
+            "TargetName" = "8:rftg.role.6.5.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1623,6 +1743,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_80DDFAD963904235B9A9CC3CC4E73BDA"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.6.4.net"
+            "TargetName" = "8:rftg.eval.6.4.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_80F0BB11EC3248C3B750964E702B0EA2"
             {
             "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.role.5.2.net"
@@ -1647,6 +1787,26 @@
             {
             "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.3.2.net"
             "TargetName" = "8:rftg.eval.3.2.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8346532223CA43DF94C622AAA44925F0"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.role.6.3.net"
+            "TargetName" = "8:rftg.role.6.3.net"
             "Tag" = "8:"
             "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
             "Condition" = "8:"
@@ -1863,6 +2023,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9709AA030B7F42E585C3665DEBCEAA1C"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.6.5.net"
+            "TargetName" = "8:rftg.eval.6.5.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9A5B155F99B34F97ADDABEC17BCEA42E"
             {
             "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.3.6.net"
@@ -1889,6 +2069,26 @@
             "TargetName" = "8:libpng12-0.dll"
             "Tag" = "8:"
             "Folder" = "8:_82923BBA69F846959019CA7643659879"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A0FAE16FB7AA4DEFAE7F931DAA562B57"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.6.2.net"
+            "TargetName" = "8:rftg.eval.6.2.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1949,6 +2149,26 @@
             "TargetName" = "8:zlib1.dll"
             "Tag" = "8:"
             "Folder" = "8:_82923BBA69F846959019CA7643659879"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A884080980CD4A6C98E4F8C1C3ADA24B"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.6.3.net"
+            "TargetName" = "8:rftg.eval.6.3.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -2183,6 +2403,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D6D8FD9447C74F01B1CCE75700163480"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.6.2a.net"
+            "TargetName" = "8:rftg.eval.6.2a.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D96528B613194110B8C04EC676C3BFD4"
             {
             "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.eval.5.2.net"
@@ -2269,6 +2509,26 @@
             "TargetName" = "8:libgdk-win32-2.0-0.dll"
             "Tag" = "8:"
             "Folder" = "8:_82923BBA69F846959019CA7643659879"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_E2BC589680F34836A1BAF7430CB87EE0"
+            {
+            "SourcePath" = "8:..\\..\\..\\src\\network\\rftg.role.6.2a.net"
+            "TargetName" = "8:rftg.role.6.2a.net"
+            "Tag" = "8:"
+            "Folder" = "8:_CBFD83FFB90E462C968BDE682C261FBB"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
