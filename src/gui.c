@@ -11581,15 +11581,15 @@ static void update_sensitivity()
 	/* Check for campaign */
 	if (camp)
 	{
-		/* Set expansion button active */
-		gtk_toggle_button_set_active(
-		    GTK_TOGGLE_BUTTON(expansion_radio[camp->expanded]), TRUE);
-
 		/* Clear expansion radio sensitivities */
 		for (i = 0; i < MAX_EXPANSION; ++i)
 		{
 			exp = exp_display_order[i];
 			gtk_widget_set_sensitive(expansion_radio[i], exp == camp->expanded);
+
+			/* Set expansion button active */
+			gtk_toggle_button_set_active(
+				GTK_TOGGLE_BUTTON(expansion_radio[i]), exp == camp->expanded);
 		}
 	}
 	else
