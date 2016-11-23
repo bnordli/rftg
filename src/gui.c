@@ -14761,6 +14761,10 @@ int main(int argc, char *argv[])
 	gtk_widget_add_accelerator(GTK_WIDGET(action_button), "clicked",
 	                           window_accel, GDK_Return, GDK_SHIFT_MASK, 0);
 
+	/* Also attach Shift+Space */
+	gtk_widget_add_accelerator(GTK_WIDGET(action_button), "clicked",
+	                           window_accel, GDK_space, GDK_SHIFT_MASK, 0);
+
 	/* Set CAN_DEFAULT flag on action button */
 	GTK_WIDGET_SET_FLAGS(action_button, GTK_CAN_DEFAULT);
 
