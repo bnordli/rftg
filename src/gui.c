@@ -14751,7 +14751,7 @@ int main(int argc, char *argv[])
 	action_prompt = gtk_label_new("Action");
 
 	/* Create action button */
-	action_button = gtk_button_new_with_label("Done");
+	action_button = gtk_button_new_with_label("  Done  ");
 
 	/* Attach event */
 	g_signal_connect(G_OBJECT(action_button), "clicked",
@@ -14785,7 +14785,7 @@ int main(int argc, char *argv[])
 	h_sep = gtk_hseparator_new();
 
 	/* Pack separator and hand area */
-	gtk_box_pack_start(GTK_BOX(right_vbox), h_sep, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(right_vbox), h_sep, FALSE, TRUE, 1);
 	gtk_box_pack_start(GTK_BOX(right_vbox), hand_area, FALSE, TRUE, 0);
 
 	/* Create vertical separators between areas */
