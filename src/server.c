@@ -3,8 +3,8 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2015.
- * Source file modified by J.-R. Reinhard, October 2016.
+ * Source file modified by B. Nordli, October 2016.
+ * Source file modified by J.-R. Reinhard, November 2016.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
