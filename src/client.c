@@ -2276,9 +2276,6 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Remove our reference to the completion entry */
 	g_object_unref(G_OBJECT(completion));
 
-	/* Check for no server name in preferences */
-	if (!opt.server_name) opt.server_name = "keldon.net";
-
 	/* Save previous server */
 	old_server_name = opt.server_name;
 

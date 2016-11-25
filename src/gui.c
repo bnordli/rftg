@@ -35,6 +35,9 @@
 
 #define TITLE "Race for the Galaxy " RELEASE
 
+#define SERVER_1 "rftg.plingri.net"
+#define SERVER_2 "keldon.net"
+
 /*
  * Our default options.
  */
@@ -10637,7 +10640,7 @@ static void read_prefs(void)
 	char *path;
 	char **servers;
 	size_t num_servers;
-	int i;
+	int i, server_1 = FALSE, server_2 = FALSE;
 	GtkTreeIter list_iter;
 
 	/* Build user preference filename */
@@ -10757,18 +10760,33 @@ static void read_prefs(void)
 			gtk_list_store_append(opt.servers, &list_iter);
 			gtk_list_store_set(opt.servers, &list_iter,
 			                   0, servers[i], -1);
+
+			/* Check for presence of known servers */
+			if (!strcmp(servers[i], SERVER_1)) server_1 = TRUE;
+			if (!strcmp(servers[i], SERVER_2)) server_2 = TRUE;
 		}
 
 		/* Clean up */
 		g_strfreev(servers);
 	}
-	else
+
+	/* Populate the server list store with known servers */
+	if (!server_2)
 	{
-		/* Populate the server list store with known servers */
-		gtk_list_store_append(opt.servers, &list_iter);
-		gtk_list_store_set(opt.servers, &list_iter,
-		                   0, "keldon.net", -1);
+		gtk_list_store_insert(opt.servers, &list_iter, 0);
+		gtk_list_store_set(opt.servers, &list_iter, 0, SERVER_2, -1);
+		opt.server_name = SERVER_2;
 	}
+
+	if (!server_1)
+	{
+		gtk_list_store_insert(opt.servers, &list_iter, 0);
+		gtk_list_store_set(opt.servers, &list_iter, 0, SERVER_1, -1);
+		opt.server_name = SERVER_1;
+	}
+
+	/* Check for no server name */
+	if (!opt.server_name) opt.server_name = SERVER_1;
 
 	opt.username = g_key_file_get_string(pref_file, "multiplayer",
 	                                     "username", NULL);
