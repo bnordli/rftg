@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2016.
+ * Source file modified by B. Nordli, December 2016.
  * Source file modified by J.-R. Reinhard, November 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -6443,6 +6443,9 @@ void gui_choose_discard(game *g, int who, int list[], int *num, int discard)
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 
+				/* If only one possibility, cards should be greedy */
+				if (discard == 1) i_ptr->greedy = TRUE;
+
 				/* Card should be red when selected */
 				i_ptr->highlight = HIGH_RED;
 
@@ -6828,12 +6831,12 @@ int gui_choose_place(game *g, int who, int list[], int num, int phase,
 /*
  * Find if there are any forced choices for payment.
  */
-static void compute_forced_choice(int list[], int num,
-                                  int special[], int num_special,
-                                  long *special_forced, long *special_legal,
-                                  int *forced_hand, int mil_bonus)
+static int compute_forced_choice(int list[], int num,
+                                 int special[], int num_special,
+                                 long *special_forced, long *special_legal,
+                                 int *forced_hand, int mil_bonus)
 {
-	int i, num_choice, need;
+	int i, num_choice, need, max = 0;
 	int special_choice[MAX_DECK];
 	long special_set;
 
@@ -6871,6 +6874,9 @@ static void compute_forced_choice(int list[], int num,
 		/* Check for more cards required than available */
 		if (need > num) continue;
 
+		/* Check for new maximum */
+		if (need > max) max = need;
+
 		/* Check for legal without all hand cards */
 		if (need < num) *forced_hand = FALSE;
 
@@ -6878,6 +6884,9 @@ static void compute_forced_choice(int list[], int num,
 		*special_forced &= special_set;
 		*special_legal |= special_set;
 	}
+
+	/* Return the maximum number of cards allowed */
+	return max;
 }
 
 /*
@@ -6897,7 +6906,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	mil_strength *m_ptr;
 	char *cost_card;
 	char buf[1024], *p;
-	int i, j, n = 0, ns = 0, high_color;
+	int i, j, n = 0, ns = 0, max, high_color;
 	int num_hand, conjunction;
 	int military, cost, conquer_mil, conquer_discount_mil, bonus;
 	int forced_hand;
@@ -7142,9 +7151,9 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	action_payment_bonus = mil_bonus_or_takeover_power;
 
 	/* Find any forced and illegal choices */
-	compute_forced_choice(list, *num, special, *num_special,
-	                      &special_forced, &special_legal,
-	                      &forced_hand, mil_bonus_or_takeover_power);
+	max = compute_forced_choice(list, *num, special, *num_special,
+	                            &special_forced, &special_legal,
+	                            &forced_hand, mil_bonus_or_takeover_power);
 
 	/* Check for no automatic selection */
 	if (!opt.auto_select)
@@ -7163,10 +7172,13 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			i_ptr = &hand[j];
 
 			/* Check for matching index */
-			if (i_ptr->index == list[i])
+			if (max > 0 && i_ptr->index == list[i])
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* If only one possibility, cards should be greedy */
+				if (max == 1) i_ptr->greedy = TRUE;
 
 				/* Card should be red when selected */
 				i_ptr->highlight = HIGH_RED;
@@ -8505,6 +8517,9 @@ void gui_choose_consume_hand(game *g, int who, int c_idx, int o_idx, int list[],
 				/* Card is eligible */
 				i_ptr->eligible = 1;
 
+				/* If only one possibility, cards should be greedy */
+				if (o_ptr->times == 1) i_ptr->greedy = TRUE;
+
 				/* Card should be red when selected */
 				i_ptr->highlight = HIGH_RED;
 
@@ -8631,6 +8646,9 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+
+				/* If only one possibility, cards should be greedy */
+				if (max == 1) i_ptr->greedy = TRUE;
 
 				/* Push good upwards when selected */
 				i_ptr->push = 1;
