@@ -1,3 +1,9 @@
+# Version 0.9.6
+
+### GUI
+
+* Fix bug where amount of temporary *Xeno* military needed was not displayed
+
 # Version 0.9.5
 
 ### Gameplay

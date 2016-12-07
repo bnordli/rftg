@@ -3764,7 +3764,7 @@ static char *card_settle_tooltip(game *g, int who, int special,
 	discounts *d_ptr;
 	mil_strength *m_ptr;
 	char text[1024], *p, *cost_card;
-	int num_hand, which, mil_only, mil_needed;
+	int num_hand, which, mil_only, mil_needed, bonus;
 	int conquer_mil, conquer_discount_mil, cost, supply_convoy = 0;
 	int mil_bonus = 0, placed;
 
@@ -3814,6 +3814,12 @@ static char *card_settle_tooltip(game *g, int who, int special,
 	/* Check for military world */
 	else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 	{
+		/* Start with base bonus */
+		bonus = m_ptr->max_bonus;
+
+		/* Check for Xeno world */
+		if (c_ptr->d_ptr->flags & FLAG_XENO) bonus += m_ptr->max_bonus_xeno;
+
 		/* XXX Check for using extra military */
 		if (special >= 0 &&
 		    !strcmp(g->deck[special].d_ptr->name, "Imperium Supply Convoy"))
@@ -3840,7 +3846,7 @@ static char *card_settle_tooltip(game *g, int who, int special,
 		}
 
 		/* Check for achievable temporary military */
-		else if (mil_needed <= m_ptr->max_bonus)
+		else if (mil_needed <= bonus)
 		{
 			/* Format text */
 			p += sprintf(p, "Extra military needed to place: %d\n",
@@ -6893,7 +6899,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 	char buf[1024], *p;
 	int i, j, n = 0, ns = 0, high_color;
 	int num_hand, conjunction;
-	int military, cost, conquer_mil, conquer_discount_mil;
+	int military, cost, conquer_mil, conquer_discount_mil, bonus;
 	int forced_hand;
 	long special_forced, special_legal;
 
@@ -6965,6 +6971,12 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 			/* Check for military world */
 			else if (c_ptr->d_ptr->flags & FLAG_MILITARY)
 			{
+				/* Start with base bonus */
+				bonus = m_ptr->max_bonus;
+
+				/* Check for Xeno world */
+				if (c_ptr->d_ptr->flags & FLAG_XENO) bonus += m_ptr->max_bonus_xeno;
+
 				/* Compute payment */
 				military_world_payment(g, who, which, mil_only,
 				                       mil_bonus_or_takeover_power,
@@ -6978,7 +6990,7 @@ void gui_choose_pay(game *g, int who, int which, int list[], int *num,
 				conjunction = FALSE;
 
 				/* Check for achievable temporary military */
-				if (military <= m_ptr->max_bonus)
+				if (military <= bonus)
 				{
 					/* Format text */
 					p += sprintf(p, "%d military", military);
