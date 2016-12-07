@@ -5380,7 +5380,8 @@ static void pay_settle(game *g, int who, int world, int mil_only, int mil_bonus)
 			}
 
 			/* Check for against Xeno */
-			if ((o_ptr->code & P3_XENO) && !(c_ptr->d_ptr->flags & FLAG_XENO))
+			if ((o_ptr->code & P3_XENO) && !(o_ptr->code & P3_CONSUME_ALIEN) &&
+			     !(c_ptr->d_ptr->flags & FLAG_XENO))
 			{
 				/* Skip power */
 				continue;

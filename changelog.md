@@ -1,5 +1,9 @@
 # Version 0.9.6
 
+### Gameplay
+
+* Allow using *Alien Weapon Cache*'s temporary military power when settling any world
+
 ### GUI
 
 * Fix bug where amount of temporary *Xeno* military needed was not displayed
