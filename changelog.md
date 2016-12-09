@@ -9,6 +9,7 @@
 * Avoid selecting more than one card if one is enough
 * Disable selecting cards from hand if selecting any is illegal
 * Show number of cards drawn during explore in a separate icon
+* Slightly offset card rows in tableaux
 * Fix bug where amount of temporary *Xeno* military needed was not displayed
 
 # Version 0.9.5

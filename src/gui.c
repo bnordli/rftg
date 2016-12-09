@@ -2551,7 +2551,8 @@ static void redraw_table_area(int who, GtkWidget *area)
 		                                       key_count : -1);
 
 		/* Place event box */
-		gtk_fixed_put(GTK_FIXED(area), box, x * width, y * height);
+		gtk_fixed_put(GTK_FIXED(area), box,
+		              x * width + (y * padding * 3/4), y * height);
 
 		/* Show image */
 		gtk_widget_show_all(box);
