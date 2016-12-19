@@ -8518,7 +8518,8 @@ void gui_choose_consume_hand(game *g, int who, int c_idx, int o_idx, int list[],
 				i_ptr->eligible = 1;
 
 				/* If only one possibility, cards should be greedy */
-				if (o_ptr->times == 1) i_ptr->greedy = TRUE;
+				if (o_ptr->times == 1 && !(o_ptr->code & P4_CONSUME_TWO))
+					i_ptr->greedy = TRUE;
 
 				/* Card should be red when selected */
 				i_ptr->highlight = HIGH_RED;
