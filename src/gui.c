@@ -375,6 +375,11 @@ typedef struct status_display
 	/* Cards in hand */
 	int cards_hand;
 
+	/* Explore information */
+	int cards_drawn;
+	int cards_kept;
+	int discard_any;
+
 	/* Prestige information */
 	int prestige;
 	int prestige_action_used;
@@ -385,6 +390,9 @@ typedef struct status_display
 
 	/* Military strength */
 	mil_strength military;
+
+	/* Text of Explore tooltip */
+	char explore_tip[1024];
 
 	/* Text of VP tooltip */
 	char vp_tip[1024];
@@ -1692,7 +1700,7 @@ static int action_check_start(void)
 /*
  * Set of "extra info" structures for player statuses.
  */
-static struct extra_info status_extra_info[MAX_PLAYER][5];
+static struct extra_info status_extra_info[MAX_PLAYER][6];
 
 /*
  * Set of "extra info" structures for game status.
@@ -2823,6 +2831,35 @@ void redraw_goal(void)
 			y += 20;
 		}
 	}
+}
+
+/*
+* Create a tooltip for explore icon.
+*/
+static char *get_explore_tooltip(status_display *g)
+{
+	static char msg[1024];
+	char text[1024];
+
+	/* Clear messages */
+	strcpy(msg, "");
+
+	/* Count drawn cards */
+	sprintf(text, "Cards drawn: %d\n", g->cards_drawn);
+	strcat(msg, text);
+
+	/* Count discarded cards */
+	sprintf(text, "Cards discarded: %d", g->cards_drawn - g->cards_kept);
+	strcat(msg, text);
+
+	/* Check for discard any */
+	if (g->discard_any) {
+		/* Add info */
+		strcat(msg, "\nMix and Match Explore");
+	}
+
+	/* Return tooltip text */
+	return msg;
 }
 
 /*
@@ -4466,6 +4503,42 @@ static void redraw_status_area(int who, GtkWidget *box)
 	/* Pack icon into status box */
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 
+	/* Check for Explore phase */
+	if (s_ptr->cards_drawn > 0)
+	{
+		/* Create explore icon image */
+		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_EXPLORE], height, height,
+		                              GDK_INTERP_BILINEAR);
+
+		/* Create image from pixbuf */
+		image = gtk_image_new_from_pixbuf(buf);
+
+		/* Pointer to extra info structure */
+		ei = &status_extra_info[who][5];
+
+		/* Create text for drawn cards */
+		sprintf(ei->text, "<b>%d</b>%s", s_ptr->cards_drawn, s_ptr->discard_any ? "*" : "");
+
+		/* Set font */
+		ei->fontstr = "Sans 10";
+
+		/* Draw text a border */
+		ei->border = 1;
+
+		/* Connect expose-event to draw extra text */
+		g_signal_connect_after(G_OBJECT(image), "expose-event",
+		                       G_CALLBACK(draw_extra_text), ei);
+
+		/* Destroy our copy of the icon */
+		g_object_unref(G_OBJECT(buf));
+
+		/* Add explore tooltip */
+		gtk_widget_set_tooltip_markup(image, s_ptr->explore_tip);
+
+		/* Pack icon into status box */
+		gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
+	}
+
 	/* Create victory point icon image */
 	buf = gdk_pixbuf_scale_simple(icon_cache[ICON_VP], height, height,
 	                              GDK_INTERP_BILINEAR);
@@ -5560,6 +5633,131 @@ static void reset_table(game *g, int who, int color)
 }
 
 /*
+ * Count the number of cards drawn by a player during explore.
+ */
+int count_draw(game *g, int who)
+{
+	int draw, i = who, j, n;
+	power_where w_list[100];
+	power *o_ptr;
+
+	/* Assume we draw 2 cards */
+	draw = 2;
+
+	/* Check for chosen "+5 draw" explore */
+	if (player_chose(g, i, ACT_EXPLORE_5_0)) draw += 5;
+
+	/* Check for chosen "+1 draw" explore */
+	if (player_chose(g, i, ACT_EXPLORE_1_1)) draw += 1;
+
+	/* Check for prestige explore */
+	if (player_chose(g, i, ACT_PRESTIGE | ACT_EXPLORE_5_0) ||
+	    player_chose(g, i, ACT_PRESTIGE | ACT_EXPLORE_1_1))
+	{
+		/* Draw 6 additional */
+		draw += 6;
+	}
+
+	/* Get list of explore powers */
+	n = get_powers(g, i, PHASE_EXPLORE, w_list);
+
+	/* Loop over powers */
+	for (j = 0; j < n; j++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[j].o_ptr;
+
+		/* Skip powers that do not have extra draw */
+		if (!(o_ptr->code & P1_DRAW)) continue;
+
+		/* Add value special case : draw per rebel military */
+		if (o_ptr->code & P1_PER_REBEL_MILITARY)
+		{
+			draw += o_ptr->value * count_active_flags(g, i,
+				(FLAG_REBEL | FLAG_MILITARY));
+			continue;
+		}
+
+		/* Add value */
+		draw += o_ptr->value;
+	}
+
+	return draw;
+}
+
+/*
+ * Count the number of cards kept by a player during explore.
+ */
+int count_keep(game *g, int who)
+{
+	int keep, i = who, j, n;
+	power_where w_list[100];
+	power *o_ptr;
+
+	/* Assume we keep one card */
+	keep = 1;
+
+	/* Check for chosen "+1 keep" explore */
+	if (player_chose(g, i, ACT_EXPLORE_1_1)) keep += 1;
+
+	/* Check for prestige explore */
+	if (player_chose(g, i, ACT_PRESTIGE | ACT_EXPLORE_5_0) ||
+	    player_chose(g, i, ACT_PRESTIGE | ACT_EXPLORE_1_1))
+	{
+		/* Keep one extra */
+		keep += 1;
+	}
+
+	/* Get list of explore powers */
+	n = get_powers(g, i, PHASE_EXPLORE, w_list);
+
+	/* Loop over powers */
+	for (j = 0; j < n; j++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[j].o_ptr;
+
+		/* Check for extra keep */
+		if (o_ptr->code & P1_KEEP) keep += o_ptr->value;
+	}
+
+	return keep;
+}
+
+/*
+ * Check whether a player has the discard any power.
+ */
+int discard_any(game *g, int who)
+{
+	int i = who, j, n;
+	power_where w_list[100];
+	power *o_ptr;
+
+	/* Check for prestige explore */
+	if (player_chose(g, i, ACT_PRESTIGE | ACT_EXPLORE_5_0) ||
+	    player_chose(g, i, ACT_PRESTIGE | ACT_EXPLORE_1_1))
+	{
+		/* Discard any cards */
+		return 1;
+	}
+
+	/* Get list of explore powers */
+	n = get_powers(g, i, PHASE_EXPLORE, w_list);
+
+	/* Loop over powers */
+	for (j = 0; j < n; j++)
+	{
+		/* Get power pointer */
+		o_ptr = w_list[j].o_ptr;
+
+		/* Check for "discard any" power */
+		if (o_ptr->code & P1_DISCARD_ANY) return 1;
+	}
+
+	return 0;
+}
+
+/*
  * Reset status information for a player.
  */
 void reset_status(game *g, int who)
@@ -5607,6 +5805,19 @@ void reset_status(game *g, int who)
 	/* Count cards in hand */
 	status_player[who].cards_hand = count_player_area(g, who, WHERE_HAND);
 
+	/* Check for needing explore information */
+	if (g->cur_action == PHASE_EXPLORE)
+	{
+		status_player[who].cards_drawn = count_draw(g, who);
+		status_player[who].cards_kept = count_keep(g, who);
+		status_player[who].discard_any = discard_any(g, who);
+		status_player[who].cards_hand -= status_player[who].cards_drawn;
+	}
+	else
+	{
+		status_player[who].cards_drawn = -1;
+	}
+
 	/* Copy prestige */
 	status_player[who].prestige = g->p[who].prestige;
 	status_player[who].prestige_action_used = g->p[who].prestige_action_used;
@@ -5617,6 +5828,10 @@ void reset_status(game *g, int who)
 
 	/* Count military strength */
 	compute_military(g, who, &status_player[who].military);
+
+	/* Get text of explore tooltip */
+	strcpy(status_player[who].explore_tip,
+	       get_explore_tooltip(&status_player[who]));
 
 	/* Get text of vp tooltip */
 	strcpy(status_player[who].vp_tip, get_vp_tooltip(g, who));
