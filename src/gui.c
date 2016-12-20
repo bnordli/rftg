@@ -1895,6 +1895,34 @@ static GtkWidget *new_image_box(design *d_ptr, int w, int h, int color,
 		g_object_unref(G_OBJECT(border_buf));
 	}
 
+	/* Draw borders around all non-good cards */
+	if (!back)
+	{
+		/* Create a border pixbuf */
+		border_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, w, h);
+
+		/* Fill pixbuf with highlight color */
+		gdk_pixbuf_fill(border_buf, 0xaaaaaaff);
+
+		/* Create a blank pixbuf */
+		blank_buf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, w, h);
+
+		/* Fill pixbuf with transparent black */
+		gdk_pixbuf_fill(blank_buf, 0);
+
+		/* Copy blank space onto middle of border buffer */
+		gdk_pixbuf_copy_area(blank_buf, 1, 1, w - 2, h - 2,
+		                     border_buf, 1, 1);
+
+		/* Composite border onto card image buffer */
+		gdk_pixbuf_composite(border_buf, buf, 0, 0, w, h, 0, 0, 1, 1,
+		                     GDK_INTERP_BILINEAR, 255);
+
+		/* Release our copies of pixbufs */
+		g_object_unref(G_OBJECT(blank_buf));
+		g_object_unref(G_OBJECT(border_buf));
+	}
+
 	/* Make image widget */
 	image = gtk_image_new_from_pixbuf(buf);
 
