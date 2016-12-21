@@ -257,21 +257,6 @@ static void clear_games_users(void)
 }
 
 /*
- * Expansion name abbreviations.
- */
-static char *exp_abbr[MAX_EXPANSION + 1] =
-{
-	"Base",
-	"TGS",
-	"RvI",
-	"BoW",
-	"AA",
-	"XI",
-	"RvIo",
-	"?"
-};
-
-/*
  * Find the given session ID in the game list.
  *
  * Return false if the given ID does not exist.
@@ -429,7 +414,7 @@ static void handle_open_game(char *ptr, int size)
 	int x, y, new_game = FALSE;
 	char buf[1024];
 	char *msg_buf = ptr;
-	char *cmp_key;
+	char *cmp_key, *abbr;
 	GtkTreeIter list_iter;
 
 	/* Skip header */
@@ -518,12 +503,12 @@ static void handle_open_game(char *ptr, int size)
 	if (!get_integer(&x, msg_buf, size, &ptr)) goto format_error;
 
 	/* Sanitize expansion level */
-	if (x < 0 || x > MAX_EXPANSION) x = MAX_EXPANSION;
+	abbr = (x >= 0 && x < MAX_EXPANSION) ? exp_info[x].short_name : "?";
 
 	/* Set expansion */
 	gtk_tree_store_set(game_list, &list_iter,
 	                   GAME_COL_EXPANSION, x,
-	                   GAME_COL_EXPANSION_STR, exp_abbr[x],
+	                   GAME_COL_EXPANSION_STR, abbr,
 	                   -1);
 
 	/* Read two-player advanced option */
@@ -2796,14 +2781,14 @@ static void update_sensitivity()
 	int max_p;
 
 	/* Set goal disabled checkbox sensitivity */
-	gtk_widget_set_sensitive(disable_goal_check, expansion_has_goals(next_exp));
+	gtk_widget_set_sensitive(disable_goal_check, exp_info[next_exp].has_goals);
 
 	/* Set takeover disabled checkbox sensitivity */
 	gtk_widget_set_sensitive(disable_takeover_check,
-	                         expansion_has_takeovers(next_exp));
+	                         exp_info[next_exp].has_takeovers);
 
 	/* Find maximum number of players */
-	max_p = exp_max_player[next_exp];
+	max_p = exp_info[next_exp].max_players;
 
 	/* Reduce value to the maximum */
 	if (gtk_range_get_value(GTK_RANGE(min_player)) > max_p)
@@ -2950,7 +2935,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	for (i = 0; i < MAX_EXPANSION; i++)
 	{
 		/* Determine the expansion to consider */
-		exp = exp_display_order[i];
+		exp = exp_info[i].display_order;
 
 		/* If connected to a server older than 0.9.5, don't offer the
 		 * possibility to create a XI or RVIonly session
@@ -2965,7 +2950,7 @@ void create_dialog(GtkButton *button, gpointer data)
 		/* Create radio button */
 		radio[i] = gtk_radio_button_new_with_label_from_widget(
 		                                     GTK_RADIO_BUTTON(radio[0]),
-		                                     exp_names[exp]);
+		                                     exp_info[exp].name);
 
 		/* Check for current expansion level */
 		if (opt.expanded == exp)

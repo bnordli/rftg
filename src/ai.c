@@ -1077,7 +1077,7 @@ static void setup_nets(game *g)
 		sprintf(buf, "Clock %d", i);
 		input_name[n++] = strdup(buf);
 	}
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 	{
 		for (i = 0; i < MAX_GOAL; i++)
 		{
@@ -1212,7 +1212,7 @@ static void setup_nets(game *g)
 			input_name[n++] = strdup(buf);
 		}
 
-		if (expansion_has_goals(g->expanded))
+		if (exp_info[g->expanded].has_goals)
 		{
 			for (j = 0; j < MAX_GOAL; j++)
 			{
@@ -1221,7 +1221,7 @@ static void setup_nets(game *g)
 			}
 		}
 
-		if (expansion_has_prestige(g->expanded))
+		if (exp_info[g->expanded].has_prestige)
 		{
 			sprintf(buf, "%s prestige action used", name);
 			input_name[n++] = strdup(buf);
@@ -1251,7 +1251,7 @@ static void setup_nets(game *g)
 		}
 	}
 
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		for (i = 0; i < g->num_players; i++)
 		{
@@ -1321,7 +1321,7 @@ static void setup_nets(game *g)
 	}
 
 	/* Check for third expansion */
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		/* Use third expansion number of outputs */
 		outputs = g->advanced ? ROLE_OUT_ADV_EXP3 : ROLE_OUT_EXP3;
@@ -1430,7 +1430,7 @@ static void setup_nets(game *g)
 			input_name[n++] = strdup(buf);
 		}
 
-		if (expansion_has_goals(g->expanded))
+		if (exp_info[g->expanded].has_goals)
 		{
 			for (j = 0; j < MAX_GOAL; j++)
 			{
@@ -1439,7 +1439,7 @@ static void setup_nets(game *g)
 			}
 		}
 
-		if (expansion_has_prestige(g->expanded))
+		if (exp_info[g->expanded].has_prestige)
 		{
 			sprintf(buf, "%s prestige action used", name);
 			input_name[n++] = strdup(buf);
@@ -1472,7 +1472,7 @@ static void setup_nets(game *g)
 		}
 	}
 
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		for (i = 0; i < g->num_players; i++)
 		{
@@ -1546,7 +1546,7 @@ static void setup_nets(game *g)
 		sprintf(buf, "Clock %d", i);
 		input_name[n++] = strdup(buf);
 	}
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 	{
 		for (i = 0; i < MAX_GOAL; i++)
 		{
@@ -2197,7 +2197,7 @@ static int eval_game_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for goals in expansion */
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 	{
 		/* Set inputs for claimed goals */
 		for (i = 0; i < MAX_GOAL; i++)
@@ -2208,7 +2208,7 @@ static int eval_game_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for prestige in expansion */
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		/* Set input if player has used prestige/search action */
 		eval.input_value[n++] = (p_ptr->prestige_action_used ||
@@ -2367,7 +2367,7 @@ static double eval_game(game *g, int who)
 	}
 
 	/* Check for goals in expansion */
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 	{
 		/* Set inputs for active goals */
 		for (i = 0; i < MAX_GOAL; i++)
@@ -2505,7 +2505,7 @@ static double eval_game(game *g, int who)
 	n = eval_game_leader(g, who, n, leader, LEADER_VP, 20);
 
 	/* Check for third expansion */
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		/* Add inputs for amount behind prestige leader */
 		n = eval_game_leader(g, who, n, leader, LEADER_PRESTIGE, 5);
@@ -2803,7 +2803,7 @@ static int predict_action_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for goals in expansion */
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 	{
 		/* Set inputs for claimed goals */
 		for (i = 0; i < MAX_GOAL; i++)
@@ -2814,7 +2814,7 @@ static int predict_action_player(game *g, int who, int n, int *leader)
 	}
 
 	/* Check for prestige in expansion */
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		/* Set input if player has used prestige/search action */
 		role.input_value[n++] = p_ptr->prestige_action_used ? 1 : -1;
@@ -2926,7 +2926,7 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION],
 	n = predict_action_leader(g, who, n, leader, LEADER_VP, 20);
 
 	/* Check for third expansion */
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		/* Add inputs for amount behind prestige leader */
 		n = predict_action_leader(g, who, n, leader,
@@ -2988,7 +2988,7 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION],
 	}
 
 	/* Check for goals in expansion */
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 	{
 		/* Set inputs for active goals */
 		for (i = 0; i < MAX_GOAL; i++)

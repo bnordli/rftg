@@ -560,15 +560,15 @@ int export_game(game *g, char *filename, char *style_sheet,
 
 	/* Write expansion */
 	fprintf(fff, "    <Expansion id=\"%d\">%s</Expansion>\n",
-	        g->expanded, xml_escape(exp_names[g->expanded]));
+	        g->expanded, xml_escape(exp_info[g->expanded].name));
 
 	/* Check for expansion with goals */
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 		fprintf(fff, "    <Goals>%s</Goals>\n",
 		        g->goal_disabled ? "off" : "on");
 
 	/* Check for expansion with takeovers */
-	if (expansion_has_takeovers(g->expanded))
+	if (exp_info[g->expanded].has_takeovers)
 		fprintf(fff, "    <Takeovers>%s</Takeovers>\n",
 		        g->takeover_disabled ? "off" : "on");
 
@@ -698,7 +698,7 @@ int export_game(game *g, char *filename, char *style_sheet,
 		fputs("    </Actions>\n", fff);
 
 		/* Check for expansion with prestige*/
-		if (expansion_has_prestige(g->expanded))
+		if (exp_info[g->expanded].has_prestige)
 		{
 			/* Write prestige, whether prestige action is used and */
 			/* whether prestige is on the tile */

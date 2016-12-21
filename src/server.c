@@ -3738,7 +3738,7 @@ static void handle_create(int cid, int size)
 	if (s_ptr->expanded >= MAX_EXPANSION) s_ptr->expanded = MAX_EXPANSION - 1;
 
 	/* Compute maximum number of players allowed */
-	maxp = exp_max_player[s_ptr->expanded];
+	maxp = exp_info[s_ptr->expanded].max_players;
 
 	/* Validate number of players */
 	if (s_ptr->min_player < 2) s_ptr->min_player = 2;
@@ -3749,9 +3749,9 @@ static void handle_create(int cid, int size)
 		s_ptr->min_player = s_ptr->max_player;
 
 	/* Validate disabled flags */
-	if (!expansion_has_goals(s_ptr->expanded))
+	if (!exp_info[s_ptr->expanded].has_goals)
 		s_ptr->disable_goal = 0;
-	if (!expansion_has_takeovers(s_ptr->expanded))
+	if (!exp_info[s_ptr->expanded].has_takeovers)
 		s_ptr->disable_takeover = 0;
 
 	/* Insert game into database */

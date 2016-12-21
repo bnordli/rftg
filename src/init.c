@@ -1101,7 +1101,7 @@ void init_game(game *g)
 	g->vp_pool = g->num_players * 12;
 
 	/* Increase size of pool in third expansion */
-	if (expansion_has_prestige(g->expanded)) g->vp_pool += 5;
+	if (exp_info[g->expanded].has_prestige) g->vp_pool += 5;
 
 	/* No game round yet */
 	g->round = 0;
@@ -1275,7 +1275,7 @@ void init_game(game *g)
 	}
 
 	/* Add goals when expanded */
-	if (expansion_has_goals(g->expanded) && !g->goal_disabled)
+	if (exp_info[g->expanded].has_goals && !g->goal_disabled)
 	{
 		/* No goals available yet */
 		n = 0;

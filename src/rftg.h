@@ -144,11 +144,6 @@
 #define EXP_RVIO    6
 
 /*
- * Maximum number of players per expansion
- */
-extern int exp_max_player[MAX_EXPANSION];
-
-/*
  * Round phases.
  */
 #define PHASE_ACTION   0
@@ -780,6 +775,36 @@ typedef struct card
 } card;
 
 /*
+ * Expansion information.
+ */
+typedef struct expansion
+{
+	/* Full expansion name */
+	char* name;
+
+	/* Short expansion name */
+	char* short_name;
+
+	/* Logical order of expansion */
+	int display_order;
+
+	/* Maximum number of players */
+	int max_players;
+
+	/* Whether the expansion can be played with goals */
+	int has_goals;
+
+	/* Whether the expansion can be played with takeovers */
+	int has_takeovers;
+
+	/* Whether the expansion has prestige */
+	int has_prestige;
+
+	/* Whether the expansion has initial choice between blue or red world */
+	int has_start_world_choice;
+} expansion;
+
+/*
  * Collection of function pointers for a player's decisions.
  */
 typedef struct decisions
@@ -1113,6 +1138,7 @@ typedef struct campaign_status
  */
 extern int num_design;
 extern design library[AVAILABLE_DESIGN];
+extern expansion exp_info[MAX_EXPANSION];
 extern campaign *camp_library;
 extern int num_campaign;
 extern char *actname[MAX_ACTION * 2 - 1];
@@ -1120,8 +1146,6 @@ extern char *plain_actname[MAX_ACTION + 1];
 extern char *good_printable[MAX_GOOD];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
-extern char *exp_names[MAX_EXPANSION + 1];
-extern int exp_display_order[MAX_EXPANSION];
 extern char *player_labels[MAX_PLAYER];
 extern char *location_names[9];
 extern decisions ai_func;
@@ -1226,10 +1250,6 @@ extern void phase_produce_end(game *g);
 extern void produce_player(game *g, int who);
 extern void phase_produce(game *g);
 extern void phase_discard(game *g);
-extern int expansion_has_goals(int exp);
-extern int expansion_has_takeovers(int exp);
-extern int expansion_has_prestige(int exp);
-extern int expansion_has_start_world_choice(int exp);
 extern int goal_minimum(int goal);
 extern void check_goal_loss(game *g, int who, int goal);
 extern void check_goals(game *g);

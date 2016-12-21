@@ -24,58 +24,50 @@
 #include "rftg.h"
 
 /*
- * Expansion level names.
+ * Information about each expansion.
  */
-char *exp_names[MAX_EXPANSION + 1] =
+expansion exp_info[] =
 {
-	"Base game only",
-	"The Gathering Storm",
-	"Rebel vs Imperium",
-	"The Brink of War",
-	"Alien Artifacts",
-	"Xeno Invasion",
-	"Rebel vs Imperium only",
-	NULL
+	{
+		"Base game only", "Base", 0,
+		.max_players = 4,
+	},
+	{
+		"The Gathering Storm", "TGS", 1,
+		.max_players = 5,
+		.has_goals = 1,
+	},
+	{
+		"Rebel vs Imperium", "RvI", 6,
+		.max_players = 6,
+		.has_goals = 1,
+		.has_takeovers = 1,
+		.has_start_world_choice = 1,
+	},
+	{
+		"The Brink of War", "BoW", 2,
+		.max_players = 6,
+		.has_goals = 1,
+		.has_takeovers = 1,
+		.has_prestige = 1,
+		.has_start_world_choice = 1,
+	},
+	{
+		"Alien Artifacts", "AA", 3,
+		.max_players = 5,
+		.has_start_world_choice = 1,
+	},
+	{
+		"Xeno Invasion", "XI", 4,
+		.max_players = 5,
+		.has_start_world_choice = 1,
+	},
+	{
+		"Rebel vs Imperium only", "RvIo", 5,
+		.max_players = 5,
+		.has_takeovers = 1,
+	},
 };
-
-int exp_display_order[MAX_EXPANSION] = {0, 1, 6, 2, 3, 4, 5};
-
-/*
- * Maximum number of players per expansion
- */
-int exp_max_player[MAX_EXPANSION] = {4, 5, 6, 6, 5, 5, 5};
-
-/*
- * Check whether the expansion can be played with goals.
- */
-inline int expansion_has_goals(int exp)
-{
-	return exp >= EXP_TGS && exp <= EXP_BOW;
-}
-
-/*
- * Check whether the expansion can be played with takeovers.
- */
-inline int expansion_has_takeovers(int exp)
-{
-	return (exp >= EXP_RVI && exp <= EXP_BOW) || exp == EXP_RVIO;
-}
-
-/*
- * Check whether the expansion has prestige.
- */
-inline int expansion_has_prestige(int exp)
-{
-	return exp == EXP_BOW;
-}
-
-/*
- * Check whether the expansion has initial choice between blue or red world.
- */
-inline int expansion_has_start_world_choice(int exp)
-{
-	return exp >= EXP_RVI && exp <= EXP_XI;
-}
 
 /*
  * Textual representation for number of players.
@@ -191,7 +183,7 @@ int simple_rand(unsigned int *seed)
  */
 int goals_enabled(game *g)
 {
-	return expansion_has_goals(g->expanded) && !g->goal_disabled;
+	return exp_info[g->expanded].has_goals && !g->goal_disabled;
 }
 
 /*
@@ -199,7 +191,7 @@ int goals_enabled(game *g)
  */
 int takeovers_enabled(game *g)
 {
-	return expansion_has_takeovers(g->expanded) && !g->takeover_disabled;
+	return exp_info[g->expanded].has_takeovers && !g->takeover_disabled;
 }
 
 /*
@@ -856,7 +848,7 @@ void check_prestige(game *g)
 	int i, max = 0, num = 0;
 
 	/* Do nothing unless third expansion is present */
-	if (!expansion_has_prestige(g->expanded)) return;
+	if (!exp_info[g->expanded].has_prestige) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -905,7 +897,7 @@ void start_prestige(game *g)
 	int i, max = 0, num = 0, card_bonus = -1;
 
 	/* Do nothing unless third expansion is present */
-	if (!expansion_has_prestige(g->expanded)) return;
+	if (!exp_info[g->expanded].has_prestige) return;
 
 	/* Loop over players */
 	for (i = 0; i < g->num_players; i++)
@@ -1214,7 +1206,7 @@ static void perform_debug_moves(game *g, int who)
 				l_ptr += 4;
 
 				/* Don't do anything if expansion does not have prestige */
-				if (!expansion_has_prestige(g->expanded)) break;
+				if (!exp_info[g->expanded].has_prestige) break;
 
 				/* Format message */
 				sprintf(msg, "%s takes a prestige.\n", g->p[who].name);
@@ -2568,7 +2560,7 @@ void place_card(game *g, int who, int which)
 	if (c_ptr->d_ptr->flags & FLAG_WINDFALL) add_good(g, which);
 
 	/* Check for third expansion */
-	if (expansion_has_prestige(g->expanded))
+	if (exp_info[g->expanded].has_prestige)
 	{
 		/* Check for prestige from card */
 		if (c_ptr->d_ptr->flags & FLAG_PRESTIGE)
@@ -12972,7 +12964,7 @@ static void game_information(game *g)
 
 	/* Format message */
 	sprintf(msg, "Race for the Galaxy " RELEASE ": %s.\n",
-	        exp_names[g->expanded]);
+	        exp_info[g->expanded].name);
 
 	/* Send message */
 	message_add(g, msg);
@@ -13002,7 +12994,7 @@ static void game_information(game *g)
 	message_add(g, msg);
 
 	/* Check for expansion with goals */
-	if (expansion_has_goals(g->expanded))
+	if (exp_info[g->expanded].has_goals)
 	{
 		/* Check for disabled goals */
 		if (g->goal_disabled)
@@ -13018,7 +13010,7 @@ static void game_information(game *g)
 	}
 
 	/* Check for expansion with takeovers */
-	if (expansion_has_takeovers(g->expanded))
+	if (exp_info[g->expanded].has_takeovers)
 	{
 		/* Check for disabled takeovers */
 		if (g->takeover_disabled)
@@ -13089,8 +13081,8 @@ void begin_game(game *g)
 		}
 	}
 
-	/* Check for second (or later) expansion */
-	if ((expansion_has_start_world_choice(g->expanded) || g->promo) && !g->camp)
+	/* Check expansion with start world choice */
+	if ((exp_info[g->expanded].has_start_world_choice || g->promo) && !g->camp)
 	{
 		/* Loop over players */
 		for (i = 0; i < g->num_players; i++)

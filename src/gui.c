@@ -3349,7 +3349,7 @@ static char *get_prestige_tooltip(game *g, int who)
 	static char msg[1024];
 
 	/* Do nothing unless third expansion is present */
-	if (!expansion_has_prestige(g->expanded)) return "";
+	if (!exp_info[g->expanded].has_prestige) return "";
 
 	/* Create text */
 	sprintf(msg, "Prestige/Search action used: <b>%s</b> ",
@@ -4601,7 +4601,7 @@ static void redraw_status_area(int who, GtkWidget *box)
 	gtk_box_pack_start(GTK_BOX(box), image, FALSE, FALSE, 0);
 
 	/* Check for third expansion */
-	if (expansion_has_prestige(real_game.expanded))
+	if (exp_info[real_game.expanded].has_prestige)
 	{
 		/* Create prestige icon image */
 		buf = gdk_pixbuf_scale_simple(icon_cache[ICON_PRESTIGE],
@@ -4931,7 +4931,7 @@ void redraw_status(void)
 	/* Build VP image */
 	buf = overlay(icon_cache[ICON_VP], icon_cache[ICON_VP_EMPTY],
 	              size, display_pool, real_game.num_players * 12 +
-	                (expansion_has_prestige(real_game.expanded) ? 5 : 0));
+	                (exp_info[real_game.expanded].has_prestige ? 5 : 0));
 
 	/* Make VP widget */
 	pool_image = gtk_image_new_from_pixbuf(buf);
@@ -6292,7 +6292,7 @@ static void gui_choose_action(game *g, int who, int action[2], int one)
 
 		/* Check for unusable search action */
 		if (i == ACT_SEARCH &&
-		    (!expansion_has_prestige(g->expanded) || g->p[who].prestige_action_used ||
+		    (!exp_info[g->expanded].has_prestige || g->p[who].prestige_action_used ||
 		     (g->advanced && one == 2 && g->p[who].action[0] & ACT_PRESTIGE)))
 		{
 			/* Skip search action */
@@ -6390,7 +6390,7 @@ static void gui_choose_action(game *g, int who, int action[2], int one)
 	}
 
 	/* Check for usable prestige action */
-	if (expansion_has_prestige(real_game.expanded) &&
+	if (exp_info[real_game.expanded].has_prestige &&
 	    !g->p[who].prestige_action_used &&
 	    g->p[who].prestige > 0 &&
 	    prestige_action == -1 &&
@@ -11088,9 +11088,9 @@ static void read_prefs(void)
 	if (opt.expanded < 0) opt.expanded = 0;
 	if (opt.expanded > MAX_EXPANSION - 1) opt.expanded = MAX_EXPANSION - 1;
 	if (opt.num_players < 2) opt.num_players = 2;
-	if (opt.num_players > exp_max_player[opt.expanded])
+	if (opt.num_players > exp_info[opt.expanded].max_players)
 	{
-		opt.num_players = exp_max_player[opt.expanded];
+		opt.num_players = exp_info[opt.expanded].max_players;
 	}
 }
 
@@ -11306,7 +11306,7 @@ void update_menu_items()
 		gtk_widget_set_sensitive(debug_draw_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_vp_item, !real_game.game_over);
 		gtk_widget_set_sensitive(debug_prestige_item, !real_game.game_over &&
-		                         expansion_has_prestige(real_game.expanded));
+		                         exp_info[real_game.expanded].has_prestige);
 		gtk_widget_set_sensitive(debug_rotate_item, !real_game.game_over &&
 		                         real_game.cur_action > ACT_GAME_START);
 		gtk_widget_set_sensitive(debug_ai_item, !real_game.game_over);
@@ -11365,7 +11365,7 @@ void update_menu_items()
 				                         !real_game.game_over);
 				gtk_widget_set_sensitive(debug_prestige_item, debug_server &&
 				                 !real_game.game_over &&
-				                 expansion_has_prestige(real_game.expanded));
+				                 exp_info[real_game.expanded].has_prestige);
 				gtk_widget_set_sensitive(debug_rotate_item, debug_server &&
 				                         !real_game.game_over &&
 				                         real_game.cur_action > ACT_GAME_START);
@@ -11877,7 +11877,7 @@ static void update_sensitivity()
 		/* Clear expansion radio sensitivities */
 		for (i = 0; i < MAX_EXPANSION; ++i)
 		{
-			exp = exp_display_order[i];
+			exp = exp_info[i].display_order;
 			gtk_widget_set_sensitive(expansion_radio[i], exp == camp->expanded);
 
 			/* Set expansion button active */
@@ -11888,7 +11888,7 @@ static void update_sensitivity()
 	else
 	{
 		/* Set expansion radio sensitivities */
-		for (i = 0; exp_names[i]; ++i)
+		for (i = 0; i < MAX_EXPANSION; ++i)
 		{
 			gtk_widget_set_sensitive(expansion_radio[i], TRUE);
 		}
@@ -11932,7 +11932,7 @@ static void update_sensitivity()
 		for (i = 0; player_labels[i]; ++i)
 		{
 			gtk_widget_set_sensitive(num_players_radio[i],
-			                         i + 2 <= exp_max_player[next_exp]);
+			                         i + 2 <= exp_info[next_exp].max_players);
 		}
 	}
 
@@ -11966,7 +11966,7 @@ static void update_sensitivity()
 	{
 		/* Set goal disabled checkbox sensitivity */
 		gtk_widget_set_sensitive(disable_goal_check,
-		        expansion_has_goals(next_exp));
+		        exp_info[next_exp].has_goals);
 	}
 
 	/* Check if campaign specifies takeovers */
@@ -11983,7 +11983,7 @@ static void update_sensitivity()
 	{
 		/* Set takeover disabled checkbox sensitivity */
 		gtk_widget_set_sensitive(disable_takeover_check,
-		        expansion_has_takeovers(next_exp));
+		        exp_info[next_exp].has_takeovers);
 	}
 }
 
@@ -12380,12 +12380,12 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	for (i = 0; i < MAX_EXPANSION; i++)
 	{
 		/* Determine expansion */
-		exp = exp_display_order[i];
+		exp = exp_info[i].display_order;
 
 		/* Create radio button */
 		radio = gtk_radio_button_new_with_label_from_widget(
 		                                        GTK_RADIO_BUTTON(radio),
-		                                        exp_names[exp]);
+		                                        exp_info[exp].name);
 
 		/* Remember radio button */
 		expansion_radio[i] = radio;
@@ -12613,8 +12613,8 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
 	{
 		/* Check for too many players */
-		if (next_player > exp_max_player[next_exp])
-			next_player = exp_max_player[next_exp];
+		if (next_player > exp_info[next_exp].max_players)
+			next_player = exp_info[next_exp].max_players;
 
 		/* Set player name */
 		opt.player_name = strdup(gtk_entry_get_text(GTK_ENTRY(name_entry)));
@@ -12637,12 +12637,12 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 #endif
 
 		/* Set goals disabled flag */
-		opt.disable_goal = expansion_has_goals(opt.expanded) &&
+		opt.disable_goal = exp_info[opt.expanded].has_goals &&
 		                gtk_toggle_button_get_active(
 		                         GTK_TOGGLE_BUTTON(disable_goal_check));
 
 		/* Set takeover disabled flag */
-		opt.disable_takeover = expansion_has_takeovers(opt.expanded) &&
+		opt.disable_takeover = exp_info[opt.expanded].has_takeovers &&
 		                gtk_toggle_button_get_active(
 		                     GTK_TOGGLE_BUTTON(disable_takeover_check));
 
@@ -13761,7 +13761,7 @@ static void gui_debug_choice(GtkMenuItem *menu_item, gpointer data)
 
 	/* Check for taking prestige in expansion without prestige */
 	if (choice == CHOICE_D_TAKE_PRESTIGE &&
-	        !expansion_has_prestige(real_game.expanded))
+	        !exp_info[real_game.expanded].has_prestige)
 		return;
 
 	/* Check for rotating players before game has started */

@@ -212,7 +212,6 @@ extern GtkWidget *kick_button, *addai_button, *start_button;
 extern GtkWidget *action_prompt, *action_button;
 extern GtkWidget *message_view;
 extern GtkTextMark *message_end;
-extern char *exp_names[];
 extern game real_game;
 extern int player_us;
 extern int restart_loop;
