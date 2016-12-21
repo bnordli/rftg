@@ -68,11 +68,6 @@
 #define MAX_PLAYER 6
 
 /*
- * Maximum number of expansion levels.
- */
-#define MAX_EXPANSION 7
-
-/*
  * Number of available card designs slots.
  */
 #define AVAILABLE_DESIGN 300
@@ -103,45 +98,16 @@
 #define MAX_TAKEOVER 12
 
 /*
- * Number of goods.
- */
-#define MAX_GOOD 6
-
-/*
- * Number of intermediate goals.
- */
-#define MAX_GOAL 20
-
-/*
- * Number of turn phases.
- */
-#define MAX_PHASE 7
-
-/*
- * Number of available actions.
- */
-#define MAX_ACTION 10
-
-/*
- * Number of Search categories.
- */
-#define MAX_SEARCH 9
-
-/*
- * Number of card locations.
- */
-#define MAX_WHERE 8
-
-/*
  * Expansions
  */
-#define EXP_BASE    0
-#define EXP_TGS     1
-#define EXP_RVI     2
-#define EXP_BOW     3
-#define EXP_AA      4
-#define EXP_XI      5
-#define EXP_RVIO    6
+#define EXP_BASE      0
+#define EXP_TGS       1
+#define EXP_RVI       2
+#define EXP_BOW       3
+#define EXP_AA        4
+#define EXP_XI        5
+#define EXP_RVIO      6
+#define MAX_EXPANSION 7
 
 /*
  * Round phases.
@@ -153,6 +119,7 @@
 #define PHASE_CONSUME  4
 #define PHASE_PRODUCE  5
 #define PHASE_DISCARD  6
+#define MAX_PHASE      7
 
 /*
  * Player action choices.
@@ -170,6 +137,7 @@
 #define ACT_CONSUME_X2     8
 #define ACT_PRODUCE        9
 #define ACT_ROUND_END      10
+#define MAX_ACTION         10
 
 #define ACT_MASK           0x7f
 #define ACT_PRESTIGE       0x80
@@ -224,6 +192,7 @@
 #define GOOD_RARE     3
 #define GOOD_GENE     4
 #define GOOD_ALIEN    5
+#define MAX_GOOD      6
 
 /*
  * Card locations.
@@ -236,6 +205,7 @@
 #define WHERE_SAVED    5
 #define WHERE_ASIDE    6
 #define WHERE_CAMPAIGN 7
+#define MAX_WHERE      8
 
 /*
  * Misc card flags.
@@ -272,6 +242,7 @@
 #define SEARCH_MILITARY_5         6
 #define SEARCH_6_DEV              7
 #define SEARCH_TAKEOVER           8
+#define MAX_SEARCH                9
 
 /*
  * Campaign flags.
@@ -575,6 +546,8 @@
 
 #define GOAL_MOST_PRESTIGE      18
 #define GOAL_MOST_CONSUME       19
+
+#define MAX_GOAL                20
 
 /*
  * Choice types we can send to players.
