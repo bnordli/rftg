@@ -1120,7 +1120,7 @@ extern char *good_printable[MAX_GOOD];
 extern char *goal_name[MAX_GOAL];
 extern char *search_name[MAX_SEARCH];
 extern char *player_labels[MAX_PLAYER];
-extern char *location_names[9];
+extern char *location_names[MAX_WHERE];
 extern decisions ai_func;
 extern decisions gui_func;
 

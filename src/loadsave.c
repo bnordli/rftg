@@ -479,7 +479,8 @@ static void export_locations(FILE *fff, game *g, int who,
 			}
 
 			/* Remember location */
-			location = location_names[c_ptr->where];
+			location = (c_ptr->where >= 0 && i < MAX_WHERE)
+				? location_names[c_ptr->where] : "Unknown";
 		}
 
 		/* Write card name and location tag */

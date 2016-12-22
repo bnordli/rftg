@@ -13305,7 +13305,7 @@ static void render_where(GtkTreeViewColumn *col, GtkCellRenderer *cell,
 	                   -1);
 
 	/* Set name string */
-	name = (i < 0 || i > 8) ? "Unknown" : location_names[i];
+	name = (i >= 0 && i < MAX_WHERE) ? location_names[i] : "Unknown";
 
 	/* Set "text" property of renderer */
 	g_object_set(G_OBJECT(cell), "text", name, NULL);
@@ -13566,47 +13566,14 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	/* Create a list of card locations */
 	where_list = gtk_list_store_new(2, G_TYPE_INT, G_TYPE_STRING);
 
-
-	// TODO: Loop over location_names
-	/* Add row for "Deck" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_DECK, 1, "Deck", -1);
-
-	/* Add row for "Discard" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_DISCARD, 1, "Discard", -1);
-
-	/* Add row for "Hand" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_HAND, 1, "Hand", -1);
-
-	/* Add row for "Active" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_ACTIVE, 1, "Active", -1);
-
-	/* Add row for "Good" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_GOOD, 1, "Good", -1);
-
-	/* Add row for "Saved" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_SAVED, 1, "Saved", -1);
-
-	/* Add row for "Aside" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_ASIDE, 1, "Aside", -1);
-
-	/* Add row for "Campaign" */
-	gtk_list_store_append(where_list, &list_iter);
-	gtk_list_store_set(where_list, &list_iter,
-	                   0, WHERE_CAMPAIGN, 1, "Campaign", -1);
+	/* Loop over locations */
+	for (i = 0; i < MAX_WHERE; ++i)
+	{
+		/* Add row for location */
+		gtk_list_store_append(where_list, &list_iter);
+		gtk_list_store_set(where_list, &list_iter,
+		                   0, i, 1, location_names[i], -1);
+	}
 
 	/* Create view of card list */
 	list_view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(card_list));
