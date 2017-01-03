@@ -4,6 +4,10 @@
 
 * Allow using *Alien Weapon Cache*'s temporary military power when settling any world
 
+### AI
+
+* The AI is no longer considering illegal actions when predicting player actions
+
 ### GUI
 
 * Avoid selecting more than one card if one is enough
