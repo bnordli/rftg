@@ -2894,7 +2894,7 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION],
 {
 	game sim;
 	double act_scores[ROLE_OUT_ADV_EXP3], sum = 0;
-	int i, j, n = 0, count, clock, max;
+	int i, j, n = 0, count, clock, max, legal;
 	int leader[MAX_PLAYER][MAX_LEADER];
 
 	/* Clear inputs of role network */
@@ -3008,6 +3008,27 @@ static void predict_action(game *g, int who, double prob[MAX_ACTION],
 	/* Loop over possible actions */
 	for (i = 0; i < role.num_output; i++)
 	{
+		/* Check for advanced game */
+		if (g->advanced)
+		{
+			/* Note legality */
+			legal = action_legal_adv(g, who, adv_combo[i][0], adv_combo[i][1]);
+		}
+		else
+		{
+			/* Note legality */
+			legal = action_legal(g, who, role_out[i]);
+		}
+
+		/* Check for illegal action */
+		if (!legal)
+		{
+			/* Disallow action */
+			act_scores[i] = 0;
+			sum += 1;
+			continue;
+		}
+
 		/* Simulate game */
 		simulate_game(&sim, g, sim_who);
 
@@ -3440,18 +3461,9 @@ static void ai_choose_action_advanced_aux(game *g, int who, int oa,
 	/* Loop over our choices for actions */
 	for (act = 0; act < role.num_output; act++)
 	{
-		/* Check for search action already used */
-		if (adv_combo[act][0] == ACT_SEARCH &&
-		    g->p[who].prestige_action_used) continue;
-
-		/* Check for prestige action */
-		if ((adv_combo[act][0] & ACT_PRESTIGE) ||
-		    (adv_combo[act][1] & ACT_PRESTIGE))
-		{
-			/* Check for no prestige or action used */
-			if (!g->p[who].prestige ||
-			     g->p[who].prestige_action_used) continue;
-		}
+		/* Check for illegal action */
+		if (!action_legal_adv(g, who, adv_combo[act][0], adv_combo[act][1]))
+			continue;
 
 		/* Check for selecting only second action */
 		if (one == 2 && adv_combo[act][0] != force_act &&
@@ -3570,18 +3582,9 @@ static void ai_choose_action_advanced(game *g, int who, int action[2], int one)
 	/* Loop over choices */
 	for (act = 0; act < role.num_output; act++)
 	{
-		/* Check for search action already used */
-		if (adv_combo[act][0] == ACT_SEARCH &&
-		    g->p[opp].prestige_action_used) continue;
-
-		/* Check for prestige action */
-		if ((adv_combo[act][0] & ACT_PRESTIGE) ||
-		    (adv_combo[act][1] & ACT_PRESTIGE))
-		{
-			/* Check for no prestige or action used */
-			if (!g->p[opp].prestige ||
-			     g->p[opp].prestige_action_used) continue;
-		}
+		/* Check for illegal action */
+		if (!action_legal_adv(g, who, adv_combo[act][0], adv_combo[act][1]))
+			continue;
 
 		/* Copy choice to action order table */
 		action_order[n].prob = choice_prob[act];
@@ -3915,14 +3918,8 @@ static int ai_choose_action_aux(game *g, int who, int acts[], double prob,
 	/* Loop over available actions */
 	for (i = 0; i < role.num_output; i++)
 	{
-		/* Check for prestige action used */
-		if (g->p[who].prestige_action_used &&
-		    (role_out[i] == ACT_SEARCH ||
-		     role_out[i] & ACT_PRESTIGE)) continue;
-
-		/* Check for no prestige available to spend */
-		if (!g->p[who].prestige &&
-		    (role_out[i] & ACT_PRESTIGE)) continue;
+		/* Check for legal action */
+		if (!action_legal(g, who, role_out[i])) continue;
 
 		/* Check for far-behind action score */
 		if (scores[i] < (0.3 + *prob_used) * b_s) continue;
@@ -4029,18 +4026,8 @@ static void ai_choose_action(game *g, int who, int action[2], int one)
 		/* Loop over actions */
 		for (i = 0; i < role.num_output; i++)
 		{
-			/* Check for prestige action used */
-			if (g->p[current].prestige_action_used &&
-			    (role_out[i] == ACT_SEARCH ||
-			     role_out[i] & ACT_PRESTIGE))
-			{
-				/* Clear probability */
-				choice_prob[current][i] = 0;
-			}
-
-			/* Check for no prestige available to spend */
-			if (!g->p[current].prestige &&
-			    (role_out[i] & ACT_PRESTIGE))
+			/* Check for legal action */
+			if (!action_legal(g, current, role_out[i]))
 			{
 				/* Clear probability */
 				choice_prob[current][i] = 0;

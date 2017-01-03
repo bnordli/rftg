@@ -1167,6 +1167,8 @@ extern void discard_callback(game *g, int who, int list[], int num);
 extern void discard_to(game *g, int who, int to, int discard_any);
 extern int get_powers(game *g, int who, int phase, power_where *w_list);
 extern void add_good(game *g, int which);
+extern int action_legal(game *g, int who, int action);
+extern int action_legal_adv(game *g, int who, int action1, int action2);
 extern int search_match(game *g, int which, int category);
 extern void phase_search(game *g);
 extern void phase_explore(game *g);

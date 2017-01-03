@@ -1838,6 +1838,84 @@ char *search_name[MAX_SEARCH] =
 };
 
 /*
+ * Check if an action is legal.
+ */
+int action_legal_helper(game *g, int who, int action)
+{
+	int raw_action = action & ACT_MASK;
+
+	/* Validate action */
+	if (raw_action < ACT_SEARCH || raw_action >= MAX_ACTION) return 0;
+
+	/* Search action */
+	if (raw_action == ACT_SEARCH)
+	{
+		/* Check for correct expansion */
+		if (g->expanded != EXP_BOW) return 0;
+
+		/* No prestige Search combo */
+		if (action & ACT_PRESTIGE) return 0;
+
+		/* Check search action available */
+		return !g->p[who].prestige_action_used;
+	}
+
+	/* Check for prestige action */
+	if (action & ACT_PRESTIGE)
+	{
+		/* Check for correct expansion */
+		if (g->expanded != EXP_BOW) return 0;
+
+		/* Check for prestige action available */
+		return g->p[who].prestige > 0 && !g->p[who].prestige_action_used;
+	}
+
+	/* Choice is legal */
+	return 1;
+}
+
+/*
+ * Check if an action is legal.
+ */
+int action_legal(game *g, int who, int action)
+{
+	int raw_action = action & ACT_MASK;
+
+	/* Action must be legal */
+	if (!action_legal_helper(g, who, action)) return 0;
+
+	/* No use of second actions in normal game */
+	return raw_action != ACT_DEVELOP2 && raw_action != ACT_SETTLE2;
+}
+
+/*
+ * Check if an action is legal.
+ */
+int action_legal_adv(game *g, int who, int act0, int act1)
+{
+	int raw_act0 = act0 & ACT_MASK;
+	int raw_act1 = act1 & ACT_MASK;
+
+	/* Actions must be legal individually */
+	if (!action_legal_helper(g, who, act0) ||
+		!action_legal_helper(g, who, act1)) return 0;
+
+	/* Actions must be in ascending order */
+	if (raw_act0 >= raw_act1) return 0;
+
+	/* Check for double use of prestige actions */
+	if (raw_act0 == ACT_SEARCH && raw_act1 & ACT_PRESTIGE) return 0;
+	if (raw_act0 & ACT_PRESTIGE && raw_act1 & ACT_PRESTIGE) return 0;
+
+	/* Check for correct use of double actions */
+	if (raw_act1 == ACT_DEVELOP2 && raw_act0 != ACT_DEVELOP) return 0;
+	if (raw_act1 == ACT_SETTLE2 && raw_act0 != ACT_SETTLE) return 0;
+
+	/* Choice is legal */
+	return 1;
+}
+
+/*
  * Check if a card matches a Search category.
  */
 int search_match(game *g, int which, int category)
