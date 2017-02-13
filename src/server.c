@@ -706,7 +706,7 @@ static int db_load_game_state(int sid)
 	res = mysql_store_result(mysql);
 
 	/* Check for no rows returned */
-	if (!(row = mysql_fetch_row(res)))
+	if (!res || !(row = mysql_fetch_row(res)))
 	{
 		/* Free result */
 		mysql_free_result(res);
@@ -1294,7 +1294,7 @@ static int new_ai_client(int sid)
 			dup2(fds[1], 0);
 
 			/* Execute AI client program */
-			execl("./ai_client", "ai_client", NULL);
+			execl(BINDIR "/ai_client", "ai_client", NULL);
 
 			/* XXX */
 			perror("execlp");
