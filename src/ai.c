@@ -3583,7 +3583,7 @@ static void ai_choose_action_advanced(game *g, int who, int action[2], int one)
 	for (act = 0; act < role.num_output; act++)
 	{
 		/* Check for illegal action */
-		if (!action_legal_adv(g, who, adv_combo[act][0], adv_combo[act][1]))
+		if (!action_legal_adv(g, opp, adv_combo[act][0], adv_combo[act][1]))
 			continue;
 
 		/* Copy choice to action order table */
@@ -3624,7 +3624,7 @@ static void ai_choose_action_advanced(game *g, int who, int action[2], int one)
 	used = 0;
 
 	/* Loop over opponent's actions */
-	for (act = 0; act < role.num_output; act++)
+	for (act = 0; act < n; act++)
 	{
 		/* Compute probability of this combination */
 		prob = action_order[act].prob;
