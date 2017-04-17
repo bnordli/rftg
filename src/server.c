@@ -790,8 +790,10 @@ static void db_save_game_state(int sid)
 	/* Run query */
 	mysql_query(mysql, query);
 
-	/* No need to save further data if game has not started */
-	if (s_ptr->state == SS_WAITING || s_ptr->state == SS_ABANDONED) return;
+	/* No need to save further data if game has not started or is finished */
+	if (s_ptr->state == SS_WAITING ||
+	    s_ptr->state == SS_ABANDONED ||
+	    s_ptr->state == SS_DONE) return;
 
 	/* Escape random byte pool */
 	mysql_real_escape_string(mysql, pool, (char *)s_ptr->random_pool,
