@@ -1115,8 +1115,17 @@ static void load_one_image(char *base_fn, GdkPixbuf **pixbuf)
 	/* Loop over directories */
 	for (i = 0; dirs[i]; i++)
 	{
-		/* Construct filename */
-		sprintf(fn, "%s%s", dirs[i], base_fn);
+		/* Construct jpg filename */
+		sprintf(fn, "%s%s.jpg", dirs[i], base_fn);
+
+		/* Attempt to load image */
+		*pixbuf = gdk_pixbuf_new_from_file(fn, NULL);
+
+		/* Check for success */
+		if (*pixbuf) return;
+
+		/* Construct png filename */
+		sprintf(fn, "%s%s.png", dirs[i], base_fn);
 
 		/* Attempt to load image */
 		*pixbuf = gdk_pixbuf_new_from_file(fn, NULL);
@@ -1135,13 +1144,13 @@ static int load_images(void)
 	char fn[1024], msg[1024];
 
 	/* Load card back image */
-	load_one_image("cardback.jpg", &card_back);
+	load_one_image("cardback", &card_back);
 
 	/* Loop over designs */
 	for (i = 0; i < num_design; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, "card%03d.jpg", i);
+		sprintf(fn, "card%03d", i);
 
 		/* Load image */
 		load_one_image(fn, &image_cache[i]);
@@ -1151,7 +1160,7 @@ static int load_images(void)
 	for (i = 0; i < MAX_GOAL; i++)
 	{
 		/* Construct image filename */
-		sprintf(fn, "goal%02d.jpg", i);
+		sprintf(fn, "goal%02d", i);
 
 		/* Load image */
 		load_one_image(fn, &goal_cache[i]);
@@ -1164,7 +1173,7 @@ static int load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, "icon%02d.png", i);
+		sprintf(fn, "icon%02d", i);
 
 		/* Load image */
 		load_one_image(fn, &icon_cache[i]);
@@ -1177,7 +1186,7 @@ static int load_images(void)
 		if (i == ACT_DEVELOP2 || i == ACT_SETTLE2) continue;
 
 		/* Construct image filename */
-		sprintf(fn, "action%02d.jpg", i);
+		sprintf(fn, "action%02d", i);
 
 		/* Load image */
 		load_one_image(fn, &action_cache[i]);

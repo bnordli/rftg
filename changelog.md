@@ -16,6 +16,10 @@
 * Draw borders around cards, and slightly offset card rows in tableaux
 * Fix bug where amount of temporary *Xeno* military needed was not displayed
 
+### Misc
+
+* Custom cards can now be provided both in jpg and png format
+
 # Version 0.9.5
 
 ### Gameplay
