@@ -1188,7 +1188,7 @@ int main(int argc, char *argv[])
 	my_bool reconnect = 1;
 	char *db = "rftg";
 	char *db_user = "rftg";
-	char *db_pw = NULL;
+	char *db_pw = NULL, *db_host = NULL;
 	char buf[1024];
 
 	/* Parse arguments */
@@ -1202,6 +1202,7 @@ int main(int argc, char *argv[])
 			printf("Arguments:\n");
 			printf("  -gs    Game id to start replay from\n");
 			printf("  -ge    Game id to end replay at\n");
+			printf("  -host  MySQL database host. Default: \"localhost\"\n");
 			printf("  -d     MySQL database name. Default: \"rftg\"\n");
 			printf("  -u     MySQL database user. Default: \"rftg\"\n");
 			printf("  -pw    MySQL database password. Default: [none]\n");
@@ -1228,6 +1229,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set end game id */
 			gid_max = atoi(argv[++i]);
+		}
+
+		/* Check for database host */
+		if (!strcmp(argv[i], "-host"))
+		{
+			/* Set database host */
+			db_host = argv[++i];
 		}
 
 		/* Check for database name */
@@ -1328,7 +1336,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Attempt to connect to database server */
-	if (!mysql_real_connect(mysql, NULL, db_user, db_pw, db, 0, NULL, 0))
+	if (!mysql_real_connect(mysql, db_host, db_user, db_pw, db, 0, NULL, 0))
 	{
 		/* Print error and exit */
 		printf("Database connection: %s", mysql_error(mysql));

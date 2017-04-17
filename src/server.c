@@ -4832,7 +4832,7 @@ int main(int argc, char *argv[])
 	int port = 16309;
 	char *db = "rftg";
 	char *db_user = "rftg";
-	char *db_pw = NULL;
+	char *db_pw = NULL, *db_host = NULL;
 
 	/* Parse arguments */
 	for (i = 1; i < argc; i++)
@@ -4844,6 +4844,7 @@ int main(int argc, char *argv[])
 			printf("Race for the Galaxy server, version " RELEASE "\n\n");
 			printf("Arguments:\n");
 			printf("  -p     Port number to listen to. Default: 16309\n");
+			printf("  -host  MySQL database host. Default: \"localhost\"\n");
 			printf("  -d     MySQL database name. Default: \"rftg\"\n");
 			printf("  -u     MySQL database user. Default: \"rftg\"\n");
 			printf("  -pw    MySQL database password. Default: [none]\n");
@@ -4866,6 +4867,13 @@ int main(int argc, char *argv[])
 		{
 			/* Set port number */
 			port = atoi(argv[++i]);
+		}
+
+		/* Check for database host */
+		if (!strcmp(argv[i], "-host"))
+		{
+			/* Set database host */
+			db_host = argv[++i];
 		}
 
 		/* Check for database name */
@@ -4959,7 +4967,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Attempt to connect to database server */
-	if (!mysql_real_connect(mysql, NULL, db_user, db_pw, db, 0, NULL, 0))
+	if (!mysql_real_connect(mysql, db_host, db_user, db_pw, db, 0, NULL, 0))
 	{
 		/* Print error and exit */
 		server_log("Database connection: %s", mysql_error(mysql));
