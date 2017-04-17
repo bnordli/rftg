@@ -7,7 +7,7 @@ dumpnet
 learner
 rftg
 ai_client
-server
+rftgserver
 stamp-h1
 network/Makefile
 autom4te.cache
