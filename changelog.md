@@ -12,6 +12,7 @@
 
 * Avoid selecting more than one card if one is enough
 * Disable selecting cards from hand if selecting any is illegal
+* Better card selection during discard to produce
 * Show number of cards drawn during explore in a separate icon
 * Draw borders around cards, and slightly offset card rows in tableaux
 * Fix bug where amount of temporary *Xeno* military needed was not displayed

@@ -1368,6 +1368,9 @@ static gboolean action_check_both(void)
 	/* Check for hand selected but not table */
 	if (n && !ns) return FALSE;
 
+	/* Check for table selected but not hand */
+	if (ns && !n) return FALSE;
+
 	/* Just right */
 	return TRUE;
 }
@@ -9485,9 +9488,6 @@ void gui_choose_discard_produce(game *g, int who, int list[], int *num,
 	action_min = 0;
 	action_max = 1;
 
-	/* Activate action button */
-	gtk_widget_set_sensitive(action_button, TRUE);
-
 	/* Reset displayed cards */
 	reset_cards(g, FALSE, FALSE);
 
@@ -9530,6 +9530,7 @@ void gui_choose_discard_produce(game *g, int who, int list[], int *num,
 			{
 				/* Card is eligible */
 				i_ptr->eligible = 1;
+				i_ptr->greedy = 1;
 
 				/* Card should be highlighted when selected */
 				i_ptr->highlight = HIGH_YELLOW;
@@ -9543,6 +9544,9 @@ void gui_choose_discard_produce(game *g, int who, int list[], int *num,
 			}
 		}
 	}
+
+	/* Update done button sensitivity */
+	update_action_sensitivity();
 
 	/* Redraw everything */
 	redraw_everything();
