@@ -16,6 +16,10 @@
 * Draw borders around cards, and slightly offset card rows in tableaux
 * Fix bug where amount of temporary *Xeno* military needed was not displayed
 
+### Bugs
+
+* Avoid crash when starting a new game when choosing discard to produce
+
 ### Misc
 
 * Custom cards can now be provided both in jpg and png format

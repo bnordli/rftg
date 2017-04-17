@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2016.
+ * Source file modified by B. Nordli, April 2017.
  * Source file modified by J.-R. Reinhard, November 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -6335,6 +6335,9 @@ static void settle_bonus(game *g, int who, int world, int takeover,
 	{
 		/* Ask player to discard */
 		discard_produce(g, who, world, -1, 0);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 
 	/* Get settle phase powers */
@@ -6429,6 +6432,9 @@ static void settle_bonus(game *g, int who, int world, int takeover,
 			/* Send message */
 			message_add_formatted(g, msg, FORMAT_VERBOSE);
 		}
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 }
 
@@ -7034,6 +7040,9 @@ static int settle_action(game *g, int who, int world)
 				/* Next power */
 				continue;
 			}
+
+			/* Check for aborted game */
+			if (g->game_over) return;
 
 			/* Check for no cards in hand */
 			if (!handsize) continue;
@@ -11193,6 +11202,11 @@ int produce_action(game *g, int who)
 		{
 			/* Use immediately */
 			produce_chosen(g, who, w_ptr->c_idx, w_ptr->o_idx);
+
+			/* Check for aborted game */
+			if (g->game_over) return 0;
+
+			/* Next power */
 			continue;
 		}
 
@@ -11204,6 +11218,11 @@ int produce_action(game *g, int who)
 
 			/* Use power immediately */
 			produce_chosen(g, who, w_ptr->c_idx, w_ptr->o_idx);
+
+			/* Check for aborted game */
+			if (g->game_over) return 0;
+
+			/* Next power */
 			continue;
 		}
 
@@ -11223,6 +11242,11 @@ int produce_action(game *g, int who)
 		{
 			/* Use power immediately */
 			produce_chosen(g, who, w_ptr->c_idx, w_ptr->o_idx);
+
+			/* Check for aborted game */
+			if (g->game_over) return 0;
+
+			/* Next power */
 			continue;
 		}
 
@@ -11678,6 +11702,9 @@ void phase_produce(game *g)
 	{
 		/* Handle player's produce phase */
 		produce_player(g, i);
+
+		/* Check for aborted game */
+		if (g->game_over) return;
 	}
 
 	/* Handle end of phase powers */
