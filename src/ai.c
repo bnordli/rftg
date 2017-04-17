@@ -8556,6 +8556,7 @@ static void ai_game_over(game *g, int who)
 
 		/* Mark training iterations */
 		eval.num_training++;
+		role.num_training++;
 	}
 }
 
