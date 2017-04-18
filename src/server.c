@@ -25,6 +25,7 @@
 #include "comm.h"
 #include <mysql/mysql.h>
 #include <pthread.h>
+#include <unistd.h>
 
 /*
  * Server settings.
@@ -1293,8 +1294,17 @@ static int new_ai_client(int sid)
 			/* Move socket to FD zero */
 			dup2(fds[1], 0);
 
-			/* Execute AI client program */
-			execl(BINDIR "/ai_client", "ai_client", NULL);
+			/* Check for local binary */
+			if (access("./ai_client", X_OK) != -1)
+			{
+				/* Execute AI client program from local folder */
+				execl("./ai_client", "ai_client", NULL);
+			}
+			else
+			{
+				/* Execute AI client program from bin folder */
+				execl(BINDIR "/ai_client", "ai_client", NULL);
+			}
 
 			/* XXX */
 			perror("execlp");
