@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, November 2016.
+ * Source file modified by B. Nordli, April 2017.
  * Source file modified by J.-R. Reinhard, November 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -2189,7 +2189,7 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	struct sockaddr_in server_addr;
 	int portno;
 	char *old_server_name;
-	GtkWidget *dialog, *connect_button, *cancel_button;
+	GtkWidget *dialog, *connect_button;
 	GtkWidget *label, *hsep;
 	GtkWidget *server, *port, *user, *pass;
 	GtkWidget *table;
@@ -2230,9 +2230,9 @@ void connect_dialog(GtkMenuItem *menu_item, gpointer data)
 	                                       GTK_RESPONSE_ACCEPT);
 
 	/* Create cancel button */
-	cancel_button = gtk_dialog_add_button(GTK_DIALOG(dialog),
-	                                      GTK_STOCK_CANCEL,
-	                                      GTK_RESPONSE_REJECT);
+	gtk_dialog_add_button(GTK_DIALOG(dialog),
+	                      GTK_STOCK_CANCEL,
+	                      GTK_RESPONSE_REJECT);
 
 	/* Create a table for labels and text entry fields */
 	table = gtk_table_new(6, 4, FALSE);

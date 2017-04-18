@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, August 2015.
+ * Source file modified by B. Nordli, April 2017.
  * Source file modified by J.-R. Reinhard, November 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -34,7 +34,7 @@ static int read_game(game *g, FILE* fff)
 	int i, j, k;
 
 	/* Read version line */
-	fgets(version, 1024, fff);
+	if (!fgets(version, 1024, fff)) return -1;
 
 	/* Strip newline from version */
 	version[strlen(version) - 1] = '\0';
@@ -46,21 +46,21 @@ static int read_game(game *g, FILE* fff)
 	if (strcmp(version, "0.9.4") < 0) return -1;
 
 	/* Read random seed information */
-	fscanf(fff, "%u\n", &g->start_seed);
+	if (fscanf(fff, "%u\n", &g->start_seed) != 1) return -1;
 
 	/* Read game setup information */
-	fscanf(fff, "%d %d\n", &i, &j);
+	if (fscanf(fff, "%d %d\n", &i, &j) != 2) return -1;
 	g->num_players = i;
 	g->expanded = j;
 
 	/* Read game parameters */
-	fscanf(fff, "%d %d %d\n", &i, &j, &k);
+	if (fscanf(fff, "%d %d %d\n", &i, &j, &k) != 3) return -1;
 	g->advanced = i;
 	g->goal_disabled = j;
 	g->takeover_disabled = k;
 
 	/* Read campaign name */
-	fgets(buf, 1024, fff);
+	if (!fgets(buf, 1024, fff)) return -1;
 
 	/* Strip newline from campaign name */
 	buf[strlen(buf) - 1] = '\0';
@@ -93,13 +93,13 @@ static int read_game(game *g, FILE* fff)
 		p_ptr = &g->p[i];
 
 		/* Read choice log size */
-		fscanf(fff, "%d", &p_ptr->choice_size);
+		if (fscanf(fff, "%d", &p_ptr->choice_size) != 1) return -1;
 
 		/* Loop over choice log entries */
 		for (j = 0; j < p_ptr->choice_size; j++)
 		{
 			/* Read choice log entry */
-			fscanf(fff, "%d", &p_ptr->choice_log[j]);
+			if (fscanf(fff, "%d", &p_ptr->choice_log[j]) != 1) return -1;
 		}
 
 		/* Reset choice log position */
@@ -148,7 +148,7 @@ int load_game(game *g, char *filename)
 	if (!fff) return -1;
 
 	/* Read header */
-	fgets(buf, 1024, fff);
+	if (!fgets(buf, 1024, fff)) return -1;
 
 	/* Check for possible export file */
 	if (!strncmp(buf, "<?xml", 5))
@@ -160,7 +160,7 @@ int load_game(game *g, char *filename)
 			if (!strcmp(buf, "  <Save>\n"))
 			{
 				/* Skip CDATA line */
-				fgets(buf, 1024, fff);
+				if (!fgets(buf, 1024, fff)) return -1;
 
 				/* Success */
 				ret_val = 0;

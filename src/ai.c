@@ -1919,6 +1919,7 @@ static void clear_opp_place_cache(void)
 	}
 }
 
+#if 0
 static void dump_eval(void)
 {
 	int i;
@@ -1931,6 +1932,7 @@ static void dump_eval(void)
 		}
 	}
 }
+#endif
 
 /*
  * Set inputs of the evaluation network for the given player.

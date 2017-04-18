@@ -7042,7 +7042,7 @@ static int settle_action(game *g, int who, int world)
 			}
 
 			/* Check for aborted game */
-			if (g->game_over) return;
+			if (g->game_over) return 0;
 
 			/* Check for no cards in hand */
 			if (!handsize) continue;

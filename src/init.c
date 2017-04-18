@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2015 Keldon Jones
  *
- * Source file modified by B. Nordli, October 2016.
+ * Source file modified by B. Nordli, April 2017.
  * Source file modified by J.-R. Reinhard, November 2016.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -395,7 +395,7 @@ int read_cards(char *suggestion)
 	while (1)
 	{
 		/* Read a line */
-		fgets(buf, 1024, fff);
+		if (!fgets(buf, 1024, fff)) break;
 
 		/* Check for end of file */
 		if (feof(fff)) break;
@@ -692,7 +692,7 @@ void read_campaign(void)
 	while (1)
 	{
 		/* Read a line */
-		fgets(buf, 1024, fff);
+		if (!fgets(buf, 1024, fff)) break;
 
 		/* Check for end of file */
 		if (feof(fff)) break;

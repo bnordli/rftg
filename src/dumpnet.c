@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file modified by B. Nordli, April 2017.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -31,11 +33,11 @@ int main(int argc, char *argv[])
 
 	fff = fopen(argv[1], "r");
 
-	fgets(buf, 1024, fff);
+	if (!fgets(buf, 1024, fff)) return 1;
 
 	fclose(fff);
 
-	sscanf(buf, "%d %d %d", &input, &hidden, &output);
+	if (sscanf(buf, "%d %d %d", &input, &hidden, &output) != 3) return 1;
 
 	make_learner(&learner, input, hidden, output);
 

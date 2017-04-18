@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2009-2011 Keldon Jones
  *
+ * Source file modified by B. Nordli, April 2017.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -594,13 +596,13 @@ int load_net(net *learn, char *fname)
 	    output != learn->num_output) return -1;
 
 	/* Read number of training iterations */
-	fscanf(fff, "%d\n", &learn->num_training);
+	if (fscanf(fff, "%d\n", &learn->num_training) != 1) return -1;
 
 	/* Loop over input names */
 	for (i = 0; i < learn->num_inputs; i++)
 	{
 		/* Read an input name */
-		fgets(name, 80, fff);
+		if (!fgets(name, 80, fff)) return -1;
 
 		/* Strip newline */
 		name[strlen(name) - 1] = '\0';
@@ -628,11 +630,7 @@ int load_net(net *learn, char *fname)
 		{
 			/* Load a weight */
 			if (fscanf(fff, "%lf\n",
-			           &learn->hidden_weight[j][i]) != 1)
-			{
-				/* Failure */
-				return -1;
-			}
+			           &learn->hidden_weight[j][i]) != 1) return -1;
 		}
 	}
 
@@ -644,11 +642,7 @@ int load_net(net *learn, char *fname)
 		{
 			/* Load a weight */
 			if (fscanf(fff, "%lf\n",
-			           &learn->output_weight[j][i]) != 1)
-			{
-				/* Failure */
-				return -1;
-			}
+			           &learn->output_weight[j][i]) != 1) return -1;
 		}
 	}
 
