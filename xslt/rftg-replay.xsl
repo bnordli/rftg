@@ -254,11 +254,12 @@
 
   <xsl:template match="Card" mode="images">
     <xsl:variable name="id"><xsl:call-template name="cardId" /></xsl:variable>
+    <xsl:variable name="ext"><xsl:call-template name="cardExt" /></xsl:variable>
     <xsl:variable name="alt">
       <xsl:value-of select="." />
       <xsl:if test="@good"> (with good)</xsl:if>
     </xsl:variable>
-    <img src="{concat('http://images.boardgamegeek.com/images/pic',$id,'_md.jpg')}" width="220" height="308" alt="{$alt}" title="{$alt}" />
+    <img src="{concat('http://cf.geekdo-images.com/images/pic',$id,'_md.',$ext)}" width="220" height="308" alt="{$alt}" title="{$alt}" />
   </xsl:template>
 
   <xsl:template match="Goal" mode="names">
@@ -282,7 +283,7 @@
       <xsl:if test="@claimed"><xsl:value-of select="concat(' Claimed: ', @claimed)" /></xsl:if>
       <xsl:if test="@shared"> (Shared)</xsl:if>
     </xsl:variable>
-    <img src="{concat('http://images.boardgamegeek.com/images/pic',$id,'_t.jpg')}" alt="{$alt}" title="{$alt}" />
+    <img src="{concat('http://cf.geekdo-images.com/images/pic',$id,'_t.jpg')}" alt="{$alt}" title="{$alt}" />
   </xsl:template>
 
   <xsl:template name="goalDesc">
@@ -333,6 +334,51 @@
       <xsl:when test=". = 'Propaganda Edge'">743462</xsl:when>
       <xsl:when test=". = 'Galactic Prestige'">743460</xsl:when>
       <xsl:when test=". = 'Prosperity Lead'">743461</xsl:when>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name="cardExt">
+    <xsl:choose>
+      <xsl:when test=". = 'Alien Research Ship'">png</xsl:when>
+      <xsl:when test=". = 'Alien Survey Technology'">png</xsl:when>
+      <xsl:when test=". = 'Galactic Investors'">png</xsl:when>
+      <xsl:when test=". = 'Imperium Stealth Tactics'">png</xsl:when>
+      <xsl:when test=". = 'Imperium Supply Convoy'">png</xsl:when>
+      <xsl:when test=". = 'Scientific Cruisers'">png</xsl:when>
+      <xsl:when test=". = 'Terraforming Project'">png</xsl:when>
+      <xsl:when test=". = 'Alien Artifact Hunters'">png</xsl:when>
+      <xsl:when test=". = 'Alien Fuel Refinery'">png</xsl:when>
+      <xsl:when test=". = 'Alien Sentinels'">png</xsl:when>
+      <xsl:when test=". = 'Alien Uplift Chamber'">png</xsl:when>
+      <xsl:when test=". = 'Amphibian Uplift Race'">png</xsl:when>
+      <xsl:when test=". = 'Arboreal Uplift Race'">png</xsl:when>
+      <xsl:when test=". = 'Deep Space Symbionts, Ltd.'">png</xsl:when>
+      <xsl:when test=". = 'Designer Species, Ultd.'">png</xsl:when>
+      <xsl:when test=". = 'Frontier Capital'">png</xsl:when>
+      <xsl:when test=". = 'Galactic News Hub'">png</xsl:when>
+      <xsl:when test=". = 'Galactic Survey Headquarters'">png</xsl:when>
+      <xsl:when test=". = 'Imperium Blaster Gem Depot'">png</xsl:when>
+      <xsl:when test=". = 'Imperium Fifth Column'">png</xsl:when>
+      <xsl:when test=". = 'Interstellar Trade Port'">png</xsl:when>
+      <xsl:when test=". = 'Jumpdrive Fuel Refinery'">png</xsl:when>
+      <xsl:when test=". = 'Mercenary Guild'">png</xsl:when>
+      <xsl:when test=". = 'Ore-Rich World'">png</xsl:when>
+      <xsl:when test=". = 'Rebel Gem Smugglers'">png</xsl:when>
+      <xsl:when test=". = 'Rebel Mutineers'">png</xsl:when>
+      <xsl:when test=". = 'Rebel Resistance'">png</xsl:when>
+      <xsl:when test=". = 'Rebel Uplift World'">png</xsl:when>
+      <xsl:when test=". = 'Self-Repairing Alien Artillery'">png</xsl:when>
+      <xsl:when test=". = 'Sentient Robots'">png</xsl:when>
+      <xsl:when test=". = 'Terraforming Colony'">png</xsl:when>
+      <xsl:when test=". = 'Tranship Point'">png</xsl:when>
+      <xsl:when test=". = 'Uplift Researchers'">png</xsl:when>
+      <xsl:when test=". = 'Alien Researchers'">png</xsl:when>
+      <xsl:when test=". = 'Galactic Expansionists'">png</xsl:when>
+      <xsl:when test=". = 'Imperium War Faction'">png</xsl:when>
+      <xsl:when test=". = 'Terraforming Unlimited'">png</xsl:when>
+      <xsl:when test=". = 'Uplift Alliance'">png</xsl:when>
+      <xsl:when test=". = 'Wormhole Prospectors'">png</xsl:when>
+      <xsl:otherwise>jpg</xsl:otherwise>
     </xsl:choose>
   </xsl:template>
 
