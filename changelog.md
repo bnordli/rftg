@@ -19,6 +19,7 @@
 
 ### Bugs
 
+* Avoid crash in some instances when consuming from *Tranship Point*
 * Avoid crash when starting a new game when choosing discard to produce
 
 ### Misc

@@ -1454,7 +1454,7 @@ static gboolean action_check_goods(void)
 
 	/* Try to make payment */
 	return goods_legal(&real_game, player_us, action_cidx, action_oidx,
-	                   action_min, action_max, list, n);
+	                   action_min, action_max, list, &n);
 }
 
 /*
@@ -8842,7 +8842,7 @@ static void compute_forced_goods(int goods[], int num, long *forced)
 		/* Check for legal choice */
 		if (goods_legal(&real_game, player_us, action_cidx,
 		                action_oidx, action_min, action_max,
-		                goods_choice, num_choice))
+		                goods_choice, &num_choice))
 		{
 			/* Update mask */
 			*forced &= goods_set;
@@ -8858,6 +8858,7 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 {
 	card *c_ptr;
 	char buf[1024];
+	int seen[MAX_DECK] = { 0 };
 	displayed *i_ptr;
 	int i, j, n = 0;
 	long forced = 0;
@@ -8872,6 +8873,18 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	/* Set prompt */
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 
+	/* Compact choices (in case of world with multiple goods) */
+	for (i = 0; i < *num; ++i)
+	{
+		/* Check if card is seen before */
+		if (!seen[goods[i]])
+		{
+			/* Add card to list */
+			goods[n++] = goods[i];
+			seen[goods[i]] = TRUE;
+		}
+	}
+
 	/* Set restrictions on action button */
 	action_restrict = RESTRICT_GOOD;
 	action_min = min;
@@ -8883,14 +8896,14 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	if (opt.auto_select)
 	{
 		/* Find any forced choices */
-		compute_forced_goods(goods, *num, &forced);
+		compute_forced_goods(goods, n, &forced);
 	}
 
 	/* Reset displayed cards */
 	reset_cards(g, TRUE, FALSE);
 
 	/* Loop over cards in list */
-	for (i = 0; i < *num; i++)
+	for (i = 0; i < n; i++)
 	{
 		/* Loop over cards on table */
 		for (j = 0; j < table_size[player_us]; j++)
@@ -8925,6 +8938,12 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 	/* Process events */
 	gtk_main();
 
+	/* Check for aborted game */
+	if (g->game_over) return;
+
+	/* Reset number of goods chosen */
+	*num = 0;
+
 	/* Loop over cards on table */
 	for (i = 0; i < table_size[player_us]; i++)
 	{
@@ -8935,12 +8954,16 @@ void gui_choose_good(game *g, int who, int c_idx, int o_idx, int goods[],
 		if (i_ptr->selected)
 		{
 			/* Add to list */
-			goods[n++] = i_ptr->index;
+			goods[(*num)++] = i_ptr->index;
 		}
 	}
 
-	/* Set number of goods chosen */
-	*num = n;
+	/* Use goods_legal to expand chosen goods */
+	if (!goods_legal(&real_game, player_us, c_idx, o_idx, min, max, goods, num))
+	{
+		display_error("Illegal choice made!\n");
+		exit(1);
+	}
 }
 
 /*

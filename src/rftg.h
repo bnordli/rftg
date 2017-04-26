@@ -1204,7 +1204,7 @@ extern int trade_value(game *g, int who, card *c_ptr, int type, int no_bonus);
 extern void trade_chosen(game *g, int who, int which, int no_bonus);
 extern void trade_action(game *g, int who, int no_bonus, int phase_bonus);
 extern int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
-                       int g_list[], int num);
+                       int g_list[], int *num);
 extern int good_chosen(game *g, int who, int c_idx, int o_idx, int min, int max,
                        int g_list[], int num);
 extern int count_consume_constraints(power *o_ptr);

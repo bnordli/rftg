@@ -1557,7 +1557,7 @@ int count_goods(game *g, int who, int type)
 int get_goods(game *g, int who, int goods[], int type)
 {
 	card *c_ptr;
-	int x, n = 0;
+	int i, x, n = 0;
 
 	/* Start at first active card */
 	x = g->p[who].head[WHERE_ACTIVE];
@@ -1578,8 +1578,12 @@ int get_goods(game *g, int who, int goods[], int type)
 		/* Skip cards that are newly-placed */
 		if (c_ptr->misc & MISC_UNPAID) continue;
 
-		/* Add card to list */
-		goods[n++] = x;
+		/* Add goods */
+		for (i = 0; i < c_ptr->num_goods; i++)
+		{
+			/* Add card to list */
+			goods[n++] = x;
+		}
 	}
 
 	/* Return number found */
@@ -8728,40 +8732,57 @@ static void log_rewards(game *g, int who, int cards, int vps, int prestige,
 }
 
 /*
- * Check whether the given choice of goods is legal
+ * Check whether the given choice of goods is legal.
  */
 int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
-                int g_list[], int num)
+                int g_list[], int *num)
 {
 	card *c_ptr;
 	power *o_ptr;
-	int i, num_saved = num, types[MAX_GOOD], required_any, num_types, goods_left;
-	int good_type;
+	int i, types[MAX_GOOD], required_any, num_types, goods_left;
+	int multi = -1, good_type;
 	uint64_t cons;
 
 	/* Loop over chosen goods */
-	for (i = 0; i < num_saved; ++i)
+	for (i = 0; i < *num; ++i)
 	{
-		/* Check for multiple goods */
-		if (g->deck[g_list[i]].num_goods > 1)
+		/* Check for multiple goods already found */
+		if (multi >= 0 && g_list[i] == g_list[multi])
 		{
-			/* Save number of goods */
-			goods_left = g->deck[g_list[i]].num_goods;
+			/* Consume one good */
+			--goods_left;
+		}
 
-			/* Add more goods until enough */
-			while (num < min && goods_left)
-			{
-				g_list[num++] = g_list[i];
-				--goods_left;
-			}
+		/* Check for multiple goods */
+		else if (g->deck[g_list[i]].num_goods > 1)
+		{
+			/* Save card */
+			multi = i;
+
+			/* Save number of goods */
+			goods_left = g->deck[g_list[i]].num_goods - 1;
+		}
+	}
+
+	/* Check for multiple goods */
+	if (multi >= 0)
+	{
+		/* Get card */
+		c_ptr = &g->deck[g_list[multi]];
+
+		/* Add more goods until enough */
+		while (*num < min && goods_left)
+		{
+			g_list[(*num)++] = g_list[multi];
+			--goods_left;
 		}
 	}
 
 	/* Check for too few */
-	if (num < min) return 0;
+	if (*num < min) return 0;
 
 	/* Check for too many */
-	if (num > max) return 0;
+	if (*num > max) return 0;
 
 	/* Get pointer to card holding power used */
 	c_ptr = &g->deck[c_idx];
@@ -8776,7 +8797,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		if (o_ptr->code & P4_CONSUME_TWO)
 		{
 			/* Check for not two */
-			if (num != 2) return 0;
+			if (*num != 2) return 0;
 
 			/* If there is more than 1 constraint, check everyone is satified */
 			if (count_consume_constraints(o_ptr) > 1)
@@ -8788,7 +8809,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 				for (i = 0; i < MAX_GOOD; i++) types[i] = 0;
 
 				/* Loop over goods */
-				for (i = 0; i < num; i++)
+				for (i = 0; i < *num; i++)
 				{
 					/* Get card pointer */
 					c_ptr = &g->deck[g_list[i]];
@@ -8816,7 +8837,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		else if (o_ptr->code & P4_CONSUME_3_DIFF)
 		{
 			/* Check for not zero or three */
-			if (num != 0 && num != 3) return 0;
+			if (*num != 0 && *num != 3) return 0;
 		}
 
 		/* Check for needing all goods */
@@ -8831,7 +8852,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 		}
 
 		/* Otherwise check for too many */
-		else if (num > o_ptr->times) return 0;
+		else if (*num > o_ptr->times) return 0;
 
 		/* Check for three different types needed */
 		if (o_ptr->code & P4_CONSUME_3_DIFF)
@@ -8843,7 +8864,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			num_types = 0;
 
 			/* Loop over goods */
-			for (i = 0; i < num; i++)
+			for (i = 0; i < *num; i++)
 			{
 				/* Get card pointer */
 				c_ptr = &g->deck[g_list[i]];
@@ -8863,7 +8884,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			if (num_types != 3)
 			{
 				/* When "any" type is present, power is optional. */
-				if (min != 0 || num != 0)
+				if (min != 0 || *num != 0)
 				{
 					return 0;
 				}
@@ -8880,7 +8901,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			num_types = 0;
 
 			/* Loop over goods */
-			for (i = 0; i < num; i++)
+			for (i = 0; i < *num; i++)
 			{
 				/* Get card pointer */
 				c_ptr = &g->deck[g_list[i]];
@@ -8897,7 +8918,7 @@ int goods_legal(game *g, int who, int c_idx, int o_idx, int min, int max,
 			}
 
 			/* Check for duplicate types */
-			if (num_types < num) return 0;
+			if (num_types < *num) return 0;
 		}
 	}
 
@@ -8941,8 +8962,7 @@ int good_chosen(game *g, int who, int c_idx, int o_idx,
 	card *c_ptr;
 	power *o_ptr;
 	char *name;
-	int i, num_saved = num, goods_left;
-	int times, vp_mult, vps, cards, prestige;
+	int i, times, vp_mult, vps, cards, prestige;
 	char msg[1024];
 
 	/* Get player pointer */
@@ -8958,26 +8978,8 @@ int good_chosen(game *g, int who, int c_idx, int o_idx,
 	name = g->deck[c_idx].d_ptr->name;
 
 	/* Check for illegal payment */
-	if (!goods_legal(g, who, c_idx, o_idx, min, max, g_list, num))
+	if (!goods_legal(g, who, c_idx, o_idx, min, max, g_list, &num))
 		return 0;
-
-	/* Loop over chosen goods */
-	for (i = 0; i < num_saved; ++i)
-	{
-		/* Check for multiple goods */
-		if (g->deck[g_list[i]].num_goods > 1)
-		{
-			/* Save number of goods */
-			goods_left = g->deck[g_list[i]].num_goods;
-
-			/* Add more goods until enough */
-			while (num < min && goods_left)
-			{
-				g_list[num++] = g_list[i];
-				--goods_left;
-			}
-		}
-	}
 
 	/* Consume goods */
 	for (i = 0; i < num; i++)
@@ -9818,7 +9820,7 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 		good = c_ptr->d_ptr->good_type;
 
 		/* Count good type */
-		types[good]++;
+		types[good] += c_ptr->num_goods;
 
 		/* Check the good is consumable by the power */
 		if (!((good == GOOD_ANY) ||
@@ -9842,8 +9844,12 @@ void consume_chosen(game *g, int who, int c_idx, int o_idx)
 			continue;
 		}
 
-		/* Add good (world) to list */
-		g_list[n++] = x;
+		/* Loop over all goods */
+		for (i = 0; i < c_ptr->num_goods; ++i)
+		{
+			/* Add good (world) to list */
+			g_list[n++] = x;
+		}
 
 		/* Count goods */
 		num_goods += c_ptr->num_goods;
