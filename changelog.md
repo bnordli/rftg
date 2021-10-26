@@ -21,10 +21,15 @@
 
 * Avoid crash in some instances when consuming from *Tranship Point*
 * Avoid crash when starting a new game when choosing discard to produce
+* Ignore user locale when parsing network files
 
 ### Misc
 
 * Custom cards can now be provided both in jpg and png format
+
+### Server
+
+* Support connecting to a remote SQL server
 
 # Version 0.9.5
 
