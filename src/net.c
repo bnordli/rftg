@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2009-2011 Keldon Jones
  *
- * Source file modified by B. Nordli, April 2017.
+ * Source file modified by B. Nordli, October 2021.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
  */
 
 #include "net.h"
+#include "locale.h"
 
 /*
  * Maximum number of previous input sets.
@@ -580,6 +581,9 @@ int load_net(net *learn, char *fname)
 	int i, j;
 	int input, hidden, output;
 	char name[80];
+
+	/* Set the locale to English, to ensure '.' is the decimal separator */
+	setlocale(LC_NUMERIC, "en_US.UTF-8");
 
 	/* Open weights file */
 	fff = fopen(fname, "r");
